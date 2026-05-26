@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyTransaction;
 use App\Models\CustomerCreditTransaction;
 use App\Models\HeldSale;
+use App\Models\ShiftEnd;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -25,7 +26,13 @@ class SaleController extends BaseApiController
             ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
             ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
             ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to))
-            ->when($request->search, fn($q) => $q->where('reference', 'like', "%{$request->search}%"));
+            ->when($request->search, fn($q) => $q->where('reference', 'like', "%{$request->search}%"))
+            ->when($request->current_shift, function ($q) use ($request) {
+                $user       = $request->user();
+                $lastShift  = ShiftEnd::where('user_id', $user->id)->latest()->first();
+                $shiftStart = $lastShift ? $lastShift->shift_end : now()->startOfDay();
+                return $q->where('created_at', '>=', $shiftStart);
+            });
 
         return $this->paginated($query->latest()->paginate($request->per_page ?? 20));
     }

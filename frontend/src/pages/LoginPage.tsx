@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 const schema = z.object({
-  email: z.string().email('Invalid email'),
+  username: z.string().min(1, 'Username required'),
   password: z.string().min(1, 'Password required'),
 });
 type FormData = z.infer<typeof schema>;
@@ -25,7 +25,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      const res = await authApi.login(data);
+      const res = await authApi.login(data as any);
       const { user, token } = res.data.data;
       setAuth(user, token);
       toast.success(`Welcome back, ${user.name}!`);
@@ -57,15 +57,15 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
             <input
-              {...register('email')}
-              type="email"
-              autoComplete="email"
-              placeholder="admin@nexapos.com"
+              {...register('username')}
+              type="text"
+              autoComplete="username"
+              placeholder="e.g. admin"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
           </div>
 
           <div>

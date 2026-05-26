@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
   BarChart2, Receipt, Settings, LogOut, ChevronLeft, ChevronRight,
   Bell, Store, CreditCard, Menu, DollarSign, ClipboardList, UserCog,
-  Search, History
+  Search, History, Clock, CalendarCheck
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard' },
   { to: '/pos', label: 'Register', icon: ShoppingCart, perm: 'create_sales' },
   { to: '/my-sales', label: 'My Sales', icon: History, perm: 'create_sales' },
+  { to: '/shift-end', label: 'Shift End', icon: Clock, perm: 'create_sales' },
   { to: '/orders', label: 'Orders', icon: ClipboardList, perm: 'view_sales' },
   { to: '/products', label: 'Menu & Stock', icon: Package, perm: 'view_products' },
   { to: '/inventory', label: 'Inventory', icon: Warehouse, perm: 'view_inventory' },
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/customers', label: 'Customers', icon: Users, perm: 'view_customers' },
   { to: '/expenses', label: 'Expenses', icon: CreditCard, perm: 'view_expenses' },
   { to: '/sales', label: 'Sales History', icon: Receipt, perm: 'view_sales' },
+  { to: '/day-end', label: 'Day End', icon: CalendarCheck, perm: 'view_reports' },
   { to: '/reports', label: 'Reports', icon: BarChart2, perm: 'view_reports' },
   { to: '/users', label: 'Staff', icon: UserCog, perm: 'manage_users' },
   { to: '/currencies', label: 'Currencies', icon: DollarSign, perm: 'manage_settings' },
@@ -74,8 +76,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         {navItems
           .filter(item => {
-            // Cashiers see only the POS register and their order history
-            if (isCashier) return item.to === '/pos' || item.to === '/my-sales';
+            // Cashiers see only the POS register, their order history, and shift end
+            if (isCashier) return item.to === '/pos' || item.to === '/my-sales' || item.to === '/shift-end';
             return hasPermission(item.perm) || user?.roles?.includes('admin');
           })
           .map(({ to, label, icon: Icon }) => {

@@ -24,7 +24,8 @@ class UserController extends BaseApiController
     {
         $data = $request->validate([
             'name'      => 'required|string|max:255',
-            'email'     => 'required|email|unique:users',
+            'username'  => 'required|string|max:50|unique:users|alpha_dash',
+            'email'     => 'nullable|email|unique:users',
             'phone'     => 'nullable|string|max:20',
             'password'  => 'required|string|min:8',
             'branch_id' => 'nullable|exists:branches,id',
@@ -51,7 +52,8 @@ class UserController extends BaseApiController
     {
         $data = $request->validate([
             'name'      => 'sometimes|string|max:255',
-            'email'     => "sometimes|email|unique:users,email,{$user->id}",
+            'username'  => "sometimes|string|max:50|alpha_dash|unique:users,username,{$user->id}",
+            'email'     => "sometimes|nullable|email|unique:users,email,{$user->id}",
             'phone'     => 'nullable|string|max:20',
             'branch_id' => 'nullable|exists:branches,id',
             'is_active' => 'sometimes|boolean',

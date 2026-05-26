@@ -19,6 +19,8 @@ import SettingsPage from './pages/SettingsPage';
 import CurrenciesPage from './pages/CurrenciesPage';
 import OrdersPage from './pages/OrdersPage';
 import MySalesPage from './pages/MySalesPage';
+import ShiftEndPage from './pages/ShiftEndPage';
+import DayEndPage from './pages/DayEndPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -53,7 +55,9 @@ export default function App() {
               <Route path="/users" element={<LayoutWrapper><UsersPage /></LayoutWrapper>} />
               <Route path="/settings" element={<LayoutWrapper><SettingsPage /></LayoutWrapper>} />
               <Route path="/currencies" element={<LayoutWrapper><CurrenciesPage /></LayoutWrapper>} />
+              <Route path="/day-end" element={<LayoutWrapper><DayEndPage /></LayoutWrapper>} />
             </Route>
+            <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
           </Route>
         </Routes>
       </BrowserRouter>

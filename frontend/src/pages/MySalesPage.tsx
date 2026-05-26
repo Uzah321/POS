@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { History, XCircle, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { History, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { salesApi } from '../api';
 import { useAuthStore } from '../stores/authStore';
@@ -53,8 +53,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function MySalesPage() {
-  const { user, hasPermission } = useAuthStore();
+  const { user, hasPermission, hasRole } = useAuthStore();
   const canVoid = hasPermission('void_sales');
+  const isCashier = hasRole('cashier');
   const { activeCurrency } = useCurrencyStore();
   const queryClient = useQueryClient();
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
@@ -63,11 +64,12 @@ export default function MySalesPage() {
   const format_ = (v: number) =>
     `${symbol}${Number(v ?? 0).toFixed(2)}`;
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['my-sales', user?.id],
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['my-sales', user?.id, isCashier ? 'shift' : 'all'],
     queryFn: async () => {
-      const res = await salesApi.list({ cashier_id: user?.id, per_page: 50, sort_by: 'created_at', sort_dir: 'desc' });
-      // Response shape: { success, data: { data: [...], total, ... } }
+      const params: Record<string, any> = { cashier_id: user?.id, per_page: 100, sort_by: 'created_at', sort_dir: 'desc' };
+      if (isCashier) params.current_shift = 1;
+      const res = await salesApi.list(params);
       return (res.data?.data?.data ?? res.data?.data ?? []) as Sale[];
     },
     enabled: !!user?.id,
@@ -98,10 +100,19 @@ export default function MySalesPage() {
         <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
           <History size={20} className="text-blue-600" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">My Sales</h1>
-          <p className="text-sm text-gray-500">Your recent transactions</p>
+          <p className="text-sm text-gray-500">
+            {isCashier ? 'Current shift transactions — resets after each Shift End' : 'Your recent transactions'}
+          </p>
         </div>
+        <button
+          onClick={() => refetch()}
+          className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          title="Refresh"
+        >
+          <RefreshCw size={16} />
+        </button>
       </div>
 
       {/* Content */}
@@ -113,7 +124,11 @@ export default function MySalesPage() {
       ) : sales.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
           <History size={40} className="opacity-30" />
-          <p className="text-sm">No sales yet. Start ringing up orders on the Register.</p>
+          <p className="text-sm">
+            {isCashier
+              ? 'No sales this shift. Transactions will appear here after you process a sale.'
+              : 'No sales yet. Start ringing up orders on the Register.'}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

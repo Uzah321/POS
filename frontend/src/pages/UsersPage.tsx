@@ -26,7 +26,8 @@ const SHIFTS = ['08:00 – 16:00', '09:00 – 17:00', '12:00 – 20:00', '16:00 
 
 const schema = z.object({
   name: z.string().min(1),
-  email: z.string().email(),
+  username: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, 'Only letters, numbers, _ and - allowed'),
+  email: z.string().email().optional().or(z.literal('')),
   password: z.string().min(8).optional().or(z.literal('')),
   role: z.string().min(1),
   branch_id: z.coerce.number().optional(),
@@ -38,7 +39,7 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
   const qc = useQueryClient();
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
-    defaultValues: user ? { ...user, role: user.roles?.[0], password: '', branch_id: user.branch?.id } : { is_active: true },
+    defaultValues: user ? { ...user, role: user.roles?.[0]?.name ?? user.roles?.[0], password: '', branch_id: user.branch?.id } : { is_active: true },
   });
   const mutation = useMutation({
     mutationFn: (d: FormData) => {
@@ -62,18 +63,25 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
           <div>
             <label className="text-sm font-semibold text-gray-700">Full Name *</label>
-            <input {...register('name')} className={field} />
+            <input {...register('name')} className={field} placeholder="e.g. John Doe" />
             {errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}
           </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700">Email *</label>
-            <input type="email" {...register('email')} className={field} />
-            {errors.email && <p className="text-red-500 text-xs mt-1">Valid email required</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Username *</label>
+              <input {...register('username')} className={field} placeholder="e.g. john_doe" />
+              {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message || 'Required'}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700">{user ? 'New Password' : 'Password *'}</label>
+              <input type="password" {...register('password')} className={field} placeholder={user ? 'Leave blank to keep' : 'Min 8 chars'} />
+              {errors.password && <p className="text-red-500 text-xs mt-1">Min 8 characters</p>}
+            </div>
           </div>
           <div>
-            <label className="text-sm font-semibold text-gray-700">{user ? 'New Password (leave blank to keep)' : 'Password *'}</label>
-            <input type="password" {...register('password')} className={field} />
-            {errors.password && <p className="text-red-500 text-xs mt-1">Min 8 characters</p>}
+            <label className="text-sm font-semibold text-gray-700">Email <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input type="email" {...register('email')} className={field} placeholder="e.g. john@example.com" />
+            {errors.email && <p className="text-red-500 text-xs mt-1">Valid email required</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -112,7 +120,7 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
 function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; onDelete: () => void }) {
   const initials = user.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
   const avatarColor = AVATAR_COLORS[user.id % AVATAR_COLORS.length];
-  const role = user.roles?.[0] ?? 'user';
+  const role: string = user.roles?.[0]?.name ?? user.roles?.[0] ?? 'user';
   const shift = SHIFTS[user.id % SHIFTS.length];
   const isActive = user.is_active;
 
@@ -129,7 +137,8 @@ function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; 
 
       <div className="mb-3">
         <p className="font-bold text-gray-900">{user.name}</p>
-        <p className="text-sm text-gray-400">{user.email}</p>
+        <p className="text-sm text-gray-500 font-mono">@{user.username}</p>
+        {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
       </div>
 
       <div className="flex items-center gap-2 mb-3">

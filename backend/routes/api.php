@@ -75,6 +75,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/inventory', [ReportController::class, 'inventoryReport']);
     Route::get('/reports/profit-loss', [ReportController::class, 'profitLoss']);
     Route::get('/reports/cashier-performance', [ReportController::class, 'cashierPerformance']);
+    Route::get('/reports/daily', [ReportController::class, 'dailyReport']);
+    Route::get('/reports/monthly', [ReportController::class, 'monthlyReport']);
+    Route::get('/reports/stock-variances', [ReportController::class, 'stockVariances']);
+    Route::get('/reports/daily/pdf', [ReportController::class, 'dailyPdf']);
+    Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
+
+    // Shift End
+    Route::get('/shift-end/summary', [\App\Http\Controllers\Api\ShiftEndController::class, 'summary']);
+    Route::get('/shift-end', [\App\Http\Controllers\Api\ShiftEndController::class, 'index']);
+    Route::post('/shift-end', [\App\Http\Controllers\Api\ShiftEndController::class, 'store']);
+    Route::patch('/shift-end/{shiftEnd}/approve', [\App\Http\Controllers\Api\ShiftEndController::class, 'approve']);
+
+    // End of Day
+    Route::get('/end-of-day/summary', [\App\Http\Controllers\Api\EndOfDayController::class, 'summary']);
+    Route::get('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'index']);
+    Route::post('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'store']);
 
     // Branches (simple CRUD via model binding)
     Route::apiResource('branches', \App\Http\Controllers\Api\BranchController::class);

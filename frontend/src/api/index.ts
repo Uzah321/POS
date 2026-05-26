@@ -1,7 +1,7 @@
 import api from '../lib/axios';
 
 export const authApi = {
-  login: (data: { email: string; password: string }) => api.post('/auth/login', data),
+  login: (data: { username: string; password: string }) => api.post('/auth/login', data),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
   updateProfile: (data: FormData | object) => api.put('/auth/profile', data),

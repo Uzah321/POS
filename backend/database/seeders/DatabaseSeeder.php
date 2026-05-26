@@ -59,11 +59,14 @@ class DatabaseSeeder extends Seeder
         Warehouse::firstOrCreate(['code' => 'WH-MAIN'], ['name'=>'Main Warehouse','code'=>'WH-MAIN','branch_id'=>$branch->id,'is_default'=>true,'is_active'=>true]);
 
         // Users
-        $admin = User::firstOrCreate(['email'=>'admin@bottlestore.co.za'],['name'=>'System Admin','password'=>Hash::make('Admin@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        $admin = User::firstOrCreate(['email'=>'admin@bottlestore.co.za'],['name'=>'System Admin','username'=>'admin','password'=>Hash::make('Admin@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        if (!$admin->username) { $admin->update(['username' => 'admin']); }
         $admin->syncRoles(['admin']);
-        $manager = User::firstOrCreate(['email'=>'manager@bottlestore.co.za'],['name'=>'Store Manager','password'=>Hash::make('Manager@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        $manager = User::firstOrCreate(['email'=>'manager@bottlestore.co.za'],['name'=>'Store Manager','username'=>'manager','password'=>Hash::make('Manager@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        if (!$manager->username) { $manager->update(['username' => 'manager']); }
         $manager->syncRoles(['manager']);
-        $cashier = User::firstOrCreate(['email'=>'cashier@bottlestore.co.za'],['name'=>'John Cashier','password'=>Hash::make('Cashier@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        $cashier = User::firstOrCreate(['email'=>'cashier@bottlestore.co.za'],['name'=>'John Cashier','username'=>'cashier1','password'=>Hash::make('Cashier@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        if (!$cashier->username) { $cashier->update(['username' => 'cashier1']); }
         $cashier->syncRoles(['cashier']);
 
         // Tax rates

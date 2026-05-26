@@ -26,6 +26,19 @@ const USD_DEFAULT: Currency = {
   id: 1, code: 'USD', name: 'US Dollar', symbol: '$', exchange_rate: 1, is_default: true, is_active: true,
 };
 
+/** Returns a per-user persist key based on the logged-in user id stored in auth-storage */
+function getCurrencyStorageKey(): string {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    const parsed = raw ? JSON.parse(raw) : null;
+    const userId = parsed?.state?.user?.id;
+    if (userId) return `currency-storage-${userId}`;
+  } catch {
+    // ignore
+  }
+  return 'currency-storage';
+}
+
 export const useCurrencyStore = create<CurrencyState>()(
   persist(
     (set, get) => ({
@@ -55,6 +68,25 @@ export const useCurrencyStore = create<CurrencyState>()(
         return cur.exchange_rate === 0 ? amount : amount / cur.exchange_rate;
       },
     }),
-    { name: 'currency-storage', partialize: (s) => ({ activeCurrency: s.activeCurrency }) }
+    {
+      name: 'currency-storage',
+      partialize: (s) => ({ activeCurrency: s.activeCurrency }),
+      // Dynamically pick storage key per logged-in user so currencies don't bleed between accounts
+      storage: {
+        getItem: (name) => {
+          const key = getCurrencyStorageKey();
+          const raw = localStorage.getItem(key !== 'currency-storage' ? key : name);
+          return raw ? JSON.parse(raw) : null;
+        },
+        setItem: (name, value) => {
+          const key = getCurrencyStorageKey();
+          localStorage.setItem(key !== 'currency-storage' ? key : name, JSON.stringify(value));
+        },
+        removeItem: (name) => {
+          const key = getCurrencyStorageKey();
+          localStorage.removeItem(key !== 'currency-storage' ? key : name);
+        },
+      },
+    }
   )
 );

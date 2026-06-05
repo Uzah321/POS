@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('layby_payments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('layby_id')->constrained('laybys')->cascadeOnDelete();
+            $table->foreignId('layby_id');
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
             $table->string('method')->default('cash');

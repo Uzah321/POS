@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('quotation_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('quotation_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('quotation_id');
             $table->foreignId('product_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('product_variant_id')->nullable()->constrained()->nullOnDelete();
             $table->string('name');

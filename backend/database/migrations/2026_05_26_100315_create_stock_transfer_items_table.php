@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::dropIfExists('stock_transfer_items');
         Schema::create('stock_transfer_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('stock_transfer_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('stock_transfer_id');
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
             $table->foreignId('product_variant_id')->nullable()->constrained()->nullOnDelete();
             $table->decimal('quantity', 12, 3);

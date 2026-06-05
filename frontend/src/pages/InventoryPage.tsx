@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi, productsApi, warehousesApi } from '../api';
-import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus } from 'lucide-react';
+import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
+import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
 export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('');
+  const [showImport, setShowImport] = useState(false);
 
   // Add Stock modal state
   const [showAddStock, setShowAddStock] = useState(false);
@@ -85,14 +87,19 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-gray-500 text-sm">Monitor stock levels across all warehouses</p>
         </div>
-        <button
-          type="button"
-          onClick={() => { setShowAddStock(true); setTimeout(() => productSearchRef.current?.focus(), 80); }}
-          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm"
-        >
-          <Plus size={16} />
-          Add Stock
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm">
+            <FileSpreadsheet size={16} /> Import Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowAddStock(true); setTimeout(() => productSearchRef.current?.focus(), 80); }}
+            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm"
+          >
+            <Plus size={16} /> Add Stock
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -174,6 +181,8 @@ export default function InventoryPage() {
         )}
       </div>
       {/* Add Stock Modal */}
+      {showImport && <InventoryImportModal onClose={() => setShowImport(false)} />}
+
       {showAddStock && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) { setShowAddStock(false); resetAddForm(); } }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">

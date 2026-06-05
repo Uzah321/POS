@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { History, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { History, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw, UserCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { salesApi } from '../api';
+import { salesApi, usersApi } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 
@@ -52,22 +52,49 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+interface StaffUser {
+  id: number;
+  name: string;
+}
+
 export default function MySalesPage() {
   const { user, hasPermission, hasRole } = useAuthStore();
   const canVoid = hasPermission('void_sales');
   const isCashier = hasRole('cashier');
+  const isAdmin = !isCashier;
   const { activeCurrency } = useCurrencyStore();
   const queryClient = useQueryClient();
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
+  // null = current user; 0 = all cashiers; positive number = specific cashier
+  const [selectedCashierId, setSelectedCashierId] = useState<number | null>(null);
 
   const symbol = activeCurrency?.symbol ?? '$';
   const format_ = (v: number) =>
     `${symbol}${Number(v ?? 0).toFixed(2)}`;
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['my-sales', user?.id, isCashier ? 'shift' : 'all'],
+  // Fetch staff list for admin cashier selector
+  const { data: staffList } = useQuery({
+    queryKey: ['staff-list'],
     queryFn: async () => {
-      const params: Record<string, any> = { cashier_id: user?.id, per_page: 100, sort_by: 'created_at', sort_dir: 'desc' };
+      const res = await usersApi.list({ per_page: 200 });
+      const rows = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+      return rows as StaffUser[];
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+
+  const effectiveCashierId =
+    isCashier ? user?.id
+    : selectedCashierId === null ? user?.id   // default: own sales
+    : selectedCashierId === 0 ? undefined      // all cashiers
+    : selectedCashierId;
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['my-sales', effectiveCashierId ?? 'all', isCashier ? 'shift' : 'any'],
+    queryFn: async () => {
+      const params: Record<string, any> = { per_page: 200, sort_by: 'created_at', sort_dir: 'desc' };
+      if (effectiveCashierId) params.cashier_id = effectiveCashierId;
       if (isCashier) params.current_shift = 1;
       const res = await salesApi.list(params);
       return (res.data?.data?.data ?? res.data?.data ?? []) as Sale[];
@@ -115,6 +142,36 @@ export default function MySalesPage() {
         </button>
       </div>
 
+      {/* Admin cashier selector */}
+      {isAdmin && (
+        <div className="flex items-center gap-3 mb-5 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <UserCircle2 size={17} className="text-blue-500 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-600 flex-shrink-0">Viewing:</span>
+          <select
+            value={selectedCashierId ?? 'me'}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'me') setSelectedCashierId(null);
+              else if (v === 'all') setSelectedCashierId(0);
+              else setSelectedCashierId(Number(v));
+            }}
+            className="flex-1 text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="me">My Sales</option>
+            <option value="all">All Cashiers</option>
+            {staffList && staffList.length > 0 && (
+              <optgroup label="Individual Cashier">
+                {staffList
+                  .filter(s => s.id !== user?.id)
+                  .map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <div className="flex items-center justify-center h-48 text-gray-400">
@@ -146,6 +203,12 @@ export default function MySalesPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-gray-900 text-sm">{sale.reference}</span>
                       <StatusBadge status={sale.status} />
+                      {isAdmin && selectedCashierId !== null && sale.cashier?.name && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">
+                          <UserCircle2 size={10} />
+                          {sale.cashier.name}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {format(new Date(sale.created_at), 'dd MMM yyyy, HH:mm')}

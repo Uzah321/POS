@@ -21,6 +21,24 @@ import OrdersPage from './pages/OrdersPage';
 import MySalesPage from './pages/MySalesPage';
 import ShiftEndPage from './pages/ShiftEndPage';
 import DayEndPage from './pages/DayEndPage';
+import HardwarePage from './pages/HardwarePage';
+import CustomerDisplayPage from './pages/CustomerDisplayPage';
+import LaybyPage from './pages/LaybyPage';
+import QuotationsPage from './pages/QuotationsPage';
+import StocktakePage from './pages/StocktakePage';
+import StockTransferPage from './pages/StockTransferPage';
+import AttendancePage from './pages/AttendancePage';
+import CommissionsPage from './pages/CommissionsPage';
+import AuditLogPage from './pages/AuditLogPage';
+import RolePermissionPage from './pages/RolePermissionPage';
+import WebhooksPage from './pages/WebhooksPage';
+import BackupPage from './pages/BackupPage';
+import EcocashPage from './pages/EcocashPage';
+import CashflowPage from './pages/CashflowPage';
+import FinancialReportPage from './pages/FinancialReportPage';
+import SalariesPage from './pages/SalariesPage';
+import RentalsPage from './pages/RentalsPage';
+import StockReconciliationPage from './pages/StockReconciliationPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -38,9 +56,12 @@ export default function App() {
           <Route element={<GuestRoute />}>
             <Route path="/login" element={<LoginPage />} />
           </Route>
+          {/* Customer display — no auth, opened as a separate window */}
+          <Route path="/customer-display" element={<CustomerDisplayPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/pos" element={<LayoutWrapper><POSPage /></LayoutWrapper>} />
             <Route path="/my-sales" element={<LayoutWrapper><MySalesPage /></LayoutWrapper>} />
+            <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
             <Route element={<StaffOnlyRoute />}>
               <Route path="/" element={<LayoutWrapper><DashboardPage /></LayoutWrapper>} />
               <Route path="/orders" element={<LayoutWrapper><OrdersPage /></LayoutWrapper>} />
@@ -55,7 +76,23 @@ export default function App() {
               <Route path="/users" element={<LayoutWrapper><UsersPage /></LayoutWrapper>} />
               <Route path="/settings" element={<LayoutWrapper><SettingsPage /></LayoutWrapper>} />
               <Route path="/currencies" element={<LayoutWrapper><CurrenciesPage /></LayoutWrapper>} />
+              <Route path="/hardware" element={<LayoutWrapper><HardwarePage /></LayoutWrapper>} />
               <Route path="/day-end" element={<LayoutWrapper><DayEndPage /></LayoutWrapper>} />
+              <Route path="/laybys" element={<LayoutWrapper><LaybyPage /></LayoutWrapper>} />
+              <Route path="/quotations" element={<LayoutWrapper><QuotationsPage /></LayoutWrapper>} />
+              <Route path="/stocktake" element={<LayoutWrapper><StocktakePage /></LayoutWrapper>} />
+              <Route path="/stock-transfers" element={<LayoutWrapper><StockTransferPage /></LayoutWrapper>} />
+              <Route path="/attendance" element={<LayoutWrapper><AttendancePage /></LayoutWrapper>} />
+              <Route path="/commissions" element={<LayoutWrapper><CommissionsPage /></LayoutWrapper>} />
+              <Route path="/audit-logs" element={<LayoutWrapper><AuditLogPage /></LayoutWrapper>} />
+              <Route path="/roles-permissions" element={<LayoutWrapper><RolePermissionPage /></LayoutWrapper>} />
+              <Route path="/webhooks" element={<LayoutWrapper><WebhooksPage /></LayoutWrapper>} />
+              <Route path="/backups" element={<LayoutWrapper><BackupPage /></LayoutWrapper>} />
+              <Route path="/cashflow" element={<LayoutWrapper><CashflowPage /></LayoutWrapper>} />
+              <Route path="/financial-report" element={<LayoutWrapper><FinancialReportPage /></LayoutWrapper>} />
+              <Route path="/salaries" element={<LayoutWrapper><SalariesPage /></LayoutWrapper>} />
+              <Route path="/rentals" element={<LayoutWrapper><RentalsPage /></LayoutWrapper>} />
+              <Route path="/stock-reconciliation" element={<LayoutWrapper><StockReconciliationPage /></LayoutWrapper>} />
             </Route>
             <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
           </Route>

@@ -60,10 +60,12 @@ export const purchaseOrdersApi = {
 };
 
 export const inventoryApi = {
-  stockLevels: (params?: object) => api.get('/inventory/stock-levels', { params }),
-  adjust: (data: object) => api.post('/inventory/adjust', data),
-  createTransfer: (data: object) => api.post('/inventory/transfers', data),
+  stockLevels:     (params?: object)          => api.get('/inventory/stock-levels', { params }),
+  adjust:          (data: object)             => api.post('/inventory/adjust', data),
+  createTransfer:  (data: object)             => api.post('/inventory/transfers', data),
   receiveTransfer: (id: number, data: object) => api.post(`/inventory/transfers/${id}/receive`, data),
+  importStock:     (data: object)             => api.post('/inventory/import', data),
+  importTemplate:  ()                         => api.get('/inventory/import-template', { responseType: 'blob' }),
 };
 
 export const expensesApi = {
@@ -131,4 +133,56 @@ export const currenciesApi = {
 
 export const warehousesApi = {
   list: (params?: object) => api.get('/warehouses', { params }),
+};
+
+export const ecocashApi = {
+  list:    (params?: object) => api.get('/ecocash', { params }),
+  create:  (data: object)    => api.post('/ecocash', data),
+  reverse: (id: number)      => api.post(`/ecocash/${id}/reverse`),
+  summary: (params?: object) => api.get('/ecocash/summary', { params }),
+  exportCsv: (params?: object) =>
+    api.get('/ecocash', { params: { ...params, export: 'csv' }, responseType: 'blob' }),
+};
+
+export const cashflowApi = {
+  list:    (params?: object)          => api.get('/cashflow', { params }),
+  create:  (data: object)             => api.post('/cashflow', data),
+  update:  (id: number, data: object) => api.put(`/cashflow/${id}`, data),
+  delete:  (id: number)               => api.delete(`/cashflow/${id}`),
+  exportCsv: (params?: object) =>
+    api.get('/cashflow', { params: { ...params, export: 'csv' }, responseType: 'blob' }),
+};
+
+export const salariesApi = {
+  list:     (params?: object)          => api.get('/salaries', { params }),
+  create:   (data: object)             => api.post('/salaries', data),
+  update:   (id: number, data: object) => api.put(`/salaries/${id}`, data),
+  delete:   (id: number)               => api.delete(`/salaries/${id}`),
+  markPaid: (id: number, data: object) => api.post(`/salaries/${id}/mark-paid`, data),
+  exportCsv:(params?: object)          => api.get('/salaries', { params: { ...params, export: 'csv' }, responseType: 'blob' }),
+};
+
+export const rentalsApi = {
+  list:       (params?: object)          => api.get('/rentals', { params }),
+  create:     (data: object)             => api.post('/rentals', data),
+  update:     (id: number, data: object) => api.put(`/rentals/${id}`, data),
+  delete:     (id: number)               => api.delete(`/rentals/${id}`),
+  addPayment: (id: number, data: object) => api.post(`/rentals/${id}/payments`, data),
+  payments:   (id: number)               => api.get(`/rentals/${id}/payments`),
+  exportCsv:  (params?: object)          => api.get('/rentals', { params: { ...params, export: 'csv' }, responseType: 'blob' }),
+};
+
+export const stockReconciliationApi = {
+  reconcile: (params?: object) => api.get('/stock-reconciliation', { params }),
+  exportCsv: (params?: object) => api.get('/stock-reconciliation', { params: { ...params, export: 'csv' }, responseType: 'blob' }),
+};
+
+export const financialReportApi = {
+  summary:      (params?: object) => api.get('/reports/financial-summary', { params }),
+  exportCsv:    (params?: object) =>
+    api.get('/reports/financial-summary', { params: { ...params, export: 'csv' }, responseType: 'blob' }),
+  dailyCsv:     (params?: object) =>
+    api.get('/reports/daily/csv', { params, responseType: 'blob' }),
+  monthlyCsv:   (params?: object) =>
+    api.get('/reports/monthly/csv', { params, responseType: 'blob' }),
 };

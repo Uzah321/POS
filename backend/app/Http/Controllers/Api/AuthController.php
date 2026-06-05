@@ -98,4 +98,20 @@ class AuthController extends BaseApiController
 
         return $this->success($user, 'Profile updated successfully');
     }
+
+    public function pinLogin(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate(['pin' => 'required|string|size:4']);
+        $user = \App\Models\User::where('pin', $data['pin'])->first();
+        if (!$user) return $this->error('Invalid PIN', 401);
+        $token = $user->createToken('pos-pin')->plainTextToken;
+        return $this->success(['user' => $user, 'token' => $token]);
+    }
+
+    public function setPin(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate(['pin' => 'required|string|size:4|regex:/^[0-9]+$/']);
+        $request->user()->update(['pin' => $data['pin']]);
+        return $this->success(null, 'PIN updated');
+    }
 }

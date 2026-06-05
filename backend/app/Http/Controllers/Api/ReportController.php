@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Stock;
 use App\Models\Customer;
 use App\Models\ShiftEnd;
+use App\Models\Branch;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -413,5 +414,324 @@ class ReportController extends BaseApiController
             ->get();
 
         return $this->success($data);
+    }
+
+    public function lowStock(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $products = \App\Models\Product::with('stock')
+            ->whereHas('stock', function ($q) {
+                $q->whereColumn('quantity', '<=', \DB::raw('products.reorder_point'));
+            })
+            ->orWhereHas('stock', function ($q) {
+                $q->whereColumn('quantity', '<=', \DB::raw('products.alert_threshold'));
+            })
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id'              => $p->id,
+                    'name'            => $p->name,
+                    'sku'             => $p->sku,
+                    'stock'           => $p->stock ? $p->stock->quantity : 0,
+                    'reorder_point'   => $p->reorder_point,
+                    'alert_threshold' => $p->alert_threshold,
+                ];
+            });
+        return $this->success($products);
+    }
+
+    public function vatReport(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $from = $request->from ?? now()->startOfMonth()->toDateString();
+        $to   = $request->to   ?? now()->toDateString();
+
+        $sales = \App\Models\Sale::whereBetween(\DB::raw('DATE(created_at)'), [$from, $to])
+            ->where('status', 'completed')
+            ->selectRaw('DATE(created_at) as date, SUM(tax_amount) as vat_collected, SUM(total) as gross_total, COUNT(*) as sale_count')
+            ->groupByRaw('DATE(created_at)')
+            ->orderBy('date')
+            ->get();
+
+        $totals = [
+            'total_vat'   => $sales->sum('vat_collected'),
+            'gross_total' => $sales->sum('gross_total'),
+            'sale_count'  => $sales->sum('sale_count'),
+        ];
+
+        return $this->success(['rows' => $sales, 'totals' => $totals, 'from' => $from, 'to' => $to]);
+    }
+
+    /**
+     * GET /reports/financial-summary
+     * Returns P&L in the standard format:
+     * Sales → Less CoS → Gross Profit → %GP → Less Deductions → Profit B/d
+     * Supports period=daily|weekly|monthly and date/month params.
+     */
+    public function financialSummary(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $period   = $request->period ?? 'daily';
+        $branchId = $request->branch_id;
+
+        if ($period === 'monthly') {
+            $month = $request->month ?? now()->format('Y-m');
+            [$year, $mon] = explode('-', $month);
+            $from = "{$year}-{$mon}-01";
+            $to   = date('Y-m-t', strtotime($from));
+        } else {
+            $from = $request->date_from ?? $request->date ?? now()->toDateString();
+            $to   = $request->date_to   ?? $request->date ?? now()->toDateString();
+        }
+
+        $sales = Sale::where('status', 'completed')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
+            ->get(['id', 'total', 'discount_amount', 'tax_amount', 'user_id', 'completed_at']);
+
+        $revenue = $sales->sum('total');
+
+        $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
+            ->selectRaw('SUM(cost_price * quantity) as total')
+            ->value('total') ?? 0;
+
+        $expenses = Expense::where('status', 'approved')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereBetween('expense_date', [$from, $to])
+            ->sum('amount');
+
+        // Payment breakdown
+        $paymentBreakdown = DB::table('sale_payments')
+            ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
+            ->where('sales.status', 'completed')
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->whereBetween(DB::raw('DATE(sales.completed_at)'), [$from, $to])
+            ->groupBy('sale_payments.method')
+            ->selectRaw('sale_payments.method, SUM(sale_payments.amount) as total')
+            ->get()->keyBy('method');
+
+        $grossProfit = $revenue - $cogs;
+        $netProfit   = $grossProfit - $expenses;
+        $gpPercent   = $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) : 0;
+
+        // Daily breakdown for charts
+        $dailyBreakdown = $sales->groupBy(fn($s) => substr($s->completed_at, 0, 10))
+            ->map(fn($g, $d) => ['date' => $d, 'transactions' => $g->count(), 'revenue' => $g->sum('total')])
+            ->values()->sortBy('date')->values();
+
+        if ($request->export === 'csv') {
+            return $this->exportFinancialCsv($from, $to, $revenue, $cogs, $grossProfit, $gpPercent, $expenses, $netProfit, $dailyBreakdown);
+        }
+
+        return $this->success([
+            'period'            => $period,
+            'from'              => $from,
+            'to'                => $to,
+            // P&L lines matching the required format
+            'sales'             => $revenue,
+            'less_cost_of_sales'=> $cogs,
+            'gross_profit'      => $grossProfit,
+            'gp_percent'        => $gpPercent,
+            'less_deductions'   => $expenses,
+            'profit_bd'         => $netProfit,
+            // Additional detail
+            'total_transactions'=> $sales->count(),
+            'total_discount'    => $sales->sum('discount_amount'),
+            'total_tax'         => $sales->sum('tax_amount'),
+            'payment_breakdown' => $paymentBreakdown,
+            'daily_breakdown'   => $dailyBreakdown,
+        ]);
+    }
+
+    /** GET /reports/daily/csv */
+    public function dailyCsv(Request $request)
+    {
+        $date     = $request->date ?? now()->toDateString();
+        $branchId = $request->branch_id;
+
+        $sales = Sale::where('status', 'completed')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereDate('completed_at', $date)
+            ->with('cashier:id,name', 'items')
+            ->get();
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"daily-sales-{$date}.csv\"",
+            'Cache-Control'       => 'no-cache',
+        ];
+
+        $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
+            ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
+        $expenses = Expense::where('status', 'approved')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereDate('expense_date', $date)->sum('amount');
+        $revenue     = $sales->sum('total');
+        $grossProfit = $revenue - $cogs;
+        $netProfit   = $grossProfit - $expenses;
+
+        $callback = function () use ($sales, $date, $revenue, $cogs, $grossProfit, $expenses, $netProfit) {
+            $f = fopen('php://output', 'w');
+            // P&L Summary
+            fputcsv($f, ["DAILY SALES REPORT - {$date}"]);
+            fputcsv($f, []);
+            fputcsv($f, ['Sales', number_format($revenue, 2)]);
+            fputcsv($f, ['Less Cost of Sales', number_format($cogs, 2)]);
+            fputcsv($f, ['Gross Profit', number_format($grossProfit, 2)]);
+            fputcsv($f, ['% GP', $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) . '%' : '0%']);
+            fputcsv($f, ['Less Deductions', number_format($expenses, 2)]);
+            fputcsv($f, ['Profit B/d', number_format($netProfit, 2)]);
+            fputcsv($f, []);
+            // Transaction detail
+            fputcsv($f, ['Reference', 'Cashier', 'Time', 'Items', 'Discount', 'Tax', 'Total']);
+            foreach ($sales as $s) {
+                fputcsv($f, [
+                    $s->reference,
+                    $s->cashier?->name ?? '',
+                    substr($s->completed_at, 11, 5),
+                    $s->items->count(),
+                    $s->discount_amount,
+                    $s->tax_amount,
+                    $s->total,
+                ]);
+            }
+            fclose($f);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /** GET /reports/monthly/csv */
+    public function monthlyCsv(Request $request)
+    {
+        $month    = $request->month ?? now()->format('Y-m');
+        $branchId = $request->branch_id;
+        [$year, $mon] = explode('-', $month);
+        $from = "{$year}-{$mon}-01";
+        $to   = date('Y-m-t', strtotime($from));
+
+        $sales = Sale::where('status', 'completed')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
+            ->with('cashier:id,name')
+            ->get();
+
+        $cogs     = SaleItem::whereIn('sale_id', $sales->pluck('id'))->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
+        $expenses = Expense::where('status', 'approved')->when($branchId, fn($q) => $q->where('branch_id', $branchId))->whereBetween('expense_date', [$from, $to])->sum('amount');
+        $revenue  = $sales->sum('total');
+        $gross    = $revenue - $cogs;
+        $net      = $gross - $expenses;
+
+        $dailyBreakdown = $sales->groupBy(fn($s) => substr($s->completed_at, 0, 10))
+            ->map(fn($g, $d) => ['date' => $d, 'transactions' => $g->count(), 'revenue' => $g->sum('total')])
+            ->values()->sortBy('date')->values();
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"monthly-report-{$month}.csv\"",
+            'Cache-Control'       => 'no-cache',
+        ];
+
+        $callback = function () use ($month, $from, $to, $revenue, $cogs, $gross, $expenses, $net, $dailyBreakdown) {
+            $f = fopen('php://output', 'w');
+            fputcsv($f, ["MONTHLY SALES REPORT - {$month} ({$from} to {$to})"]);
+            fputcsv($f, []);
+            fputcsv($f, ['Sales', number_format($revenue, 2)]);
+            fputcsv($f, ['Less Cost of Sales', number_format($cogs, 2)]);
+            fputcsv($f, ['Gross Profit', number_format($gross, 2)]);
+            fputcsv($f, ['% GP', $revenue > 0 ? round(($gross / $revenue) * 100, 2) . '%' : '0%']);
+            fputcsv($f, ['Less Deductions', number_format($expenses, 2)]);
+            fputcsv($f, ['Profit B/d', number_format($net, 2)]);
+            fputcsv($f, []);
+            fputcsv($f, ['Date', 'Transactions', 'Revenue']);
+            foreach ($dailyBreakdown as $d) {
+                fputcsv($f, [$d['date'], $d['transactions'], $d['revenue']]);
+            }
+            fclose($f);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /** GET /reports/branch-consolidation — all branches P&L side by side */
+    public function branchConsolidation(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $from = $request->date_from ?? now()->startOfMonth()->toDateString();
+        $to   = $request->date_to   ?? now()->toDateString();
+
+        $branches = Branch::all();
+        $result   = [];
+
+        foreach ($branches as $branch) {
+            $sales = Sale::where('status', 'completed')
+                ->where('branch_id', $branch->id)
+                ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
+                ->get(['id', 'total']);
+
+            $revenue = $sales->sum('total');
+
+            $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
+                ->selectRaw('SUM(cost_price * quantity) as total')
+                ->value('total') ?? 0;
+
+            $expenses = Expense::where('status', 'approved')
+                ->where('branch_id', $branch->id)
+                ->whereBetween('expense_date', [$from, $to])
+                ->sum('amount');
+
+            $gross = $revenue - $cogs;
+            $net   = $gross - $expenses;
+
+            $result[] = [
+                'branch_id'    => $branch->id,
+                'branch_name'  => $branch->name,
+                'sales'        => round($revenue, 2),
+                'cogs'         => round($cogs, 2),
+                'gross_profit' => round($gross, 2),
+                'gp_percent'   => $revenue > 0 ? round(($gross / $revenue) * 100, 2) : 0,
+                'expenses'     => round($expenses, 2),
+                'net_profit'   => round($net, 2),
+                'transactions' => $sales->count(),
+            ];
+        }
+
+        $totals = [
+            'sales'        => round(array_sum(array_column($result, 'sales')), 2),
+            'cogs'         => round(array_sum(array_column($result, 'cogs')), 2),
+            'gross_profit' => round(array_sum(array_column($result, 'gross_profit')), 2),
+            'expenses'     => round(array_sum(array_column($result, 'expenses')), 2),
+            'net_profit'   => round(array_sum(array_column($result, 'net_profit')), 2),
+            'transactions' => array_sum(array_column($result, 'transactions')),
+        ];
+
+        return $this->success(compact('result', 'totals', 'from', 'to') + ['branches' => $result]);
+    }
+
+    private function exportFinancialCsv($from, $to, $revenue, $cogs, $grossProfit, $gpPercent, $expenses, $netProfit, $dailyBreakdown)
+    {
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"financial-report-{$from}-to-{$to}.csv\"",
+            'Cache-Control'       => 'no-cache',
+        ];
+
+        $callback = function () use ($from, $to, $revenue, $cogs, $grossProfit, $gpPercent, $expenses, $netProfit, $dailyBreakdown) {
+            $f = fopen('php://output', 'w');
+            fputcsv($f, ["FINANCIAL REPORT ({$from} to {$to})"]);
+            fputcsv($f, []);
+            fputcsv($f, ['Item', 'Amount']);
+            fputcsv($f, ['Sales', number_format($revenue, 2)]);
+            fputcsv($f, ['Less Cost of Sales', number_format($cogs, 2)]);
+            fputcsv($f, ['Gross Profit', number_format($grossProfit, 2)]);
+            fputcsv($f, ['% GP', $gpPercent . '%']);
+            fputcsv($f, ['Less Deductions', number_format($expenses, 2)]);
+            fputcsv($f, ['Profit B/d', number_format($netProfit, 2)]);
+            fputcsv($f, []);
+            fputcsv($f, ['Daily Breakdown']);
+            fputcsv($f, ['Date', 'Transactions', 'Revenue']);
+            foreach ($dailyBreakdown as $d) {
+                fputcsv($f, [$d['date'], $d['transactions'], $d['revenue']]);
+            }
+            fclose($f);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

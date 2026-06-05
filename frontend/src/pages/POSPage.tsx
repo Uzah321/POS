@@ -1,10 +1,14 @@
-﻿import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, customersApi, salesApi } from '../api';
 import type { CartItem } from '../stores/cartStore';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
+import { useHardwareStore } from '../stores/hardwareStore';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { printReceipt } from '../lib/hardware/printer';
+import { broadcastCart } from '../lib/hardware/customerDisplay';
 import {
   Search, Plus, Minus, Trash2, User, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, TableProperties, UtensilsCrossed
@@ -79,6 +83,10 @@ export default function POSPage() {
   const [tableNumber, setTableNumber] = useState('Walk-in');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashTendered, setCashTendered] = useState('');
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<Array<{method: string; amount: string}>>([]);
+  const [splitMethod, setSplitMethod] = useState('cash');
+  const [splitAmount, setSplitAmount] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [ticketNum] = useState(() => `#${Math.floor(Math.random() * 9000) + 1000}`);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -88,8 +96,24 @@ export default function POSPage() {
   const { format: formatCurrency } = useCurrencyStore();
 
   const branchId = user?.branch?.id ?? 1;
+  const hw = useHardwareStore();
+  const { activeCurrency } = useCurrencyStore();
+  const currency = activeCurrency?.symbol ?? '$';
 
   useEffect(() => { searchRef.current?.focus(); }, []);
+
+  // Barcode scanner — intercepts fast keystroke sequences and routes to product search
+  const handleBarcodeScan = useCallback((code: string) => {
+    setSearch(code);
+    searchRef.current?.focus();
+    if (hw.barcodeAutoAdd) {
+      // Auto-add handled after product list re-renders (see filteredProducts effect below)
+      barcodeRef.current = code;
+    }
+  }, [hw.barcodeAutoAdd]);
+
+  const barcodeRef = useRef<string | null>(null);
+  useBarcodeScanner({ enabled: hw.barcodeScannerEnabled, onScan: handleBarcodeScan });
 
   // Keyboard shortcuts — keep latest handlers in a ref to avoid stale closures
   const kbRef = useRef<any>({});
@@ -151,13 +175,63 @@ export default function POSPage() {
     return matchCat && matchSearch;
   });
 
+  // Auto-add when barcode scan yields exactly 1 match
+  useEffect(() => {
+    if (barcodeRef.current && filteredProducts.length === 1) {
+      handleAddProduct(filteredProducts[0]);
+      setSearch('');
+      barcodeRef.current = null;
+    }
+  }, [filteredProducts]);
+
+  // Broadcast cart to customer display on every cart change
+  useEffect(() => {
+    if (!hw.customerDisplayEnabled) return;
+    broadcastCart({
+      type: cart.items.length > 0 ? 'cart' : 'idle',
+      storeName: user?.branch?.name ?? 'NexaPOS',
+      currency,
+      items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+      subtotal: cart.subtotal(),
+      tax: cart.taxTotal(),
+      discount: cart.discount,
+      total: cart.total(),
+    });
+  }, [cart.items, hw.customerDisplayEnabled]);
+
   const saleMutation = useMutation({
     mutationFn: (payload: object) => salesApi.create(payload),
     onSuccess: (res) => {
       const sale = res.data?.data;
       toast.success(`Sale ${sale?.reference} completed!`);
+
+      // Auto-print receipt
+      if (hw.autoPrintReceipt && sale) {
+        printReceipt({
+          storeName: user?.branch?.name ?? 'NexaPOS',
+          reference: sale.reference ?? `#${sale.id}`,
+          cashier: user?.name ?? '',
+          date: new Date().toLocaleString(),
+          items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+          subtotal: cart.subtotal(),
+          tax: cart.taxTotal(),
+          discount: cart.discount,
+          total: cart.total(),
+          paymentMethod,
+          amountTendered: paymentMethod === 'cash' ? parseFloat(cashTendered) || cart.total() : undefined,
+          change: paymentMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
+          currency,
+        }, hw.printerMode === 'webusb' ? 'webusb' : 'browser');
+      }
+
+      // Broadcast "thank you" to customer display
+      broadcastCart({ type: 'thankyou', storeName: user?.branch?.name ?? 'NexaPOS', currency });
+      setTimeout(() => broadcastCart({ type: 'idle', storeName: user?.branch?.name ?? 'NexaPOS', currency }), 4000);
+
       cart.clearCart();
       setCashTendered('');
+      setSplitPayments([]);
+      setIsSplitPayment(false);
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Sale failed'),
@@ -187,9 +261,19 @@ export default function POSPage() {
 
   const handleProcessSale = () => {
     if (cart.items.length === 0) return;
-    if (paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0)) {
-      toast.error('Please enter the cash amount received before processing');
-      return;
+
+    let paymentsPayload: Array<{method: string; amount: number}>;
+    if (isSplitPayment) {
+      if (splitPayments.length === 0) { toast.error('Add at least one payment'); return; }
+      const splitTotal = splitPayments.reduce((s, p) => s + parseFloat(p.amount || '0'), 0);
+      if (Math.abs(splitTotal - total) > 0.01) { toast.error(`Split payments (${formatCurrency(splitTotal)}) must equal total (${formatCurrency(total)})`); return; }
+      paymentsPayload = splitPayments.map(p => ({ method: p.method, amount: parseFloat(p.amount) }));
+    } else {
+      if (paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0)) {
+        toast.error('Please enter the cash amount received before processing');
+        return;
+      }
+      paymentsPayload = [{ method: paymentMethod, amount: cart.total() }];
     }
     saleMutation.mutate({
       branch_id: branchId,
@@ -204,7 +288,7 @@ export default function POSPage() {
         discount_type: i.discount > 0 ? 'fixed' : null,
         discount_value: i.discount > 0 ? i.discount : 0,
       })),
-      payments: [{ method: paymentMethod, amount: cart.total() }],
+      payments: paymentsPayload,
       discount_value: cart.discount,
       notes: cart.note,
     });
@@ -416,49 +500,89 @@ export default function POSPage() {
 
         {/* Payment methods */}
         <div className="px-5 pb-3 flex-shrink-0">
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => (
-              <button
-                type="button"
-                key={value}
-                onClick={() => setPaymentMethod(value)}
-                aria-label={`Pay by ${label} (${idx + 1})`}
-                aria-pressed={paymentMethod === value}
-                className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all ${
-                  paymentMethod === value
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-gray-200 text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                }`}
-              >
-                <Icon size={17} />
-                {label}
-                <span className={`text-xs font-mono ${paymentMethod === value ? 'text-blue-200' : 'text-gray-300'}`}>{idx + 1}</span>
-              </button>
-            ))}
+          {/* Split payment toggle */}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</span>
+            <button
+              type="button"
+              onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
+              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${isSplitPayment ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+            >
+              Split Payment
+            </button>
           </div>
 
-          {paymentMethod === 'cash' && (
-            <div className="mb-3">
-              <input
-                type="number"
-                value={cashTendered}
-                onChange={(e) => setCashTendered(e.target.value)}
-                placeholder="Cash tendered"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {change > 0 && (
-                <div className="mt-1.5 bg-emerald-50 rounded-lg px-3 py-1.5 flex justify-between text-sm">
-                  <span className="text-gray-500">Change:</span>
-                  <span className="font-bold text-emerald-600">{formatCurrency(change)}</span>
+          {isSplitPayment ? (
+            <div className="space-y-2 mb-3">
+              {splitPayments.map((sp, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                  <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-xs border-0 bg-transparent focus:outline-none text-gray-700 font-medium">
+                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-sm text-right bg-transparent border-0 focus:outline-none font-semibold text-gray-800" placeholder="0.00" />
+                  <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="text-red-400 hover:text-red-600"><X size={13} /></button>
+                </div>
+              ))}
+              {(() => {
+                const paid = splitPayments.reduce((s,p) => s + parseFloat(p.amount||'0'), 0);
+                const remaining = total - paid;
+                return (
+                  <>
+                    {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${formatCurrency(remaining)}` : `Over by: ${formatCurrency(-remaining)}`}</div>}
+                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: splitMethod, amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full py-1.5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-1">
+                      <Plus size={12} /> Add payment method
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => (
+                  <button
+                    type="button"
+                    key={value}
+                    onClick={() => setPaymentMethod(value)}
+                    aria-label={`Pay by ${label} (${idx + 1})`}
+                    aria-pressed={paymentMethod === value}
+                    className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all ${
+                      paymentMethod === value
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-200 text-gray-500 hover:border-blue-200 hover:text-blue-600'
+                    }`}
+                  >
+                    <Icon size={17} />
+                    {label}
+                    <span className={`text-xs font-mono ${paymentMethod === value ? 'text-blue-200' : 'text-gray-300'}`}>{idx + 1}</span>
+                  </button>
+                ))}
+              </div>
+
+              {paymentMethod === 'cash' && (
+                <div className="mb-3">
+                  <input
+                    type="number"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    placeholder="Cash tendered"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {change > 0 && (
+                    <div className="mt-1.5 bg-emerald-50 rounded-lg px-3 py-1.5 flex justify-between text-sm">
+                      <span className="text-gray-500">Change:</span>
+                      <span className="font-bold text-emerald-600">{formatCurrency(change)}</span>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
 
           <button
             type="button"
             onClick={handleProcessSale}
-            disabled={cart.items.length === 0 || saleMutation.isPending || (paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0))}
+            disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0))}
             aria-label="Process sale (F9)"
             aria-keyshortcuts="F9"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-blue-100 mb-2"

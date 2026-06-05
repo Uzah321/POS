@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Stock;
+use App\Models\Product;
+use App\Models\Category;
+use App\Models\Warehouse;
 use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentItem;
 use App\Models\StockTransfer;
@@ -11,6 +14,7 @@ use App\Models\StockCount;
 use App\Models\StockCountItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class InventoryController extends BaseApiController
 {
@@ -162,5 +166,120 @@ class InventoryController extends BaseApiController
 
             return $this->success($stockTransfer->load('items'), 'Transfer received');
         });
+    }
+
+    /**
+     * POST /api/inventory/import
+     * Accepts a JSON array of rows parsed from Excel on the frontend.
+     * Each row: { name, sku?, barcode?, category?, cost_price?, selling_price?, quantity?, warehouse? }
+     * Creates or updates products and sets stock quantities.
+     */
+    public function importStock(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'rows'              => 'required|array|min:1|max:2000',
+            'rows.*.name'       => 'required|string|max:255',
+            'rows.*.quantity'   => 'nullable|numeric|min:0',
+            'rows.*.cost_price' => 'nullable|numeric|min:0',
+            'rows.*.selling_price' => 'nullable|numeric|min:0',
+            'warehouse_id'      => 'required|exists:warehouses,id',
+            'branch_id'         => 'nullable|exists:branches,id',
+        ]);
+
+        $warehouseId = $request->warehouse_id;
+        $created = 0; $updated = 0; $skipped = 0;
+        $errors  = [];
+
+        DB::transaction(function () use ($request, $warehouseId, &$created, &$updated, &$skipped, &$errors) {
+            foreach ($request->rows as $index => $row) {
+                try {
+                    $name = trim($row['name'] ?? '');
+                    if (!$name) { $skipped++; continue; }
+
+                    // Resolve or create category
+                    $categoryId = null;
+                    if (!empty($row['category'])) {
+                        $cat = Category::firstOrCreate(
+                            ['name' => trim($row['category'])],
+                            ['slug' => Str::slug(trim($row['category']))]
+                        );
+                        $categoryId = $cat->id;
+                    }
+
+                    // Resolve product by SKU, barcode, or name
+                    $product = null;
+                    if (!empty($row['sku'])) {
+                        $product = Product::where('sku', trim($row['sku']))->first();
+                    }
+                    if (!$product && !empty($row['barcode'])) {
+                        $product = Product::where('barcode', trim($row['barcode']))->first();
+                    }
+                    if (!$product) {
+                        $product = Product::where('name', $name)->first();
+                    }
+
+                    $attrs = [
+                        'name'          => $name,
+                        'slug'          => Str::slug($name) . '-' . Str::random(4),
+                        'category_id'   => $categoryId,
+                        'cost_price'    => !empty($row['cost_price'])    ? floatval($row['cost_price'])    : 0,
+                        'selling_price' => !empty($row['selling_price']) ? floatval($row['selling_price']) : 0,
+                        'reorder_level' => !empty($row['reorder_level']) ? intval($row['reorder_level'])   : 5,
+                        'is_active'     => true,
+                    ];
+                    if (!empty($row['sku']))     $attrs['sku']     = trim($row['sku']);
+                    if (!empty($row['barcode'])) $attrs['barcode'] = trim($row['barcode']);
+                    if (!empty($row['unit']))    $attrs['unit']    = trim($row['unit']);
+
+                    if ($product) {
+                        // Update existing — only non-empty values overwrite
+                        $updateable = array_filter($attrs, fn($v) => $v !== null && $v !== '' && $v !== 0);
+                        unset($updateable['slug']); // keep existing slug
+                        $product->update($updateable);
+                        $updated++;
+                    } else {
+                        $product = Product::create($attrs);
+                        $created++;
+                    }
+
+                    // Set stock quantity
+                    if (isset($row['quantity']) && $row['quantity'] !== '') {
+                        $qty = max(0, floatval($row['quantity']));
+                        Stock::updateOrCreate(
+                            ['product_id' => $product->id, 'warehouse_id' => $warehouseId],
+                            ['quantity' => $qty, 'branch_id' => $request->branch_id ?? null]
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = "Row " . ($index + 1) . " ({$row['name']}): " . $e->getMessage();
+                }
+            }
+        });
+
+        return $this->success([
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors'  => $errors,
+        ], "Import complete: {$created} created, {$updated} updated, {$skipped} skipped.");
+    }
+
+    /**
+     * GET /api/inventory/import-template
+     * Returns a CSV template the user can fill in for import.
+     */
+    public function importTemplate(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="stock-import-template.csv"',
+        ];
+        return response()->stream(function () {
+            $f = fopen('php://output', 'w');
+            fputcsv($f, ['name', 'sku', 'barcode', 'category', 'cost_price', 'selling_price', 'quantity', 'reorder_level', 'unit']);
+            fputcsv($f, ['Pampers Size 3', 'PAM-S3', '6001101234567', 'Diapers', '12.50', '18.00', '100', '10', 'Pack']);
+            fputcsv($f, ['Huggies Newborn', 'HUG-NB', '', 'Diapers', '10.00', '15.00', '50', '5', 'Pack']);
+            fclose($f);
+        }, 200, $headers);
     }
 }

@@ -13,6 +13,21 @@ use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\CurrencyController;
+use App\Http\Controllers\Api\LaybyController;
+use App\Http\Controllers\Api\QuotationController;
+use App\Http\Controllers\Api\StockTransferController;
+use App\Http\Controllers\Api\StocktakeController;
+use App\Http\Controllers\Api\ProductBatchController;
+use App\Http\Controllers\Api\CommissionController;
+use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\RolePermissionController;
+use App\Http\Controllers\Api\BackupController;
+use App\Http\Controllers\Api\ScheduledReportController;
+use App\Http\Controllers\Api\EcocashController;
+use App\Http\Controllers\Api\CashflowController;
+use App\Http\Controllers\Api\SalaryController;
+use App\Http\Controllers\Api\RentalController;
+use App\Http\Controllers\Api\StockReconciliationController;
 
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
@@ -64,6 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/transfers', [InventoryController::class, 'transferIndex']);
     Route::post('/inventory/transfers', [InventoryController::class, 'createTransfer']);
     Route::post('/inventory/transfers/{stockTransfer}/receive', [InventoryController::class, 'receiveTransfer']);
+    Route::post('/inventory/import', [InventoryController::class, 'importStock']);
+    Route::get('/inventory/import-template', [InventoryController::class, 'importTemplate']);
 
     // Expenses
     Route::get('/expense-categories', [ExpenseController::class, 'categories']);
@@ -116,4 +133,80 @@ Route::middleware('auth:sanctum')->group(function () {
     // Notifications
     Route::get('/notifications', fn() => response()->json(auth()->user()->notifications()->paginate(20)));
     Route::post('/notifications/mark-all-read', fn() => auth()->user()->unreadNotifications()->update(['read_at' => now()]));
+
+    // Laybys
+    Route::post('/laybys/{layby}/payment', [LaybyController::class, 'addPayment']);
+    Route::post('/laybys/{layby}/cancel', [LaybyController::class, 'cancel']);
+    Route::apiResource('laybys', LaybyController::class)->only(['index','store','show']);
+
+    // Quotations
+    Route::apiResource('quotations', QuotationController::class)->only(['index','store','show','update','destroy']);
+
+    // Stock Transfers
+    Route::post('/stock-transfers/{stockTransfer}/dispatch', [StockTransferController::class, 'dispatch']);
+    Route::post('/stock-transfers/{stockTransfer}/receive', [StockTransferController::class, 'receive']);
+    Route::post('/stock-transfers/{stockTransfer}/cancel', [StockTransferController::class, 'cancel']);
+    Route::apiResource('stock-transfers', StockTransferController::class)->only(['index','store','show']);
+
+    // Stocktakes
+    Route::post('/stocktakes/{stocktake}/complete', [StocktakeController::class, 'complete']);
+    Route::apiResource('stocktakes', StocktakeController::class)->only(['index','store','show','update']);
+
+    // Product Batches / Expiry tracking
+    Route::apiResource('product-batches', ProductBatchController::class);
+
+    // Commissions
+    Route::get('/commissions/report', [CommissionController::class, 'report']);
+    Route::post('/commissions/mark-paid', [CommissionController::class, 'markPaid']);
+    Route::get('/commissions', [CommissionController::class, 'index']);
+
+    // Webhooks
+    Route::post('/webhooks/{webhook}/test', [WebhookController::class, 'test']);
+    Route::apiResource('webhooks', WebhookController::class);
+
+    // Role & Permissions
+    Route::get('/roles', [RolePermissionController::class, 'index']);
+    Route::put('/roles/{role}', [RolePermissionController::class, 'updateRole']);
+
+    // Backup
+    Route::get('/backups', [BackupController::class, 'index']);
+    Route::post('/backups', [BackupController::class, 'create']);
+    Route::get('/backups/{file}/download', [BackupController::class, 'download']);
+
+    // Scheduled Reports
+    Route::apiResource('scheduled-reports', ScheduledReportController::class);
+
+    // Low-stock alerts
+    Route::get('/reports/low-stock', [ReportController::class, 'lowStock']);
+    Route::get('/reports/vat', [ReportController::class, 'vatReport']);
+
+    // Financial summary, consolidation & CSV exports
+    Route::get('/reports/financial-summary', [ReportController::class, 'financialSummary']);
+    Route::get('/reports/branch-consolidation', [ReportController::class, 'branchConsolidation']);
+    Route::get('/reports/daily/csv', [ReportController::class, 'dailyCsv']);
+    Route::get('/reports/monthly/csv', [ReportController::class, 'monthlyCsv']);
+
+    // EcoCash agent banking
+    Route::get('/ecocash/summary', [EcocashController::class, 'summary']);
+    Route::post('/ecocash/{ecocashTransaction}/reverse', [EcocashController::class, 'reverse']);
+    Route::apiResource('ecocash', EcocashController::class)->only(['index', 'store']);
+
+    // Cashflow
+    Route::apiResource('cashflow', CashflowController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    // Salaries
+    Route::post('/salaries/{salary}/mark-paid', [SalaryController::class, 'markPaid']);
+    Route::apiResource('salaries', SalaryController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    // Rentals
+    Route::get('/rentals/{rental}/payments', [RentalController::class, 'payments']);
+    Route::post('/rentals/{rental}/payments', [RentalController::class, 'addPayment']);
+    Route::apiResource('rentals', RentalController::class);
+
+    // Stock Reconciliation
+    Route::get('/stock-reconciliation', [StockReconciliationController::class, 'reconcile']);
+
+    // PIN auth
+    Route::post('/auth/pin-login', [AuthController::class, 'pinLogin']);
+    Route::put('/auth/set-pin', [AuthController::class, 'setPin']);
 });

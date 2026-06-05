@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salariesApi, branchesApi, usersApi } from '../api';
-import { Plus, Search, Download, Loader2, X, Users, CheckCircle, Edit, Trash2, DollarSign } from 'lucide-react';
+import { Plus, Search, Download, Loader2, X, Users, CheckCircle, Edit, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';

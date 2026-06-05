@@ -85,8 +85,6 @@ export default function POSPage() {
   const [cashTendered, setCashTendered] = useState('');
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [splitPayments, setSplitPayments] = useState<Array<{method: string; amount: string}>>([]);
-  const [splitMethod, setSplitMethod] = useState('cash');
-  const [splitAmount, setSplitAmount] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [ticketNum] = useState(() => `#${Math.floor(Math.random() * 9000) + 1000}`);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -529,7 +527,7 @@ export default function POSPage() {
                 return (
                   <>
                     {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${formatCurrency(remaining)}` : `Over by: ${formatCurrency(-remaining)}`}</div>}
-                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: splitMethod, amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full py-1.5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-1">
+                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full py-1.5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-1">
                       <Plus size={12} /> Add payment method
                     </button>
                   </>

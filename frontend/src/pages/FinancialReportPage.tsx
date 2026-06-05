@@ -234,7 +234,7 @@ export default function FinancialReportPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Revenue']} />
+                    <Tooltip formatter={(value) => [`$${Number(value ?? 0).toFixed(2)}`, 'Revenue']} />
                     <Legend />
                     <Bar dataKey="Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>

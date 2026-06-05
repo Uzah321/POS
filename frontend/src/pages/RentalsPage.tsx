@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rentalsApi, branchesApi } from '../api';
-import { Plus, Search, Download, Loader2, X, Building2, Edit, Trash2, DollarSign, CreditCard } from 'lucide-react';
+import { Plus, Search, Download, Loader2, X, Building2, Edit, Trash2, CreditCard } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
-import { format, differenceInMonths } from 'date-fns';
+import { format } from 'date-fns';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);

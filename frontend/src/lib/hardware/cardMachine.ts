@@ -72,7 +72,7 @@ export async function simulateCardPayment(request: CardPaymentRequest): Promise<
   await new Promise((r) => setTimeout(r, 2000));
   return {
     success: true,
-    reference: `SIM-${Date.now()}`,
+    reference: request.reference || `SIM-${Date.now()}`,
     message: 'Approved (simulated)',
   };
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
-import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, X, ArrowRightLeft, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -13,7 +12,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function StockTransferPage() {
-  const { format } = useCurrencyStore();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
   const [showNew, setShowNew] = useState(false);

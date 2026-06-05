@@ -129,7 +129,7 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
 // ---------------------------------------------------------------------------
 // WebUSB printer connection
 // ---------------------------------------------------------------------------
-let usbDevice: USBDevice | null = null;
+let usbDevice: any = null;
 let usbInterface = 0;
 let usbEndpoint = 1;
 

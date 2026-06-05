@@ -9,7 +9,7 @@ import {
   openCashDrawer
 } from '../lib/hardware/printer';
 import {
-  openCustomerDisplay, closeCustomerDisplay, broadcastCart, isDisplayOpen
+  openCustomerDisplay, closeCustomerDisplay, broadcastCart
 } from '../lib/hardware/customerDisplay';
 import { useWeighingScale } from '../lib/hardware/scale';
 import { simulateCardPayment } from '../lib/hardware/cardMachine';

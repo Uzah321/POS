@@ -45,7 +45,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
     try {
       const parsed = await parseExcelFile(file);
       if (parsed.length === 0) { toast.error('No data rows found in file'); return; }
-      setRows(parsed as ImportRow[]);
+      setRows(parsed as unknown as ImportRow[]);
       setPreview(true);
       setResult(null);
     } catch { toast.error('Could not read file — ensure it is .xlsx or .csv'); }

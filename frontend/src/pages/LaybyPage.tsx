@@ -36,7 +36,7 @@ export default function LaybyPage() {
     enabled: !!selectedLayby?.id,
   });
 
-  const { data: customers } = useQuery({
+  useQuery({
     queryKey: ['customers-list'],
     queryFn: () => api.get('/customers', { params: { per_page: 200 } }).then(r => r.data?.data?.data ?? []),
   });

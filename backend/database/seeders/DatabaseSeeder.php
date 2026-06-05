@@ -144,6 +144,9 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->command->info('Seeded! Login: admin@bottlestore.co.za / Admin@123');
-        $this->call(TestDataSeeder::class);
+
+        if (! app()->environment('production')) {
+            $this->call(TestDataSeeder::class);
+        }
     }
 }

@@ -43,7 +43,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
 
     // Users
-    Route::apiResource('users', UserController::class);
+    Route::middleware('permission:manage_users')->group(function () {
+        Route::apiResource('users', UserController::class);
+    });
 
     // Products
     Route::get('/products/search', [ProductController::class, 'search']);

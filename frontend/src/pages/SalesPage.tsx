@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { salesApi } from '../api';
-import { Search, Eye, Loader2, Receipt } from 'lucide-react';
+import { Search, Eye, Loader2, Printer, Receipt } from 'lucide-react';
+import { useCurrencyStore } from '../stores/currencyStore';
+import { useHardwareStore } from '../stores/hardwareStore';
+import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 text-green-700',
@@ -16,6 +20,9 @@ export default function SalesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const hw = useHardwareStore();
+  const { activeCurrency } = useCurrencyStore();
+  const currency = activeCurrency?.symbol ?? '$';
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales', search, page],
@@ -26,6 +33,23 @@ export default function SalesPage() {
     queryKey: ['sale', selectedSale?.id],
     queryFn: () => salesApi.get(selectedSale.id).then(r => r.data?.data),
     enabled: !!selectedSale?.id,
+  });
+
+  const reprintMutation = useMutation({
+    mutationFn: async (saleId: number) => {
+      const sale = (await salesApi.receipt(saleId)).data?.data;
+      await printReceipt(
+        buildReceiptDataFromSale(sale, { currency }),
+        resolveReceiptPrintMode(hw.printerMode)
+      );
+      return sale;
+    },
+    onSuccess: (sale) => {
+      toast.success(`Receipt ${sale?.reference ?? ''} sent to printer`);
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? error?.message ?? 'Could not reprint receipt');
+    },
   });
 
   const sales = data?.data || [];
@@ -82,7 +106,18 @@ export default function SalesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button type="button" onClick={() => setSelectedSale(s)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Eye size={14} /></button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => reprintMutation.mutate(s.id)}
+                          disabled={reprintMutation.isPending && reprintMutation.variables === s.id}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg disabled:opacity-50"
+                          title="Reprint receipt"
+                        >
+                          {reprintMutation.isPending && reprintMutation.variables === s.id ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+                        </button>
+                        <button type="button" onClick={() => setSelectedSale(s)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Eye size={14} /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -136,6 +171,17 @@ export default function SalesPage() {
                     <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>R {parseFloat(saleDetail.subtotal).toFixed(2)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>R {parseFloat(saleDetail.tax_total).toFixed(2)}</span></div>
                     <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span className="text-amber-600">R {parseFloat(saleDetail.total).toFixed(2)}</span></div>
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => reprintMutation.mutate(selectedSale.id)}
+                      disabled={reprintMutation.isPending && reprintMutation.variables === selectedSale.id}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                    >
+                      {reprintMutation.isPending && reprintMutation.variables === selectedSale.id ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+                      Reprint Bill
+                    </button>
                   </div>
                 </>
               ) : (

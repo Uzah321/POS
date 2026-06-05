@@ -160,12 +160,10 @@ export default function SettingsPage() {
             checked={toggles.multi_currency_enabled}
             onChange={(v) => setToggles(t => ({ ...t, multi_currency_enabled: v }))}
           />
-          <ToggleRow
-            label="Auto-Print Receipt"
-            description="Automatically print receipt after each sale"
-            checked={toggles.receipt_auto_print}
-            onChange={(v) => setToggles(t => ({ ...t, receipt_auto_print: v }))}
-          />
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+            <p className="text-sm font-semibold text-gray-900">Receipt Printing</p>
+            <p className="text-sm text-gray-600 mt-1">Every completed order prints a receipt. Choose the receipt printer mode from the Hardware page for Bluetooth/system or USB receipt printers.</p>
+          </div>
           <ToggleRow
             label="Require Table Number"
             description="Enforce table selection on the Register page"

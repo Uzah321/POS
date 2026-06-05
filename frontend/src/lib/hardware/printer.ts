@@ -65,6 +65,76 @@ export interface ReceiptData {
   footer?: string;
 }
 
+export type ReceiptPrintMode = 'browser' | 'webusb' | 'none';
+
+export interface BuildReceiptOptions {
+  storeName?: string;
+  storeAddress?: string;
+  storePhone?: string;
+  cashier?: string;
+  currency?: string;
+  paymentMethod?: string;
+  amountTendered?: number;
+  change?: number;
+  footer?: string;
+  date?: string;
+  itemsFallback?: ReceiptLine[];
+}
+
+function money(value: unknown): number {
+  const amount = Number.parseFloat(String(value ?? 0));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function printableDate(value: unknown): string {
+  if (!value) return new Date().toLocaleString();
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+}
+
+export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' {
+  return mode === 'webusb' ? 'webusb' : 'browser';
+}
+
+export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions = {}): ReceiptData {
+  const items = Array.isArray(sale?.items) && sale.items.length > 0
+    ? sale.items.map((item: any) => {
+        const qty = money(item?.quantity ?? item?.qty);
+        const price = money(item?.unit_price ?? item?.price);
+        const total = money(item?.total ?? item?.subtotal ?? (qty * price));
+        return {
+          name: item?.product?.name ?? item?.name ?? 'Item',
+          qty,
+          price,
+          total,
+        };
+      })
+    : (options.itemsFallback ?? []);
+
+  const subtotal = money(sale?.subtotal ?? items.reduce((sum: number, item: ReceiptLine) => sum + item.total, 0));
+  const tax = money(sale?.tax_total ?? sale?.tax_amount);
+  const discount = money(sale?.discount_total ?? sale?.discount_amount ?? sale?.discount_value);
+
+  return {
+    storeName: sale?.branch?.name ?? options.storeName ?? 'NexaPOS',
+    storeAddress: sale?.branch?.address ?? options.storeAddress,
+    storePhone: sale?.branch?.phone ?? options.storePhone,
+    reference: sale?.reference ?? `#${sale?.id ?? 'SALE'}`,
+    cashier: sale?.cashier?.name ?? options.cashier ?? '',
+    date: options.date ?? printableDate(sale?.completed_at ?? sale?.created_at),
+    items,
+    subtotal,
+    tax,
+    discount,
+    total: money(sale?.total ?? subtotal + tax - discount),
+    paymentMethod: sale?.payments?.[0]?.method ?? options.paymentMethod ?? 'cash',
+    amountTendered: options.amountTendered,
+    change: options.change ?? money(sale?.change_due),
+    currency: options.currency ?? '$',
+    footer: options.footer,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // ESC/POS receipt builder
 // ---------------------------------------------------------------------------

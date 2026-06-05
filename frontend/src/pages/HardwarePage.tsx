@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useHardwareStore } from '../stores/hardwareStore';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight
 } from 'lucide-react';
 import {
-  connectUsbPrinter, disconnectUsbPrinter, browserPrintReceipt, printLabel,
-  openCashDrawer
+  connectUsbPrinter, disconnectUsbPrinter, printLabel, printReceipt,
+  openCashDrawer, resolveReceiptPrintMode
 } from '../lib/hardware/printer';
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
@@ -93,6 +93,12 @@ export default function HardwarePage() {
 
   const currency = activeCurrency?.symbol ?? '$';
 
+  useEffect(() => {
+    if (hw.printerMode === 'none') {
+      hw.update({ printerMode: 'browser' });
+    }
+  }, [hw]);
+
   // ----------------------------------------------------------
   // Handlers
   // ----------------------------------------------------------
@@ -115,7 +121,7 @@ export default function HardwarePage() {
   };
 
   const handleTestPrint = () => {
-    browserPrintReceipt({
+    void printReceipt({
       storeName: 'NexaPOS Store',
       storeAddress: '123 Main Street',
       storePhone: '+27 11 000 0000',
@@ -135,6 +141,8 @@ export default function HardwarePage() {
       change: 9.53,
       currency,
       footer: '*** TEST RECEIPT — NOT A VALID RECEIPT ***',
+    }, resolveReceiptPrintMode(hw.printerMode)).catch((error: any) => {
+      toast.error(error?.message ?? 'Could not print test receipt');
     });
   };
 
@@ -196,26 +204,33 @@ export default function HardwarePage() {
         <div className="space-y-4">
           <Card title="Printer Mode">
             <div className="space-y-2">
-              {(['browser', 'webusb', 'none'] as const).map((mode) => (
+              {(['browser', 'webusb'] as const).map((mode) => (
                 <label key={mode} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="printerMode" value={mode} checked={hw.printerMode === mode}
                     onChange={() => hw.update({ printerMode: mode })} className="accent-blue-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {mode === 'browser' ? 'Browser Print (recommended)' : mode === 'webusb' ? 'Direct USB / ESC-POS' : 'Disabled'}
+                      {mode === 'browser' ? 'System / Bluetooth Print (recommended)' : 'Direct USB / ESC-POS'}
                     </p>
                     <p className="text-xs text-gray-500">
                       {mode === 'browser'
-                        ? 'Opens system print dialog — works with any printer'
-                        : mode === 'webusb'
-                        ? 'Prints instantly without a dialog (Chrome/Edge only, requires USB thermal printer)'
-                        : 'No receipt printing'}
+                        ? 'Uses the Windows print dialog, so paired Bluetooth receipt printers work without extra drivers in the app'
+                        : 'Prints instantly without a dialog (Chrome/Edge only, requires USB thermal printer)'}
                     </p>
                   </div>
                 </label>
               ))}
             </div>
           </Card>
+
+          {hw.printerMode === 'browser' && (
+            <Card title="Bluetooth Printer Setup">
+              <div className="space-y-2 text-sm text-gray-600">
+                <p>Pair the thermal printer in Windows Bluetooth settings first, then choose that printer in the print dialog when you print a test receipt or complete a sale.</p>
+                <p className="text-xs text-gray-400">This is the most reliable path for Bluetooth receipt printers because the browser prints through the operating system printer list.</p>
+              </div>
+            </Card>
+          )}
 
           {hw.printerMode === 'webusb' && (
             <Card title="USB Printer">
@@ -230,12 +245,7 @@ export default function HardwarePage() {
           )}
 
           <Card title="Settings">
-            <ToggleRow
-              label="Auto-print receipt on sale"
-              description="Automatically print after each completed sale"
-              checked={hw.autoPrintReceipt}
-              onChange={(v) => hw.update({ autoPrintReceipt: v })}
-            />
+            <p className="text-sm text-gray-600">Every completed order now triggers a receipt print. Use the mode above to choose Bluetooth/system printing or direct USB printing.</p>
           </Card>
 
           <Card title="Test">

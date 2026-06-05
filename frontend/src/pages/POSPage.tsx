@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
-import { printReceipt } from '../lib/hardware/printer';
+import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import {
   Search, Plus, Minus, Trash2, User, Loader2, CreditCard, Banknote, Smartphone,
@@ -203,23 +203,26 @@ export default function POSPage() {
       const sale = res.data?.data;
       toast.success(`Sale ${sale?.reference} completed!`);
 
-      // Auto-print receipt
-      if (hw.autoPrintReceipt && sale) {
-        printReceipt({
-          storeName: user?.branch?.name ?? 'NexaPOS',
-          reference: sale.reference ?? `#${sale.id}`,
-          cashier: user?.name ?? '',
-          date: new Date().toLocaleString(),
-          items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
-          subtotal: cart.subtotal(),
-          tax: cart.taxTotal(),
-          discount: cart.discount,
-          total: cart.total(),
-          paymentMethod,
-          amountTendered: paymentMethod === 'cash' ? parseFloat(cashTendered) || cart.total() : undefined,
-          change: paymentMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
-          currency,
-        }, hw.printerMode === 'webusb' ? 'webusb' : 'browser');
+      if (sale) {
+        void printReceipt(
+          buildReceiptDataFromSale(sale, {
+            storeName: user?.branch?.name ?? 'NexaPOS',
+            cashier: user?.name ?? '',
+            currency,
+            paymentMethod,
+            amountTendered: paymentMethod === 'cash' ? parseFloat(cashTendered) || cart.total() : undefined,
+            change: paymentMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
+            itemsFallback: cart.items.map((item) => ({
+              name: item.name,
+              qty: item.quantity,
+              price: item.price,
+              total: item.price * item.quantity,
+            })),
+          }),
+          resolveReceiptPrintMode(hw.printerMode)
+        ).catch((error: any) => {
+          toast.error(error?.message ?? 'Sale completed, but receipt printing failed');
+        });
       }
 
       // Broadcast "thank you" to customer display

@@ -12,6 +12,7 @@ use App\Models\StockTransfer;
 use App\Models\StockTransferItem;
 use App\Models\StockCount;
 use App\Models\StockCountItem;
+use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -178,10 +179,6 @@ class InventoryController extends BaseApiController
     {
         $request->validate([
             'rows'              => 'required|array|min:1|max:2000',
-            'rows.*.name'       => 'required|string|max:255',
-            'rows.*.quantity'   => 'nullable|numeric|min:0',
-            'rows.*.cost_price' => 'nullable|numeric|min:0',
-            'rows.*.selling_price' => 'nullable|numeric|min:0',
             'warehouse_id'      => 'required|exists:warehouses,id',
             'branch_id'         => 'nullable|exists:branches,id',
         ]);
@@ -189,21 +186,55 @@ class InventoryController extends BaseApiController
         $warehouseId = $request->warehouse_id;
         $created = 0; $updated = 0; $skipped = 0;
         $errors  = [];
+        $parseNumber = static function (mixed $value): ?float {
+            if ($value === null || $value === '') {
+                return null;
+            }
 
-        DB::transaction(function () use ($request, $warehouseId, &$created, &$updated, &$skipped, &$errors) {
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+
+            $normalized = preg_replace('/[^0-9.\-]/', '', (string) $value);
+
+            if ($normalized === null || $normalized === '' || $normalized === '.' || $normalized === '-') {
+                return null;
+            }
+
+            return is_numeric($normalized) ? (float) $normalized : null;
+        };
+
+        DB::transaction(function () use ($request, $warehouseId, $parseNumber, &$created, &$updated, &$skipped, &$errors) {
             foreach ($request->rows as $index => $row) {
                 try {
-                    $name = trim($row['name'] ?? '');
+                    $row = is_array($row) ? $row : (array) $row;
+
+                    $name = trim((string) ($row['name'] ?? $row['product_name'] ?? ''));
                     if (!$name) { $skipped++; continue; }
+
+                    $categoryName = trim((string) ($row['category'] ?? ''));
+                    $costPrice = $parseNumber($row['cost_price'] ?? $row['unit_cost'] ?? null);
+                    $sellingPrice = $parseNumber($row['selling_price'] ?? $row['unit_selling_price'] ?? $row['price'] ?? null);
+                    $quantity = $parseNumber($row['quantity'] ?? $row['in_stock'] ?? null);
 
                     // Resolve or create category
                     $categoryId = null;
-                    if (!empty($row['category'])) {
+                    if ($categoryName !== '') {
                         $cat = Category::firstOrCreate(
-                            ['name' => trim($row['category'])],
-                            ['slug' => Str::slug(trim($row['category']))]
+                            ['name' => $categoryName],
+                            ['slug' => Str::slug($categoryName)]
                         );
                         $categoryId = $cat->id;
+                    }
+
+                    $unitId = null;
+                    if (!empty($row['unit'])) {
+                        $unitValue = trim((string) $row['unit']);
+                        $unit = Unit::query()
+                            ->whereRaw('LOWER(name) = ?', [Str::lower($unitValue)])
+                            ->orWhereRaw('LOWER(abbreviation) = ?', [Str::lower($unitValue)])
+                            ->first();
+                        $unitId = $unit?->id;
                     }
 
                     // Resolve product by SKU, barcode, or name
@@ -222,14 +253,15 @@ class InventoryController extends BaseApiController
                         'name'          => $name,
                         'slug'          => Str::slug($name) . '-' . Str::random(4),
                         'category_id'   => $categoryId,
-                        'cost_price'    => !empty($row['cost_price'])    ? floatval($row['cost_price'])    : 0,
-                        'selling_price' => !empty($row['selling_price']) ? floatval($row['selling_price']) : 0,
+                        'cost_price'    => $costPrice ?? 0,
+                        'selling_price' => $sellingPrice ?? 0,
                         'reorder_level' => !empty($row['reorder_level']) ? intval($row['reorder_level'])   : 5,
+                        'track_stock'   => true,
                         'is_active'     => true,
                     ];
                     if (!empty($row['sku']))     $attrs['sku']     = trim($row['sku']);
                     if (!empty($row['barcode'])) $attrs['barcode'] = trim($row['barcode']);
-                    if (!empty($row['unit']))    $attrs['unit']    = trim($row['unit']);
+                    if ($unitId)                 $attrs['unit_id'] = $unitId;
 
                     if ($product) {
                         // Update existing — only non-empty values overwrite
@@ -243,8 +275,8 @@ class InventoryController extends BaseApiController
                     }
 
                     // Set stock quantity
-                    if (isset($row['quantity']) && $row['quantity'] !== '') {
-                        $qty = max(0, floatval($row['quantity']));
+                    if ($quantity !== null) {
+                        $qty = max(0, $quantity);
                         Stock::updateOrCreate(
                             ['product_id' => $product->id, 'warehouse_id' => $warehouseId],
                             ['quantity' => $qty, 'branch_id' => $request->branch_id ?? null]

@@ -13,6 +13,10 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 normalize_runtime_repo_state() {
+  if [ -f "${APP_DIR}/frontend/.env.production" ] && ! git ls-files --error-unmatch frontend/.env.production >/dev/null 2>&1; then
+    rm -f "${APP_DIR}/frontend/.env.production"
+  fi
+
   while IFS= read -r path; do
     [ -n "${path}" ] || continue
     if [ -f "${APP_DIR}/${path}" ]; then

@@ -75,7 +75,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Import Stock from Excel</h2>
+            <h2 className="text-lg font-bold text-gray-900">Import Products from Excel</h2>
             <p className="text-sm text-gray-500">Upload an .xlsx or .csv file to bulk-add or update products and stock levels</p>
           </div>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
@@ -120,6 +120,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
                 <p className="font-semibold text-blue-900 text-sm">Step 1 — Download template</p>
                 <p className="text-xs text-blue-700 mt-0.5">Fill in the template with your product data, then upload it below</p>
                 <p className="text-xs text-blue-600 mt-1">Required column: <strong>name</strong> &nbsp;|&nbsp; Optional: sku, barcode, category, cost_price, selling_price, quantity, reorder_level, unit</p>
+                <p className="text-xs text-blue-600 mt-1">Also accepts supplier-style sheets with columns like <strong>product_name</strong>, <strong>unit_cost</strong>, <strong>unit_selling_price</strong>, and <strong>in_stock</strong>.</p>
               </div>
               <button type="button" onClick={downloadTemplate}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-2 rounded-lg flex-shrink-0 ml-4">

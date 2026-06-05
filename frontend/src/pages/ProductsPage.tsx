@@ -2,11 +2,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, categoriesApi, brandsApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Trash2, Package, X, Loader2, AlertTriangle, Tag } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
+import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
 const CATEGORY_EMOJI: Record<string, string> = {
   'Spirits': '🥃', 'Wine': '🍷', 'Beer & Cider': '🍺', 'Mixers & Soft Drinks': '🥤',
@@ -121,6 +122,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; product?: any }>({ open: false });
+  const [showImport, setShowImport] = useState(false);
   const qc = useQueryClient();
   const { format: formatCurrency } = useCurrencyStore();
 
@@ -159,13 +161,22 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Menu & Stock</h1>
           <p className="text-gray-400 text-sm mt-0.5">Manage your product catalog and inventory</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setModal({ open: true })}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-100 transition-colors"
-        >
-          <Plus size={16} /> Add Item
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            <FileSpreadsheet size={16} /> Import Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => setModal({ open: true })}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-100 transition-colors"
+          >
+            <Plus size={16} /> Add Item
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -299,6 +310,7 @@ export default function ProductsPage() {
       </div>
 
       {modal.open && <ProductModal product={modal.product} onClose={() => setModal({ open: false })} />}
+      {showImport && <InventoryImportModal onClose={() => setShowImport(false)} />}
     </div>
   );
 }

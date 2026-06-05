@@ -25,7 +25,7 @@ echo ""
 # ── Collect config ───────────────────────────────────────────
 APP_DIR="/var/www/nexapos"
 REPO="https://github.com/Uzah321/POS.git"
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+SERVER_IP=$(curl -4 -fsS ifconfig.me 2>/dev/null || hostname -I | tr ' ' '\n' | grep -m1 -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || hostname -I | awk '{print $1}')
 
 read -p "Enter domain or IP for this server [${SERVER_IP}]: " DOMAIN
 DOMAIN=${DOMAIN:-$SERVER_IP}

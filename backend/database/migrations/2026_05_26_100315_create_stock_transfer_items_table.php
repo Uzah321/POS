@@ -11,15 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::dropIfExists('stock_transfer_items');
-        Schema::create('stock_transfer_items', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('stock_transfer_id');
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('product_variant_id')->nullable()->constrained()->nullOnDelete();
-            $table->decimal('quantity', 12, 3);
-            $table->timestamps();
-        });
+        // Superseded by 2026_05_25_100006_create_stock_movement_tables.
     }
 
     /**
@@ -27,7 +19,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stock_transfer_items');
+        // Intentionally left blank to avoid dropping the stock_transfer_items
+        // table created by the earlier stock movement migration.
     }
 };
 

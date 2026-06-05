@@ -11,17 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::dropIfExists('stock_transfers');
-        Schema::create('stock_transfers', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('from_branch_id')->constrained('branches')->cascadeOnDelete();
-            $table->foreignId('to_branch_id')->constrained('branches')->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('reference')->unique();
-            $table->enum('status', ['pending', 'in_transit', 'received', 'cancelled'])->default('pending');
-            $table->text('notes')->nullable();
-            $table->timestamps();
-        });
+        // Superseded by 2026_05_25_100006_create_stock_movement_tables.
     }
 
     /**
@@ -29,6 +19,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stock_transfers');
+        // Intentionally left blank to avoid dropping the stock_transfers table
+        // created by the earlier stock movement migration.
     }
 };

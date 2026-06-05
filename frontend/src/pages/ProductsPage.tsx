@@ -19,11 +19,11 @@ const schema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
   barcode: z.string().optional(),
-  price: z.coerce.number().min(0),
+  selling_price: z.coerce.number().min(0),
   cost_price: z.coerce.number().min(0),
   category_id: z.coerce.number().optional(),
   brand_id: z.coerce.number().optional(),
-  reorder_point: z.coerce.number().min(0).default(5),
+  reorder_level: z.coerce.number().min(0).default(5),
   description: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
@@ -35,7 +35,12 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
-    defaultValues: product ? { ...product, price: parseFloat(product.price), cost_price: parseFloat(product.cost_price || 0) } : {},
+    defaultValues: product ? {
+      ...product,
+      selling_price: parseFloat(product.selling_price || 0),
+      cost_price: parseFloat(product.cost_price || 0),
+      reorder_level: product.reorder_level ?? 5,
+    } : {},
   });
 
   const mutation = useMutation({
@@ -75,8 +80,8 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">Selling Price (USD) *</label>
-              <input type="number" step="0.01" {...register('price')} className={field} />
-              {errors.price && <p className="text-red-500 text-xs mt-1">Required</p>}
+              <input type="number" step="0.01" {...register('selling_price')} className={field} />
+              {errors.selling_price && <p className="text-red-500 text-xs mt-1">Required</p>}
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">Cost Price (USD)</label>
@@ -98,7 +103,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">Reorder Point</label>
-              <input type="number" {...register('reorder_point')} className={field} />
+              <input type="number" {...register('reorder_level')} className={field} />
             </div>
             <div className="col-span-2">
               <label className="text-sm font-semibold text-gray-700">Description</label>
@@ -143,13 +148,13 @@ export default function ProductsPage() {
   // Summary stats
   const totalItems = meta?.total ?? products.length;
   const categories = new Set(products.map((p: any) => p.category?.name).filter(Boolean));
-  const lowStock = products.filter((p: any) => (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_point ?? 5)).length;
+  const lowStock = products.filter((p: any) => (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_level ?? 5)).length;
   const outOfStock = products.filter((p: any) => (p.total_stock ?? 0) <= 0).length;
 
   const getStockStatus = (p: any) => {
     const s = p.total_stock ?? 0;
     if (s <= 0) return { label: 'Out of Stock', cls: 'bg-red-100 text-red-700' };
-    if (s <= (p.reorder_point ?? 5)) return { label: 'Low Stock', cls: 'bg-orange-100 text-orange-700' };
+    if (s <= (p.reorder_level ?? 5)) return { label: 'Low Stock', cls: 'bg-orange-100 text-orange-700' };
     return { label: 'In Stock', cls: 'bg-emerald-100 text-emerald-700' };
   };
 
@@ -260,7 +265,7 @@ export default function ProductsPage() {
                         ) : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-sm font-bold text-gray-900">{formatCurrency(parseFloat(p.price))}</span>
+                        <span className="text-sm font-bold text-gray-900">{formatCurrency(parseFloat(p.selling_price || 0))}</span>
                         <p className="text-xs text-gray-400">Cost: {formatCurrency(parseFloat(p.cost_price || 0))}</p>
                       </td>
                       <td className="px-5 py-3.5">

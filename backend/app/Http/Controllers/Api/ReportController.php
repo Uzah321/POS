@@ -147,6 +147,7 @@ class ReportController extends BaseApiController
                     'stock_value'   => $stockQty * $product->cost_price,
                     'reorder_level' => $product->reorder_level,
                     'is_low_stock'  => $stockQty <= $product->reorder_level,
+                    'is_out'        => $stockQty <= 0,
                 ];
             });
 
@@ -338,14 +339,23 @@ class ReportController extends BaseApiController
     public function stockVariances(Request $request): \Illuminate\Http\JsonResponse
     {
         $warehouseId = $request->warehouse_id;
-        $from = $request->from ?? now()->subDays(30)->toDateString();
-        $to   = $request->to   ?? now()->toDateString();
+        $categoryId = $request->category_id;
+        $branchId = $request->branch_id;
+        $from = $request->date_from ?? $request->from ?? now()->subDays(30)->toDateString();
+        $to   = $request->date_to ?? $request->to ?? now()->toDateString();
 
-        $products = Product::with(['stocks' => fn($q) => $q->when($warehouseId, fn($s) => $s->where('warehouse_id', $warehouseId))])
-            ->where('is_active', true)->get();
+        $products = Product::with([
+                'category:id,name',
+                'stocks' => fn($q) => $q->when($warehouseId, fn($s) => $s->where('warehouse_id', $warehouseId)),
+            ])
+            ->where('is_active', true)
+            ->when($categoryId, fn($q) => $q->where('category_id', $categoryId))
+            ->get();
 
         $unitsSold = SaleItem::whereHas('sale', fn($q) =>
                 $q->where('status', 'completed')
+                  ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
+                  ->when($warehouseId, fn($sq) => $sq->where('warehouse_id', $warehouseId))
                   ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to]))
             ->groupBy('product_id')
             ->selectRaw('product_id, SUM(quantity) as units_sold, SUM(total) as revenue')
@@ -360,6 +370,7 @@ class ReportController extends BaseApiController
                 'id'            => $product->id,
                 'name'          => $product->name,
                 'sku'           => $product->sku,
+                'category'      => $product->category?->name,
                 'current_stock' => $currentStock,
                 'reorder_level' => $product->reorder_level,
                 'units_sold'    => $sold?->units_sold ?? 0,
@@ -368,7 +379,10 @@ class ReportController extends BaseApiController
                 'is_low_stock'  => $currentStock <= $product->reorder_level,
                 'is_out'        => $currentStock <= 0,
             ];
-        })->sortByDesc('units_sold')->values();
+        })->sortBy([
+            ['category', 'asc'],
+            ['name', 'asc'],
+        ])->values();
 
         return $this->success([
             'from'              => $from,

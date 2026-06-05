@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { reportsApi } from '../api';
+import { categoriesApi, reportsApi } from '../api';
 import api from '../lib/axios';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -18,15 +18,25 @@ export default function ReportsPage() {
   const [to, setTo] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [dailyDate, setDailyDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [monthlyMonth, setMonthlyMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [categoryId, setCategoryId] = useState('');
   const { format: fmt } = useCurrencyStore();
 
-  const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to], queryFn: () => reportsApi.sales({ from, to }).then(r => r.data?.data), enabled: tab === 'Sales' });
-  const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to], queryFn: () => reportsApi.profitLoss({ from, to }).then(r => r.data?.data), enabled: tab === 'Profit & Loss' });
-  const { data: invData }   = useQuery({ queryKey: ['report-inventory'], queryFn: () => reportsApi.inventory().then(r => r.data?.data), enabled: tab === 'Inventory' });
-  const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to], queryFn: () => reportsApi.cashierPerformance({ from, to }).then(r => r.data?.data), enabled: tab === 'Cashier Performance' });
+  const { data: categories = [] } = useQuery({
+    queryKey: ['report-categories'],
+    queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
+    staleTime: 60000,
+  });
+
+  const rangeParams = { date_from: from, date_to: to };
+  const categoryParams = categoryId ? { category_id: Number(categoryId) } : {};
+
+  const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to], queryFn: () => reportsApi.sales(rangeParams).then(r => r.data?.data), enabled: tab === 'Sales' });
+  const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to], queryFn: () => reportsApi.profitLoss(rangeParams).then(r => r.data?.data), enabled: tab === 'Profit & Loss' });
+  const { data: invData }   = useQuery({ queryKey: ['report-inventory', categoryId], queryFn: () => reportsApi.inventory(categoryParams).then(r => r.data?.data), enabled: tab === 'Inventory' });
+  const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to], queryFn: () => reportsApi.cashierPerformance(rangeParams).then(r => r.data?.data), enabled: tab === 'Cashier Performance' });
   const { data: dailyData, isLoading: loadingDaily }   = useQuery({ queryKey: ['report-daily', dailyDate], queryFn: () => api.get('/reports/daily', { params: { date: dailyDate } }).then(r => r.data?.data), enabled: tab === 'Daily Summary' });
   const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth } }).then(r => r.data?.data), enabled: tab === 'Monthly Report' });
-  const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to], queryFn: () => api.get('/reports/stock-variances', { params: { from, to } }).then(r => r.data?.data), enabled: tab === 'Stock Variances' });
+  const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances' });
   const { data: consolidationData, isLoading: loadingConsolidation } = useQuery({ queryKey: ['report-consolidation', from, to], queryFn: () => api.get('/reports/branch-consolidation', { params: { date_from: from, date_to: to } }).then(r => r.data?.data), enabled: tab === 'Branch Consolidation' });
 
   const downloadPdf = (url: string, params: Record<string, string>) => {
@@ -141,6 +151,17 @@ export default function ReportsPage() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </>
         )}
+        {['Inventory', 'Stock Variances'].includes(tab) && (
+          <>
+            <label className="text-sm text-gray-600">Category:</label>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">All Categories</option>
+              {(categories as any[]).map((category: any) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </>
+        )}
         {tab === 'Daily Summary' && (
           <>
             <label className="text-sm text-gray-600">Date:</label>
@@ -203,7 +224,7 @@ export default function ReportsPage() {
       {tab === 'Inventory' && invData && (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
-            {[['Total Products', invData.total_products], ['Stock Value', fmt(invData.total_stock_value || 0)], ['Low Stock', invData.low_stock_count]].map(([label, val]) => (
+            {[['Total Products', invData.summary?.total_products], ['Stock Value', fmt(invData.summary?.total_stock_value || 0)], ['Low Stock', invData.summary?.low_stock_count]].map(([label, val]) => (
               <div key={label} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100"><p className="text-sm text-gray-500">{label}</p><p className="text-2xl font-bold text-gray-900 mt-1">{val}</p></div>
             ))}
           </div>
@@ -328,11 +349,11 @@ export default function ReportsPage() {
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase"><tr><th className="px-4 py-2 text-left">Product</th><th className="px-4 py-2 text-left">SKU</th><th className="px-4 py-2 text-right">Stock</th><th className="px-4 py-2 text-right">Reorder</th><th className="px-4 py-2 text-right">Sold</th><th className="px-4 py-2 text-right">Value</th><th className="px-4 py-2 text-center">Status</th></tr></thead>
+                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase"><tr><th className="px-4 py-2 text-left">Product</th><th className="px-4 py-2 text-left">SKU</th><th className="px-4 py-2 text-left">Category</th><th className="px-4 py-2 text-right">Stock</th><th className="px-4 py-2 text-right">Reorder</th><th className="px-4 py-2 text-right">Sold</th><th className="px-4 py-2 text-right">Revenue</th><th className="px-4 py-2 text-right">Value</th><th className="px-4 py-2 text-center">Status</th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {stockData.products?.map((p: any) => (
                       <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 font-medium">{p.name}</td><td className="px-4 py-2 text-gray-500">{p.sku}</td><td className="px-4 py-2 text-right">{p.current_stock}</td><td className="px-4 py-2 text-right">{p.reorder_level}</td><td className="px-4 py-2 text-right">{p.units_sold}</td><td className="px-4 py-2 text-right">{fmt(p.stock_value)}</td>
+                        <td className="px-4 py-2 font-medium">{p.name}</td><td className="px-4 py-2 text-gray-500">{p.sku}</td><td className="px-4 py-2 text-gray-500">{p.category || '—'}</td><td className="px-4 py-2 text-right">{p.current_stock}</td><td className="px-4 py-2 text-right">{p.reorder_level}</td><td className="px-4 py-2 text-right">{p.units_sold}</td><td className="px-4 py-2 text-right">{fmt(p.revenue || 0)}</td><td className="px-4 py-2 text-right">{fmt(p.stock_value)}</td>
                         <td className="px-4 py-2 text-center">{p.is_out ? <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Out</span> : p.is_low_stock ? <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Low</span> : <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">OK</span>}</td>
                       </tr>
                     ))}

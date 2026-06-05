@@ -223,11 +223,35 @@ php artisan db:seed --force
 
 ## Updating the Application
 
+Preferred one-command update on the VPS:
+
+```bash
+sudo nexapos-update
+```
+
+If the command alias has not been installed yet:
+
+```bash
+cd /var/www/nexapos
+sudo bash update.sh
+```
+
+What it does:
+- pulls the latest code from `origin/main`
+- installs backend dependencies
+- runs `php artisan migrate --force`
+- refreshes Laravel caches
+- installs frontend dependencies and rebuilds `frontend/dist`
+- restarts `php8.3-fpm` and `nginx`
+- verifies both `/` and `/api/currencies`
+
+Manual fallback:
+
 ```bash
 cd /var/www/nexapos
 
 # Pull latest code
-git pull
+git pull --ff-only origin main
 
 # Backend
 cd backend

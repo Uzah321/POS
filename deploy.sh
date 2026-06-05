@@ -106,6 +106,12 @@ rm -rf "$APP_DIR"
 git clone "$REPO" "$APP_DIR" --quiet
 ok "Repository cloned to $APP_DIR"
 
+# ── Install update command ───────────────────────────────────
+if [ -f "$APP_DIR/update.sh" ]; then
+  install -m 755 "$APP_DIR/update.sh" /usr/local/bin/nexapos-update
+  ok "Update command installed: sudo nexapos-update"
+fi
+
 # ── Backend setup ────────────────────────────────────────────
 info "Installing PHP dependencies..."
 cd "$APP_DIR/backend"
@@ -284,6 +290,7 @@ echo -e "      Username: ${YELLOW}cashier1${NC}  Password: ${YELLOW}Cashier@123$
 echo ""
 echo -e "  🗄️  Database password: ${YELLOW}${DB_PASS}${NC}  ← save this!"
 echo ""
+echo -e "  ⬆️  Future updates: ${YELLOW}sudo nexapos-update${NC}"
 echo -e "  📄  Logs: sudo tail -f /var/log/nginx/error.log"
 echo -e "  🔄  Restart: sudo systemctl restart php8.3-fpm nginx"
 echo ""

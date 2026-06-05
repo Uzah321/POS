@@ -36,7 +36,7 @@ function StatusBadge({ status }: { status: string }) {
       </span>
     );
   }
-  if (status === 'cancelled') {
+  if (status === 'voided' || status === 'cancelled') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
         <XCircle size={11} />

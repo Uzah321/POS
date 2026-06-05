@@ -189,7 +189,7 @@ class SaleController extends BaseApiController
         if (! auth()->user()->can('void_sales')) {
             return $this->error('You do not have permission to cancel orders', 403);
         }
-        if ($sale->status === 'cancelled') {
+        if ($sale->status === 'voided') {
             return $this->error('Sale is already cancelled', 422);
         }
 
@@ -207,7 +207,7 @@ class SaleController extends BaseApiController
                 }
             }
 
-            $sale->update(['status' => 'cancelled']);
+            $sale->update(['status' => 'voided']);
 
             return $this->success($sale->fresh(), 'Sale cancelled successfully');
         });

@@ -181,14 +181,19 @@ ok "Caches built"
 info "Setting file permissions..."
 chown -R www-data:www-data "$APP_DIR/backend/storage"
 chown -R www-data:www-data "$APP_DIR/backend/bootstrap/cache"
-chmod -R 775 "$APP_DIR/backend/storage"
-chmod -R 775 "$APP_DIR/backend/bootstrap/cache"
+find "$APP_DIR/backend/storage" "$APP_DIR/backend/bootstrap/cache" -type d -exec chmod 775 {} +
+find "$APP_DIR/backend/storage" "$APP_DIR/backend/bootstrap/cache" -type f ! -name '.gitignore' -exec chmod 664 {} +
+find "$APP_DIR/backend/storage" "$APP_DIR/backend/bootstrap/cache" -type f -name '.gitignore' -exec chmod 644 {} +
 ok "Permissions set"
 
 # ── Build frontend ───────────────────────────────────────────
 info "Installing frontend dependencies..."
 cd "$APP_DIR/frontend"
-npm install --silent
+if [ -f package-lock.json ]; then
+  npm ci --silent
+else
+  npm install --silent
+fi
 ok "npm install complete"
 
 info "Building React frontend (this takes ~1 min)..."

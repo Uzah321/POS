@@ -12,6 +12,20 @@ ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
+normalize_runtime_repo_state() {
+  while IFS= read -r path; do
+    [ -n "${path}" ] || continue
+    if [ -f "${APP_DIR}/${path}" ]; then
+      chmod 644 "${APP_DIR}/${path}" || true
+      git checkout -- "${path}" || true
+    fi
+  done < <(git ls-files backend/storage backend/bootstrap/cache | grep '/\.gitignore$' || true)
+
+  if [ -f "${APP_DIR}/frontend/package-lock.json" ]; then
+    git checkout -- frontend/package-lock.json || true
+  fi
+}
+
 if [ "${EUID}" -ne 0 ]; then
   exec sudo --preserve-env=APP_DIR,BRANCH,PHP_BIN,COMPOSER_BIN,NPM_BIN "$0" "$@"
 fi
@@ -53,6 +67,8 @@ command -v "${NPM_BIN}" >/dev/null 2>&1 || error "${NPM_BIN} is not installed"
 
 cd "${APP_DIR}"
 
+normalize_runtime_repo_state
+
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   error "Tracked local changes exist in ${APP_DIR}; commit or discard them before updating"
 fi
@@ -89,7 +105,9 @@ ok "Laravel caches refreshed"
 
 info "Setting backend permissions..."
 chown -R www-data:www-data "${BACKEND_DIR}/storage" "${BACKEND_DIR}/bootstrap/cache"
-chmod -R 775 "${BACKEND_DIR}/storage" "${BACKEND_DIR}/bootstrap/cache"
+find "${BACKEND_DIR}/storage" "${BACKEND_DIR}/bootstrap/cache" -type d -exec chmod 775 {} +
+find "${BACKEND_DIR}/storage" "${BACKEND_DIR}/bootstrap/cache" -type f ! -name '.gitignore' -exec chmod 664 {} +
+find "${BACKEND_DIR}/storage" "${BACKEND_DIR}/bootstrap/cache" -type f -name '.gitignore' -exec chmod 644 {} +
 ok "Permissions updated"
 
 info "Installing frontend dependencies..."
@@ -97,7 +115,11 @@ cd "${FRONTEND_DIR}"
 if [ ! -f .env.production ]; then
   echo "VITE_APP_NAME=NexaPOS" > .env.production
 fi
-"${NPM_BIN}" install --silent
+if [ -f package-lock.json ]; then
+  "${NPM_BIN}" ci --silent
+else
+  "${NPM_BIN}" install --silent
+fi
 ok "Frontend dependencies installed"
 
 info "Building frontend..."

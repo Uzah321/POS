@@ -74,7 +74,7 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">{user ? 'New Password' : 'Password *'}</label>
-              <input type="password" {...register('password')} className={field} placeholder={user ? 'Leave blank to keep' : 'Min 8 chars'} />
+              <input type="password" {...register('password')} className={field} placeholder={user ? 'Leave blank to keep' : 'Min 4 chars'} />
               {errors.password && <p className="text-red-500 text-xs mt-1">Min 4 characters</p>}
             </div>
           </div>

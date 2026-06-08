@@ -28,7 +28,7 @@ const schema = z.object({
   name: z.string().min(1),
   username: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, 'Only letters, numbers, _ and - allowed'),
   email: z.string().email().optional().or(z.literal('')),
-  password: z.string().min(8).optional().or(z.literal('')),
+  password: z.string().min(4).optional().or(z.literal('')),
   role: z.string().min(1),
   branch_id: z.preprocess(v => (v === '' || v === '0' || v === 0) ? undefined : Number(v), z.number().optional()),
   is_active: z.boolean().default(true),
@@ -75,7 +75,7 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
             <div>
               <label className="text-sm font-semibold text-gray-700">{user ? 'New Password' : 'Password *'}</label>
               <input type="password" {...register('password')} className={field} placeholder={user ? 'Leave blank to keep' : 'Min 8 chars'} />
-              {errors.password && <p className="text-red-500 text-xs mt-1">Min 8 characters</p>}
+              {errors.password && <p className="text-red-500 text-xs mt-1">Min 4 characters</p>}
             </div>
           </div>
           <div>

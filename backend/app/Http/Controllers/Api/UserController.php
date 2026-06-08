@@ -30,7 +30,7 @@ class UserController extends BaseApiController
             'username'  => 'required|string|max:50|unique:users|alpha_dash',
             'email'     => 'nullable|email|unique:users',
             'phone'     => 'nullable|string|max:20',
-            'password'  => 'required|string|min:8',
+            'password'  => 'required|string|min:4',
             'branch_id' => 'nullable|exists:branches,id',
             'roles'     => 'required|array',
             'roles.*'   => 'exists:roles,name',
@@ -62,7 +62,7 @@ class UserController extends BaseApiController
             'is_active' => 'sometimes|boolean',
             'roles'     => 'sometimes|array',
             'roles.*'   => 'exists:roles,name',
-            'password'  => 'sometimes|string|min:8',
+            'password'  => 'sometimes|string|min:4',
         ]);
 
         if (isset($data['password'])) {

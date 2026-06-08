@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { salesApi } from '../api';
+import { salesApi, settingsApi } from '../api';
 import { Search, Eye, Loader2, Printer, Receipt } from 'lucide-react';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
@@ -24,6 +24,12 @@ export default function SalesPage() {
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
 
+  const { data: storeSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data, isLoading } = useQuery({
     queryKey: ['sales', search, page],
     queryFn: () => salesApi.list({ search, page, per_page: 20 }).then(r => r.data?.data),
@@ -39,7 +45,12 @@ export default function SalesPage() {
     mutationFn: async (saleId: number) => {
       const sale = (await salesApi.receipt(saleId)).data?.data;
       await printReceipt(
-        buildReceiptDataFromSale(sale, { currency }),
+        buildReceiptDataFromSale(sale, {
+          currency,
+          storeName: storeSettings?.company_name,
+          storeAddress: storeSettings?.company_address,
+          storePhone: storeSettings?.company_phone,
+        }),
         resolveReceiptPrintMode(hw.printerMode)
       );
       return sale;

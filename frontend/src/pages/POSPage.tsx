@@ -1,6 +1,6 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, customersApi, salesApi } from '../api';
+import { productsApi, customersApi, salesApi, settingsApi } from '../api';
 import type { CartItem } from '../stores/cartStore';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
@@ -98,6 +98,15 @@ export default function POSPage() {
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
 
+  const { data: storeSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
+    staleTime: 5 * 60 * 1000,
+  });
+  const storeName = storeSettings?.company_name || 'DiaperMart Store';
+  const storeAddress = user?.branch?.address || storeSettings?.company_address;
+  const storePhone = user?.branch?.phone || storeSettings?.company_phone;
+
   useEffect(() => { searchRef.current?.focus(); }, []);
 
   // Barcode scanner — intercepts fast keystroke sequences and routes to product search
@@ -187,7 +196,7 @@ export default function POSPage() {
     if (!hw.customerDisplayEnabled) return;
     broadcastCart({
       type: cart.items.length > 0 ? 'cart' : 'idle',
-      storeName: user?.branch?.name ?? 'DiaperMart Store',
+      storeName,
       currency,
       items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
       subtotal: cart.subtotal(),
@@ -206,7 +215,9 @@ export default function POSPage() {
       if (sale) {
         void printReceipt(
           buildReceiptDataFromSale(sale, {
-            storeName: user?.branch?.name ?? 'DiaperMart Store',
+            storeName,
+            storeAddress,
+            storePhone,
             cashier: user?.name ?? '',
             currency,
             paymentMethod,
@@ -226,8 +237,8 @@ export default function POSPage() {
       }
 
       // Broadcast "thank you" to customer display
-      broadcastCart({ type: 'thankyou', storeName: user?.branch?.name ?? 'DiaperMart Store', currency });
-      setTimeout(() => broadcastCart({ type: 'idle', storeName: user?.branch?.name ?? 'DiaperMart Store', currency }), 4000);
+      broadcastCart({ type: 'thankyou', storeName, currency });
+      setTimeout(() => broadcastCart({ type: 'idle', storeName, currency }), 4000);
 
       cart.clearCart();
       setCashTendered('');

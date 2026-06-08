@@ -7,7 +7,7 @@ interface User {
   email: string;
   roles: string[];
   permissions: string[];
-  branch?: { id: number; name: string };
+  branch?: { id: number; name: string; address?: string; phone?: string; city?: string };
   avatar?: string;
 }
 

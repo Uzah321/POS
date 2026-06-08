@@ -39,6 +39,7 @@ import FinancialReportPage from './pages/FinancialReportPage';
 import SalariesPage from './pages/SalariesPage';
 import RentalsPage from './pages/RentalsPage';
 import StockReconciliationPage from './pages/StockReconciliationPage';
+import BranchesPage from './pages/BranchesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -93,6 +94,7 @@ export default function App() {
               <Route path="/salaries" element={<LayoutWrapper><SalariesPage /></LayoutWrapper>} />
               <Route path="/rentals" element={<LayoutWrapper><RentalsPage /></LayoutWrapper>} />
               <Route path="/stock-reconciliation" element={<LayoutWrapper><StockReconciliationPage /></LayoutWrapper>} />
+              <Route path="/branches" element={<LayoutWrapper><BranchesPage /></LayoutWrapper>} />
             </Route>
             <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
           </Route>

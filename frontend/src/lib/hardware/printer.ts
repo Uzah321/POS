@@ -116,7 +116,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
   const discount = money(sale?.discount_total ?? sale?.discount_amount ?? sale?.discount_value);
 
   return {
-    storeName: sale?.branch?.name ?? options.storeName ?? 'NexaPOS',
+    storeName: sale?.branch?.name ?? options.storeName ?? 'DiaperMart Store',
     storeAddress: sale?.branch?.address ?? options.storeAddress,
     storePhone: sale?.branch?.phone ?? options.storePhone,
     reference: sale?.reference ?? `#${sale?.id ?? 'SALE'}`,

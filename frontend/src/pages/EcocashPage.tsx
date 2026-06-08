@@ -26,14 +26,15 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const schema = z.object({
-  branch_id:         z.coerce.number().min(1, 'Branch required'),
-  type:              z.enum(['deposit', 'withdrawal', 'float_top_up', 'float_withdrawal', 'commission']),
-  ecocash_reference: z.string().optional(),
-  customer_phone:    z.string().optional(),
-  amount:            z.coerce.number().min(0.01, 'Amount required'),
-  commission_rate:   z.coerce.number().min(0).max(100).default(0),
-  transaction_date:  z.string().min(1, 'Date required'),
-  notes:             z.string().optional(),
+  branch_id:          z.coerce.number().min(1, 'Branch required'),
+  type:               z.enum(['deposit', 'withdrawal', 'float_top_up', 'float_withdrawal', 'commission']),
+  ecocash_reference:  z.string().optional(),
+  customer_phone:     z.string().optional(),
+  amount:             z.coerce.number().min(0.01, 'Amount required'),
+  commission_rate:    z.coerce.number().min(0).max(100).default(0),
+  commission_amount:  z.coerce.number().min(0).optional(),
+  transaction_date:   z.string().min(1, 'Date required'),
+  notes:              z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -48,6 +49,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; onClose: () => void; isCashier?: boolean }) {
   const qc = useQueryClient();
+  const [commissionMode, setCommissionMode] = useState<'rate' | 'amount'>('rate');
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
@@ -115,8 +117,18 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
 
           {showCommission && (
             <div>
-              <label className="text-sm font-medium text-gray-700">Commission Rate (%)</label>
-              <input type="number" step="0.01" min="0" max="100" {...register('commission_rate')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="e.g. 3.5" />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium text-gray-700">Commission</label>
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs">
+                  <button type="button" onClick={() => setCommissionMode('rate')} className={`px-2.5 py-1 font-medium transition-colors ${commissionMode === 'rate' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>% Rate</button>
+                  <button type="button" onClick={() => setCommissionMode('amount')} className={`px-2.5 py-1 font-medium transition-colors ${commissionMode === 'amount' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>$ Amount</button>
+                </div>
+              </div>
+              {commissionMode === 'rate' ? (
+                <input type="number" step="0.01" min="0" max="100" {...register('commission_rate')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="e.g. 3.5" />
+              ) : (
+                <input type="number" step="0.01" min="0" {...register('commission_amount')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="e.g. 5.00" />
+              )}
             </div>
           )}
 

@@ -81,6 +81,7 @@ const navGroups: NavGroup[] = [
     label: 'Admin',
     icon: Settings,
     items: [
+      { to: '/branches', label: 'Branches', icon: Building2, perm: 'manage_settings' },
       { to: '/users', label: 'Staff', icon: UserCog, perm: 'manage_users' },
       { to: '/roles-permissions', label: 'Roles & Perms', icon: Key, perm: 'manage_settings' },
       { to: '/settings', label: 'Settings', icon: Settings, perm: 'manage_settings' },
@@ -167,10 +168,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 h-16 border-b border-gray-100 flex-shrink-0 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white text-lg flex-shrink-0">N</div>
+        <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white text-lg flex-shrink-0">D</div>
         {!collapsed && (
           <div>
-            <span className="font-bold text-gray-900 text-base leading-tight block">NexaPOS</span>
+            <span className="font-bold text-gray-900 text-base leading-tight block">DiaperMart Store</span>
             <span className="text-xs text-gray-400 truncate block">{user?.branch?.name ?? 'Main Branch'}</span>
           </div>
         )}

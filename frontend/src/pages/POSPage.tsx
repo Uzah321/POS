@@ -187,7 +187,7 @@ export default function POSPage() {
     if (!hw.customerDisplayEnabled) return;
     broadcastCart({
       type: cart.items.length > 0 ? 'cart' : 'idle',
-      storeName: user?.branch?.name ?? 'NexaPOS',
+      storeName: user?.branch?.name ?? 'DiaperMart Store',
       currency,
       items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
       subtotal: cart.subtotal(),
@@ -206,7 +206,7 @@ export default function POSPage() {
       if (sale) {
         void printReceipt(
           buildReceiptDataFromSale(sale, {
-            storeName: user?.branch?.name ?? 'NexaPOS',
+            storeName: user?.branch?.name ?? 'DiaperMart Store',
             cashier: user?.name ?? '',
             currency,
             paymentMethod,
@@ -226,8 +226,8 @@ export default function POSPage() {
       }
 
       // Broadcast "thank you" to customer display
-      broadcastCart({ type: 'thankyou', storeName: user?.branch?.name ?? 'NexaPOS', currency });
-      setTimeout(() => broadcastCart({ type: 'idle', storeName: user?.branch?.name ?? 'NexaPOS', currency }), 4000);
+      broadcastCart({ type: 'thankyou', storeName: user?.branch?.name ?? 'DiaperMart Store', currency });
+      setTimeout(() => broadcastCart({ type: 'idle', storeName: user?.branch?.name ?? 'DiaperMart Store', currency }), 4000);
 
       cart.clearCart();
       setCashTendered('');

@@ -82,7 +82,7 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Configure your NexaPOS store</p>
+          <p className="text-gray-400 text-sm mt-0.5">Configure your DiaperMart Store</p>
         </div>
         <button
           type="button"
@@ -107,7 +107,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Name</label>
-              <input value={values.company_name ?? ''} onChange={set('company_name')} placeholder="NexaPOS Store" className={field} />
+              <input value={values.company_name ?? ''} onChange={set('company_name')} placeholder="DiaperMart Store" className={field} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number</label>
@@ -115,7 +115,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
-              <input type="email" value={values.company_email ?? ''} onChange={set('company_email')} placeholder="store@nexapos.com" className={field} />
+              <input type="email" value={values.company_email ?? ''} onChange={set('company_email')} placeholder="store@diapermart.com" className={field} />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Address</label>

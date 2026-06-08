@@ -9,11 +9,12 @@ class SupplierController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = Supplier::when($request->search, fn($q) => $q->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('email', 'like', "%{$request->search}%")
-                  ->orWhere('phone', 'like', "%{$request->search}%");
-            }));
+        $query = Supplier::when($request->search, function ($q) use ($request) {
+                $s = '%' . mb_strtolower($request->search) . '%';
+                $q->whereRaw('LOWER(name) LIKE ?', [$s])
+                  ->orWhereRaw('LOWER(email) LIKE ?', [$s])
+                  ->orWhereRaw('LOWER(phone) LIKE ?', [$s]);
+            });
 
         return $this->paginated($query->orderBy('name')->paginate($request->per_page ?? 20));
     }

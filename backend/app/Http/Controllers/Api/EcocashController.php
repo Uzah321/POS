@@ -39,6 +39,7 @@ class EcocashController extends BaseApiController
             'customer_phone'    => 'nullable|string|max:20',
             'amount'            => 'required|numeric|min:0.01',
             'commission_rate'   => 'nullable|numeric|min:0|max:100',
+            'commission_amount' => 'nullable|numeric|min:0',
             'transaction_date'  => 'required|date',
             'notes'             => 'nullable|string',
         ]);
@@ -61,9 +62,14 @@ class EcocashController extends BaseApiController
         };
 
         $commissionRate = $data['commission_rate'] ?? 0;
-        $commissionAmount = in_array($data['type'], ['deposit', 'withdrawal'])
-            ? round($data['amount'] * ($commissionRate / 100), 2)
-            : 0;
+        if (isset($data['commission_amount']) && $data['commission_amount'] > 0 && in_array($data['type'], ['deposit', 'withdrawal'])) {
+            $commissionAmount = (float) $data['commission_amount'];
+            $commissionRate = $data['amount'] > 0 ? round(($commissionAmount / $data['amount']) * 100, 2) : 0;
+        } else {
+            $commissionAmount = in_array($data['type'], ['deposit', 'withdrawal'])
+                ? round($data['amount'] * ($commissionRate / 100), 2)
+                : 0;
+        }
 
         $tx = EcocashTransaction::create([
             'reference'         => 'ECO-' . strtoupper(Str::random(8)),

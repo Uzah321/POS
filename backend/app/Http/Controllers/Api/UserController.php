@@ -11,8 +11,11 @@ class UserController extends BaseApiController
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
         $query = User::with('roles', 'branch')
-            ->when($request->search, fn($q) => $q->where('name', 'like', "%{$request->search}%")
-                ->orWhere('email', 'like', "%{$request->search}%"))
+            ->when($request->search, function ($q) use ($request) {
+                $s = '%' . mb_strtolower($request->search) . '%';
+                $q->whereRaw('LOWER(name) LIKE ?', [$s])
+                  ->orWhereRaw('LOWER(email) LIKE ?', [$s]);
+            })
             ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
             ->when($request->role, fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $request->role)))
             ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')));

@@ -49,9 +49,9 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-200">
-            <span className="text-3xl font-bold text-white">N</span>
+            <span className="text-3xl font-bold text-white">D</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">NexaPOS</h1>
+          <h1 className="text-2xl font-bold text-gray-900">DiaperMart Store</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
@@ -96,7 +96,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-center text-gray-400 mt-6">
-          NexaPOS — Point of Sale System v2.0
+          DiaperMart Store — Point of Sale System v2.0
         </p>
       </div>
     </div>

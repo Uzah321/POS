@@ -122,7 +122,7 @@ export default function HardwarePage() {
 
   const handleTestPrint = () => {
     void printReceipt({
-      storeName: 'NexaPOS Store',
+      storeName: 'DiaperMart Store',
       storeAddress: '123 Main Street',
       storePhone: '+27 11 000 0000',
       reference: 'TEST-001',
@@ -163,7 +163,7 @@ export default function HardwarePage() {
   const handleTestDisplay = () => {
     broadcastCart({
       type: 'cart',
-      storeName: 'NexaPOS Store',
+      storeName: 'DiaperMart Store',
       currency,
       items: [
         { name: 'Test Item A', qty: 2, price: 10, total: 20 },
@@ -282,7 +282,7 @@ export default function HardwarePage() {
               </div>
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <p>Scan a barcode from any screen. NexaPOS detects the fast keystroke pattern and routes it to the product search.</p>
+                <p>Scan a barcode from any screen. DiaperMart Store detects the fast keystroke pattern and routes it to the product search.</p>
               </div>
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
@@ -506,7 +506,7 @@ export default function HardwarePage() {
                     <p className="text-sm font-medium text-gray-900">{mode === 'webhook' ? 'Webhook / REST API' : 'Disabled (manual)'}</p>
                     <p className="text-xs text-gray-500">
                       {mode === 'webhook'
-                        ? 'NexaPOS calls your terminal\'s REST endpoint when a card payment is initiated'
+                        ? 'DiaperMart Store calls your terminal\'s REST endpoint when a card payment is initiated'
                         : 'Process card payments on the terminal manually; record them as "Card" in the POS'}
                     </p>
                   </div>
@@ -525,7 +525,7 @@ export default function HardwarePage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
               />
               <p className="text-xs text-gray-400 mt-1">
-                NexaPOS will POST <code className="bg-gray-100 px-1 rounded">{`{ amount, currency, reference }`}</code> to this URL and expect <code className="bg-gray-100 px-1 rounded">{`{ success, reference }`}</code> in response.
+                DiaperMart Store will POST <code className="bg-gray-100 px-1 rounded">{`{ amount, currency, reference }`}</code> to this URL and expect <code className="bg-gray-100 px-1 rounded">{`{ success, reference }`}</code> in response.
               </p>
               <div className="mt-3 space-y-1 text-xs text-gray-500">
                 <p className="font-medium text-gray-700">Compatible terminals:</p>

@@ -30,7 +30,7 @@ const schema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   password: z.string().min(8).optional().or(z.literal('')),
   role: z.string().min(1),
-  branch_id: z.coerce.number().optional(),
+  branch_id: z.preprocess(v => (v === '' || v === '0' || v === 0) ? undefined : Number(v), z.number().optional()),
   is_active: z.boolean().default(true),
 });
 type FormData = z.infer<typeof schema>;

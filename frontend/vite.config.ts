@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'NexaPOS',
-        short_name: 'NexaPOS',
+        name: 'DiaperMart Store',
+        short_name: 'DiaperMart Store',
         description: 'Point of Sale System',
         theme_color: '#2563eb',
         background_color: '#ffffff',

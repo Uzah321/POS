@@ -13,11 +13,14 @@ class ProductController extends BaseApiController
     {
         $query = Product::with('category', 'brand', 'unit', 'taxRate')
             ->withSum('stocks', 'quantity')
-            ->when($request->search, fn($q) => $q->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('sku', 'like', "%{$request->search}%")
-                  ->orWhere('barcode', 'like', "%{$request->search}%");
-            }))
+            ->when($request->search, function ($q) use ($request) {
+                $s = '%' . mb_strtolower($request->search) . '%';
+                $q->where(function ($q) use ($s) {
+                    $q->whereRaw('LOWER(name) LIKE ?', [$s])
+                      ->orWhereRaw('LOWER(sku) LIKE ?', [$s])
+                      ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
+                });
+            })
             ->when($request->category_id, fn($q) => $q->where('category_id', $request->category_id))
             ->when($request->brand_id, fn($q) => $q->where('brand_id', $request->brand_id))
             ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')))

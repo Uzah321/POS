@@ -19,21 +19,33 @@ use Illuminate\Support\Str;
 
 class InventoryController extends BaseApiController
 {
-    // Stock levels
+    // Stock levels — returns ALL products with their aggregated stock quantity
     public function stockLevels(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = Stock::with('product.category', 'product.brand', 'variant', 'warehouse')
-            ->when($request->warehouse_id, fn($q) => $q->where('warehouse_id', $request->warehouse_id))
-            ->when($request->low_stock, fn($q) => $q->whereHas('product', fn($p) =>
-                $p->whereRaw('stocks.quantity <= products.reorder_level')
+        $search = $request->search ? mb_strtolower($request->search) : null;
+        $filter = $request->filter;
+
+        $query = Product::with('category')
+            ->withSum('stocks', 'quantity')
+            ->when($request->warehouse_id, fn($q) => $q->whereHas('stocks', fn($s) =>
+                $s->where('warehouse_id', $request->warehouse_id)
             ))
-            ->when($request->search, fn($q) => $q->whereHas('product', fn($p) =>
-                $p->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('sku', 'like', "%{$request->search}%")
-                  ->orWhere('barcode', $request->search)
+            ->when($search, function ($q) use ($search) {
+                $s = "%{$search}%";
+                $q->where(function ($q) use ($s) {
+                    $q->whereRaw('LOWER(name) LIKE ?', [$s])
+                      ->orWhereRaw('LOWER(sku) LIKE ?', [$s])
+                      ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
+                });
+            })
+            ->when($filter === 'low', fn($q) => $q->whereRaw(
+                'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) > 0 AND COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= products.reorder_level'
+            ))
+            ->when($filter === 'out', fn($q) => $q->whereRaw(
+                'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= 0'
             ));
 
-        return $this->paginated($query->paginate($request->per_page ?? 20));
+        return $this->paginated($query->orderBy('name')->paginate($request->per_page ?? 30));
     }
 
     // Stock adjustment

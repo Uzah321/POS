@@ -138,10 +138,10 @@ export default function InventoryPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {stocks.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-400">No stock data found</td></tr>
+                  <tr><td colSpan={7} className="text-center py-12 text-gray-400">No products found</td></tr>
                 ) : stocks.map((s: any, i: number) => {
-                  const qty = s.quantity || s.total_stock || 0;
-                  const reorder = s.product?.reorder_point || s.reorder_point || 5;
+                  const qty = s.stocks_sum_quantity ?? s.quantity ?? 0;
+                  const reorder = s.reorder_level ?? s.reorder_point ?? 5;
                   const isLow = qty > 0 && qty <= reorder;
                   const isOut = qty <= 0;
                   return (
@@ -149,12 +149,12 @@ export default function InventoryPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {(isLow || isOut) && <AlertTriangle size={14} className={isOut ? 'text-red-500' : 'text-yellow-500'} />}
-                          <span className="text-sm font-medium text-gray-900">{s.product?.name || s.name}</span>
+                          <span className="text-sm font-medium text-gray-900">{s.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.product?.sku || s.sku}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.product?.category?.name || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.warehouse?.name || 'Main'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.sku || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.category?.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.stocks?.[0]?.warehouse?.name || 'Main'}</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900">{qty}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{reorder}</td>
                       <td className="px-4 py-3">

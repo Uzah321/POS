@@ -119,7 +119,7 @@ cd "${FRONTEND_DIR}"
 if [ ! -f .env.production ]; then
   cat > .env.production <<ENV
 VITE_API_URL=/api
-VITE_APP_NAME=NexaPOS
+VITE_APP_NAME=DiaperMart Store
 ENV
 fi
 if [ -f package-lock.json ]; then

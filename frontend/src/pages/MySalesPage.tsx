@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { History, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw, UserCircle2 } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 import { salesApi, usersApi } from '../api';
 import { useAuthStore } from '../stores/authStore';
@@ -67,6 +68,7 @@ export default function MySalesPage() {
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
   // null = current user; 0 = all cashiers; positive number = specific cashier
   const [selectedCashierId, setSelectedCashierId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
 
   const symbol = activeCurrency?.symbol ?? '$';
   const format_ = (v: number) =>
@@ -90,14 +92,14 @@ export default function MySalesPage() {
     : selectedCashierId === 0 ? undefined      // all cashiers
     : selectedCashierId;
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['my-sales', effectiveCashierId ?? 'all', isCashier ? 'shift' : 'any'],
+  const { data: salesData, isLoading, refetch } = useQuery({
+    queryKey: ['my-sales', effectiveCashierId ?? 'all', isCashier ? 'shift' : 'any', page],
     queryFn: async () => {
-      const params: Record<string, any> = { per_page: 200, sort_by: 'created_at', sort_dir: 'desc' };
+      const params: Record<string, any> = { page, per_page: 20, sort_by: 'created_at', sort_dir: 'desc' };
       if (effectiveCashierId) params.cashier_id = effectiveCashierId;
       if (isCashier) params.current_shift = 1;
       const res = await salesApi.list(params);
-      return (res.data?.data?.data ?? res.data?.data ?? []) as Sale[];
+      return res.data?.data;
     },
     enabled: !!user?.id,
   });
@@ -118,7 +120,8 @@ export default function MySalesPage() {
     },
   });
 
-  const sales = Array.isArray(data) ? data : [];
+  const sales: Sale[] = salesData?.data ?? (Array.isArray(salesData) ? salesData : []);
+  const meta = salesData?.meta ?? (salesData?.last_page ? { current_page: salesData.current_page, last_page: salesData.last_page, from: salesData.from, to: salesData.to, total: salesData.total } : null);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -154,6 +157,7 @@ export default function MySalesPage() {
               if (v === 'me') setSelectedCashierId(null);
               else if (v === 'all') setSelectedCashierId(0);
               else setSelectedCashierId(Number(v));
+              setPage(1);
             }}
             className="flex-1 text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -248,6 +252,7 @@ export default function MySalesPage() {
           })}
         </div>
       )}
+      <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
 
       {/* Confirm Cancel Dialog */}
       {confirmCancelId !== null && (

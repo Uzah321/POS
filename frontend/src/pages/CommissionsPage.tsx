@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { TrendingUp, Check, Calendar } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 
 export default function CommissionsPage() {
@@ -12,6 +13,7 @@ export default function CommissionsPage() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0,10));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [tab, setTab] = useState<'all' | 'pending' | 'paid'>('all');
+  const [page, setPage] = useState(1);
 
   const { data: report, isLoading: reportLoading } = useQuery({
     queryKey: ['commissions-report', dateFrom, dateTo],
@@ -19,8 +21,8 @@ export default function CommissionsPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['commissions', tab, dateFrom, dateTo],
-    queryFn: () => api.get('/commissions', { params: { status: tab === 'all' ? undefined : tab, date_from: dateFrom, date_to: dateTo } }).then(r => r.data?.data),
+    queryKey: ['commissions', tab, dateFrom, dateTo, page],
+    queryFn: () => api.get('/commissions', { params: { status: tab === 'all' ? undefined : tab, date_from: dateFrom, date_to: dateTo, page, per_page: 20 } }).then(r => r.data?.data),
   });
 
   const markPaidMutation = useMutation({
@@ -29,7 +31,8 @@ export default function CommissionsPage() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
   });
 
-  const commissions: any[] = data?.data ?? data ?? [];
+  const commissions: any[] = data?.data ?? (Array.isArray(data) ? data : []);
+  const meta = data?.meta ?? (data?.last_page ? { current_page: data.current_page, last_page: data.last_page, from: data.from, to: data.to, total: data.total } : null);
   const reportData: any[] = report ?? [];
 
   const toggleSelect = (id: number) => {
@@ -94,6 +97,7 @@ export default function CommissionsPage() {
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : commissions.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><TrendingUp size={32} className="mx-auto mb-2" /><p>No commissions in this period</p></div>
         ) : (
+          <>
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
@@ -124,6 +128,8 @@ export default function CommissionsPage() {
               ))}
             </tbody>
           </table>
+          <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
+          </>
         )}
       </div>
     </div>

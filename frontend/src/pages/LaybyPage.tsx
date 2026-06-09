@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, X, ChevronRight, CreditCard, Package } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 
 const STATUSES = ['pending', 'partial', 'complete', 'cancelled'];
@@ -17,6 +18,7 @@ export default function LaybyPage() {
   const { format } = useCurrencyStore();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
   const [selectedLayby, setSelectedLayby] = useState<any>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -26,8 +28,8 @@ export default function LaybyPage() {
   const [form, setForm] = useState({ customer_name: '', total: '', deposit_paid: '', due_date: '', notes: '', items: [{ name: '', quantity: 1, unit_price: '' }] });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['laybys', filterStatus],
-    queryFn: () => api.get('/laybys', { params: { status: filterStatus || undefined } }).then(r => r.data?.data),
+    queryKey: ['laybys', filterStatus, page],
+    queryFn: () => api.get('/laybys', { params: { status: filterStatus || undefined, page, per_page: 20 } }).then(r => r.data?.data),
   });
 
   const { data: laybyDetail } = useQuery({
@@ -59,7 +61,8 @@ export default function LaybyPage() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot cancel'),
   });
 
-  const laybys: any[] = data?.data ?? data ?? [];
+  const laybys: any[] = data?.data ?? (Array.isArray(data) ? data : []);
+  const meta = data?.meta ?? (data?.last_page ? { current_page: data.current_page, last_page: data.last_page, from: data.from, to: data.to, total: data.total } : null);
 
   const handleCreate = () => {
     const items = form.items.filter(i => i.name && i.unit_price);
@@ -87,9 +90,9 @@ export default function LaybyPage() {
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setFilterStatus('')} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${!filterStatus ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>All</button>
+        <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${!filterStatus ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>All</button>
         {STATUSES.map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s}</button>
+          <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s}</button>
         ))}
       </div>
 
@@ -100,6 +103,7 @@ export default function LaybyPage() {
         ) : laybys.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><Package size={32} className="mx-auto mb-2" /><p>No laybys found</p></div>
         ) : (
+          <>
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -130,6 +134,8 @@ export default function LaybyPage() {
               ))}
             </tbody>
           </table>
+          <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
+          </>
         )}
       </div>
 

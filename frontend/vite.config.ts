@@ -34,6 +34,21 @@ export default defineConfig({
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'api-categories' },
           },
+          {
+            urlPattern: /^https?:\/\/.*\/api\/settings/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'api-settings' },
+          },
+          {
+            urlPattern: /^https?:\/\/.*\/api\/currencies/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'api-currencies' },
+          },
+          {
+            urlPattern: /^https?:\/\/.*\/api\/warehouses/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'api-warehouses' },
+          },
         ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],

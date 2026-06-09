@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { Plus, X, ArrowRightLeft, Loader2 } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -14,13 +15,14 @@ const STATUS_COLORS: Record<string, string> = {
 export default function StockTransferPage() {
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState<any>(null);
   const [form, setForm] = useState({ from_branch_id: '', to_branch_id: '', notes: '', items: [{ product_id: '', quantity: '1' }] });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['stock-transfers', filterStatus],
-    queryFn: () => api.get('/stock-transfers', { params: { status: filterStatus || undefined } }).then(r => r.data?.data),
+    queryKey: ['stock-transfers', filterStatus, page],
+    queryFn: () => api.get('/stock-transfers', { params: { status: filterStatus || undefined, page, per_page: 20 } }).then(r => r.data?.data),
   });
 
   const { data: transferDetail } = useQuery({
@@ -55,7 +57,8 @@ export default function StockTransferPage() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
   });
 
-  const transfers: any[] = data?.data ?? data ?? [];
+  const transfers: any[] = data?.data ?? (Array.isArray(data) ? data : []);
+  const meta = data?.meta ?? (data?.last_page ? { current_page: data.current_page, last_page: data.last_page, from: data.from, to: data.to, total: data.total } : null);
   const branchList: any[] = branches ?? [];
   const productList: any[] = products ?? [];
 
@@ -79,7 +82,7 @@ export default function StockTransferPage() {
 
       <div className="flex gap-2">
         {['', 'pending', 'in_transit', 'received', 'cancelled'].map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s || 'All'}</button>
+          <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s || 'All'}</button>
         ))}
       </div>
 
@@ -87,6 +90,7 @@ export default function StockTransferPage() {
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : transfers.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><ArrowRightLeft size={32} className="mx-auto mb-2" /><p>No transfers</p></div>
         ) : (
+          <>
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
@@ -111,6 +115,8 @@ export default function StockTransferPage() {
               ))}
             </tbody>
           </table>
+          <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
+          </>
         )}
       </div>
 

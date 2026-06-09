@@ -9,9 +9,11 @@ import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
+import { useOfflineSync } from '../hooks/useOfflineSync';
+import { useOfflineStore } from '../stores/offlineStore';
 import {
   Search, Plus, Minus, Trash2, User, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, TableProperties, UtensilsCrossed
+  X, ShoppingCart, TableProperties, UtensilsCrossed, WifiOff, RefreshCw, CloudUpload
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -97,6 +99,9 @@ export default function POSPage() {
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
+
+  const { isOnline, queue: offlineQueue, isSyncing, syncQueue } = useOfflineSync();
+  const enqueue = useOfflineStore((s) => s.enqueue);
 
   const { data: storeSettings } = useQuery({
     queryKey: ['settings'],
@@ -287,7 +292,8 @@ export default function POSPage() {
       }
       paymentsPayload = [{ method: paymentMethod, amount: cart.total() }];
     }
-    saleMutation.mutate({
+
+    const salePayload = {
       branch_id: branchId,
       warehouse_id: 1,
       customer_id: cart.customerId,
@@ -303,7 +309,52 @@ export default function POSPage() {
       payments: paymentsPayload,
       discount_value: cart.discount,
       notes: cart.note,
-    });
+    };
+
+    if (!isOnline) {
+      const reference = `OFFLINE-${Date.now()}`;
+      enqueue(salePayload, {
+        reference,
+        items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: (i.price - i.discount) * i.quantity })),
+        subtotal: cart.subtotal(),
+        tax: cart.taxTotal(),
+        discount: cart.discount,
+        total: cart.total(),
+        paymentMethod: isSplitPayment ? 'split' : paymentMethod,
+        amountTendered: !isSplitPayment && paymentMethod === 'cash' ? parseFloat(cashTendered) || undefined : undefined,
+        change: !isSplitPayment && paymentMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
+      });
+
+      toast.success(`Sale saved offline — will sync when connected`, { duration: 4000, icon: '📶' });
+
+      void printReceipt(
+        buildReceiptDataFromSale({ reference }, {
+          storeName,
+          storeAddress,
+          storePhone,
+          cashier: user?.name ?? '',
+          currency,
+          paymentMethod: isSplitPayment ? 'split' : paymentMethod,
+          amountTendered: !isSplitPayment && paymentMethod === 'cash' ? parseFloat(cashTendered) || cart.total() : undefined,
+          change: !isSplitPayment && paymentMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
+          itemsFallback: cart.items.map((item) => ({ name: item.name, qty: item.quantity, price: item.price, total: item.price * item.quantity })),
+        }),
+        resolveReceiptPrintMode(hw.printerMode)
+      ).catch((error: any) => {
+        toast.error(error?.message ?? 'Receipt printing failed');
+      });
+
+      broadcastCart({ type: 'thankyou', storeName, currency });
+      setTimeout(() => broadcastCart({ type: 'idle', storeName, currency }), 4000);
+
+      cart.clearCart();
+      setCashTendered('');
+      setSplitPayments([]);
+      setIsSplitPayment(false);
+      return;
+    }
+
+    saleMutation.mutate(salePayload);
   };
 
   const handleHoldOrder = () => {
@@ -328,7 +379,39 @@ export default function POSPage() {
     ? parseFloat(cashTendered) - total : 0;
 
   return (
-    <div className="-m-6 h-[calc(100vh-64px)] flex bg-slate-50">
+    <div className="-m-6 flex flex-col bg-slate-50" style={{ height: 'calc(100vh - 64px)' }}>
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="flex items-center justify-between bg-amber-500 text-white px-5 py-2 text-sm font-medium flex-shrink-0">
+          <span className="flex items-center gap-2">
+            <WifiOff size={15} />
+            Offline mode — sales will be queued and uploaded when reconnected
+            {offlineQueue.length > 0 && (
+              <span className="bg-white text-amber-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                {offlineQueue.length} pending
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+      {/* Sync indicator when back online with pending sales */}
+      {isOnline && offlineQueue.length > 0 && (
+        <div className="flex items-center justify-between bg-blue-600 text-white px-5 py-2 text-sm font-medium flex-shrink-0">
+          <span className="flex items-center gap-2">
+            {isSyncing ? <RefreshCw size={14} className="animate-spin" /> : <CloudUpload size={14} />}
+            {isSyncing
+              ? `Syncing ${offlineQueue.length} offline sale${offlineQueue.length !== 1 ? 's' : ''}…`
+              : `${offlineQueue.length} offline sale${offlineQueue.length !== 1 ? 's' : ''} pending upload`}
+          </span>
+          {!isSyncing && (
+            <button type="button" onClick={() => void syncQueue()} className="text-xs bg-white text-blue-600 px-2.5 py-1 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+              Sync now
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
       {/* Left: product area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Search + Category */}
@@ -597,11 +680,25 @@ export default function POSPage() {
             disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0))}
             aria-label="Process sale (F9)"
             aria-keyshortcuts="F9"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-blue-100 mb-2"
+            className={`w-full text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-2 ${
+              isOnline
+                ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
+                : 'bg-amber-500 hover:bg-amber-600 shadow-amber-100'
+            }`}
           >
-            {saleMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-            {saleMutation.isPending ? 'Processing...' : `Process Sale — ${formatCurrency(total)}`}
-            {!saleMutation.isPending && <span className="ml-auto text-blue-200 text-xs font-normal">F9</span>}
+            {saleMutation.isPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isOnline ? (
+              <CreditCard size={16} />
+            ) : (
+              <WifiOff size={16} />
+            )}
+            {saleMutation.isPending
+              ? 'Processing...'
+              : isOnline
+              ? `Process Sale — ${formatCurrency(total)}`
+              : `Save Offline — ${formatCurrency(total)}`}
+            {!saleMutation.isPending && <span className="ml-auto text-white/50 text-xs font-normal">F9</span>}
           </button>
 
           <button
@@ -627,6 +724,7 @@ export default function POSPage() {
             ))}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

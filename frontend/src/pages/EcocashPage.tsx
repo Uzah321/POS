@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ecocashApi, branchesApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Smartphone, TrendingUp, TrendingDown, DollarSign, RotateCcw, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import { useAuthStore } from '../stores/authStore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -389,15 +390,7 @@ export default function EcocashPage() {
               </table>
             </div>
           )}
-          {meta && meta.last_page > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-              <p className="text-sm text-gray-500">Showing {meta.from}–{meta.to} of {meta.total}</p>
-              <div className="flex gap-2">
-                <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50">Prev</button>
-                <button type="button" disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50">Next</button>
-              </div>
-            </div>
-          )}
+          <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
         </div>
       )}
 

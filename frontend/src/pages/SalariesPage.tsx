@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salariesApi, branchesApi, usersApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Users, CheckCircle, Edit, Trash2 } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -220,6 +221,7 @@ export default function SalariesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [modal, setModal]     = useState<{ open: boolean; salary?: any }>({ open: false });
   const [paidModal, setPaidModal] = useState<any>(null);
+  const [page, setPage]       = useState(1);
   const qc = useQueryClient();
 
   const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []) });
@@ -227,7 +229,7 @@ export default function SalariesPage() {
   const branches = branchData || [];
   const users    = userData || [];
 
-  const params = { search, pay_month: payMonth, branch_id: branchId || undefined, status: filterStatus || undefined };
+  const params = { search, pay_month: payMonth, branch_id: branchId || undefined, status: filterStatus || undefined, page, per_page: 20 };
 
   const { data, isLoading } = useQuery({
     queryKey: ['salaries', params],
@@ -346,11 +348,7 @@ export default function SalariesPage() {
             </table>
           </div>
         )}
-        {meta && meta.last_page > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-sm text-gray-500">Showing {meta.from}–{meta.to} of {meta.total}</p>
-          </div>
-        )}
+        <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
       </div>
 
       {modal.open && <SalaryModal salary={modal.salary} branches={branches} users={users} onClose={() => setModal({ open: false })} />}

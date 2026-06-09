@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { Search, Shield, Clock } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 
 const ACTION_COLORS: Record<string, string> = {
   created: 'bg-emerald-100 text-emerald-700',
@@ -74,15 +75,7 @@ export default function AuditLogPage() {
                 ))}
               </tbody>
             </table>
-            {meta?.last_page > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                <p className="text-xs text-gray-500">Page {meta.current_page} of {meta.last_page}</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50">‹ Prev</button>
-                  <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50">Next ›</button>
-                </div>
-              </div>
-            )}
+            <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
           </>
         )}
       </div>

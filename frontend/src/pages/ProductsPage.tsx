@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, categoriesApi, brandsApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, Search, Edit, Trash2, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -303,15 +304,7 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {meta && meta.last_page > 1 && (
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100">
-            <p className="text-sm text-gray-500">Showing {meta.from}–{meta.to} of {meta.total} items</p>
-            <div className="flex gap-2">
-              <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50 transition-colors">Prev</button>
-              <button type="button" disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50 transition-colors">Next</button>
-            </div>
-          </div>
-        )}
+        <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
       </div>
 
       {modal.open && <ProductModal product={modal.product} onClose={() => setModal({ open: false })} />}

@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProPOS — Sales Proposal</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 10.5pt; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #1e293b;
+      background: #fff;
+      line-height: 1.55;
+    }
+
+    /* ── Print settings ─────────────────────────────────── */
+    @page {
+      size: A4;
+      margin: 14mm 16mm;
+    }
+    @media print {
+      .no-print { display: none !important; }
+      section, .card-grid, .feature-block { page-break-inside: avoid; }
+      .page-break { page-break-before: always; }
+    }
+
+    /* ── Helpers ────────────────────────────────────────── */
+    .text-center { text-align: center; }
+    .text-right  { text-align: right; }
+    .mt-2  { margin-top:  8px; }
+    .mt-4  { margin-top: 16px; }
+    .mt-6  { margin-top: 24px; }
+    .mt-8  { margin-top: 32px; }
+    .mb-2  { margin-bottom: 8px; }
+    .mb-4  { margin-bottom: 16px; }
+
+    /* ── Colour palette ─────────────────────────────────── */
+    :root {
+      --blue:   #2563eb;
+      --blue-d: #1d4ed8;
+      --teal:   #0d9488;
+      --amber:  #d97706;
+      --slate:  #64748b;
+      --bg:     #f8fafc;
+      --border: #e2e8f0;
+    }
+
+    /* ── COVER PAGE ─────────────────────────────────────── */
+    .cover {
+      min-height: 96vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #0d9488 100%);
+      color: #fff;
+      padding: 40px 30px;
+      text-align: center;
+      border-radius: 6px;
+    }
+    .cover .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 20px;
+      padding: 4px 16px;
+      font-size: 9pt;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 22px;
+    }
+    .cover h1 {
+      font-size: 42pt;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .cover h1 span { color: #67e8f9; }
+    .cover .tagline {
+      font-size: 14pt;
+      opacity: .88;
+      max-width: 480px;
+      margin: 12px auto 32px;
+    }
+    .cover .divider {
+      width: 60px;
+      height: 4px;
+      background: rgba(255,255,255,0.45);
+      border-radius: 2px;
+      margin: 0 auto 32px;
+    }
+    .cover .meta {
+      font-size: 10pt;
+      opacity: .75;
+    }
+    .cover .meta strong { color: #fff; opacity: 1; }
+
+    .cover-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+      margin-top: auto;
+      padding-top: 40px;
+      font-size: 8.5pt;
+      opacity: .65;
+    }
+
+    /* ── Section heading ────────────────────────────────── */
+    .section-header {
+      border-left: 4px solid var(--blue);
+      padding-left: 12px;
+      margin: 30px 0 16px;
+    }
+    .section-header h2 {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .section-header p {
+      font-size: 9.5pt;
+      color: var(--slate);
+      margin-top: 3px;
+    }
+
+    /* ── Info box ────────────────────────────────────────── */
+    .info-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .info-box p { font-size: 10pt; color: #334155; }
+
+    /* ── Feature cards grid ─────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .card-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+      margin-bottom: 8px;
+    }
+    .card h3 { font-size: 10pt; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .card p  { font-size: 8.5pt; color: var(--slate); line-height: 1.45; }
+
+    /* icon bg colours */
+    .bg-blue   { background: #dbeafe; }
+    .bg-teal   { background: #ccfbf1; }
+    .bg-amber  { background: #fef3c7; }
+    .bg-violet { background: #ede9fe; }
+    .bg-rose   { background: #ffe4e6; }
+    .bg-green  { background: #dcfce7; }
+    .bg-slate  { background: #f1f5f9; }
+    .bg-orange { background: #ffedd5; }
+    .bg-sky    { background: #e0f2fe; }
+
+    /* ── Feature block (icon + text row) ───────────────── */
+    .feature-block {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .feature-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .feature-item .fi-icon {
+      width: 30px; height: 30px; min-width: 30px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .feature-item .fi-text h4 { font-size: 9.5pt; font-weight: 700; color: #1e293b; }
+    .feature-item .fi-text p  { font-size: 8.5pt; color: var(--slate); }
+
+    /* ── Check-list ─────────────────────────────────────── */
+    .checklist { list-style: none; padding: 0; }
+    .checklist li {
+      padding: 5px 0 5px 22px;
+      position: relative;
+      font-size: 9.5pt;
+      color: #334155;
+      border-bottom: 1px solid var(--border);
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist li::before {
+      content: '✓';
+      position: absolute; left: 0;
+      color: #16a34a; font-weight: 800; font-size: 11pt;
+    }
+
+    /* ── Two-column layout ──────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    /* ── Stat strip ─────────────────────────────────────── */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .stat-card {
+      text-align: center;
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+      color: #fff;
+      border-radius: 10px;
+      padding: 16px 10px 12px;
+    }
+    .stat-card .stat-num { font-size: 22pt; font-weight: 800; line-height: 1; }
+    .stat-card .stat-lbl { font-size: 8pt; opacity: .8; margin-top: 4px; }
+
+    /* ── Process steps ───────────────────────────────────── */
+    .steps { counter-reset: step; display: flex; flex-direction: column; gap: 10px; }
+    .step {
+      counter-increment: step;
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+    }
+    .step-num {
+      width: 28px; height: 28px; min-width: 28px;
+      border-radius: 50%;
+      background: var(--blue); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10pt; font-weight: 800;
+    }
+    .step-num::before { content: counter(step); }
+    .step-body h4 { font-size: 10pt; font-weight: 700; color: #1e293b; }
+    .step-body p  { font-size: 8.5pt; color: var(--slate); margin-top: 2px; }
+
+    /* ── Pricing table ───────────────────────────────────── */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .pricing-card {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 16px;
+      text-align: center;
+      position: relative;
+    }
+    .pricing-card.featured {
+      border-color: var(--blue);
+      background: linear-gradient(180deg, #eff6ff 0%, #fff 60%);
+    }
+    .pricing-card .plan-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--blue); color: #fff;
+      font-size: 7.5pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      padding: 3px 12px; border-radius: 10px;
+    }
+    .pricing-card .plan-name { font-size: 13pt; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+    .pricing-card .plan-price { font-size: 24pt; font-weight: 800; color: var(--blue); line-height: 1; }
+    .pricing-card .plan-price span { font-size: 10pt; font-weight: 500; color: var(--slate); }
+    .pricing-card .plan-desc { font-size: 8.5pt; color: var(--slate); margin: 6px 0 12px; }
+    .pricing-card ul { list-style: none; text-align: left; }
+    .pricing-card ul li {
+      padding: 4px 0 4px 18px; position: relative;
+      font-size: 8.5pt; color: #334155;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .pricing-card ul li:last-child { border: none; }
+    .pricing-card ul li::before { content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 800; }
+
+    /* ── Tech stack ──────────────────────────────────────── */
+    .tech-pill {
+      display: inline-block;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px;
+      font-size: 8.5pt; color: #334155; margin: 3px;
+    }
+
+    /* ── Quote block ─────────────────────────────────────── */
+    .quote {
+      border-left: 4px solid var(--teal);
+      padding: 14px 18px;
+      background: #f0fdf9;
+      border-radius: 0 8px 8px 0;
+      margin: 14px 0;
+      font-size: 11pt; font-style: italic; color: #134e4a;
+    }
+
+    /* ── CTA / closing banner ───────────────────────────── */
+    .cta {
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #0d9488 100%);
+      color: #fff;
+      border-radius: 10px;
+      padding: 28px 28px 24px;
+      text-align: center;
+      margin-top: 24px;
+    }
+    .cta h2 { font-size: 18pt; font-weight: 800; margin-bottom: 8px; }
+    .cta p  { font-size: 10.5pt; opacity: .88; max-width: 480px; margin: 0 auto 18px; }
+    .cta .contact-row {
+      display: flex; justify-content: center; gap: 28px; flex-wrap: wrap; font-size: 10pt;
+    }
+    .cta .contact-row span { opacity: .85; }
+    .cta .contact-row strong { opacity: 1; }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    .doc-footer {
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid var(--border);
+      margin-top: 24px; padding-top: 10px;
+      font-size: 8pt; color: #94a3b8;
+    }
+
+    /* ── Print button (screen only) ─────────────────────── */
+    .print-btn {
+      position: fixed; bottom: 22px; right: 22px;
+      background: var(--blue); color: #fff;
+      border: none; border-radius: 50px;
+      padding: 11px 22px; font-size: 10.5pt; font-weight: 700;
+      cursor: pointer; box-shadow: 0 4px 14px rgba(37,99,235,.45);
+      z-index: 9999;
+    }
+    .print-btn:hover { background: var(--blue-d); }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    th {
+      background: #1e3a8a; color: #fff;
+      padding: 8px 12px; text-align: left; font-size: 9pt;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+  </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">⬇ Save as PDF</button>
+
+<!-- ══════════════════════════════════════════════════════
+     COVER PAGE
+═══════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="badge">Commercial Proposal · Confidential</div>
+  <h1>Pro<span>POS</span></h1>
+  <div class="divider"></div>
+  <p class="tagline">
+    A fully-featured, cloud-ready Point-of-Sale &amp; Business Management Platform
+    built for modern retailers, restaurants, and service businesses.
+  </p>
+  <p class="meta">
+    Prepared for: <strong>[Client Name / Company]</strong><br/>
+    Date: <strong>May 2026</strong>
+  </p>
+  <div class="cover-footer">
+    <span>ProPOS Business Solutions</span>
+    <span>Confidential — Not for redistribution</span>
+    <span>Version 1.0</span>
+  </div>
+</div>
+
+<div style="height: 28px;"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     TABLE OF CONTENTS
+═══════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <h2>Contents</h2>
+</div>
+<div class="info-box">
+  <table>
+    <tbody>
+      <tr><td style="width:40px; font-weight:700; color:var(--blue);">01</td><td>Executive Summary</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">02</td><td>System Overview &amp; Core Modules</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">03</td><td>Point-of-Sale Terminal</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">04</td><td>Inventory &amp; Stock Management</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">05</td><td>Reporting &amp; Analytics</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">06</td><td>Finance, Customers &amp; Suppliers</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">07</td><td>Staff, Security &amp; Audit</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">08</td><td>Hardware &amp; Integrations</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">09</td><td>Technology Stack &amp; Architecture</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">10</td><td>Pricing &amp; Packages</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">11</td><td>Implementation Roadmap</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">12</td><td>Next Steps</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     01 · EXECUTIVE SUMMARY
+═══════════════════════════════════════════════════════ -->
+<div class="section-header mt-8">
+  <h2>01 · Executive Summary</h2>
+  <p>What ProPOS delivers and why it matters</p>
+</div>
+
+<div class="quote">
+  "ProPOS is not just a cash register — it is a complete business operating system that gives
+  you real-time visibility, tighter stock control, and the data you need to make smarter
+  decisions every single day."
+</div>
+
+<div class="info-box">
+  <p>
+    Running a retail, restaurant, or service business today demands more than a simple till.
+    You need accurate stock levels, meaningful sales data, satisfied customers, accountable staff,
+    and seamless supplier relationships — all in one place, accessible from any device.
+  </p>
+  <p class="mt-2">
+    <strong>ProPOS</strong> is a modern, web-based Point-of-Sale and Business Management Platform
+    that unifies every aspect of your operation — from the first barcode scan at the counter
+    to end-of-day reconciliation, purchase orders, and management reports — into a single,
+    beautifully designed system.
+  </p>
+</div>
+
+<div class="stat-strip">
+  <div class="stat-card">
+    <div class="stat-num">25+</div>
+    <div class="stat-lbl">Integrated Modules</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">7</div>
+    <div class="stat-lbl">Report Types</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">3</div>
+    <div class="stat-lbl">Payment Methods</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">∞</div>
+    <div class="stat-lbl">Branches &amp; Users</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     02 · SYSTEM OVERVIEW
+═══════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>02 · System Overview &amp; Core Modules</h2>
+  <p>Every tool your business needs, tightly integrated</p>
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon bg-blue">🛒</div>
+    <h3>Point of Sale</h3>
+    <p>Fast, touch-friendly POS terminal with barcode scanning, table management, and split payment support.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-teal">📦</div>
+    <h3>Inventory Management</h3>
+    <p>Real-time stock tracking with variants, batches, multi-branch transfers, and low-stock alerts.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-amber">📊</div>
+    <h3>Reports &amp; Analytics</h3>
+    <p>Sales, Profit &amp; Loss, Cashier Performance, Inventory, Stock Variance, Daily &amp; Monthly summaries.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-violet">👥</div>
+    <h3>Customer Management</h3>
+    <p>Customer profiles, loyalty programme, credit accounts, and purchase history in one view.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-rose">🏭</div>
+    <h3>Suppliers &amp; Purchasing</h3>
+    <p>Purchase orders, goods receipts, and supplier ledgers to keep your supply chain in check.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-green">💰</div>
+    <h3>Finance &amp; Expenses</h3>
+    <p>Track every expense by category, manage layby accounts, record commissions, and handle refunds.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-orange">🧑‍💼</div>
+    <h3>Staff &amp; Attendance</h3>
+    <p>User accounts, role-based permissions, shift management, and attendance tracking.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-sky">🔌</div>
+    <h3>Hardware Integration</h3>
+    <p>Thermal receipt printers, barcode scanners, and customer-facing pole displays — all plug-and-play.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-slate">🔒</div>
+    <h3>Security &amp; Audit Trail</h3>
+    <p>Full audit log of every action, granular role &amp; permission control, and automated data backups.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     03 · POS TERMINAL
+═══════════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>03 · Point-of-Sale Terminal</h2>
+  <p>The fastest, most reliable checkout experience for your team</p>
+</div>
+
+<div class="feature-block">
+  <div class="feature-item">
+    <div class="fi-icon bg-blue">🔍</div>
+    <div class="fi-text">
+      <h4>Instant Product Search &amp; Barcode Scanning</h4>
+      <p>Find any product in milliseconds — type a name, SKU, or scan a barcode.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-teal">💳</div>
+    <div class="fi-text">
+      <h4>Multiple Payment Methods</h4>
+      <p>Accept Cash, Card, and Mobile Money in any combination on a single transaction.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-amber">🪑</div>
+    <div class="fi-text">
+      <h4>Table &amp; Order Management</h4>
+      <p>Assign sales to tables (T-1 to T-20) or walk-in, perfect for hospitality businesses.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-violet">⏸️</div>
+    <div class="fi-text">
+      <h4>Hold &amp; Resume Sales</h4>
+      <p>Park a transaction mid-sale and serve the next customer without losing the basket.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-rose">🖨️</div>
+    <div class="fi-text">
+      <h4>Automatic Receipt Printing</h4>
+      <p>Receipts print instantly on any connected thermal printer at sale completion.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-green">🖥️</div>
+    <div class="fi-text">
+      <h4>Customer-Facing Display</h4>
+      <p>Broadcast the live cart and totals to a pole display so customers see every item.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-orange">🏷️</div>
+    <div class="fi-text">
+      <h4>Discounts &amp; Promotions</h4>
+      <p>Apply line-item discounts or automatic promotions without interrupting the flow.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-sky">↩️</div>
+    <div class="fi-text">
+      <h4>Refunds &amp; Returns</h4>
+      <p>Process full or partial refunds quickly and correctly update stock levels.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     04 · INVENTORY
+═══════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>04 · Inventory &amp; Stock Management</h2>
+  <p>Always know exactly what you have, where it is, and what it cost</p>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="info-box">
+      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Product Catalogue</h3>
+      <ul class="checklist">
+        <li>Unlimited products with photos, SKU, and barcode</li>
+        <li>Product variants (size, colour, flavour, etc.)</li>
+        <li>Batch &amp; expiry date tracking</li>
+        <li>Category and brand organisation</li>
+        <li>Cost price, selling price, and margin per product</li>
+        <li>Reorder point and minimum stock alerts</li>
+      </ul>
+    </div>
+  </div>
+  <div>
+    <div class="info-box">
+      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Stock Control</h3>
+      <ul class="checklist">
+        <li>Real-time stock deduction on every sale</li>
+        <li>Stocktake / physical count module</li>
+        <li>Inter-branch stock transfers</li>
+        <li>Goods receipt from purchase orders</li>
+        <li>Stock variance reporting</li>
+        <li>Warehouse management support</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     05 · REPORTS
+═══════════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>05 · Reporting &amp; Analytics</h2>
+  <p>Turn raw data into decisions with seven built-in report types</p>
+</div>
+
+<div class="info-box">
+  <table>
+    <thead>
+      <tr>
+        <th>Report</th>
+        <th>What it shows</th>
+        <th>Frequency</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sales Report</strong></td>
+        <td>Revenue, units sold, average basket, payment breakdown</td>
+        <td>Any date range</td>
+      </tr>
+      <tr>
+        <td><strong>Profit &amp; Loss</strong></td>
+        <td>Gross profit, cost of goods, net margin by period</td>
+        <td>Any date range</td>
+      </tr>
+      <tr>
+        <td><strong>Inventory Report</strong></td>
+        <td>Current stock levels, valuation, and dead stock</td>
+        <td>Real-time</td>
+      </tr>
+      <tr>
+        <td><strong>Cashier Performance</strong></td>
+        <td>Sales per staff member, refunds, voids, and commissions</td>
+        <td>Any date range</td>
+      </tr>
+      <tr>
+        <td><strong>Daily Summary</strong></td>
+        <td>Opening/closing balances, cash in/out, end-of-day totals</td>
+        <td>Per day</td>
+      </tr>
+      <tr>
+        <td><strong>Monthly Report</strong></td>
+        <td>Month-over-month comparison, top sellers, category split</td>
+        <td>Per month</td>
+      </tr>
+      <tr>
+        <td><strong>Stock Variances</strong></td>
+        <td>Differences between expected and actual stock after counts</td>
+        <td>Any date range</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="info-box">
+  <p>All reports support <strong>custom date ranges</strong>, can be <strong>exported</strong>, and critical reports can be
+  <strong>scheduled</strong> to arrive in your inbox automatically — so you always know your numbers
+  even when you're not in the store.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     06 · FINANCE, CUSTOMERS & SUPPLIERS
+═══════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>06 · Finance, Customers &amp; Suppliers</h2>
+  <p>Everything you need to manage money, relationships, and purchasing</p>
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon bg-violet">🎁</div>
+    <h3>Loyalty Programme</h3>
+    <p>Reward repeat customers automatically with a built-in points or credit loyalty system.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-teal">📋</div>
+    <h3>Customer Credit Accounts</h3>
+    <p>Extend credit to trusted customers and track every transaction against their balance.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-amber">📑</div>
+    <h3>Quotations</h3>
+    <p>Generate professional quotations and convert them to sales with a single click.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-rose">🛍️</div>
+    <h3>Layby / Lay-away</h3>
+    <p>Allow customers to reserve goods with a deposit and track instalment payments.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-blue">📦</div>
+    <h3>Purchase Orders</h3>
+    <p>Raise POs to suppliers, receive goods, and auto-update stock on delivery.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-green">💸</div>
+    <h3>Expense Tracking</h3>
+    <p>Record every business expense by category and include them in your P&amp;L reports.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-orange">🏅</div>
+    <h3>Sales Commissions</h3>
+    <p>Define commission rules and automatically calculate earnings per staff member.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-sky">🌍</div>
+    <h3>Multi-Currency</h3>
+    <p>Operate in any currency; set exchange rates and display prices in local format.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-slate">🔄</div>
+    <h3>End-of-Day &amp; Shift Close</h3>
+    <p>Structured EOD and shift-end workflows with cash count reconciliation.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     07 · STAFF, SECURITY & AUDIT
+═══════════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>07 · Staff, Security &amp; Audit</h2>
+  <p>Full accountability — from login to logout</p>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="info-box">
+      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">User &amp; Role Management</h3>
+      <ul class="checklist">
+        <li>Unlimited user accounts per branch</li>
+        <li>Roles: Admin, Manager, Cashier, Stock Clerk…</li>
+        <li>Granular permission control per screen/action</li>
+        <li>Secure password authentication (Laravel Sanctum)</li>
+        <li>Branch-scoped access so staff only see what they need</li>
+      </ul>
+    </div>
+  </div>
+  <div>
+    <div class="info-box">
+      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Audit &amp; Compliance</h3>
+      <ul class="checklist">
+        <li>Immutable audit log of every create/edit/delete</li>
+        <li>Timestamps and user attribution on all records</li>
+        <li>Attendance clock-in / clock-out per employee</li>
+        <li>Automated database backups</li>
+        <li>Webhook alerts for critical business events</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     08 · HARDWARE & INTEGRATIONS
+═══════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>08 · Hardware &amp; Integrations</h2>
+  <p>Works with the equipment you already own</p>
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon bg-blue">🖨️</div>
+    <h3>Thermal Receipt Printer</h3>
+    <p>Any ESC/POS-compatible USB or network printer works out of the box.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-teal">📷</div>
+    <h3>Barcode Scanner</h3>
+    <p>USB HID scanners connect instantly — no drivers or configuration required.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-amber">🖥️</div>
+    <h3>Customer Pole Display</h3>
+    <p>Show the live cart to your customer on a secondary screen or monitor.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-violet">🔗</div>
+    <h3>Webhooks &amp; API</h3>
+    <p>Push real-time events to any external system — accounting, e-commerce, ERP.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-rose">☁️</div>
+    <h3>Cloud-Ready</h3>
+    <p>Host on any VPS, cloud server, or local network. Browser-based — no installs.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-green">📱</div>
+    <h3>Any Device</h3>
+    <p>Works on desktop, tablet, and modern browsers — no app store needed.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     09 · TECHNOLOGY STACK
+═══════════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>09 · Technology Stack &amp; Architecture</h2>
+  <p>Built on proven, enterprise-grade open-source foundations</p>
+</div>
+
+<div class="two-col">
+  <div class="info-box">
+    <h3 style="font-size:11pt; font-weight:700; margin-bottom:10px; color:#1e293b;">Back-End</h3>
+    <span class="tech-pill">PHP 8.x</span>
+    <span class="tech-pill">Laravel 11</span>
+    <span class="tech-pill">Laravel Sanctum</span>
+    <span class="tech-pill">Eloquent ORM</span>
+    <span class="tech-pill">MySQL / MariaDB</span>
+    <span class="tech-pill">RESTful API</span>
+    <span class="tech-pill">Spatie Permissions</span>
+    <span class="tech-pill">Queues &amp; Jobs</span>
+  </div>
+  <div class="info-box">
+    <h3 style="font-size:11pt; font-weight:700; margin-bottom:10px; color:#1e293b;">Front-End</h3>
+    <span class="tech-pill">React 18</span>
+    <span class="tech-pill">TypeScript</span>
+    <span class="tech-pill">Vite</span>
+    <span class="tech-pill">Tailwind CSS</span>
+    <span class="tech-pill">TanStack Query</span>
+    <span class="tech-pill">Recharts</span>
+    <span class="tech-pill">Zustand</span>
+    <span class="tech-pill">Lucide Icons</span>
+  </div>
+</div>
+
+<div class="info-box">
+  <p>
+    ProPOS follows a <strong>decoupled API architecture</strong> — the React front-end communicates
+    with the Laravel API over HTTPS. This means the front-end can run on any CDN or static host
+    while the API runs independently, making the system both <strong>fast and scalable</strong>.
+    All data is stored in a relational database with full referential integrity.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     10 · PRICING
+═══════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>10 · Pricing &amp; Packages</h2>
+  <p>Transparent, once-off or subscription pricing — choose what suits your business</p>
+</div>
+
+<div class="pricing-grid">
+  <div class="pricing-card">
+    <div class="plan-name">Starter</div>
+    <div class="plan-price">Contact Us <span></span></div>
+    <div class="plan-desc">Ideal for single-location small businesses</div>
+    <ul>
+      <li>1 branch / 2 cashier users</li>
+      <li>Full POS terminal</li>
+      <li>Products &amp; inventory</li>
+      <li>Sales &amp; daily reports</li>
+      <li>Receipt printing</li>
+      <li>3 months support</li>
+    </ul>
+  </div>
+  <div class="pricing-card featured">
+    <div class="plan-badge">Most Popular</div>
+    <div class="plan-name">Business</div>
+    <div class="plan-price">Contact Us <span></span></div>
+    <div class="plan-desc">For growing businesses with multiple staff</div>
+    <ul>
+      <li>Up to 3 branches</li>
+      <li>Unlimited users</li>
+      <li>All Starter features</li>
+      <li>Full reporting suite</li>
+      <li>Layby, quotations, commissions</li>
+      <li>Purchase orders &amp; suppliers</li>
+      <li>Customer loyalty &amp; credit</li>
+      <li>6 months support</li>
+    </ul>
+  </div>
+  <div class="pricing-card">
+    <div class="plan-name">Enterprise</div>
+    <div class="plan-price">Contact Us <span></span></div>
+    <div class="plan-desc">Multi-branch chains &amp; high-volume retailers</div>
+    <ul>
+      <li>Unlimited branches</li>
+      <li>Unlimited users</li>
+      <li>All Business features</li>
+      <li>Webhooks &amp; API access</li>
+      <li>Scheduled reports</li>
+      <li>Warehouse management</li>
+      <li>Custom integrations</li>
+      <li>12 months priority support</li>
+    </ul>
+  </div>
+</div>
+
+<div class="info-box">
+  <p>
+    All packages include <strong>full system installation</strong>, <strong>data migration assistance</strong>,
+    and <strong>staff training sessions</strong>. Hardware (printers, scanners) can be quoted separately.
+    Annual maintenance and support plans are available after the initial support period.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     11 · IMPLEMENTATION ROADMAP
+═══════════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>11 · Implementation Roadmap</h2>
+  <p>From signed proposal to live system in as little as one week</p>
+</div>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num"></div>
+    <div class="step-body">
+      <h4>Requirements &amp; Discovery (Day 1–2)</h4>
+      <p>We meet with your team to document your product catalogue, user roles, branch structure, hardware inventory, and any specific workflows. A configuration checklist is signed off.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num"></div>
+    <div class="step-body">
+      <h4>System Installation &amp; Configuration (Day 2–3)</h4>
+      <p>ProPOS is deployed to your server or cloud environment, connected to your domain, and configured with your branding, currency, tax settings, and initial data.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num"></div>
+    <div class="step-body">
+      <h4>Data Migration (Day 3–4)</h4>
+      <p>Your existing product catalogue, customer records, and opening stock levels are imported. We verify accuracy before going live.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num"></div>
+    <div class="step-body">
+      <h4>Hardware Setup &amp; Testing (Day 4–5)</h4>
+      <p>Receipt printers, barcode scanners, and customer displays are connected and tested end-to-end on the actual counter hardware.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num"></div>
+    <div class="step-body">
+      <h4>Staff Training (Day 5–6)</h4>
+      <p>Hands-on training sessions for cashiers, managers, and administrators. We provide a quick-reference guide for daily operations.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num"></div>
+    <div class="step-body">
+      <h4>Go Live &amp; Hypercare Support (Day 7+)</h4>
+      <p>The system goes live. Our team is on standby for the first week to resolve any questions and ensure a smooth transition.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     12 · NEXT STEPS / CTA
+═══════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>12 · Next Steps</h2>
+  <p>Ready to modernise your business? Here is how we proceed</p>
+</div>
+
+<div class="feature-block">
+  <div class="feature-item">
+    <div class="fi-icon bg-blue">📞</div>
+    <div class="fi-text">
+      <h4>Schedule a Live Demo</h4>
+      <p>See ProPOS running on real hardware in a 30-minute demonstration tailored to your business type.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-teal">📝</div>
+    <div class="fi-text">
+      <h4>Receive a Formal Quotation</h4>
+      <p>We'll prepare a detailed, itemised quote including installation, training, and optional hardware.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-amber">✍️</div>
+    <div class="fi-text">
+      <h4>Sign &amp; Deposit</h4>
+      <p>A signed agreement and 50% deposit confirms your project start date and locks in your price.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-green">🚀</div>
+    <div class="fi-text">
+      <h4>Go Live</h4>
+      <p>Within days your business runs on ProPOS — faster, smarter, and fully in your control.</p>
+    </div>
+  </div>
+</div>
+
+<!-- CTA Banner -->
+<div class="cta">
+  <h2>Let's Get Your Business Running on ProPOS</h2>
+  <p>
+    Contact us today to arrange a no-obligation live demonstration or to receive a
+    customised quote for your specific needs.
+  </p>
+  <div class="contact-row">
+    <span>📧 <strong>[dingulwazi0108.zondo@gmail.com]</strong></span>
+    <span>📞 <strong>[+263 78 680 9082]</strong></span>
+    <span>🌐 <strong>[www.cdnms.com]</strong></span>
+  </div>
+</div>
+
+<!-- Document footer -->
+<div class="doc-footer">
+  <span>ProPOS Business Solutions · Commercial Proposal</span>
+  <span>Prepared: May 2026 · Confidential</span>
+  <span>© 2026 All rights reserved</span>
+</div>
+
+</body>
+</html>

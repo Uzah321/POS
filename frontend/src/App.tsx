@@ -42,7 +42,14 @@ import StockReconciliationPage from './pages/StockReconciliationPage';
 import BranchesPage from './pages/BranchesPage';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30000,
+      // Serve cached data when offline instead of showing a loading spinner
+      networkMode: 'offlineFirst',
+    },
+  },
 });
 
 function LayoutWrapper({ children }: { children: React.ReactNode }) {

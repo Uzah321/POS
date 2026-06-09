@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi, productsApi, warehousesApi } from '../api';
 import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
@@ -170,15 +171,7 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {meta && meta.last_page > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-sm text-gray-500">Showing {meta.from}–{meta.to} of {meta.total}</p>
-            <div className="flex gap-2">
-              <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50">Prev</button>
-              <button type="button" disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50">Next</button>
-            </div>
-          </div>
-        )}
+        <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
       </div>
       {/* Add Stock Modal */}
       {showImport && <InventoryImportModal onClose={() => setShowImport(false)} />}

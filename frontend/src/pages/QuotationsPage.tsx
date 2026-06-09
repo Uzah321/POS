@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, X, FileText, Send, Check, XCircle } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 
 const STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired'];
@@ -20,13 +21,14 @@ export default function QuotationsPage() {
   const { format } = useCurrencyStore();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState<any>(null);
   const [form, setForm] = useState({ notes: '', valid_until: '', items: [{ name: '', quantity: '1', unit_price: '', discount: '0', tax_amount: '0' }] as QuotationItem[] });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['quotations', filterStatus],
-    queryFn: () => api.get('/quotations', { params: { status: filterStatus || undefined } }).then(r => r.data?.data),
+    queryKey: ['quotations', filterStatus, page],
+    queryFn: () => api.get('/quotations', { params: { status: filterStatus || undefined, page, per_page: 20 } }).then(r => r.data?.data),
   });
 
   const { data: quotationDetail } = useQuery({
@@ -52,7 +54,8 @@ export default function QuotationsPage() {
     onSuccess: () => { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['quotations'] }); setSelected(null); },
   });
 
-  const quotations: any[] = data?.data ?? data ?? [];
+  const quotations: any[] = data?.data ?? (Array.isArray(data) ? data : []);
+  const meta = data?.meta ?? (data?.last_page ? { current_page: data.current_page, last_page: data.last_page, from: data.from, to: data.to, total: data.total } : null);
 
   const updateItem = (idx: number, field: keyof QuotationItem, value: string) =>
     setForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, [field]: value } : it) }));
@@ -81,9 +84,9 @@ export default function QuotationsPage() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setFilterStatus('')} className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${!filterStatus ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>All</button>
+        <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${!filterStatus ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>All</button>
         {STATUSES.map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s}</button>
+          <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s}</button>
         ))}
       </div>
 
@@ -91,6 +94,7 @@ export default function QuotationsPage() {
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : quotations.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><FileText size={32} className="mx-auto mb-2" /><p>No quotations found</p></div>
         ) : (
+          <>
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
@@ -119,6 +123,8 @@ export default function QuotationsPage() {
               ))}
             </tbody>
           </table>
+          <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
+          </>
         )}
       </div>
 

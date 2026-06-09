@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, branchesApi } from '../api';
 import { Plus, Search, Edit, Trash2, Loader2, X, Users } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -247,16 +248,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {meta && meta.last_page > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <p className="text-sm text-gray-500">Showing {meta.from}–{meta.to} of {meta.total}</p>
-          <div className="flex gap-2">
-            <button type="button" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50 bg-white">Prev</button>
-            <button type="button" disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-50 bg-white">Next</button>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
 
       {modal.open && <UserModal user={modal.user} branches={branches} onClose={() => setModal({ open: false })} />}
     </div>

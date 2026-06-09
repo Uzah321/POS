@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rentalsApi, branchesApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Building2, Edit, Trash2, CreditCard } from 'lucide-react';
+import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -259,12 +260,13 @@ export default function RentalsPage() {
   const [branchId, setBranchId] = useState('');
   const [modal, setModal]       = useState<{ open: boolean; rental?: any }>({ open: false });
   const [payModal, setPayModal] = useState<any>(null);
+  const [page, setPage]         = useState(1);
   const qc = useQueryClient();
 
   const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []) });
   const branches = branchData || [];
 
-  const params = { search, flow_type: filterFlow || undefined, status: filterStatus || undefined, branch_id: branchId || undefined };
+  const params = { search, flow_type: filterFlow || undefined, status: filterStatus || undefined, branch_id: branchId || undefined, page, per_page: 20 };
 
   const { data, isLoading } = useQuery({
     queryKey: ['rentals', params],
@@ -284,7 +286,8 @@ export default function RentalsPage() {
     } catch { toast.error('Export failed'); }
   };
 
-  const rentals = data?.rentals?.data || [];
+  const rentals = data?.rentals?.data || data?.data || [];
+  const meta    = data?.rentals?.meta ?? (data?.last_page ? { current_page: data.current_page, last_page: data.last_page, from: data.from, to: data.to, total: data.total } : null);
   const summary = data?.summary;
 
   return (
@@ -389,6 +392,7 @@ export default function RentalsPage() {
                 })}
               </tbody>
             </table>
+            <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
           </div>
         )}
       </div>

@@ -4,6 +4,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 class Layby extends Model {
     use HasFactory;
+    protected $table = 'laybys';
     protected $fillable = ['branch_id','customer_id','user_id','reference','total','deposit_paid','balance','status','due_date','notes','items'];
     protected $casts = ['items'=>'array','due_date'=>'date'];
     public function customer(){return $this->belongsTo(Customer::class);}

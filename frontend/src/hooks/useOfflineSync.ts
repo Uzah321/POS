@@ -1,18 +1,20 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { salesApi } from '../api';
 import { useOfflineStore } from '../stores/offlineStore';
 
+// Module-level flag — prevents concurrent syncs even if the hook is mounted in multiple components
+let _syncing = false;
+
 export function useOfflineSync() {
   const { setOnline, dequeue, markAttempt, setSyncing } = useOfflineStore();
-  const syncingRef = useRef(false);
 
   const syncQueue = useCallback(async () => {
-    if (syncingRef.current) return;
+    if (_syncing) return;
     const queue = useOfflineStore.getState().queue;
     if (queue.length === 0) return;
 
-    syncingRef.current = true;
+    _syncing = true;
     setSyncing(true);
 
     let synced = 0;
@@ -31,7 +33,7 @@ export function useOfflineSync() {
     }
 
     setSyncing(false);
-    syncingRef.current = false;
+    _syncing = false;
 
     if (synced > 0) toast.success(`Synced ${synced} offline sale${synced !== 1 ? 's' : ''} to server`);
     if (failed > 0) toast.error(`${failed} sale${failed !== 1 ? 's' : ''} failed to sync — will retry when online`);

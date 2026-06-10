@@ -8,10 +8,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Ensure the service worker is included in the build output
+      injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'DiaperMart Store',
-        short_name: 'DiaperMart Store',
+        name: 'NexaPOS',
+        short_name: 'NexaPOS',
         description: 'Point of Sale System',
         theme_color: '#2563eb',
         background_color: '#ffffff',
@@ -23,35 +25,41 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Remove caches from previous SW versions so old data does not serve stale responses
+        cleanupOutdatedCaches: true,
+        // Take control immediately without waiting for tabs to close
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
-            urlPattern: /^https?:\/\/.*\/api\/products/,
+            urlPattern: /\/api\/products(\?.*)?$/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-products' },
+            options: { cacheName: 'api-products', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
-            urlPattern: /^https?:\/\/.*\/api\/categories/,
+            urlPattern: /\/api\/categories(\?.*)?$/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-categories' },
+            options: { cacheName: 'api-categories', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
-            urlPattern: /^https?:\/\/.*\/api\/settings/,
+            urlPattern: /\/api\/settings(\?.*)?$/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-settings' },
+            options: { cacheName: 'api-settings', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
-            urlPattern: /^https?:\/\/.*\/api\/currencies/,
+            urlPattern: /\/api\/currencies(\?.*)?$/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-currencies' },
+            options: { cacheName: 'api-currencies', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
-            urlPattern: /^https?:\/\/.*\/api\/warehouses/,
+            urlPattern: /\/api\/warehouses(\?.*)?$/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-warehouses' },
+            options: { cacheName: 'api-warehouses', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
         ],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/],
+        // Exclude API routes and any server-rendered paths from the SW navigation fallback
+        navigateFallbackDenylist: [/^\/api/, /^\/storage/],
       },
     }),
   ],

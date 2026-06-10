@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
+import { useOfflineSync } from '../hooks/useOfflineSync';
 import { authApi, currenciesApi } from '../api';
 import toast from 'react-hot-toast';
 
@@ -99,6 +100,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const { user, clearAuth, hasPermission, hasRole } = useAuthStore();
+  // Mount globally so offline detection and auto-sync run on every page, not only on /pos
+  useOfflineSync();
   const isCashier = hasRole('cashier');
   const { currencies, activeCurrency, setCurrencies, setActiveCurrency } = useCurrencyStore();
   const location = useLocation();

@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ProPOS — Sales Proposal</title>
+  <title>NexaPOS — System Proposal</title>
   <style>
-    /* ── Reset & base ───────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { font-size: 10.5pt; }
     body {
@@ -15,20 +14,15 @@
       line-height: 1.55;
     }
 
-    /* ── Print settings ─────────────────────────────────── */
-    @page {
-      size: A4;
-      margin: 14mm 16mm;
-    }
+    @page { size: A4; margin: 14mm 16mm; }
     @media print {
       .no-print { display: none !important; }
-      section, .card-grid, .feature-block { page-break-inside: avoid; }
+      section, .card-grid, .feature-block, .two-col, .steps { page-break-inside: avoid; }
       .page-break { page-break-before: always; }
     }
 
-    /* ── Helpers ────────────────────────────────────────── */
+    /* Helpers */
     .text-center { text-align: center; }
-    .text-right  { text-align: right; }
     .mt-2  { margin-top:  8px; }
     .mt-4  { margin-top: 16px; }
     .mt-6  { margin-top: 24px; }
@@ -36,7 +30,7 @@
     .mb-2  { margin-bottom: 8px; }
     .mb-4  { margin-bottom: 16px; }
 
-    /* ── Colour palette ─────────────────────────────────── */
+    /* Colour palette */
     :root {
       --blue:   #2563eb;
       --blue-d: #1d4ed8;
@@ -47,118 +41,113 @@
       --border: #e2e8f0;
     }
 
-    /* ── COVER PAGE ─────────────────────────────────────── */
+    /* ── COVER PAGE ── */
     .cover {
-      min-height: 96vh;
+      min-height: 94vh;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #0d9488 100%);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 40%, #2563eb 75%, #0d9488 100%);
       color: #fff;
-      padding: 40px 30px;
+      padding: 48px 36px;
       text-align: center;
-      border-radius: 6px;
+      border-radius: 8px;
     }
     .cover .badge {
       display: inline-block;
-      background: rgba(255,255,255,0.18);
-      border: 1px solid rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.30);
       border-radius: 20px;
-      padding: 4px 16px;
-      font-size: 9pt;
-      letter-spacing: 2px;
+      padding: 5px 18px;
+      font-size: 8.5pt;
+      letter-spacing: 2.5px;
       text-transform: uppercase;
-      margin-bottom: 22px;
+      margin-bottom: 28px;
     }
-    .cover h1 {
-      font-size: 42pt;
-      font-weight: 800;
-      letter-spacing: -1px;
-      line-height: 1.1;
-      margin-bottom: 6px;
+    .cover .logo-text {
+      font-size: 52pt;
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1;
+      margin-bottom: 8px;
     }
-    .cover h1 span { color: #67e8f9; }
+    .cover .logo-text .accent { color: #67e8f9; }
     .cover .tagline {
-      font-size: 14pt;
+      font-size: 13pt;
       opacity: .88;
-      max-width: 480px;
-      margin: 12px auto 32px;
+      max-width: 500px;
+      margin: 14px auto 36px;
+      line-height: 1.6;
     }
     .cover .divider {
-      width: 60px;
+      width: 64px;
       height: 4px;
-      background: rgba(255,255,255,0.45);
+      background: rgba(255,255,255,0.40);
       border-radius: 2px;
-      margin: 0 auto 32px;
+      margin: 0 auto 36px;
     }
-    .cover .meta {
-      font-size: 10pt;
-      opacity: .75;
-    }
+    .cover .meta { font-size: 10pt; opacity: .75; line-height: 1.8; }
     .cover .meta strong { color: #fff; opacity: 1; }
-
     .cover-footer {
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
       width: 100%;
       margin-top: auto;
-      padding-top: 40px;
-      font-size: 8.5pt;
-      opacity: .65;
+      padding-top: 48px;
+      font-size: 8pt;
+      opacity: .60;
     }
 
-    /* ── Section heading ────────────────────────────────── */
+    /* ── Section heading ── */
     .section-header {
       border-left: 4px solid var(--blue);
       padding-left: 12px;
       margin: 30px 0 16px;
     }
-    .section-header h2 {
-      font-size: 16pt;
-      font-weight: 700;
-      color: #1e293b;
-    }
-    .section-header p {
-      font-size: 9.5pt;
-      color: var(--slate);
-      margin-top: 3px;
-    }
+    .section-header h2 { font-size: 15pt; font-weight: 800; color: #1e293b; }
+    .section-header p  { font-size: 9.5pt; color: var(--slate); margin-top: 3px; }
 
-    /* ── Info box ────────────────────────────────────────── */
+    /* ── Info box ── */
     .info-box {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 18px 20px;
+      padding: 16px 20px;
       margin-bottom: 14px;
     }
     .info-box p { font-size: 10pt; color: #334155; }
 
-    /* ── Feature cards grid ─────────────────────────────── */
+    /* ── Feature cards grid ── */
     .card-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      gap: 11px;
+      margin-bottom: 14px;
+    }
+    .card-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
       margin-bottom: 14px;
     }
     .card {
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 14px 14px 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      padding: 13px 13px 11px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
     }
     .card-icon {
-      width: 36px; height: 36px;
+      width: 34px; height: 34px;
       border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 17px;
+      font-size: 16px;
       margin-bottom: 8px;
     }
-    .card h3 { font-size: 10pt; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-    .card p  { font-size: 8.5pt; color: var(--slate); line-height: 1.45; }
+    .card h3 { font-size: 9.5pt; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .card p  { font-size: 8pt; color: var(--slate); line-height: 1.45; }
 
     /* icon bg colours */
     .bg-blue   { background: #dbeafe; }
@@ -170,12 +159,15 @@
     .bg-slate  { background: #f1f5f9; }
     .bg-orange { background: #ffedd5; }
     .bg-sky    { background: #e0f2fe; }
+    .bg-indigo { background: #e0e7ff; }
+    .bg-pink   { background: #fce7f3; }
+    .bg-lime   { background: #ecfccb; }
 
-    /* ── Feature block (icon + text row) ───────────────── */
+    /* ── Feature block (2-col rows) ── */
     .feature-block {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
+      gap: 9px;
       margin-bottom: 14px;
     }
     .feature-item {
@@ -188,20 +180,20 @@
       padding: 10px 12px;
     }
     .feature-item .fi-icon {
-      width: 30px; height: 30px; min-width: 30px;
+      width: 28px; height: 28px; min-width: 28px;
       border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
+      font-size: 13px;
     }
-    .feature-item .fi-text h4 { font-size: 9.5pt; font-weight: 700; color: #1e293b; }
-    .feature-item .fi-text p  { font-size: 8.5pt; color: var(--slate); }
+    .feature-item .fi-text h4 { font-size: 9pt; font-weight: 700; color: #1e293b; }
+    .feature-item .fi-text p  { font-size: 8pt; color: var(--slate); }
 
-    /* ── Check-list ─────────────────────────────────────── */
+    /* ── Check-list ── */
     .checklist { list-style: none; padding: 0; }
     .checklist li {
       padding: 5px 0 5px 22px;
       position: relative;
-      font-size: 9.5pt;
+      font-size: 9pt;
       color: #334155;
       border-bottom: 1px solid var(--border);
     }
@@ -209,22 +201,28 @@
     .checklist li::before {
       content: '✓';
       position: absolute; left: 0;
-      color: #16a34a; font-weight: 800; font-size: 11pt;
+      color: #16a34a; font-weight: 800; font-size: 10pt;
     }
 
-    /* ── Two-column layout ──────────────────────────────── */
+    /* ── Two-column layout ── */
     .two-col {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      gap: 13px;
+      margin-bottom: 14px;
+    }
+    .three-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 11px;
       margin-bottom: 14px;
     }
 
-    /* ── Stat strip ─────────────────────────────────────── */
+    /* ── Stat strip ── */
     .stat-strip {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
+      gap: 11px;
       margin-bottom: 14px;
     }
     .stat-card {
@@ -232,13 +230,13 @@
       background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
       color: #fff;
       border-radius: 10px;
-      padding: 16px 10px 12px;
+      padding: 15px 10px 12px;
     }
-    .stat-card .stat-num { font-size: 22pt; font-weight: 800; line-height: 1; }
-    .stat-card .stat-lbl { font-size: 8pt; opacity: .8; margin-top: 4px; }
+    .stat-card .stat-num { font-size: 22pt; font-weight: 900; line-height: 1; }
+    .stat-card .stat-lbl { font-size: 7.5pt; opacity: .82; margin-top: 4px; }
 
-    /* ── Process steps ───────────────────────────────────── */
-    .steps { counter-reset: step; display: flex; flex-direction: column; gap: 10px; }
+    /* ── Process steps ── */
+    .steps { counter-reset: step; display: flex; flex-direction: column; gap: 9px; }
     .step {
       counter-increment: step;
       display: flex; gap: 14px; align-items: flex-start;
@@ -246,54 +244,50 @@
       border-radius: 8px; padding: 12px 14px;
     }
     .step-num {
-      width: 28px; height: 28px; min-width: 28px;
+      width: 27px; height: 27px; min-width: 27px;
       border-radius: 50%;
       background: var(--blue); color: #fff;
       display: flex; align-items: center; justify-content: center;
-      font-size: 10pt; font-weight: 800;
+      font-size: 9.5pt; font-weight: 800;
     }
     .step-num::before { content: counter(step); }
-    .step-body h4 { font-size: 10pt; font-weight: 700; color: #1e293b; }
-    .step-body p  { font-size: 8.5pt; color: var(--slate); margin-top: 2px; }
+    .step-body h4 { font-size: 9.5pt; font-weight: 700; color: #1e293b; }
+    .step-body p  { font-size: 8pt; color: var(--slate); margin-top: 2px; }
 
-    /* ── Pricing table ───────────────────────────────────── */
+    /* ── Pricing table ── */
     .pricing-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
+      gap: 13px;
       margin-bottom: 14px;
     }
     .pricing-card {
       border: 2px solid var(--border);
       border-radius: 12px;
-      padding: 20px 16px;
+      padding: 20px 16px 16px;
       text-align: center;
       position: relative;
     }
-    .pricing-card.featured {
-      border-color: var(--blue);
-      background: linear-gradient(180deg, #eff6ff 0%, #fff 60%);
-    }
+    .pricing-card.featured { border-color: var(--blue); background: linear-gradient(180deg, #eff6ff 0%, #fff 55%); }
     .pricing-card .plan-badge {
       position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
       background: var(--blue); color: #fff;
-      font-size: 7.5pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      font-size: 7pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
       padding: 3px 12px; border-radius: 10px;
     }
-    .pricing-card .plan-name { font-size: 13pt; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
-    .pricing-card .plan-price { font-size: 24pt; font-weight: 800; color: var(--blue); line-height: 1; }
-    .pricing-card .plan-price span { font-size: 10pt; font-weight: 500; color: var(--slate); }
-    .pricing-card .plan-desc { font-size: 8.5pt; color: var(--slate); margin: 6px 0 12px; }
+    .pricing-card .plan-name { font-size: 12pt; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+    .pricing-card .plan-price { font-size: 11pt; font-weight: 700; color: var(--blue); line-height: 1.4; margin: 4px 0; }
+    .pricing-card .plan-desc { font-size: 8pt; color: var(--slate); margin: 4px 0 10px; }
     .pricing-card ul { list-style: none; text-align: left; }
     .pricing-card ul li {
       padding: 4px 0 4px 18px; position: relative;
-      font-size: 8.5pt; color: #334155;
+      font-size: 8pt; color: #334155;
       border-bottom: 1px solid #f1f5f9;
     }
     .pricing-card ul li:last-child { border: none; }
     .pricing-card ul li::before { content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 800; }
 
-    /* ── Tech stack ──────────────────────────────────────── */
+    /* ── Tech pills ── */
     .tech-pill {
       display: inline-block;
       background: var(--bg); border: 1px solid var(--border);
@@ -301,7 +295,7 @@
       font-size: 8.5pt; color: #334155; margin: 3px;
     }
 
-    /* ── Quote block ─────────────────────────────────────── */
+    /* ── Quote block ── */
     .quote {
       border-left: 4px solid var(--teal);
       padding: 14px 18px;
@@ -311,24 +305,52 @@
       font-size: 11pt; font-style: italic; color: #134e4a;
     }
 
-    /* ── CTA / closing banner ───────────────────────────── */
+    /* ── Advantage row ── */
+    .adv-row {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 11px 14px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .adv-row .adv-icon {
+      font-size: 18px; min-width: 26px; padding-top: 1px;
+    }
+    .adv-row .adv-body h4 { font-size: 9.5pt; font-weight: 700; color: #1e293b; }
+    .adv-row .adv-body p  { font-size: 8.5pt; color: var(--slate); margin-top: 2px; }
+
+    /* ── Comparison table ── */
+    .cmp-table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 14px; }
+    .cmp-table th {
+      background: #1e3a8a; color: #fff;
+      padding: 8px 10px; text-align: center; font-size: 8.5pt;
+    }
+    .cmp-table th:first-child { text-align: left; }
+    .cmp-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: #334155; }
+    .cmp-table td:not(:first-child) { text-align: center; }
+    .cmp-table tr:nth-child(even) td { background: #f8fafc; }
+    .cmp-table .yes { color: #16a34a; font-weight: 700; font-size: 11pt; }
+    .cmp-table .no  { color: #ef4444; font-size: 10pt; }
+    .cmp-table .partial { color: #d97706; font-size: 9pt; }
+    .cmp-table .hl-col { background: #eff6ff !important; }
+
+    /* ── CTA banner ── */
     .cta {
-      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #0d9488 100%);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 45%, #2563eb 75%, #0d9488 100%);
       color: #fff;
       border-radius: 10px;
       padding: 28px 28px 24px;
       text-align: center;
       margin-top: 24px;
     }
-    .cta h2 { font-size: 18pt; font-weight: 800; margin-bottom: 8px; }
-    .cta p  { font-size: 10.5pt; opacity: .88; max-width: 480px; margin: 0 auto 18px; }
-    .cta .contact-row {
-      display: flex; justify-content: center; gap: 28px; flex-wrap: wrap; font-size: 10pt;
-    }
+    .cta h2 { font-size: 17pt; font-weight: 800; margin-bottom: 8px; }
+    .cta p  { font-size: 10pt; opacity: .88; max-width: 500px; margin: 0 auto 18px; }
+    .cta .contact-row { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; font-size: 9.5pt; }
     .cta .contact-row span { opacity: .85; }
     .cta .contact-row strong { opacity: 1; }
 
-    /* ── Footer ─────────────────────────────────────────── */
+    /* ── Footer ── */
     .doc-footer {
       display: flex; justify-content: space-between; align-items: center;
       border-top: 1px solid var(--border);
@@ -336,120 +358,150 @@
       font-size: 8pt; color: #94a3b8;
     }
 
-    /* ── Print button (screen only) ─────────────────────── */
+    /* ── Print button ── */
     .print-btn {
       position: fixed; bottom: 22px; right: 22px;
       background: var(--blue); color: #fff;
       border: none; border-radius: 50px;
-      padding: 11px 22px; font-size: 10.5pt; font-weight: 700;
+      padding: 11px 22px; font-size: 10pt; font-weight: 700;
       cursor: pointer; box-shadow: 0 4px 14px rgba(37,99,235,.45);
       z-index: 9999;
     }
     .print-btn:hover { background: var(--blue-d); }
 
-    /* Table */
+    /* General table */
     table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-    th {
+    .plain-table th {
       background: #1e3a8a; color: #fff;
       padding: 8px 12px; text-align: left; font-size: 9pt;
     }
-    td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: #334155; }
-    tr:nth-child(even) td { background: #f8fafc; }
+    .plain-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: #334155; }
+    .plain-table tr:nth-child(even) td { background: #f8fafc; }
+
+    /* Accent line */
+    .accent-line {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 8.5pt; color: var(--slate);
+      margin-bottom: 8px;
+    }
+    .accent-line::before {
+      content: '';
+      display: block; width: 20px; height: 2px;
+      background: var(--blue); border-radius: 1px; flex-shrink: 0;
+    }
+
+    /* Highlight box */
+    .highlight-box {
+      border: 2px solid var(--blue);
+      border-radius: 8px;
+      padding: 14px 18px;
+      background: #eff6ff;
+      margin-bottom: 14px;
+    }
+    .highlight-box p { font-size: 9.5pt; color: #1e3a8a; }
+    .highlight-box strong { font-weight: 800; }
   </style>
 </head>
 <body>
 
 <button class="print-btn no-print" onclick="window.print()">⬇ Save as PDF</button>
 
-<!-- ══════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════
      COVER PAGE
-═══════════════════════════════════════════════════════ -->
+════════════════════════════════════════════════ -->
 <div class="cover">
   <div class="badge">Commercial Proposal · Confidential</div>
-  <h1>Pro<span>POS</span></h1>
+  <div class="logo-text">Nexa<span class="accent">POS</span></div>
   <div class="divider"></div>
   <p class="tagline">
-    A fully-featured, cloud-ready Point-of-Sale &amp; Business Management Platform
-    built for modern retailers, restaurants, and service businesses.
+    A fully-featured, offline-ready Point-of-Sale &amp; Business Management Platform
+    built for modern retailers, restaurants, and service businesses across Southern Africa.
   </p>
   <p class="meta">
     Prepared for: <strong>[Client Name / Company]</strong><br/>
-    Date: <strong>May 2026</strong>
+    Prepared by: <strong>CDMNS Business Solutions</strong><br/>
+    Date: <strong>June 2026</strong>
   </p>
   <div class="cover-footer">
-    <span>ProPOS Business Solutions</span>
+    <span>NexaPOS · CDMNS Business Solutions</span>
     <span>Confidential — Not for redistribution</span>
-    <span>Version 1.0</span>
+    <span>Version 2.0</span>
   </div>
 </div>
 
-<div style="height: 28px;"></div>
+<div style="height: 24px;"></div>
 
-<!-- ══════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════
      TABLE OF CONTENTS
-═══════════════════════════════════════════════════════ -->
+════════════════════════════════════════════════ -->
 <div class="section-header">
   <h2>Contents</h2>
 </div>
 <div class="info-box">
-  <table>
+  <table class="plain-table">
     <tbody>
-      <tr><td style="width:40px; font-weight:700; color:var(--blue);">01</td><td>Executive Summary</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">02</td><td>System Overview &amp; Core Modules</td></tr>
+      <tr><td style="width:36px; font-weight:700; color:var(--blue);">01</td><td>Executive Summary</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">02</td><td>System Overview &amp; Module Map</td></tr>
       <tr><td style="font-weight:700; color:var(--blue);">03</td><td>Point-of-Sale Terminal</td></tr>
       <tr><td style="font-weight:700; color:var(--blue);">04</td><td>Inventory &amp; Stock Management</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">05</td><td>Reporting &amp; Analytics</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">06</td><td>Finance, Customers &amp; Suppliers</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">07</td><td>Staff, Security &amp; Audit</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">08</td><td>Hardware &amp; Integrations</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">09</td><td>Technology Stack &amp; Architecture</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">10</td><td>Pricing &amp; Packages</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">11</td><td>Implementation Roadmap</td></tr>
-      <tr><td style="font-weight:700; color:var(--blue);">12</td><td>Next Steps</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">05</td><td>Sales, Customers &amp; Flexible Selling</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">06</td><td>Finance, Expenses &amp; Mobile Money</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">07</td><td>Staff, Payroll &amp; Attendance</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">08</td><td>Reporting &amp; Analytics</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">09</td><td>Multi-Branch &amp; Warehouse Management</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">10</td><td>Hardware &amp; Integrations</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">11</td><td>Offline Mode &amp; Business Continuity</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">12</td><td>Security, Permissions &amp; Audit Trail</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">13</td><td>Technology Stack &amp; Architecture</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">14</td><td>NexaPOS vs. The Competition</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">15</td><td>Pricing &amp; Packages</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">16</td><td>Implementation Roadmap</td></tr>
+      <tr><td style="font-weight:700; color:var(--blue);">17</td><td>Next Steps</td></tr>
     </tbody>
   </table>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════
      01 · EXECUTIVE SUMMARY
-═══════════════════════════════════════════════════════ -->
+════════════════════════════════════════════════ -->
 <div class="section-header mt-8">
   <h2>01 · Executive Summary</h2>
-  <p>What ProPOS delivers and why it matters</p>
+  <p>What NexaPOS delivers and why it matters to your business</p>
 </div>
 
 <div class="quote">
-  "ProPOS is not just a cash register — it is a complete business operating system that gives
-  you real-time visibility, tighter stock control, and the data you need to make smarter
-  decisions every single day."
+  "NexaPOS is not just a cash register — it is a complete business operating system that
+  gives you real-time visibility, tighter stock control, and the data you need to make smarter
+  decisions every single day — even when the internet goes down."
 </div>
 
 <div class="info-box">
   <p>
     Running a retail, restaurant, or service business today demands more than a simple till.
     You need accurate stock levels, meaningful sales data, satisfied customers, accountable staff,
-    and seamless supplier relationships — all in one place, accessible from any device.
+    and seamless supplier relationships — all in one place, accessible from any device, on or
+    offline.
   </p>
   <p class="mt-2">
-    <strong>ProPOS</strong> is a modern, web-based Point-of-Sale and Business Management Platform
+    <strong>NexaPOS</strong> is a modern, web-based Point-of-Sale and Business Management Platform
     that unifies every aspect of your operation — from the first barcode scan at the counter
-    to end-of-day reconciliation, purchase orders, and management reports — into a single,
-    beautifully designed system.
+    to end-of-day reconciliation, purchase orders, payroll, and board-level management reports —
+    into a single, beautifully designed system built specifically for the Southern African market.
   </p>
 </div>
 
 <div class="stat-strip">
   <div class="stat-card">
-    <div class="stat-num">25+</div>
+    <div class="stat-num">30+</div>
     <div class="stat-lbl">Integrated Modules</div>
   </div>
   <div class="stat-card">
-    <div class="stat-num">7</div>
+    <div class="stat-num">8</div>
     <div class="stat-lbl">Report Types</div>
   </div>
   <div class="stat-card">
-    <div class="stat-num">3</div>
-    <div class="stat-lbl">Payment Methods</div>
+    <div class="stat-num">8</div>
+    <div class="stat-lbl">Hardware Devices</div>
   </div>
   <div class="stat-card">
     <div class="stat-num">∞</div>
@@ -457,66 +509,89 @@
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
+<div class="highlight-box">
+  <p>
+    <strong>Built for Southern Africa:</strong> NexaPOS includes native EcoCash agent banking,
+    layby/lay-away sales, multi-currency support, and fully offline operation
+    — features designed specifically for markets where connectivity and payment diversity matter.
+  </p>
+</div>
+
+<!-- ═══════════════════════════════════════════════
      02 · SYSTEM OVERVIEW
-═══════════════════════════════════════════════════════ -->
+════════════════════════════════════════════════ -->
 <div class="page-break"></div>
 <div class="section-header">
-  <h2>02 · System Overview &amp; Core Modules</h2>
-  <p>Every tool your business needs, tightly integrated</p>
+  <h2>02 · System Overview &amp; Module Map</h2>
+  <p>Every tool your business needs, tightly integrated in one platform</p>
 </div>
 
 <div class="card-grid">
   <div class="card">
     <div class="card-icon bg-blue">🛒</div>
     <h3>Point of Sale</h3>
-    <p>Fast, touch-friendly POS terminal with barcode scanning, table management, and split payment support.</p>
+    <p>Fast, touch-friendly POS terminal with barcode scanning, hold &amp; resume, table management, and split payments.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-teal">📦</div>
     <h3>Inventory Management</h3>
-    <p>Real-time stock tracking with variants, batches, multi-branch transfers, and low-stock alerts.</p>
+    <p>Real-time stock deduction, stocktakes, adjustments, inter-branch transfers, and low-stock alerts.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-amber">📊</div>
     <h3>Reports &amp; Analytics</h3>
-    <p>Sales, Profit &amp; Loss, Cashier Performance, Inventory, Stock Variance, Daily &amp; Monthly summaries.</p>
+    <p>8 report types: Sales, P&amp;L, Inventory, Cashier Performance, Daily, Monthly, Stock Variance, Branch Consolidation.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-violet">👥</div>
     <h3>Customer Management</h3>
-    <p>Customer profiles, loyalty programme, credit accounts, and purchase history in one view.</p>
+    <p>Customer profiles, loyalty programme, credit accounts, and full purchase history.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-rose">🏭</div>
     <h3>Suppliers &amp; Purchasing</h3>
-    <p>Purchase orders, goods receipts, and supplier ledgers to keep your supply chain in check.</p>
+    <p>Purchase orders, goods receipts, approval workflow, and automatic stock updates on delivery.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-green">💰</div>
-    <h3>Finance &amp; Expenses</h3>
-    <p>Track every expense by category, manage layby accounts, record commissions, and handle refunds.</p>
+    <h3>Finance &amp; Cashflow</h3>
+    <p>Expenses, cashflow tracking, EcoCash agent banking, multi-currency, and end-of-day reconciliation.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-orange">🧑‍💼</div>
-    <h3>Staff &amp; Attendance</h3>
-    <p>User accounts, role-based permissions, shift management, and attendance tracking.</p>
+    <h3>Staff, HR &amp; Payroll</h3>
+    <p>User accounts, attendance clock-in/out, salary management, commissions, and shift control.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-sky">🔌</div>
     <h3>Hardware Integration</h3>
-    <p>Thermal receipt printers, barcode scanners, and customer-facing pole displays — all plug-and-play.</p>
+    <p>Thermal printers, barcode scanners, cash drawers, customer displays, weighing scales, label printers, and card terminals.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-indigo">🏢</div>
+    <h3>Multi-Branch</h3>
+    <p>Unlimited branches with per-branch currencies, stock, users, and consolidated cross-branch reporting.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-lime">📋</div>
+    <h3>Quotations &amp; Layby</h3>
+    <p>Generate quotes, convert to sales, and manage layby instalment plans with deposit tracking.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-pink">📡</div>
+    <h3>Offline Mode</h3>
+    <p>Process sales without internet. Transactions queue locally and sync automatically on reconnect.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-slate">🔒</div>
-    <h3>Security &amp; Audit Trail</h3>
-    <p>Full audit log of every action, granular role &amp; permission control, and automated data backups.</p>
+    <h3>Security &amp; Audit</h3>
+    <p>Full immutable audit log, granular role-based permissions, and automated data backup.</p>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════
      03 · POS TERMINAL
-═══════════════════════════════════════════════════════ -->
+════════════════════════════════════════════════ -->
 <div class="section-header mt-6">
   <h2>03 · Point-of-Sale Terminal</h2>
   <p>The fastest, most reliable checkout experience for your team</p>
@@ -527,63 +602,88 @@
     <div class="fi-icon bg-blue">🔍</div>
     <div class="fi-text">
       <h4>Instant Product Search &amp; Barcode Scanning</h4>
-      <p>Find any product in milliseconds — type a name, SKU, or scan a barcode.</p>
+      <p>Find any product in milliseconds by name, SKU, or barcode scan — no manual lookup needed.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-teal">💳</div>
     <div class="fi-text">
-      <h4>Multiple Payment Methods</h4>
-      <p>Accept Cash, Card, and Mobile Money in any combination on a single transaction.</p>
+      <h4>Split Payment — Cash, Card &amp; Mobile Money</h4>
+      <p>Accept any combination of Cash, Card, and EcoCash / Mobile Money in one transaction.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-amber">🪑</div>
     <div class="fi-text">
       <h4>Table &amp; Order Management</h4>
-      <p>Assign sales to tables (T-1 to T-20) or walk-in, perfect for hospitality businesses.</p>
+      <p>Assign transactions to tables or walk-in. Perfect for restaurants, bars, and service counters.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-violet">⏸️</div>
     <div class="fi-text">
       <h4>Hold &amp; Resume Sales</h4>
-      <p>Park a transaction mid-sale and serve the next customer without losing the basket.</p>
+      <p>Park a mid-sale basket and serve the next customer without losing any cart data.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-rose">🖨️</div>
     <div class="fi-text">
       <h4>Automatic Receipt Printing</h4>
-      <p>Receipts print instantly on any connected thermal printer at sale completion.</p>
+      <p>Branded receipts (with store name, address, VAT number, and custom footer) print the instant a sale completes.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-green">🖥️</div>
     <div class="fi-text">
       <h4>Customer-Facing Display</h4>
-      <p>Broadcast the live cart and totals to a pole display so customers see every item.</p>
+      <p>Broadcast the live cart and totals to a pole or secondary display so customers see every item.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-orange">🏷️</div>
     <div class="fi-text">
-      <h4>Discounts &amp; Promotions</h4>
-      <p>Apply line-item discounts or automatic promotions without interrupting the flow.</p>
+      <h4>Line-Item &amp; Cart Discounts</h4>
+      <p>Apply percentage or fixed discounts per product line or against the entire basket total.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-sky">↩️</div>
     <div class="fi-text">
-      <h4>Refunds &amp; Returns</h4>
-      <p>Process full or partial refunds quickly and correctly update stock levels.</p>
+      <h4>Refunds &amp; Voids</h4>
+      <p>Process full or partial refunds in seconds. Stock levels are automatically restored on void.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-indigo">⚖️</div>
+    <div class="fi-text">
+      <h4>Weighing Scale Integration</h4>
+      <p>Connect a serial scale and the live weight is captured directly into the quantity field.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-lime">💵</div>
+    <div class="fi-text">
+      <h4>Change Calculation</h4>
+      <p>Enter the tendered amount and NexaPOS instantly displays exact change — cashier-proof.</p>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
+<!-- Kitchen Display System -->
+<div class="info-box">
+  <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Kitchen Display System (KDS) — For Restaurants &amp; Hospitality</h3>
+  <ul class="checklist">
+    <li>Orders move through a Kanban board: <strong>Open → Preparing → Ready → Completed</strong></li>
+    <li>Each order shows the table number, item list, and elapsed preparation time</li>
+    <li>Cashiers can hold any order at the register and it appears instantly on the KDS</li>
+    <li>Managers see all open orders in real-time on any screen or tablet in the kitchen</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════
      04 · INVENTORY
-═══════════════════════════════════════════════════════ -->
+════════════════════════════════════════════════ -->
 <div class="page-break"></div>
 <div class="section-header">
   <h2>04 · Inventory &amp; Stock Management</h2>
@@ -593,394 +693,818 @@
 <div class="two-col">
   <div>
     <div class="info-box">
-      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Product Catalogue</h3>
+      <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Product Catalogue</h3>
       <ul class="checklist">
         <li>Unlimited products with photos, SKU, and barcode</li>
-        <li>Product variants (size, colour, flavour, etc.)</li>
-        <li>Batch &amp; expiry date tracking</li>
         <li>Category and brand organisation</li>
-        <li>Cost price, selling price, and margin per product</li>
-        <li>Reorder point and minimum stock alerts</li>
+        <li>Cost price, selling price, and auto-calculated margin</li>
+        <li>Configurable tax rate per product</li>
+        <li>Reorder point and minimum stock level alerts</li>
+        <li>Bulk product import via Excel spreadsheet</li>
+        <li>Label printing (price tags with barcode)</li>
       </ul>
     </div>
   </div>
   <div>
     <div class="info-box">
-      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Stock Control</h3>
+      <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Stock Control</h3>
       <ul class="checklist">
-        <li>Real-time stock deduction on every sale</li>
-        <li>Stocktake / physical count module</li>
-        <li>Inter-branch stock transfers</li>
-        <li>Goods receipt from purchase orders</li>
-        <li>Stock variance reporting</li>
-        <li>Warehouse management support</li>
+        <li>Real-time stock deduction on every completed sale</li>
+        <li>Stock auto-restored on order void or cancellation</li>
+        <li>Manual stock adjustments with reason tracking</li>
+        <li>Stocktake / physical count with variance reporting</li>
+        <li>Stock reconciliation after physical count</li>
+        <li>Inter-branch stock transfers with approval workflow</li>
+        <li>Bulk stock level import from Excel</li>
       </ul>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     05 · REPORTS
-═══════════════════════════════════════════════════════ -->
+<div class="info-box">
+  <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Stocktake Module</h3>
+  <p>NexaPOS includes a structured stocktake workflow: create a count sheet, record physical quantities, review variances side-by-side with system quantities, and confirm to automatically update stock levels. Stocktakes support <strong>draft → in progress → completed</strong> status tracking so counts can be paused and resumed across a team.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     05 · SALES, CUSTOMERS & FLEXIBLE SELLING
+════════════════════════════════════════════════ -->
 <div class="section-header mt-6">
-  <h2>05 · Reporting &amp; Analytics</h2>
-  <p>Turn raw data into decisions with seven built-in report types</p>
-</div>
-
-<div class="info-box">
-  <table>
-    <thead>
-      <tr>
-        <th>Report</th>
-        <th>What it shows</th>
-        <th>Frequency</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Sales Report</strong></td>
-        <td>Revenue, units sold, average basket, payment breakdown</td>
-        <td>Any date range</td>
-      </tr>
-      <tr>
-        <td><strong>Profit &amp; Loss</strong></td>
-        <td>Gross profit, cost of goods, net margin by period</td>
-        <td>Any date range</td>
-      </tr>
-      <tr>
-        <td><strong>Inventory Report</strong></td>
-        <td>Current stock levels, valuation, and dead stock</td>
-        <td>Real-time</td>
-      </tr>
-      <tr>
-        <td><strong>Cashier Performance</strong></td>
-        <td>Sales per staff member, refunds, voids, and commissions</td>
-        <td>Any date range</td>
-      </tr>
-      <tr>
-        <td><strong>Daily Summary</strong></td>
-        <td>Opening/closing balances, cash in/out, end-of-day totals</td>
-        <td>Per day</td>
-      </tr>
-      <tr>
-        <td><strong>Monthly Report</strong></td>
-        <td>Month-over-month comparison, top sellers, category split</td>
-        <td>Per month</td>
-      </tr>
-      <tr>
-        <td><strong>Stock Variances</strong></td>
-        <td>Differences between expected and actual stock after counts</td>
-        <td>Any date range</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-<div class="info-box">
-  <p>All reports support <strong>custom date ranges</strong>, can be <strong>exported</strong>, and critical reports can be
-  <strong>scheduled</strong> to arrive in your inbox automatically — so you always know your numbers
-  even when you're not in the store.</p>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     06 · FINANCE, CUSTOMERS & SUPPLIERS
-═══════════════════════════════════════════════════════ -->
-<div class="page-break"></div>
-<div class="section-header">
-  <h2>06 · Finance, Customers &amp; Suppliers</h2>
-  <p>Everything you need to manage money, relationships, and purchasing</p>
+  <h2>05 · Sales, Customers &amp; Flexible Selling</h2>
+  <p>Every way your customers want to buy — NexaPOS supports it</p>
 </div>
 
 <div class="card-grid">
   <div class="card">
     <div class="card-icon bg-violet">🎁</div>
     <h3>Loyalty Programme</h3>
-    <p>Reward repeat customers automatically with a built-in points or credit loyalty system.</p>
+    <p>Earn and redeem points on purchases. Loyalty can be toggled on/off per branch in settings.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-teal">📋</div>
+    <div class="card-icon bg-teal">🧾</div>
     <h3>Customer Credit Accounts</h3>
-    <p>Extend credit to trusted customers and track every transaction against their balance.</p>
+    <p>Extend credit to trusted customers with configurable credit limits. Every transaction tracked against their balance.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-amber">📑</div>
     <h3>Quotations</h3>
-    <p>Generate professional quotations and convert them to sales with a single click.</p>
+    <p>Generate professional quotes (draft → sent → accepted/declined). Convert an accepted quote to a sale in one click.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-rose">🛍️</div>
     <h3>Layby / Lay-away</h3>
-    <p>Allow customers to reserve goods with a deposit and track instalment payments.</p>
+    <p>Reserve goods with a deposit and track instalment payments. Status: pending → partial → complete.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-blue">📦</div>
-    <h3>Purchase Orders</h3>
-    <p>Raise POs to suppliers, receive goods, and auto-update stock on delivery.</p>
+    <div class="card-icon bg-blue">🔄</div>
+    <h3>Refunds &amp; Partial Refunds</h3>
+    <p>Full or line-item refunds with automatic stock reinstatement and payment reversal tracking.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-green">💸</div>
-    <h3>Expense Tracking</h3>
-    <p>Record every business expense by category and include them in your P&amp;L reports.</p>
-  </div>
-  <div class="card">
-    <div class="card-icon bg-orange">🏅</div>
-    <h3>Sales Commissions</h3>
-    <p>Define commission rules and automatically calculate earnings per staff member.</p>
-  </div>
-  <div class="card">
-    <div class="card-icon bg-sky">🌍</div>
-    <h3>Multi-Currency</h3>
-    <p>Operate in any currency; set exchange rates and display prices in local format.</p>
-  </div>
-  <div class="card">
-    <div class="card-icon bg-slate">🔄</div>
-    <h3>End-of-Day &amp; Shift Close</h3>
-    <p>Structured EOD and shift-end workflows with cash count reconciliation.</p>
+    <div class="card-icon bg-green">🏠</div>
+    <h3>Rentals</h3>
+    <p>Track equipment or asset rentals: issue date, expected return, actual return, and rental income.</p>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     07 · STAFF, SECURITY & AUDIT
-═══════════════════════════════════════════════════════ -->
-<div class="section-header mt-6">
-  <h2>07 · Staff, Security &amp; Audit</h2>
-  <p>Full accountability — from login to logout</p>
+<div class="info-box">
+  <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:6px; color:#1e293b;">Sales History &amp; My Sales</h3>
+  <p>Managers see the full sales ledger with search, filter, and receipt reprint. Cashiers see their own current-shift transactions — automatically reset after each Shift End. Admins can view any cashier's sales history from a single dropdown selector.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     06 · FINANCE, EXPENSES & MOBILE MONEY
+════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>06 · Finance, Expenses &amp; Mobile Money</h2>
+  <p>Complete financial control from the register to the balance sheet</p>
+</div>
+
+<div class="three-col">
+  <div class="info-box">
+    <h3 style="font-size:10pt; font-weight:700; margin-bottom:7px; color:#1e293b;">Expense Tracking</h3>
+    <ul class="checklist">
+      <li>Record expenses by category</li>
+      <li>Approval workflow for managers</li>
+      <li>Expenses feed into P&amp;L reports</li>
+      <li>Date-range filtering and export</li>
+    </ul>
+  </div>
+  <div class="info-box">
+    <h3 style="font-size:10pt; font-weight:700; margin-bottom:7px; color:#1e293b;">Cashflow Management</h3>
+    <ul class="checklist">
+      <li>Cash in / cash out tracking</li>
+      <li>Cashflow forecasting view</li>
+      <li>Per-branch cashflow reports</li>
+      <li>Full audit of cash movements</li>
+    </ul>
+  </div>
+  <div class="info-box">
+    <h3 style="font-size:10pt; font-weight:700; margin-bottom:7px; color:#1e293b;">Multi-Currency</h3>
+    <ul class="checklist">
+      <li>Operate in any currency</li>
+      <li>Configurable exchange rates</li>
+      <li>Per-branch default currency</li>
+      <li>Prices displayed in local format</li>
+    </ul>
+  </div>
+</div>
+
+<div class="info-box">
+  <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">EcoCash Agent Banking Module</h3>
+  <p style="margin-bottom:8px;">
+    NexaPOS is one of very few POS systems that includes a <strong>dedicated EcoCash agent banking module</strong>
+    — built for Zimbabwean businesses operating as EcoCash agents.
+  </p>
+  <div class="feature-block" style="margin-bottom:0;">
+    <div class="feature-item">
+      <div class="fi-icon bg-green">📲</div>
+      <div class="fi-text">
+        <h4>Transaction Types</h4>
+        <p>Deposit, Withdrawal, Float Top-Up, Float Withdrawal, and Commission — all tracked per cashier.</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="fi-icon bg-teal">📊</div>
+      <div class="fi-text">
+        <h4>Float Management</h4>
+        <p>Monitor agent float balance in real-time. Top up and withdraw float with full audit trail.</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="fi-icon bg-amber">🏅</div>
+      <div class="fi-text">
+        <h4>Commission Tracking</h4>
+        <p>Record commission as a percentage or fixed amount per transaction. Daily summary dashboard.</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="fi-icon bg-violet">↩️</div>
+      <div class="fi-text">
+        <h4>Reversals &amp; Export</h4>
+        <p>Managers can reverse any transaction. Export full transaction history to CSV for bank reconciliation.</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="two-col">
-  <div>
-    <div class="info-box">
-      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">User &amp; Role Management</h3>
-      <ul class="checklist">
-        <li>Unlimited user accounts per branch</li>
-        <li>Roles: Admin, Manager, Cashier, Stock Clerk…</li>
-        <li>Granular permission control per screen/action</li>
-        <li>Secure password authentication (Laravel Sanctum)</li>
-        <li>Branch-scoped access so staff only see what they need</li>
-      </ul>
-    </div>
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">End-of-Day (EOD) Reconciliation</h3>
+    <ul class="checklist">
+      <li>Structured EOD workflow with cash count step</li>
+      <li>Expected vs declared variance tracking per cashier</li>
+      <li>Payment method breakdown (cash, card, mobile money)</li>
+      <li>Manager sign-off before next trading day</li>
+    </ul>
   </div>
-  <div>
-    <div class="info-box">
-      <h3 style="font-size:11pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Audit &amp; Compliance</h3>
-      <ul class="checklist">
-        <li>Immutable audit log of every create/edit/delete</li>
-        <li>Timestamps and user attribution on all records</li>
-        <li>Attendance clock-in / clock-out per employee</li>
-        <li>Automated database backups</li>
-        <li>Webhook alerts for critical business events</li>
-      </ul>
-    </div>
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Shift End Reconciliation</h3>
+    <ul class="checklist">
+      <li>Per-shift cash count independent of EOD</li>
+      <li>Shift-level P&amp;L and payment totals</li>
+      <li>Cashier's sales automatically reset for next shift</li>
+      <li>Shift history retained for management review</li>
+    </ul>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     08 · HARDWARE & INTEGRATIONS
-═══════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════
+     07 · STAFF, PAYROLL & ATTENDANCE
+════════════════════════════════════════════════ -->
 <div class="page-break"></div>
 <div class="section-header">
-  <h2>08 · Hardware &amp; Integrations</h2>
-  <p>Works with the equipment you already own</p>
+  <h2>07 · Staff, Payroll &amp; Attendance</h2>
+  <p>Complete HR tools so your team is accountable from clock-in to pay day</p>
 </div>
 
 <div class="card-grid">
   <div class="card">
+    <div class="card-icon bg-blue">🕐</div>
+    <h3>Attendance Tracking</h3>
+    <p>Staff clock in and out directly in NexaPOS. Every entry is timestamped and tied to the logged-in user.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-teal">💼</div>
+    <h3>Salary Management</h3>
+    <p>Record and track staff salaries. Payment history per employee with date and amount.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-amber">🏆</div>
+    <h3>Sales Commissions</h3>
+    <p>Define commission rates per staff member. NexaPOS auto-calculates earnings per sale and tracks pending vs paid payouts.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-violet">🔑</div>
+    <h3>User Roles &amp; Permissions</h3>
+    <p>Granular permission matrix per role. Control access to every module and every action independently.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-rose">📱</div>
+    <h3>Shift Management</h3>
+    <p>Shifts are tracked per cashier. End-of-shift reconciliation ensures every rand is accounted for.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-green">📋</div>
+    <h3>My Sales Dashboard</h3>
+    <p>Each cashier sees only their own current-shift sales. Managers can toggle to view any cashier or all staff.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     08 · REPORTING & ANALYTICS
+════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>08 · Reporting &amp; Analytics</h2>
+  <p>Eight built-in report types — exportable to Excel and PDF</p>
+</div>
+
+<div class="info-box">
+  <table class="plain-table">
+    <thead>
+      <tr>
+        <th>Report</th>
+        <th>Key Metrics</th>
+        <th>Export</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sales Report</strong></td>
+        <td>Revenue, units sold, average basket value, payment method breakdown, 30-day trend chart</td>
+        <td>Excel</td>
+      </tr>
+      <tr>
+        <td><strong>Profit &amp; Loss</strong></td>
+        <td>Gross revenue, COGS, gross profit, gross margin %, operating expenses, net profit, net margin %</td>
+        <td>Excel</td>
+      </tr>
+      <tr>
+        <td><strong>Inventory Report</strong></td>
+        <td>All products with SKU, cost, selling price, current stock qty, stock value, reorder level, status (ok/low/out)</td>
+        <td>Excel</td>
+      </tr>
+      <tr>
+        <td><strong>Cashier Performance</strong></td>
+        <td>Per-cashier: transaction count, total revenue, average sale value — ranked by performance</td>
+        <td>Excel</td>
+      </tr>
+      <tr>
+        <td><strong>Daily Summary</strong></td>
+        <td>Single-day P&amp;L, payment method breakdown, cashier breakdown table, total transaction count</td>
+        <td>Excel / PDF</td>
+      </tr>
+      <tr>
+        <td><strong>Monthly Report</strong></td>
+        <td>Month-level revenue, COGS, gross margin %, expenses, net profit, daily breakdown chart</td>
+        <td>Excel / PDF</td>
+      </tr>
+      <tr>
+        <td><strong>Stock Variances</strong></td>
+        <td>Products with counted vs system quantity, units sold, stock value, low/out status after stocktake</td>
+        <td>Excel</td>
+      </tr>
+      <tr>
+        <td><strong>Branch Consolidation</strong></td>
+        <td>Multi-branch side-by-side: sales, COGS, gross profit, GP%, expenses, net profit, transactions — with totals row</td>
+        <td>Excel</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="info-box">
+  <p>
+    All reports include <strong>custom date range filtering</strong>. The live <strong>Dashboard</strong> gives
+    owners and managers real-time KPIs at a glance: today's revenue, order count, average basket, low-stock
+    count, a 30-day sales trend chart, top-selling products by revenue, payment method pie chart, and a live
+    feed of open orders.
+  </p>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     09 · MULTI-BRANCH & WAREHOUSE
+════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>09 · Multi-Branch &amp; Warehouse Management</h2>
+  <p>Scale from one location to a national chain without changing systems</p>
+</div>
+
+<div class="two-col">
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Multi-Branch</h3>
+    <ul class="checklist">
+      <li>Unlimited branches — each with its own name, address, phone, and city</li>
+      <li>Per-branch currency selection (ISO code)</li>
+      <li>Branch-scoped stock levels and user access</li>
+      <li>Per-branch EOD reconciliation and cashflow</li>
+      <li>Branch Consolidation Report for ownership overview</li>
+      <li>Active / inactive branch toggle</li>
+    </ul>
+  </div>
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Stock Transfers</h3>
+    <ul class="checklist">
+      <li>Create inter-branch transfer requests with product list</li>
+      <li>Approval workflow: <strong>Pending → In Transit → Received</strong></li>
+      <li>Sending branch stock is deducted; receiving branch stock is incremented on receipt</li>
+      <li>Cancellation supported for pending and in-transit transfers</li>
+      <li>Full reference number and timestamp on every transfer</li>
+    </ul>
+  </div>
+</div>
+
+<div class="highlight-box">
+  <p>
+    <strong>Branch Consolidation Report:</strong> See every branch's Sales, COGS, Gross Profit, Gross Margin %,
+    Expenses, and Net Profit side-by-side in a single table — the one report that tells the owner how the whole
+    business is performing at a glance.
+  </p>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     10 · HARDWARE & INTEGRATIONS
+════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>10 · Hardware &amp; Integrations</h2>
+  <p>Works with the equipment you already own — eight device types supported</p>
+</div>
+
+<div class="card-grid-4">
+  <div class="card">
     <div class="card-icon bg-blue">🖨️</div>
-    <h3>Thermal Receipt Printer</h3>
-    <p>Any ESC/POS-compatible USB or network printer works out of the box.</p>
+    <h3>Receipt Printer</h3>
+    <p>Any ESC/POS USB or Bluetooth thermal printer. Auto-prints on sale. Test print from settings.</p>
   </div>
   <div class="card">
     <div class="card-icon bg-teal">📷</div>
     <h3>Barcode Scanner</h3>
-    <p>USB HID scanners connect instantly — no drivers or configuration required.</p>
+    <p>USB HID keyboard-wedge scanners. Zero drivers. Auto-adds item to cart on exact match.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-amber">🖥️</div>
-    <h3>Customer Pole Display</h3>
-    <p>Show the live cart to your customer on a secondary screen or monitor.</p>
+    <div class="card-icon bg-amber">🔓</div>
+    <h3>Cash Drawer</h3>
+    <p>Opens via ESC/POS kick command through the receipt printer. Auto-opens on cash sales.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-violet">🔗</div>
-    <h3>Webhooks &amp; API</h3>
-    <p>Push real-time events to any external system — accounting, e-commerce, ERP.</p>
+    <div class="card-icon bg-violet">🖥️</div>
+    <h3>Customer Display</h3>
+    <p>Secondary monitor shows live cart, totals, and "thank you" animation via BroadcastChannel API.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-rose">☁️</div>
-    <h3>Cloud-Ready</h3>
-    <p>Host on any VPS, cloud server, or local network. Browser-based — no installs.</p>
+    <div class="card-icon bg-rose">⚖️</div>
+    <h3>Weighing Scale</h3>
+    <p>Web Serial API integration. Live weight fed directly into quantity field with configurable baud rate.</p>
   </div>
   <div class="card">
-    <div class="card-icon bg-green">📱</div>
-    <h3>Any Device</h3>
-    <p>Works on desktop, tablet, and modern browsers — no app store needed.</p>
+    <div class="card-icon bg-green">🏷️</div>
+    <h3>Label Printer</h3>
+    <p>Print product price labels with SKU, barcode, and price. Multiple label sizes supported.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-orange">💳</div>
+    <h3>Card Terminal</h3>
+    <p>Webhook/REST integration to Yoco, PayAt, or any terminal with an HTTP API endpoint.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-sky">👆</div>
+    <h3>Touchscreen</h3>
+    <p>Optimised large tap targets and gesture support for industrial touchscreen monitors.</p>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     09 · TECHNOLOGY STACK
-═══════════════════════════════════════════════════════ -->
+<div class="two-col">
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Webhooks &amp; API Events</h3>
+    <ul class="checklist">
+      <li>Real-time event push to any external system (CRM, ERP, e-commerce, accounting)</li>
+      <li>Events: sale.created, sale.refunded, product.low_stock, layby.created, layby.paid, customer.created, stocktake.completed</li>
+      <li>HMAC-signed payloads for security verification</li>
+      <li>Test-fire from the dashboard; last-triggered timestamp shown</li>
+    </ul>
+  </div>
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Data Import &amp; Export</h3>
+    <ul class="checklist">
+      <li>Bulk product import via Excel (.xlsx)</li>
+      <li>Bulk stock level import via Excel</li>
+      <li>All 8 report types exportable to Excel</li>
+      <li>Key reports exportable to PDF</li>
+      <li>EcoCash transactions exportable to CSV</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     11 · OFFLINE MODE
+════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>11 · Offline Mode &amp; Business Continuity</h2>
+  <p>Never lose a sale — even when your internet connection does</p>
+</div>
+
+<div class="quote">
+  "In markets where internet reliability is inconsistent, the ability to keep trading
+  during outages is not a nice-to-have — it is a business requirement. NexaPOS was built
+  with this reality in mind."
+</div>
+
+<div class="feature-block">
+  <div class="feature-item">
+    <div class="fi-icon bg-amber">📡</div>
+    <div class="fi-text">
+      <h4>Automatic Offline Detection</h4>
+      <p>NexaPOS detects loss of internet connectivity instantly and switches to offline mode — no action required from staff.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-rose">🛒</div>
+    <div class="fi-text">
+      <h4>Offline Sales Processing</h4>
+      <p>Process complete sales while offline. Products are served from the local browser cache — no blank screens or errors.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-teal">📥</div>
+    <div class="fi-text">
+      <h4>Offline Receipt Printing</h4>
+      <p>Receipts print normally during outages, generated from local cart data so customers always get proof of purchase.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-green">☁️</div>
+    <div class="fi-text">
+      <h4>Automatic Sync on Reconnect</h4>
+      <p>When internet is restored, all queued offline sales upload to the server automatically — no manual intervention.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-blue">🔁</div>
+    <div class="fi-text">
+      <h4>Manual Sync Button</h4>
+      <p>A "Sync Now" button allows staff to trigger upload immediately after reconnection if preferred.</p>
+    </div>
+  </div>
+  <div class="feature-item">
+    <div class="fi-icon bg-violet">🔢</div>
+    <div class="fi-text">
+      <h4>Pending Sale Counter</h4>
+      <p>An amber banner shows the number of queued offline sales so management always knows what's pending.</p>
+    </div>
+  </div>
+</div>
+
+<div class="highlight-box">
+  <p>
+    <strong>How it works technically:</strong> NexaPOS is a Progressive Web App (PWA). Product catalogues, settings,
+    currencies, and warehouse data are cached by a Workbox service worker. Offline sales are stored in the browser's
+    local storage and posted to the server with an <em>is_offline</em> flag once connectivity is restored.
+    The system is built on <strong>React 19 + TanStack Query with <em>offlineFirst</em> network mode</strong>,
+    meaning cached data always serves from local cache when the network is unavailable.
+  </p>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     12 · SECURITY, PERMISSIONS & AUDIT
+════════════════════════════════════════════════ -->
 <div class="section-header mt-6">
-  <h2>09 · Technology Stack &amp; Architecture</h2>
+  <h2>12 · Security, Permissions &amp; Audit Trail</h2>
+  <p>Full accountability — every action recorded, every screen controlled</p>
+</div>
+
+<div class="two-col">
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Role-Based Access Control</h3>
+    <ul class="checklist">
+      <li>Unlimited user accounts per branch</li>
+      <li>Pre-built roles: Admin, Manager, Cashier, Stock Clerk, and more</li>
+      <li>Granular permission toggle per module per action (view, create, edit, delete)</li>
+      <li>Permission matrix visible and editable in the admin dashboard</li>
+      <li>Branch-scoped access — staff see only what they need</li>
+      <li>Token-based authentication via Laravel Sanctum</li>
+    </ul>
+  </div>
+  <div class="info-box">
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:8px; color:#1e293b;">Audit Log</h3>
+    <ul class="checklist">
+      <li>Immutable log of every create, edit, and delete in the system</li>
+      <li>Every entry records: user, action, affected entity, before/after values, and timestamp</li>
+      <li>Searchable and filterable by user, date, or action type</li>
+      <li>Cannot be modified or deleted — even by administrators</li>
+      <li>Webhook alerts for critical events (sales, refunds, low stock)</li>
+      <li>Automated database backup for disaster recovery</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     13 · TECHNOLOGY STACK
+════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<div class="section-header">
+  <h2>13 · Technology Stack &amp; Architecture</h2>
   <p>Built on proven, enterprise-grade open-source foundations</p>
 </div>
 
 <div class="two-col">
   <div class="info-box">
-    <h3 style="font-size:11pt; font-weight:700; margin-bottom:10px; color:#1e293b;">Back-End</h3>
-    <span class="tech-pill">PHP 8.x</span>
-    <span class="tech-pill">Laravel 11</span>
-    <span class="tech-pill">Laravel Sanctum</span>
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:10px; color:#1e293b;">Back-End API</h3>
+    <span class="tech-pill">PHP 8.3+</span>
+    <span class="tech-pill">Laravel 13</span>
+    <span class="tech-pill">Laravel Sanctum (Auth)</span>
     <span class="tech-pill">Eloquent ORM</span>
-    <span class="tech-pill">MySQL / MariaDB</span>
-    <span class="tech-pill">RESTful API</span>
-    <span class="tech-pill">Spatie Permissions</span>
-    <span class="tech-pill">Queues &amp; Jobs</span>
+    <span class="tech-pill">PostgreSQL</span>
+    <span class="tech-pill">RESTful JSON API</span>
+    <span class="tech-pill">Spatie Permissions (RBAC)</span>
+    <span class="tech-pill">Queued Jobs</span>
+    <span class="tech-pill">Webhook Dispatching</span>
   </div>
   <div class="info-box">
-    <h3 style="font-size:11pt; font-weight:700; margin-bottom:10px; color:#1e293b;">Front-End</h3>
-    <span class="tech-pill">React 18</span>
+    <h3 style="font-size:10.5pt; font-weight:700; margin-bottom:10px; color:#1e293b;">Front-End PWA</h3>
+    <span class="tech-pill">React 19</span>
     <span class="tech-pill">TypeScript</span>
-    <span class="tech-pill">Vite</span>
+    <span class="tech-pill">Vite 6</span>
     <span class="tech-pill">Tailwind CSS</span>
-    <span class="tech-pill">TanStack Query</span>
-    <span class="tech-pill">Recharts</span>
-    <span class="tech-pill">Zustand</span>
+    <span class="tech-pill">TanStack Query v5</span>
+    <span class="tech-pill">Zustand (State)</span>
+    <span class="tech-pill">Recharts (Dashboards)</span>
+    <span class="tech-pill">Workbox (Service Worker)</span>
     <span class="tech-pill">Lucide Icons</span>
   </div>
 </div>
 
 <div class="info-box">
   <p>
-    ProPOS follows a <strong>decoupled API architecture</strong> — the React front-end communicates
-    with the Laravel API over HTTPS. This means the front-end can run on any CDN or static host
-    while the API runs independently, making the system both <strong>fast and scalable</strong>.
-    All data is stored in a relational database with full referential integrity.
+    NexaPOS follows a <strong>decoupled API architecture</strong> — the React front-end communicates with the
+    Laravel API over HTTPS with bearer token authentication. The front-end is a
+    <strong>Progressive Web App (PWA)</strong>, meaning it can be installed to the home screen of any device
+    and works offline. The system is designed to run on any Linux VPS, dedicated server, or local network —
+    <strong>no proprietary cloud lock-in</strong>. All data is stored in a PostgreSQL relational database with
+    full referential integrity and foreign key constraints.
   </p>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     10 · PRICING
-═══════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════
+     14 · NEXAPOS VS. THE COMPETITION
+════════════════════════════════════════════════ -->
+<div class="section-header mt-6">
+  <h2>14 · NexaPOS vs. The Competition</h2>
+  <p>Why NexaPOS outperforms generic POS systems for Southern African businesses</p>
+</div>
+
+<div class="info-box" style="margin-bottom:12px;">
+  <table class="cmp-table">
+    <thead>
+      <tr>
+        <th style="width:32%;">Feature</th>
+        <th style="width:17%; background:#1e40af;">NexaPOS</th>
+        <th style="width:17%;">iKhokha / Yoco POS</th>
+        <th style="width:17%;">Lightspeed / Vend</th>
+        <th style="width:17%;">Basic Local POS</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Offline sales processing</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="partial">Limited</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>EcoCash agent banking module</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="no">✗</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Layby / lay-away module</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="partial">Limited</td>
+        <td class="partial">Sometimes</td>
+      </tr>
+      <tr>
+        <td>Multi-branch with consolidated P&amp;L</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Weighing scale integration</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="no">✗</td>
+        <td class="partial">Rarely</td>
+      </tr>
+      <tr>
+        <td>Kitchen Display System (KDS)</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Stocktake with variance reconciliation</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="yes">✓</td>
+        <td class="partial">Basic</td>
+      </tr>
+      <tr>
+        <td>Payroll &amp; salary management</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="no">✗</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Commissions module</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="partial">Add-on</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Webhook / API event integration</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">✗</td>
+        <td class="yes">✓</td>
+        <td class="no">✗</td>
+      </tr>
+      <tr>
+        <td>Self-hosted (data stays on your server)</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">Cloud only</td>
+        <td class="no">Cloud only</td>
+        <td class="partial">Sometimes</td>
+      </tr>
+      <tr>
+        <td>Once-off licence (no monthly SaaS fee)</td>
+        <td class="yes hl-col">✓</td>
+        <td class="no">Monthly fee</td>
+        <td class="no">Monthly fee</td>
+        <td class="partial">Varies</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon bg-blue">🇿🇼</div>
+    <h3>Built for This Market</h3>
+    <p>EcoCash, ZWL multi-currency, layby, and offline-first design match the realities of Southern African trading.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-green">💰</div>
+    <h3>No Monthly SaaS Fee</h3>
+    <p>NexaPOS is sold as a once-off system licence — you own it. No recurring cloud subscription costs.</p>
+  </div>
+  <div class="card">
+    <div class="card-icon bg-teal">🔒</div>
+    <h3>Your Data, Your Server</h3>
+    <p>Self-hosted on your own server or VPS. Your business data never leaves your control.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     15 · PRICING
+════════════════════════════════════════════════ -->
 <div class="page-break"></div>
 <div class="section-header">
-  <h2>10 · Pricing &amp; Packages</h2>
-  <p>Transparent, once-off or subscription pricing — choose what suits your business</p>
+  <h2>15 · Pricing &amp; Packages</h2>
+  <p>Transparent, once-off pricing — choose the package that fits your business</p>
 </div>
 
 <div class="pricing-grid">
   <div class="pricing-card">
     <div class="plan-name">Starter</div>
-    <div class="plan-price">Contact Us <span></span></div>
+    <div class="plan-price">Contact Us for Pricing</div>
     <div class="plan-desc">Ideal for single-location small businesses</div>
     <ul>
       <li>1 branch / 2 cashier users</li>
       <li>Full POS terminal</li>
-      <li>Products &amp; inventory</li>
-      <li>Sales &amp; daily reports</li>
-      <li>Receipt printing</li>
+      <li>Products &amp; inventory management</li>
+      <li>Sales history &amp; daily reports</li>
+      <li>Receipt &amp; label printing</li>
+      <li>Basic hardware setup (1 printer)</li>
       <li>3 months support</li>
     </ul>
   </div>
   <div class="pricing-card featured">
     <div class="plan-badge">Most Popular</div>
     <div class="plan-name">Business</div>
-    <div class="plan-price">Contact Us <span></span></div>
+    <div class="plan-price">Contact Us for Pricing</div>
     <div class="plan-desc">For growing businesses with multiple staff</div>
     <ul>
       <li>Up to 3 branches</li>
       <li>Unlimited users</li>
       <li>All Starter features</li>
-      <li>Full reporting suite</li>
+      <li>Full reporting suite (8 report types)</li>
       <li>Layby, quotations, commissions</li>
       <li>Purchase orders &amp; suppliers</li>
       <li>Customer loyalty &amp; credit</li>
+      <li>EcoCash agent banking module</li>
+      <li>Attendance &amp; salaries</li>
+      <li>Offline mode</li>
       <li>6 months support</li>
     </ul>
   </div>
   <div class="pricing-card">
     <div class="plan-name">Enterprise</div>
-    <div class="plan-price">Contact Us <span></span></div>
+    <div class="plan-price">Contact Us for Pricing</div>
     <div class="plan-desc">Multi-branch chains &amp; high-volume retailers</div>
     <ul>
       <li>Unlimited branches</li>
       <li>Unlimited users</li>
       <li>All Business features</li>
-      <li>Webhooks &amp; API access</li>
-      <li>Scheduled reports</li>
+      <li>Webhooks &amp; full API access</li>
+      <li>Branch Consolidation Reports</li>
       <li>Warehouse management</li>
       <li>Custom integrations</li>
-      <li>12 months priority support</li>
+      <li>Kitchen Display System</li>
+      <li>Rentals module</li>
+      <li>Priority support</li>
+      <li>12 months support</li>
     </ul>
   </div>
 </div>
 
 <div class="info-box">
   <p>
-    All packages include <strong>full system installation</strong>, <strong>data migration assistance</strong>,
-    and <strong>staff training sessions</strong>. Hardware (printers, scanners) can be quoted separately.
-    Annual maintenance and support plans are available after the initial support period.
+    All packages include <strong>full system installation</strong>, <strong>data migration assistance</strong>
+    (products, customers, opening stock), and <strong>staff training sessions</strong>.
+    Hardware (thermal printers, barcode scanners, cash drawers) can be quoted separately.
+    Annual maintenance and extended support plans are available after the initial support period.
+    <strong>All pricing is once-off — there are no monthly subscription fees.</strong>
   </p>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     11 · IMPLEMENTATION ROADMAP
-═══════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════
+     16 · IMPLEMENTATION ROADMAP
+════════════════════════════════════════════════ -->
 <div class="section-header mt-6">
-  <h2>11 · Implementation Roadmap</h2>
-  <p>From signed proposal to live system in as little as one week</p>
+  <h2>16 · Implementation Roadmap</h2>
+  <p>From signed proposal to fully live system in as little as one week</p>
 </div>
 
 <div class="steps">
   <div class="step">
     <div class="step-num"></div>
     <div class="step-body">
-      <h4>Requirements &amp; Discovery (Day 1–2)</h4>
-      <p>We meet with your team to document your product catalogue, user roles, branch structure, hardware inventory, and any specific workflows. A configuration checklist is signed off.</p>
+      <h4>Discovery &amp; Requirements (Day 1)</h4>
+      <p>We meet with your team to document your product catalogue, user roles, branch structure, hardware inventory, currency setup, and any specific workflows. A configuration checklist is agreed and signed off.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num"></div>
     <div class="step-body">
-      <h4>System Installation &amp; Configuration (Day 2–3)</h4>
-      <p>ProPOS is deployed to your server or cloud environment, connected to your domain, and configured with your branding, currency, tax settings, and initial data.</p>
+      <h4>Server Installation &amp; Configuration (Day 2)</h4>
+      <p>NexaPOS is deployed to your server or VPS, connected to your domain with SSL, and configured with your branding, logo, currency, tax settings, branch structure, and user roles.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num"></div>
     <div class="step-body">
       <h4>Data Migration (Day 3–4)</h4>
-      <p>Your existing product catalogue, customer records, and opening stock levels are imported. We verify accuracy before going live.</p>
+      <p>Your existing product catalogue, customer records, supplier list, and opening stock levels are imported from your current system or spreadsheets. Accuracy is verified before proceeding.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num"></div>
     <div class="step-body">
-      <h4>Hardware Setup &amp; Testing (Day 4–5)</h4>
-      <p>Receipt printers, barcode scanners, and customer displays are connected and tested end-to-end on the actual counter hardware.</p>
+      <h4>Hardware Setup &amp; Testing (Day 5)</h4>
+      <p>Receipt printers, barcode scanners, cash drawers, and customer displays are connected and tested end-to-end with actual counter hardware. A full test sale is processed to confirm everything works.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num"></div>
     <div class="step-body">
-      <h4>Staff Training (Day 5–6)</h4>
-      <p>Hands-on training sessions for cashiers, managers, and administrators. We provide a quick-reference guide for daily operations.</p>
+      <h4>Staff Training (Day 6)</h4>
+      <p>Practical, hands-on training for cashiers, managers, and administrators. We cover the daily operating workflow from opening to end-of-day close, plus a printed quick-reference guide for every station.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num"></div>
     <div class="step-body">
-      <h4>Go Live &amp; Hypercare Support (Day 7+)</h4>
-      <p>The system goes live. Our team is on standby for the first week to resolve any questions and ensure a smooth transition.</p>
+      <h4>Go Live &amp; Hypercare (Day 7+)</h4>
+      <p>The system goes live. Our team is on standby for the first week (WhatsApp / call) to resolve any questions and ensure a smooth transition. Support continues for the duration of your support package.</p>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     12 · NEXT STEPS / CTA
-═══════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════
+     17 · NEXT STEPS / CTA
+════════════════════════════════════════════════ -->
 <div class="page-break"></div>
 <div class="section-header">
-  <h2>12 · Next Steps</h2>
+  <h2>17 · Next Steps</h2>
   <p>Ready to modernise your business? Here is how we proceed</p>
 </div>
 
@@ -988,51 +1512,51 @@
   <div class="feature-item">
     <div class="fi-icon bg-blue">📞</div>
     <div class="fi-text">
-      <h4>Schedule a Live Demo</h4>
-      <p>See ProPOS running on real hardware in a 30-minute demonstration tailored to your business type.</p>
+      <h4>Schedule a Live Demonstration</h4>
+      <p>See NexaPOS running on real hardware in a 30–45 minute demo tailored to your business type — retail, restaurant, or service.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-teal">📝</div>
     <div class="fi-text">
       <h4>Receive a Formal Quotation</h4>
-      <p>We'll prepare a detailed, itemised quote including installation, training, and optional hardware.</p>
+      <p>We'll prepare a detailed, itemised quote including installation, training, optional hardware, and your chosen support plan.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-amber">✍️</div>
     <div class="fi-text">
       <h4>Sign &amp; Deposit</h4>
-      <p>A signed agreement and 50% deposit confirms your project start date and locks in your price.</p>
+      <p>A signed agreement and 50% deposit confirms your project start date and locks in your package price.</p>
     </div>
   </div>
   <div class="feature-item">
     <div class="fi-icon bg-green">🚀</div>
     <div class="fi-text">
-      <h4>Go Live</h4>
-      <p>Within days your business runs on ProPOS — faster, smarter, and fully in your control.</p>
+      <h4>Go Live on NexaPOS</h4>
+      <p>Within days your business runs on NexaPOS — faster transactions, tighter stock, real-time reports, and full peace of mind.</p>
     </div>
   </div>
 </div>
 
 <!-- CTA Banner -->
 <div class="cta">
-  <h2>Let's Get Your Business Running on ProPOS</h2>
+  <h2>Let's Get Your Business Running on NexaPOS</h2>
   <p>
     Contact us today to arrange a no-obligation live demonstration or to receive a
-    customised quote for your specific needs.
+    customised quote for your specific business needs.
   </p>
   <div class="contact-row">
-    <span>📧 <strong>[dingulwazi0108.zondo@gmail.com]</strong></span>
-    <span>📞 <strong>[+263 78 680 9082]</strong></span>
-    <span>🌐 <strong>[www.cdnms.com]</strong></span>
+    <span>📧 <strong>dingulwazi0108.zondo@gmail.com</strong></span>
+    <span>📞 <strong>+263 78 680 9082</strong></span>
+    <span>🌐 <strong>www.cdnms.com</strong></span>
   </div>
 </div>
 
 <!-- Document footer -->
 <div class="doc-footer">
-  <span>ProPOS Business Solutions · Commercial Proposal</span>
-  <span>Prepared: May 2026 · Confidential</span>
+  <span>NexaPOS · CDMNS Business Solutions · Commercial Proposal</span>
+  <span>Prepared: June 2026 · Confidential — Not for Redistribution</span>
   <span>© 2026 All rights reserved</span>
 </div>
 

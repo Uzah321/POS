@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, categoriesApi, brandsApi } from '../api';
+import { productsApi, categoriesApi, brandsApi, inventoryApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, Search, Edit, Trash2, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -137,6 +137,23 @@ export default function ProductsPage() {
     queryFn: () => productsApi.list({ search, page, per_page: 20 }).then(r => r.data?.data),
   });
 
+  // Accurate aggregate stats — separate lightweight queries
+  const { data: categoriesAll } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
+  const { data: lowStockMeta } = useQuery({
+    queryKey: ['inventory-low-count'],
+    queryFn: () => inventoryApi.stockLevels({ filter: 'low', per_page: 1 }).then(r => r.data?.data),
+    staleTime: 60000,
+  });
+  const { data: outStockMeta } = useQuery({
+    queryKey: ['inventory-out-count'],
+    queryFn: () => inventoryApi.stockLevels({ filter: 'out', per_page: 1 }).then(r => r.data?.data),
+    staleTime: 60000,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productsApi.delete(id),
     onSuccess: () => { toast.success('Product deleted'); qc.invalidateQueries({ queryKey: ['products'] }); },
@@ -144,13 +161,20 @@ export default function ProductsPage() {
   });
 
   const products: any[] = data?.data || [];
-  const meta = data?.meta;
+  // Laravel's standard paginator puts total/last_page at root level, not in a nested meta key
+  const meta = data?.meta ?? (data?.last_page ? {
+    current_page: data.current_page,
+    last_page: data.last_page,
+    from: data.from,
+    to: data.to,
+    total: data.total,
+  } : null);
 
-  // Summary stats
+  // Summary stats — use server-side totals for accuracy across all pages
   const totalItems = meta?.total ?? products.length;
-  const categories = new Set(products.map((p: any) => p.category?.name).filter(Boolean));
-  const lowStock = products.filter((p: any) => (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_level ?? 5)).length;
-  const outOfStock = products.filter((p: any) => (p.total_stock ?? 0) <= 0).length;
+  const totalCategories = (categoriesAll as any[])?.length ?? new Set(products.map((p: any) => p.category?.name).filter(Boolean)).size;
+  const lowStock = lowStockMeta?.meta?.total ?? lowStockMeta?.total ?? products.filter((p: any) => (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_level ?? 5)).length;
+  const outOfStock = outStockMeta?.meta?.total ?? outStockMeta?.total ?? products.filter((p: any) => (p.total_stock ?? 0) <= 0).length;
 
   const getStockStatus = (p: any) => {
     const s = p.total_stock ?? 0;
@@ -189,7 +213,7 @@ export default function ProductsPage() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: 'Total Items', value: totalItems, icon: Package, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-          { label: 'Categories', value: categories.size, icon: Tag, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
+          { label: 'Categories', value: totalCategories, icon: Tag, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
           { label: 'Low Stock', value: lowStock, icon: AlertTriangle, iconBg: lowStock > 0 ? 'bg-orange-50' : 'bg-blue-50', iconColor: lowStock > 0 ? 'text-orange-600' : 'text-blue-600' },
           { label: 'Out of Stock', value: outOfStock, icon: AlertTriangle, iconBg: outOfStock > 0 ? 'bg-red-50' : 'bg-blue-50', iconColor: outOfStock > 0 ? 'text-red-600' : 'text-blue-600' },
         ].map(({ label, value, icon: Icon, iconBg, iconColor }) => (

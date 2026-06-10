@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\CashflowEntry;
 use App\Models\EcocashTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -88,6 +89,36 @@ class EcocashController extends BaseApiController
             'status'            => 'completed',
         ]);
 
+        // Reflect the cash impact in the cashflow ledger
+        // deposit / float_top_up / commission → cash comes IN
+        // withdrawal / float_withdrawal → cash goes OUT
+        $cashFlowType = match ($data['type']) {
+            'deposit', 'float_top_up', 'commission' => 'inflow',
+            'withdrawal', 'float_withdrawal'         => 'outflow',
+        };
+
+        $cashDesc = match ($data['type']) {
+            'deposit'          => 'EcoCash deposit',
+            'withdrawal'       => 'EcoCash withdrawal',
+            'float_top_up'     => 'EcoCash float top-up',
+            'float_withdrawal' => 'EcoCash float withdrawal',
+            'commission'       => 'EcoCash commission',
+        };
+
+        CashflowEntry::create([
+            'reference'      => 'CF-ECO-' . $tx->reference,
+            'branch_id'      => $tx->branch_id,
+            'user_id'        => auth()->id(),
+            'flow_type'      => $cashFlowType,
+            'category'       => 'EcoCash',
+            'description'    => "{$cashDesc} — {$tx->reference}",
+            'amount'         => $data['amount'],
+            'currency'       => 'USD',
+            'entry_date'     => $data['transaction_date'],
+            'payment_method' => 'mobile_money',
+            'notes'          => $data['notes'] ?? null,
+        ]);
+
         return $this->success($tx->load('user:id,name', 'branch:id,name'), 'Transaction recorded', 201);
     }
 
@@ -98,6 +129,10 @@ class EcocashController extends BaseApiController
         }
 
         $ecocashTransaction->update(['status' => 'reversed']);
+
+        // Remove the corresponding cashflow entry that was auto-created on store
+        CashflowEntry::where('reference', 'CF-ECO-' . $ecocashTransaction->reference)->delete();
+
         return $this->success($ecocashTransaction, 'Transaction reversed');
     }
 

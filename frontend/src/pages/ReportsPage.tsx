@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { categoriesApi, reportsApi } from '../api';
+import { categoriesApi, reportsApi, branchesApi } from '../api';
 import api from '../lib/axios';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -19,6 +19,7 @@ export default function ReportsPage() {
   const [dailyDate, setDailyDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [monthlyMonth, setMonthlyMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [categoryId, setCategoryId] = useState('');
+  const [branchId, setBranchId] = useState('');
   const { format: fmt } = useCurrencyStore();
 
   const { data: categories = [] } = useQuery({
@@ -27,16 +28,22 @@ export default function ReportsPage() {
     staleTime: 60000,
   });
 
-  const rangeParams = { date_from: from, date_to: to };
+  const { data: branchData = [] } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
+
+  const rangeParams = { date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}) };
   const categoryParams = categoryId ? { category_id: Number(categoryId) } : {};
 
-  const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to], queryFn: () => reportsApi.sales(rangeParams).then(r => r.data?.data), enabled: tab === 'Sales' });
-  const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to], queryFn: () => reportsApi.profitLoss(rangeParams).then(r => r.data?.data), enabled: tab === 'Profit & Loss' });
+  const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to, branchId], queryFn: () => reportsApi.sales(rangeParams).then(r => r.data?.data), enabled: tab === 'Sales' });
+  const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to, branchId], queryFn: () => reportsApi.profitLoss(rangeParams).then(r => r.data?.data), enabled: tab === 'Profit & Loss' });
   const { data: invData }   = useQuery({ queryKey: ['report-inventory', categoryId], queryFn: () => reportsApi.inventory(categoryParams).then(r => r.data?.data), enabled: tab === 'Inventory' });
-  const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to], queryFn: () => reportsApi.cashierPerformance(rangeParams).then(r => r.data?.data), enabled: tab === 'Cashier Performance' });
-  const { data: dailyData, isLoading: loadingDaily }   = useQuery({ queryKey: ['report-daily', dailyDate], queryFn: () => api.get('/reports/daily', { params: { date: dailyDate } }).then(r => r.data?.data), enabled: tab === 'Daily Summary' });
-  const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth } }).then(r => r.data?.data), enabled: tab === 'Monthly Report' });
-  const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances' });
+  const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to, branchId], queryFn: () => reportsApi.cashierPerformance(rangeParams).then(r => r.data?.data), enabled: tab === 'Cashier Performance' });
+  const { data: dailyData, isLoading: loadingDaily }   = useQuery({ queryKey: ['report-daily', dailyDate, branchId], queryFn: () => api.get('/reports/daily', { params: { date: dailyDate, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Daily Summary' });
+  const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth, branchId], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Monthly Report' });
+  const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId, branchId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances' });
   const { data: consolidationData, isLoading: loadingConsolidation } = useQuery({ queryKey: ['report-consolidation', from, to], queryFn: () => api.get('/reports/branch-consolidation', { params: { date_from: from, date_to: to } }).then(r => r.data?.data), enabled: tab === 'Branch Consolidation' });
 
   const downloadPdf = (url: string, params: Record<string, string>) => {
@@ -141,7 +148,7 @@ export default function ReportsPage() {
         </button>
       </div>
 
-      {/* Date filters */}
+      {/* Filters */}
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
         {['Sales', 'Profit & Loss', 'Cashier Performance', 'Stock Variances', 'Branch Consolidation'].includes(tab) && (
           <>
@@ -150,6 +157,18 @@ export default function ReportsPage() {
             <label className="text-sm text-gray-600">To:</label>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </>
+        )}
+        {tab !== 'Branch Consolidation' && (branchData as any[]).length > 1 && (
+          <select
+            value={branchId}
+            onChange={(e) => setBranchId(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="">All Branches</option>
+            {(branchData as any[]).map((b: any) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
         )}
         {['Inventory', 'Stock Variances'].includes(tab) && (
           <>

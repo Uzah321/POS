@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { salesApi, settingsApi } from '../api';
+import { salesApi, settingsApi, branchesApi } from '../api';
 import { Search, Eye, Loader2, Printer, Receipt } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -20,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function SalesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [branchId, setBranchId] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
@@ -31,9 +32,15 @@ export default function SalesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: branchData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ['sales', search, page],
-    queryFn: () => salesApi.list({ search, page, per_page: 20 }).then(r => r.data?.data),
+    queryKey: ['sales', search, page, branchId],
+    queryFn: () => salesApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
   });
 
   const { data: saleDetail } = useQuery({
@@ -77,16 +84,26 @@ export default function SalesPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative max-w-sm">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by reference..."
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-64"
             />
           </div>
+          <select
+            value={branchId}
+            onChange={(e) => { setBranchId(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="">All Branches</option>
+            {(branchData as any[] || []).map((b: any) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
         </div>
 
         {isLoading ? (

@@ -105,10 +105,19 @@ export default function POSPage() {
 
   const { data: storeSettings } = useQuery({
     queryKey: ['settings'],
-    queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
+    queryFn: async () => {
+      try {
+        const data = await settingsApi.get().then(r => r.data?.data || {});
+        try { localStorage.setItem('nexapos-settings-cache', JSON.stringify(data)); } catch {}
+        return data;
+      } catch {
+        const cached = localStorage.getItem('nexapos-settings-cache');
+        return cached ? JSON.parse(cached) : {};
+      }
+    },
     staleTime: 5 * 60 * 1000,
   });
-  const storeName = storeSettings?.company_name || 'DiaperMart Store';
+  const storeName = storeSettings?.company_name || 'NexaPOS';
   const storeAddress = user?.branch?.address || storeSettings?.company_address;
   const storePhone = user?.branch?.phone || storeSettings?.company_phone;
 
@@ -162,11 +171,30 @@ export default function POSPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Load all products for grid display
+  // Load all products for grid display.
+  // localStorage fallback ensures products survive an offline page-refresh —
+  // Workbox cannot reliably cache authenticated API responses.
   const { data: allProductsData, isLoading: productsLoading } = useQuery({
     queryKey: ['pos-products'],
-    queryFn: () => productsApi.list({ per_page: 200, is_active: 1 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    queryFn: async () => {
+      try {
+        const data = await productsApi.list({ per_page: 200, is_active: 1 })
+          .then(r => r.data?.data?.data ?? r.data?.data ?? []);
+        try { localStorage.setItem('nexapos-pos-products', JSON.stringify(data)); } catch {}
+        return data;
+      } catch {
+        const cached = localStorage.getItem('nexapos-pos-products');
+        return cached ? (JSON.parse(cached) as any[]) : [];
+      }
+    },
     staleTime: 60000,
+    // Keep showing products even after a failed refresh — don't reset to undefined on error
+    placeholderData: () => {
+      try {
+        const cached = localStorage.getItem('nexapos-pos-products');
+        return cached ? JSON.parse(cached) : undefined;
+      } catch { return undefined; }
+    },
   });
 
   const { data: customerResults } = useQuery({

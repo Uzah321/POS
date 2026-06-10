@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 class LaybyController extends Controller {
     public function index(Request $request) {
         $q = Layby::with(['customer','user'])->latest();
+        if ($request->branch_id) $q->where('branch_id',$request->branch_id);
         if ($request->status) $q->where('status',$request->status);
         if ($request->customer_id) $q->where('customer_id',$request->customer_id);
         return response()->json($q->paginate(20));

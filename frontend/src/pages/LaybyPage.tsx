@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
+import { branchesApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, X, ChevronRight, CreditCard, Package } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -18,6 +19,7 @@ export default function LaybyPage() {
   const { format } = useCurrencyStore();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
+  const [branchId, setBranchId] = useState('');
   const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
   const [selectedLayby, setSelectedLayby] = useState<any>(null);
@@ -27,9 +29,15 @@ export default function LaybyPage() {
   // New layby form
   const [form, setForm] = useState({ customer_name: '', total: '', deposit_paid: '', due_date: '', notes: '', items: [{ name: '', quantity: 1, unit_price: '' }] });
 
+  const { data: branchData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ['laybys', filterStatus, page],
-    queryFn: () => api.get('/laybys', { params: { status: filterStatus || undefined, page, per_page: 20 } }).then(r => r.data?.data),
+    queryKey: ['laybys', filterStatus, branchId, page],
+    queryFn: () => api.get('/laybys', { params: { status: filterStatus || undefined, branch_id: branchId || undefined, page, per_page: 20 } }).then(r => r.data?.data),
   });
 
   const { data: laybyDetail } = useQuery({
@@ -89,11 +97,17 @@ export default function LaybyPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${!filterStatus ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>All</button>
         {STATUSES.map(s => (
           <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s}</button>
         ))}
+        {(branchData as any[] || []).length > 1 && (
+          <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setPage(1); }} className="ml-auto border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">All Branches</option>
+            {(branchData as any[]).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Laybys list */}

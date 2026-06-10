@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, categoriesApi, brandsApi, inventoryApi } from '../api';
+import { productsApi, categoriesApi, brandsApi, inventoryApi, branchesApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, Search, Edit, Trash2, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -127,14 +127,21 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
 export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [branchId, setBranchId] = useState('');
   const [modal, setModal] = useState<{ open: boolean; product?: any }>({ open: false });
   const [showImport, setShowImport] = useState(false);
   const qc = useQueryClient();
   const { format: formatCurrency } = useCurrencyStore();
 
+  const { data: branchData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ['products', search, page],
-    queryFn: () => productsApi.list({ search, page, per_page: 20 }).then(r => r.data?.data),
+    queryKey: ['products', search, page, branchId],
+    queryFn: () => productsApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
   });
 
   // Accurate aggregate stats — separate lightweight queries
@@ -232,14 +239,28 @@ export default function ProductsPage() {
       {/* Products table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <div className="relative max-w-xs flex-1">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search items..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-            />
+          <div className="flex items-center gap-3 flex-wrap flex-1">
+            <div className="relative max-w-xs flex-1">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Search items..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              />
+            </div>
+            {(branchData as any[] || []).length > 1 && (
+              <select
+                value={branchId}
+                onChange={(e) => { setBranchId(e.target.value); setPage(1); }}
+                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                <option value="">All Branches</option>
+                {(branchData as any[]).map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 

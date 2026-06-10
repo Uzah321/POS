@@ -26,7 +26,8 @@ class ProductController extends BaseApiController
             ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')))
             ->when($request->low_stock, fn($q) => $q->whereHas('stocks', function ($sq) {
                 $sq->whereRaw('quantity <= products.reorder_level');
-            }));
+            }))
+            ->when($request->branch_id, fn($q) => $q->whereHas('stocks.warehouse', fn($wq) => $wq->where('branch_id', $request->branch_id)));
 
         if ($request->with_stock) {
             $query->with(['stocks.warehouse']);

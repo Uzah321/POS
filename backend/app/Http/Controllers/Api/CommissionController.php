@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 class CommissionController extends Controller {
     public function index(Request $request) {
         $q = Commission::with(['user','sale'])->latest();
+        if ($request->branch_id) $q->whereHas('sale', fn($sq) => $sq->where('branch_id',$request->branch_id));
         if ($request->user_id) $q->where('user_id',$request->user_id);
         if ($request->status) $q->where('status',$request->status);
         if ($request->from) $q->whereDate('created_at','>=',$request->from);

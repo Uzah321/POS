@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 class QuotationController extends Controller {
     public function index(Request $request) {
         $q = Quotation::with(['customer','user'])->latest();
+        if ($request->branch_id) $q->where('branch_id',$request->branch_id);
         if ($request->status) $q->where('status',$request->status);
         return response()->json($q->paginate(20));
     }

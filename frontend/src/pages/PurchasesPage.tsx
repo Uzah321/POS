@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { purchaseOrdersApi, suppliersApi } from '../api';
+import { purchaseOrdersApi, suppliersApi, branchesApi } from '../api';
 import { Plus, Search, CheckCircle, Loader2, X, Truck } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
@@ -75,13 +75,15 @@ function POModal({ onClose }: { onClose: () => void }) {
 
 export default function PurchasesPage() {
   const [search, setSearch] = useState('');
+  const [branchId, setBranchId] = useState('');
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const qc = useQueryClient();
 
+  const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []), staleTime: 120000 });
   const { data, isLoading } = useQuery({
-    queryKey: ['purchase-orders', search, page],
-    queryFn: () => purchaseOrdersApi.list({ search, page, per_page: 20 }).then(r => r.data?.data),
+    queryKey: ['purchase-orders', search, branchId, page],
+    queryFn: () => purchaseOrdersApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
   });
   const approveMutation = useMutation({
     mutationFn: (id: number) => purchaseOrdersApi.approve(id),
@@ -99,8 +101,14 @@ export default function PurchasesPage() {
         <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-xl text-sm"><Plus size={16} /> New PO</button>
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative max-w-sm"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search orders..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 max-w-sm"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search orders..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
+          {(branchData as any[] || []).length > 1 && (
+            <select value={branchId} onChange={(e) => { setBranchId(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">All Branches</option>
+              {(branchData as any[]).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
         </div>
         {isLoading ? <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div> : (
           <div className="overflow-x-auto">

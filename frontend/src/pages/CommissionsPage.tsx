@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
+import { branchesApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { TrendingUp, Check, Calendar } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -11,18 +12,21 @@ export default function CommissionsPage() {
   const qc = useQueryClient();
   const [dateFrom, setDateFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10));
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0,10));
+  const [branchId, setBranchId] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [tab, setTab] = useState<'all' | 'pending' | 'paid'>('all');
   const [page, setPage] = useState(1);
 
+  const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []), staleTime: 120000 });
+
   const { data: report, isLoading: reportLoading } = useQuery({
-    queryKey: ['commissions-report', dateFrom, dateTo],
-    queryFn: () => api.get('/commissions/report', { params: { date_from: dateFrom, date_to: dateTo } }).then(r => r.data?.data),
+    queryKey: ['commissions-report', dateFrom, dateTo, branchId],
+    queryFn: () => api.get('/commissions/report', { params: { date_from: dateFrom, date_to: dateTo, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data),
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['commissions', tab, dateFrom, dateTo, page],
-    queryFn: () => api.get('/commissions', { params: { status: tab === 'all' ? undefined : tab, date_from: dateFrom, date_to: dateTo, page, per_page: 20 } }).then(r => r.data?.data),
+    queryKey: ['commissions', tab, dateFrom, dateTo, branchId, page],
+    queryFn: () => api.get('/commissions', { params: { status: tab === 'all' ? undefined : tab, date_from: dateFrom, date_to: dateTo, branch_id: branchId || undefined, page, per_page: 20 } }).then(r => r.data?.data),
   });
 
   const markPaidMutation = useMutation({
@@ -54,12 +58,18 @@ export default function CommissionsPage() {
         <p className="text-sm text-gray-500 mt-1">Track and pay staff commissions</p>
       </div>
 
-      {/* Date filter */}
-      <div className="flex items-center gap-3">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
         <Calendar size={16} className="text-gray-400" />
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <span className="text-gray-400 text-sm">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        {(branchData as any[] || []).length > 1 && (
+          <select value={branchId} onChange={e => setBranchId(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">All Branches</option>
+            {(branchData as any[]).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Summary by staff */}

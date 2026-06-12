@@ -11,9 +11,11 @@ import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from 
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useOfflineSync } from '../hooks/useOfflineSync';
 import { useOfflineStore } from '../stores/offlineStore';
+import { useDBSync } from '../hooks/useDBSync';
+import { db } from '../lib/db';
 import {
   Search, Plus, Minus, Trash2, User, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, TableProperties, UtensilsCrossed, WifiOff, RefreshCw, CloudUpload
+  X, ShoppingCart, TableProperties, UtensilsCrossed, WifiOff, RefreshCw, CloudUpload, Database
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -102,6 +104,7 @@ export default function POSPage() {
 
   const { isOnline, queue: offlineQueue, isSyncing, syncQueue } = useOfflineSync();
   const enqueue = useOfflineStore((s) => s.enqueue);
+  const { isSyncing: isDBSyncing, lastSynced, syncNow } = useDBSync();
 
   const { data: storeSettings } = useQuery({
     queryKey: ['settings'],
@@ -171,35 +174,43 @@ export default function POSPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Load all products for grid display.
-  // localStorage fallback ensures products survive an offline page-refresh —
-  // Workbox cannot reliably cache authenticated API responses.
   const { data: allProductsData, isLoading: productsLoading } = useQuery({
     queryKey: ['pos-products'],
     queryFn: async () => {
+      if (!navigator.onLine) {
+        return db.products.toArray();
+      }
       try {
-        const data = await productsApi.list({ per_page: 200, is_active: 1 })
+        const data = await productsApi.list({ per_page: 500, is_active: 1 })
           .then(r => r.data?.data?.data ?? r.data?.data ?? []);
-        try { localStorage.setItem('nexapos-pos-products', JSON.stringify(data)); } catch {}
+        // Keep IndexedDB current as a side-effect of the normal online fetch
+        db.products.clear().then(() => db.products.bulkPut(data)).catch(() => {});
         return data;
       } catch {
-        const cached = localStorage.getItem('nexapos-pos-products');
-        return cached ? (JSON.parse(cached) as any[]) : [];
+        // API failed while nominally online — fall back to IndexedDB
+        const cached = await db.products.toArray();
+        return cached.length > 0 ? cached : [];
       }
     },
     staleTime: 60000,
-    // Keep showing products even after a failed refresh — don't reset to undefined on error
-    placeholderData: () => {
-      try {
-        const cached = localStorage.getItem('nexapos-pos-products');
-        return cached ? JSON.parse(cached) : undefined;
-      } catch { return undefined; }
-    },
   });
 
   const { data: customerResults } = useQuery({
-    queryKey: ['customer-search', customerSearch],
-    queryFn: () => customersApi.list({ search: customerSearch, per_page: 5 }).then((r) => r.data?.data?.data || []),
+    queryKey: ['customer-search', customerSearch, isOnline],
+    queryFn: async () => {
+      if (!isOnline) {
+        const q = customerSearch.toLowerCase();
+        return db.customers
+          .filter(c =>
+            c.name.toLowerCase().includes(q) ||
+            (c.phone ?? '').includes(customerSearch) ||
+            (c.email ?? '').toLowerCase().includes(q)
+          )
+          .limit(5)
+          .toArray();
+      }
+      return customersApi.list({ search: customerSearch, per_page: 5 }).then((r) => r.data?.data?.data || []);
+    },
     enabled: customerSearch.length >= 2,
   });
 
@@ -422,6 +433,25 @@ export default function POSPage() {
           </span>
         </div>
       )}
+      {/* DB sync status bar — shown when online */}
+      {isOnline && (
+        <div className="flex items-center justify-between bg-gray-100 border-b border-gray-200 px-5 py-1 text-xs text-gray-500 flex-shrink-0">
+          <span className="flex items-center gap-1.5">
+            {isDBSyncing ? <RefreshCw size={11} className="animate-spin" /> : <Database size={11} />}
+            {isDBSyncing
+              ? 'Syncing offline database…'
+              : lastSynced
+              ? `Offline DB synced ${new Date(lastSynced).toLocaleTimeString()}`
+              : 'Offline database not yet synced'}
+          </span>
+          {!isDBSyncing && (
+            <button type="button" onClick={() => void syncNow(false)} className="text-blue-600 hover:underline">
+              Sync now
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Sync indicator when back online with pending sales */}
       {isOnline && offlineQueue.length > 0 && (
         <div className="flex items-center justify-between bg-blue-600 text-white px-5 py-2 text-sm font-medium flex-shrink-0">

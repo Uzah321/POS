@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { financialReportApi, branchesApi } from '../api';
 import { Download, Loader2, BarChart2, TrendingUp } from 'lucide-react';
@@ -96,19 +96,19 @@ export default function FinancialReportPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Financial Report</h1>
-          <p className="text-gray-500 text-sm">P&amp;L — Sales, Gross Profit, Deductions, Profit B/d</p>
+          <p className="text-gray-500 text-sm">P&amp;L " Sales, Gross Profit, Deductions, Profit B/d</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button type="button" onClick={handleExportCsv} className="flex items-center gap-2 border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm hover:bg-gray-50">
+          <button type="button" onClick={handleExportCsv} className="flex items-center gap-2 border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
             <Download size={14} /> Export P&amp;L CSV
           </button>
           {period === 'daily' && (
-            <button type="button" onClick={handleDailyCsv} className="flex items-center gap-2 border border-blue-300 text-blue-700 px-3 py-2 rounded-xl text-sm hover:bg-blue-50">
+            <button type="button" onClick={handleDailyCsv} className="flex items-center gap-2 border border-blue-300 text-blue-700 px-3 py-2 rounded-md text-sm hover:bg-blue-50">
               <Download size={14} /> Daily Detail CSV
             </button>
           )}
           {period === 'monthly' && (
-            <button type="button" onClick={handleMonthlyCsv} className="flex items-center gap-2 border border-blue-300 text-blue-700 px-3 py-2 rounded-xl text-sm hover:bg-blue-50">
+            <button type="button" onClick={handleMonthlyCsv} className="flex items-center gap-2 border border-blue-300 text-blue-700 px-3 py-2 rounded-md text-sm hover:bg-blue-50">
               <Download size={14} /> Monthly Detail CSV
             </button>
           )}
@@ -116,7 +116,7 @@ export default function FinancialReportPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <div className="bg-white rounded-md border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap gap-4 items-end">
           {/* Period toggle */}
           <div>
@@ -168,11 +168,11 @@ export default function FinancialReportPage() {
       ) : report ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* P&L Statement */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <BarChart2 size={18} className="text-blue-500" />
               <h2 className="font-bold text-gray-900">Profit &amp; Loss Statement</h2>
-              <span className="ml-auto text-xs text-gray-400 font-mono">{report.from} → {report.to}</span>
+              <span className="ml-auto text-xs text-gray-400 font-mono">{report.from} â†' {report.to}</span>
             </div>
 
             <div className="divide-y divide-gray-50">
@@ -199,7 +199,7 @@ export default function FinancialReportPage() {
           </div>
 
           {/* Payment Breakdown */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <TrendingUp size={18} className="text-purple-500" />
               <h2 className="font-bold text-gray-900">Payment Breakdown</h2>
@@ -224,7 +224,7 @@ export default function FinancialReportPage() {
 
           {/* Daily Revenue Chart */}
           {dailyChart.length > 1 && (
-            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="lg:col-span-2 bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="font-bold text-gray-900">Revenue Trend</h2>
               </div>
@@ -244,7 +244,7 @@ export default function FinancialReportPage() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400">
+        <div className="bg-white rounded-md border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400">
           <BarChart2 size={40} className="mb-3" />
           <p className="text-sm">Select a period and click Generate to view the report</p>
         </div>

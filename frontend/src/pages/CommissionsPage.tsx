@@ -61,11 +61,11 @@ export default function CommissionsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <Calendar size={16} className="text-gray-400" />
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <span className="text-gray-400 text-sm">to</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         {(branchData as any[] || []).length > 1 && (
-          <select value={branchId} onChange={e => setBranchId(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select value={branchId} onChange={e => setBranchId(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">All Branches</option>
             {(branchData as any[]).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
@@ -76,7 +76,7 @@ export default function CommissionsPage() {
       {!reportLoading && reportData.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {reportData.map((r: any) => (
-            <div key={r.user_id} className="bg-white rounded-2xl border border-gray-100 p-4">
+            <div key={r.user_id} className="bg-white rounded-lg border border-gray-100 p-4">
               <p className="text-sm font-semibold text-gray-800">{r.user_name}</p>
               <p className="text-2xl font-bold text-blue-600 mt-1">{format(r.total_amount)}</p>
               <div className="flex justify-between text-xs text-gray-400 mt-2">
@@ -96,14 +96,14 @@ export default function CommissionsPage() {
           ))}
         </div>
         {selected.size > 0 && (
-          <button onClick={() => markPaidMutation.mutate(Array.from(selected))} disabled={markPaidMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+          <button onClick={() => markPaidMutation.mutate(Array.from(selected))} disabled={markPaidMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
             <Check size={14} /> Mark {selected.size} as Paid
           </button>
         )}
       </div>
 
       {/* Commissions list */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : commissions.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><TrendingUp size={32} className="mx-auto mb-2" /><p>No commissions in this period</p></div>
         ) : (

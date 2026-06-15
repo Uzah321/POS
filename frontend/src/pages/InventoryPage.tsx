@@ -90,20 +90,20 @@ export default function InventoryPage() {
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => setShowImport(true)}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm">
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm transition-colors shadow-sm">
             <FileSpreadsheet size={16} /> Import Excel
           </button>
           <button
             type="button"
             onClick={() => { setShowAddStock(true); setTimeout(() => productSearchRef.current?.focus(), 80); }}
-            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm transition-colors shadow-sm"
           >
             <Plus size={16} /> Add Stock
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -153,8 +153,8 @@ export default function InventoryPage() {
                           <span className="text-sm font-medium text-gray-900">{s.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.sku || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.category?.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.sku || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.category?.name || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.stocks?.[0]?.warehouse?.name || 'Main'}</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900">{qty}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{reorder}</td>
@@ -178,7 +178,7 @@ export default function InventoryPage() {
 
       {showAddStock && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) { setShowAddStock(false); resetAddForm(); } }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <PackagePlus size={20} className="text-green-600" />
@@ -193,10 +193,10 @@ export default function InventoryPage() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Product *</label>
                 {selectedProduct ? (
-                  <div className="flex items-center justify-between px-3 py-2.5 border border-green-300 bg-green-50 rounded-xl">
+                  <div className="flex items-center justify-between px-3 py-2.5 border border-green-300 bg-green-50 rounded-md">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{selectedProduct.name}</p>
-                      <p className="text-xs text-gray-500">{selectedProduct.sku}{selectedProduct.category?.name ? ` · ${selectedProduct.category.name}` : ''}</p>
+                      <p className="text-xs text-gray-500">{selectedProduct.sku}{selectedProduct.category?.name ? ` Ã‚Â· ${selectedProduct.category.name}` : ''}</p>
                     </div>
                     <button type="button" onClick={() => { setSelectedProduct(null); setProductSearch(''); }} className="text-gray-400 hover:text-red-500 transition-colors ml-2">
                       <X size={15} />
@@ -210,10 +210,10 @@ export default function InventoryPage() {
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
                       placeholder="Search by name or SKU..."
-                      className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                     {(productOptions as any[]).length > 0 && (
-                      <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-10 mt-1 overflow-hidden max-h-48 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-xl z-10 mt-1 overflow-hidden max-h-48 overflow-y-auto">
                         {(productOptions as any[]).map((p: any) => (
                           <button
                             type="button"
@@ -222,7 +222,7 @@ export default function InventoryPage() {
                             className="w-full text-left px-3 py-2.5 hover:bg-green-50 text-sm border-b border-gray-50 last:border-0 transition-colors"
                           >
                             <p className="font-medium text-gray-900">{p.name}</p>
-                            <p className="text-xs text-gray-400">{p.sku}{p.category?.name ? ` · ${p.category.name}` : ''}</p>
+                            <p className="text-xs text-gray-400">{p.sku}{p.category?.name ? ` Ã‚Â· ${p.category.name}` : ''}</p>
                           </button>
                         ))}
                       </div>
@@ -241,7 +241,7 @@ export default function InventoryPage() {
                     min="1"
                     step="1"
                     placeholder="0"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
                 <div>
@@ -253,7 +253,7 @@ export default function InventoryPage() {
                     min="0"
                     step="0.01"
                     placeholder="0.00"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
               </div>
@@ -265,7 +265,7 @@ export default function InventoryPage() {
                   value={addReason}
                   onChange={(e) => setAddReason(e.target.value)}
                   placeholder="e.g. New delivery, Opening stock..."
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
@@ -273,14 +273,14 @@ export default function InventoryPage() {
                 <button
                   type="button"
                   onClick={() => { setShowAddStock(false); resetAddForm(); }}
-                  className="flex-1 border border-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                  className="flex-1 border border-gray-200 text-gray-700 font-semibold py-2.5 rounded-md text-sm hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!selectedProduct || !addQty || addStockMutation.isPending}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {addStockMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
                   Add Stock

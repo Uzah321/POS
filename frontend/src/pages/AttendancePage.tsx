@@ -27,7 +27,7 @@ export default function AttendancePage() {
 
   const pinLoginMutation = useMutation({
     mutationFn: (p: string) => api.post('/auth/pin-login', { pin: p }),
-    onSuccess: () => { toast.success('PIN verified — clocking in!'); clockMutation.mutate(pinAction); setPinModal(false); setPin(''); },
+    onSuccess: () => { toast.success('PIN verified - clocking in!'); clockMutation.mutate(pinAction); setPinModal(false); setPin(''); },
     onError: () => toast.error('Invalid PIN'),
   });
 
@@ -44,7 +44,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Clock In/Out Card */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 flex items-center justify-between">
+      <div className="bg-white rounded-lg border border-gray-100 p-6 flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-500">Current Status</p>
           <p className="text-lg font-bold text-gray-900 mt-1 flex items-center gap-2">
@@ -59,14 +59,14 @@ export default function AttendancePage() {
           <button
             onClick={() => { setPinAction('clock_in'); setPinModal(true); }}
             disabled={!!isClockedIn || clockMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40"
           >
             <LogIn size={16} /> Clock In
           </button>
           <button
             onClick={() => { setPinAction('clock_out'); setPinModal(true); }}
             disabled={!isClockedIn || clockMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-semibold hover:bg-amber-600 disabled:opacity-40"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-md text-sm font-semibold hover:bg-amber-600 disabled:opacity-40"
           >
             <LogOut size={16} /> Clock Out
           </button>
@@ -77,14 +77,14 @@ export default function AttendancePage() {
       <div className="flex items-center gap-3">
         <Calendar size={16} className="text-gray-400" />
         <div className="flex items-center gap-2">
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <span className="text-gray-400 text-sm">to</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
 
       {/* Attendance Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : records.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><Clock size={32} className="mx-auto mb-2" /><p>No attendance records</p></div>
         ) : (
@@ -105,11 +105,11 @@ export default function AttendancePage() {
                   : null;
                 return (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium">{r.user?.name ?? '—'}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{r.user?.name ?? '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{r.date ?? new Date(r.clock_in).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm text-emerald-600">{r.clock_in ? new Date(r.clock_in).toLocaleTimeString() : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-emerald-600">{r.clock_in ? new Date(r.clock_in).toLocaleTimeString() : '-'}</td>
                     <td className="px-4 py-3 text-sm text-amber-600">{r.clock_out ? new Date(r.clock_out).toLocaleTimeString() : <span className="text-blue-500 text-xs font-medium">Active</span>}</td>
-                    <td className="px-4 py-3 text-sm text-right font-bold">{hours ? `${hours}h` : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-right font-bold">{hours ? `${hours}h` : '-'}</td>
                   </tr>
                 );
               })}
@@ -121,21 +121,21 @@ export default function AttendancePage() {
       {/* PIN Login Modal */}
       {pinModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-xs p-6 space-y-4">
             <h2 className="font-bold text-gray-900 text-center">Enter PIN to {pinAction === 'clock_in' ? 'Clock In' : 'Clock Out'}</h2>
             <input
               type="password"
               value={pin}
               onChange={e => setPin(e.target.value)}
               maxLength={6}
-              placeholder="••••••"
+              placeholder="-¢â‚¬Â¢-¢â‚¬Â¢-¢â‚¬Â¢"
               autoFocus
-              className="w-full text-center text-2xl tracking-widest border border-gray-200 rounded-xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full text-center text-2xl tracking-widest border border-gray-200 rounded-md px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onKeyDown={e => { if (e.key === 'Enter' && pin.length >= 4) pinLoginMutation.mutate(pin); }}
             />
             <div className="flex gap-2">
-              <button onClick={() => { setPinModal(false); setPin(''); }} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50">Cancel</button>
-              <button onClick={() => pinLoginMutation.mutate(pin)} disabled={pin.length < 4 || pinLoginMutation.isPending} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">Confirm</button>
+              <button onClick={() => { setPinModal(false); setPin(''); }} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-md text-sm font-semibold hover:bg-gray-50">Cancel</button>
+              <button onClick={() => pinLoginMutation.mutate(pin)} disabled={pin.length < 4 || pinLoginMutation.isPending} className="flex-1 py-2.5 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">Confirm</button>
             </div>
           </div>
         </div>

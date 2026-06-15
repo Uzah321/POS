@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CustomerDisplayPage — shown on a second screen facing the customer.
  * Receives live cart data via BroadcastChannel from the POS page.
  * Navigate to /customer-display (no auth required).
@@ -40,7 +40,7 @@ export default function CustomerDisplayPage() {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-white gap-6">
         <div className="text-6xl font-bold text-blue-400">
-          {data.storeName ?? 'DiaperMart Store'}
+          {data.storeName ?? 'Core'}
         </div>
         <p className="text-xl opacity-50">Welcome</p>
         <p className="text-2xl opacity-30 mt-8">{time.toLocaleTimeString()}</p>
@@ -54,7 +54,7 @@ export default function CustomerDisplayPage() {
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
       <div className="bg-blue-700 px-8 py-4 flex items-center justify-between">
-        <span className="text-2xl font-bold">{data.storeName ?? 'DiaperMart Store'}</span>
+        <span className="text-2xl font-bold">{data.storeName ?? 'Core'}</span>
         <span className="text-lg opacity-70">{time.toLocaleTimeString()}</span>
       </div>
 

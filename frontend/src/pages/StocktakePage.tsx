@@ -50,7 +50,7 @@ export default function StocktakePage() {
 
   const completeMutation = useMutation({
     mutationFn: (id: number) => api.post(`/stocktakes/${id}/complete`),
-    onSuccess: () => { toast.success('Stocktake completed — stock levels updated!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); },
+    onSuccess: () => { toast.success('Stocktake completed - stock levels updated!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
   });
 
@@ -71,7 +71,7 @@ export default function StocktakePage() {
           <h1 className="text-2xl font-bold text-gray-900">Stocktake / Cycle Count</h1>
           <p className="text-sm text-gray-500 mt-1">Count stock and reconcile variances</p>
         </div>
-        <button onClick={() => createMutation.mutate()} disabled={createMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+        <button onClick={() => createMutation.mutate()} disabled={createMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
           <Plus size={16} /> Start New Count
         </button>
       </div>
@@ -82,7 +82,7 @@ export default function StocktakePage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : stocktakes.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><ClipboardCheck size={32} className="mx-auto mb-2" /><p>No stocktakes</p></div>
         ) : (
@@ -100,10 +100,10 @@ export default function StocktakePage() {
               {stocktakes.map((st: any) => (
                 <tr key={st.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelected(st)}>
                   <td className="px-4 py-3 font-mono text-sm">{st.reference}</td>
-                  <td className="px-4 py-3 text-sm">{st.branch?.name ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm">{st.branch?.name ?? '-'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[st.status]}`}>{st.status.replace('_',' ')}</span></td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(st.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-gray-300">›</td>
+                  <td className="px-4 py-3 text-gray-300">-</td>
                 </tr>
               ))}
             </tbody>
@@ -114,7 +114,7 @@ export default function StocktakePage() {
       {/* Stocktake Detail */}
       {selected && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
               <div>
                 <h2 className="font-bold text-gray-900">{stocktakeDetail?.reference ?? selected.reference}</h2>
@@ -126,7 +126,7 @@ export default function StocktakePage() {
               {detailLoading ? <div className="text-center text-gray-400 py-8">Loading...</div> : (
                 <div className="space-y-4">
                   {variances.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-2">
                       <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
                       <p className="text-xs text-amber-700"><strong>{variances.length} variance{variances.length > 1 ? 's' : ''} found.</strong> Review before completing.</p>
                     </div>
@@ -145,7 +145,7 @@ export default function StocktakePage() {
                           <td className="py-2 text-right text-gray-500">{it.expected_qty}</td>
                           <td className="py-2 text-right">
                             {stocktakeDetail.status === 'completed' ? (
-                              <span className="font-semibold">{it.counted_qty ?? '—'}</span>
+                              <span className="font-semibold">{it.counted_qty ?? '-'}</span>
                             ) : (
                               <input
                                 type="number"
@@ -157,7 +157,7 @@ export default function StocktakePage() {
                             )}
                           </td>
                           <td className={`py-2 text-right font-semibold ${(it.variance ?? 0) < 0 ? 'text-red-600' : (it.variance ?? 0) > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
-                            {it.variance !== null ? (it.variance > 0 ? '+' : '') + it.variance : '—'}
+                            {it.variance !== null ? (it.variance > 0 ? '+' : '') + it.variance : '-'}
                           </td>
                         </tr>
                       ))}
@@ -168,10 +168,10 @@ export default function StocktakePage() {
             </div>
             {stocktakeDetail?.status !== 'completed' && (
               <div className="flex gap-3 px-6 py-4 border-t flex-shrink-0">
-                <button onClick={handleSaveCounts} disabled={updateMutation.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-blue-200 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50 disabled:opacity-50">
+                <button onClick={handleSaveCounts} disabled={updateMutation.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-blue-200 text-blue-600 rounded-md text-sm font-semibold hover:bg-blue-50 disabled:opacity-50">
                   Save Counts
                 </button>
-                <button onClick={() => completeMutation.mutate(stocktakeDetail.id)} disabled={completeMutation.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                <button onClick={() => completeMutation.mutate(stocktakeDetail.id)} disabled={completeMutation.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
                   <Check size={14} /> Complete & Update Stock
                 </button>
               </div>

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import api from '../lib/axios';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -60,7 +60,7 @@ export default function DayEndPage() {
   };
 
   const Stat = ({ label, value, sub }: { label: string; value: string; sub?: string }) => (
-    <div className="bg-white border border-gray-200 rounded-xl p-4">
+    <div className="bg-white border border-gray-200 rounded-md p-4">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className="text-lg font-bold text-gray-900">{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
@@ -70,7 +70,7 @@ export default function DayEndPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Day End — EOD</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Day End " EOD</h1>
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Date:</label>
           <input
@@ -85,7 +85,7 @@ export default function DayEndPage() {
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="bg-gray-100 rounded-xl h-20 animate-pulse" />
+            <div key={i} className="bg-gray-100 rounded-md h-20 animate-pulse" />
           ))}
         </div>
       ) : summary ? (
@@ -103,7 +103,7 @@ export default function DayEndPage() {
 
           {/* Cashier Breakdown */}
           {summary.cashier_breakdown?.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">Cashier Breakdown</div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -130,7 +130,7 @@ export default function DayEndPage() {
 
           {/* Shift Ends */}
           {summary.shift_ends?.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">Shift End Reconciliation</div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -145,7 +145,7 @@ export default function DayEndPage() {
                 <tbody className="divide-y divide-gray-100">
                   {summary.shift_ends.map((s, i) => (
                     <tr key={i}>
-                      <td className="px-4 py-2">{s.user?.name ?? '—'}</td>
+                      <td className="px-4 py-2">{s.user?.name ?? '"'}</td>
                       <td className="px-4 py-2 text-right">{format(s.expected_cash)}</td>
                       <td className="px-4 py-2 text-right">{format(s.declared_cash)}</td>
                       <td className={`px-4 py-2 text-right font-medium ${s.variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -168,7 +168,7 @@ export default function DayEndPage() {
       )}
 
       {/* Submit EOD form */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-md border border-gray-200 p-6">
         <h2 className="font-semibold text-gray-700 mb-4">Submit End of Day</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col md:flex-row gap-4 items-start">
           <div className="flex-1">
@@ -177,7 +177,7 @@ export default function DayEndPage() {
               type="number"
               step="0.01"
               min="0"
-              {...register('opening_cash', { min: { value: 0, message: 'Must be ≥ 0' } })}
+              {...register('opening_cash', { min: { value: 0, message: 'Must be â‰¥ 0' } })}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
             />
             {errors.opening_cash && <p className="text-red-500 text-xs mt-1">{errors.opening_cash.message}</p>}
@@ -212,7 +212,7 @@ export default function DayEndPage() {
 
       {/* History */}
       {history.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">Recent End-of-Day Records</div>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -231,7 +231,7 @@ export default function DayEndPage() {
                   <td className="px-4 py-2 text-right">{format(h.total_revenue)}</td>
                   <td className="px-4 py-2 text-right">{h.total_transactions}</td>
                   <td className="px-4 py-2 text-right">{format(h.opening_cash ?? 0)}</td>
-                  <td className="px-4 py-2 text-gray-500 truncate max-w-xs">{h.notes ?? '—'}</td>
+                  <td className="px-4 py-2 text-gray-500 truncate max-w-xs">{h.notes ?? '"'}</td>
                 </tr>
               ))}
             </tbody>

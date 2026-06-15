@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import api from '../lib/axios';
@@ -119,7 +119,7 @@ export default function ShiftEndPage() {
     );
   };
 
-  // ─── Success screen ──────────────────────────────────────────────────────────
+  // â€â€â€ Success screen â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€
   if (isCashier && submitted) {
     return (
       <div className="p-6 max-w-lg mx-auto mt-20 text-center">
@@ -148,7 +148,7 @@ export default function ShiftEndPage() {
           <h1 className="text-2xl font-bold text-gray-900">Shift End</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {isCashier
-              ? `Close your shift and declare your cash — ${user?.name ?? ''}`
+              ? `Close your shift and declare your cash " ${user?.name ?? ''}`
               : 'Manage and approve cashier shift closures'}
           </p>
         </div>
@@ -162,20 +162,20 @@ export default function ShiftEndPage() {
         )}
       </div>
 
-      {/* ── CASHIER VIEW ─────────────────────────────────────────────── */}
+      {/* â€â€ CASHIER VIEW â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€ */}
       {isCashier && (
         <>
           {/* Top stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {loadingSummary
-              ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-gray-100 rounded-xl h-20 animate-pulse" />)
+              ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-gray-100 rounded-md h-20 animate-pulse" />)
               : [
                   ['Total Revenue', format(summary?.total_sales ?? 0), 'text-blue-700', 'bg-blue-50 border-blue-100'],
                   ['Transactions',  String(summary?.total_transactions ?? 0), 'text-gray-900', 'bg-white border-gray-200'],
                   ['Cash in Drawer',format(summary?.expected_cash ?? 0), 'text-green-700', 'bg-green-50 border-green-100'],
-                  ['Shift Started', summary?.shift_start ? new Date(summary.shift_start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '—', 'text-gray-600', 'bg-white border-gray-200'],
+                  ['Shift Started', summary?.shift_start ? new Date(summary.shift_start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '"', 'text-gray-600', 'bg-white border-gray-200'],
                 ].map(([label, value, textCls, bgCls]) => (
-                  <div key={label} className={`rounded-xl border p-4 ${bgCls}`}>
+                  <div key={label} className={`rounded-md border p-4 ${bgCls}`}>
                     <p className="text-xs text-gray-500 mb-1">{label}</p>
                     <p className={`text-lg font-bold ${textCls}`}>{value}</p>
                   </div>
@@ -184,7 +184,7 @@ export default function ShiftEndPage() {
 
           {/* Payment breakdown */}
           {summary && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-white rounded-md border border-gray-200 p-4">
               <h2 className="text-sm font-semibold text-gray-700 mb-3">Payment Breakdown</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
@@ -204,7 +204,7 @@ export default function ShiftEndPage() {
 
           {/* Sales list */}
           {summary?.sales && summary.sales.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-800 text-sm">
                   Sales This Shift
@@ -255,13 +255,13 @@ export default function ShiftEndPage() {
           )}
 
           {summary?.sales?.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+            <div className="bg-white rounded-md border border-gray-200 p-10 text-center text-gray-400">
               No sales recorded for this shift yet.
             </div>
           )}
 
           {/* Declare cash & close shift */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-md border border-gray-200 p-6">
             <h2 className="font-semibold text-gray-800 mb-1">Close Shift</h2>
             <p className="text-sm text-gray-500 mb-4">Count the cash in your drawer and enter the amount below.</p>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -285,7 +285,7 @@ export default function ShiftEndPage() {
                     placeholder="0.00"
                     {...register('declared_cash', {
                       required: 'Enter the cash amount',
-                      min: { value: 0, message: 'Must be ≥ 0' },
+                      min: { value: 0, message: 'Must be â‰¥ 0' },
                     })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
@@ -335,7 +335,7 @@ export default function ShiftEndPage() {
 
           {/* Cashier's own past shifts */}
           {history.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-700 text-sm">My Previous Shifts</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -372,9 +372,9 @@ export default function ShiftEndPage() {
         </>
       )}
 
-      {/* ── MANAGER VIEW ─────────────────────────────────────────────── */}
+      {/* â€â€ MANAGER VIEW â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€ */}
       {isManager && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-800">All Shift End Records</h2>
             <span className="text-xs text-gray-400">{history.length} record{history.length !== 1 ? 's' : ''}</span>
@@ -403,7 +403,7 @@ export default function ShiftEndPage() {
                   history.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{s.user?.name ?? '—'}</p>
+                        <p className="font-medium text-gray-900">{s.user?.name ?? '"'}</p>
                         <p className="text-xs text-gray-400">@{s.user?.username}</p>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{new Date(s.shift_end).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</td>
@@ -425,7 +425,7 @@ export default function ShiftEndPage() {
                             Approve
                           </button>
                         ) : (
-                          <span className="text-gray-300 text-xs">—</span>
+                          <span className="text-gray-300 text-xs">"</span>
                         )}
                       </td>
                     </tr>

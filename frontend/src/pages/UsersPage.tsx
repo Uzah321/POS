@@ -23,7 +23,7 @@ const AVATAR_COLORS = [
   'bg-pink-500', 'bg-teal-500', 'bg-indigo-500', 'bg-rose-500',
 ];
 
-const SHIFTS = ['08:00 – 16:00', '09:00 – 17:00', '12:00 – 20:00', '16:00 – 00:00', '07:00 – 15:00'];
+const SHIFTS = ['08:00 " 16:00', '09:00 " 17:00', '12:00 " 20:00', '16:00 " 00:00', '07:00 " 15:00'];
 
 const schema = z.object({
   name: z.string().min(1),
@@ -52,11 +52,11 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
     onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
   });
 
-  const field = 'mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
+  const field = 'mt-1 w-full border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">{user ? 'Edit Staff Member' : 'Add Staff Member'}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1"><X size={18} /></button>
@@ -106,8 +106,8 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
             <span className="text-sm font-medium text-gray-700">Active</span>
           </label>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
               {user ? 'Update' : 'Add Member'}
             </button>
@@ -126,9 +126,9 @@ function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; 
   const isActive = user.is_active;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-all">
+    <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 hover:shadow-md transition-all">
       <div className="flex items-start justify-between mb-4">
-        <div className={`w-14 h-14 rounded-2xl ${avatarColor} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
+        <div className={`w-14 h-14 rounded-lg ${avatarColor} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
           {initials}
         </div>
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -201,13 +201,13 @@ export default function UsersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            {users.length} total · <span className="text-emerald-600 font-medium">{activeCount} active</span>
+            {users.length} total Â· <span className="text-emerald-600 font-medium">{activeCount} active</span>
           </p>
         </div>
         <button
           type="button"
           onClick={() => setModal({ open: true })}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-100 transition-colors"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors"
         >
           <Plus size={16} /> Add Employee
         </button>
@@ -220,7 +220,7 @@ export default function UsersPage() {
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Search staff..."
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
         />
       </div>
 

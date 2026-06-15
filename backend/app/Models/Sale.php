@@ -12,7 +12,7 @@ class Sale extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'reference', 'branch_id', 'warehouse_id', 'customer_id', 'user_id', 'status',
+        'reference', 'branch_id', 'warehouse_id', 'customer_id', 'user_id', 'status', 'kds_status',
         'subtotal', 'discount_amount', 'tax_amount', 'total', 'amount_paid', 'change_due',
         'discount_type', 'discount_value', 'coupon_code', 'notes', 'is_offline', 'completed_at',
     ];

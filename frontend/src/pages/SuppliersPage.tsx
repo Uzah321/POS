@@ -32,7 +32,7 @@ function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => v
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-bold">{supplier ? "Edit Supplier" : "New Supplier"}</h2>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
@@ -50,8 +50,8 @@ function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => v
             <div><label className="text-sm font-medium text-gray-700">Payment Terms (days)</label><input type="number" {...register("payment_terms")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}{supplier ? "Update" : "Create"}
             </button>
           </div>
@@ -83,9 +83,9 @@ export default function SuppliersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Suppliers</h1><p className="text-gray-500 text-sm">Manage your suppliers</p></div>
-        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-xl text-sm"><Plus size={16} /> New Supplier</button>
+        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-md text-sm"><Plus size={16} /> New Supplier</button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100">
           <div className="relative max-w-sm"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search suppliers..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
         </div>
@@ -98,9 +98,9 @@ export default function SuppliersPage() {
                   : suppliers.map((s: any) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.contact_person || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.email || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.phone || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.contact_person || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.email || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.phone || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">R {parseFloat(s.balance || 0).toFixed(2)}</td>
                       <td className="px-4 py-3"><div className="flex gap-2"><button type="button" onClick={() => setModal({ open: true, supplier: s })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button><button type="button" onClick={() => { if (confirm(`Delete ${s.name}?`)) deleteMutation.mutate(s.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button></div></td>
                     </tr>

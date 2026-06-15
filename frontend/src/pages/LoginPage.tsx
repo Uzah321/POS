@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -45,13 +45,17 @@ export default function LoginPage() {
         <div className="absolute bottom-10 right-10 w-96 h-96 bg-white rounded-full blur-3xl" />
       </div>
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+      <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md p-8">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-200">
-            <span className="text-3xl font-bold text-white">D</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+              <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
+              <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
+              <circle cx="18" cy="18" r="4" fill="white"/>
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">DiaperMart Store</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Core</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
@@ -63,7 +67,7 @@ export default function LoginPage() {
               type="text"
               autoComplete="username"
               placeholder="e.g. admin"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             />
             {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
           </div>
@@ -76,7 +80,7 @@ export default function LoginPage() {
                 type={showPw ? 'text' : 'password'}
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors pr-11"
+                className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors pr-11"
               />
               <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -88,7 +92,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-blue-200 mt-2"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-blue-200 mt-2"
           >
             {isSubmitting && <Loader2 size={16} className="animate-spin" />}
             {isSubmitting ? 'Signing in...' : 'Sign In'}
@@ -96,7 +100,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-center text-gray-400 mt-6">
-          DiaperMart Store — Point of Sale System v2.0
+          Core - Point of Sale
         </p>
       </div>
     </div>

@@ -32,7 +32,7 @@ function ExpenseModal({ expense, categories, onClose }: { expense?: any; categor
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b"><h2 className="text-lg font-bold">{expense ? 'Edit Expense' : 'Record Expense'}</h2><button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button></div>
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
           <div><label className="text-sm font-medium text-gray-700">Title *</label><input {...register('title')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />{errors.title && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
@@ -46,8 +46,8 @@ function ExpenseModal({ expense, categories, onClose }: { expense?: any; categor
           </div>
           <div><label className="text-sm font-medium text-gray-700">Notes</label><textarea {...register('notes')} rows={2} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none" /></div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}{expense ? 'Update' : 'Save'}
             </button>
           </div>
@@ -80,9 +80,9 @@ export default function ExpensesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-gray-900">Expenses</h1><p className="text-gray-500 text-sm">Track business expenses</p></div>
-        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-xl text-sm"><Plus size={16} /> Record Expense</button>
+        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-md text-sm"><Plus size={16} /> Record Expense</button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 max-w-sm"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search expenses..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           {(branchData as any[] || []).length > 1 && (
@@ -103,7 +103,7 @@ export default function ExpensesPage() {
                       <td className="px-4 py-3 text-sm font-mono text-gray-600">{e.reference}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{e.title}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(e.expense_date), 'dd MMM yyyy')}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{e.category?.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{e.category?.name || '-'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-red-600">R {parseFloat(e.amount).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 capitalize">{e.payment_method?.replace('_', ' ')}</td>
                       <td className="px-4 py-3"><div className="flex gap-2"><button type="button" onClick={() => setModal({ open: true, expense: e })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button><button type="button" onClick={() => { if (confirm('Delete this expense?')) deleteMutation.mutate(e.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button></div></td>

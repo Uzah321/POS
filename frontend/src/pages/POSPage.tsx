@@ -1,4 +1,5 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, customersApi, salesApi, settingsApi } from '../api';
 import type { CartItem } from '../stores/cartStore';
@@ -15,7 +16,7 @@ import { useDBSync } from '../hooks/useDBSync';
 import { db } from '../lib/db';
 import {
   Search, Plus, Minus, Trash2, User, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, TableProperties, UtensilsCrossed, WifiOff, RefreshCw, CloudUpload, Database
+  X, ShoppingCart, TableProperties, UtensilsCrossed, WifiOff, RefreshCw, CloudUpload, Database, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -27,23 +28,19 @@ const PAYMENT_METHODS = [
 
 const TABLES = ['Walk-in', ...Array.from({ length: 20 }, (_, i) => `T-${i + 1}`)];
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  // Bottle store
-  'Spirits': '🥃', 'Wine': '🍷', 'Beer & Cider': '🍺', 'Mixers & Soft Drinks': '🥤',
-  'Water': '💧', 'RTD (Ready to Drink)': '🍹', 'Non-Alcoholic': '🫧',
-  'Tobacco': '🚬', 'Accessories': '🔧', 'Snacks & Food': '🍫',
-  // Butcher
-  'Fresh Meat': '🥩', 'Poultry': '🍗', 'Seafood': '🐟', 'Deli & Cold Cuts': '🥓', 'Frozen Meat': '🧊',
-  // Supermarket
-  'Dairy & Eggs': '🥛', 'Bread & Bakery': '🍞', 'Fruit & Vegetables': '🥦',
-  'Canned Goods': '🥫', 'Dry Goods & Cereals': '🌾', 'Condiments & Sauces': '🫙',
-  'Cleaning & Household': '🧹', 'Personal Care': '🧴', 'Confectionery': '🍬',
-  'Frozen Foods': '❄️', 'Baby Products': '🍼', 'Pet Food': '🐾',
-};
-
-function getCategoryEmoji(cat: string) {
-  return CATEGORY_EMOJI[cat] ?? '📦';
-}
+// One distinct background per category — full class strings so Tailwind keeps them
+const TILE_COLORS = [
+  'bg-green-100  hover:bg-green-200  text-green-900  border border-green-200',
+  'bg-blue-100   hover:bg-blue-200   text-blue-900   border border-blue-200',
+  'bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-200',
+  'bg-orange-100 hover:bg-orange-200 text-orange-900 border border-orange-200',
+  'bg-teal-100   hover:bg-teal-200   text-teal-900   border border-teal-200',
+  'bg-pink-100   hover:bg-pink-200   text-pink-900   border border-pink-200',
+  'bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border border-yellow-200',
+  'bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-200',
+  'bg-red-100    hover:bg-red-200    text-red-900    border border-red-200',
+  'bg-cyan-100   hover:bg-cyan-200   text-cyan-900   border border-cyan-200',
+] as const;
 
 function CartRow({ item, format }: { item: CartItem; format: (v: number) => string }) {
   const { updateQty, removeItem } = useCartStore();
@@ -111,22 +108,32 @@ export default function POSPage() {
     queryFn: async () => {
       try {
         const data = await settingsApi.get().then(r => r.data?.data || {});
-        try { localStorage.setItem('nexapos-settings-cache', JSON.stringify(data)); } catch {}
+        try { localStorage.setItem('Core-settings-cache', JSON.stringify(data)); } catch {}
         return data;
       } catch {
-        const cached = localStorage.getItem('nexapos-settings-cache');
+        const cached = localStorage.getItem('Core-settings-cache');
         return cached ? JSON.parse(cached) : {};
       }
     },
     staleTime: 5 * 60 * 1000,
   });
-  const storeName = storeSettings?.company_name || 'NexaPOS';
+  const storeName = storeSettings?.company_name || 'Core';
+
+  const { data: kdsRaw } = useQuery({
+    queryKey: ['pos-kds-orders'],
+    queryFn: () => axios.get('/api/kds/orders').then(r => r.data?.data ?? []),
+    refetchInterval: 4000,
+  });
+  const kdsOrders: any[] = Array.isArray(kdsRaw) ? kdsRaw : [];
+  const kdsNew      = kdsOrders.filter((o: any) => o.kds_status === 'new').length;
+  const kdsPreparing = kdsOrders.filter((o: any) => o.kds_status === 'preparing').length;
+  const kdsReady    = kdsOrders.filter((o: any) => o.kds_status === 'ready').length;
   const storeAddress = user?.branch?.address || storeSettings?.company_address;
   const storePhone = user?.branch?.phone || storeSettings?.company_phone;
 
   useEffect(() => { searchRef.current?.focus(); }, []);
 
-  // Barcode scanner — intercepts fast keystroke sequences and routes to product search
+  // Barcode scanner - intercepts fast keystroke sequences and routes to product search
   const handleBarcodeScan = useCallback((code: string) => {
     setSearch(code);
     searchRef.current?.focus();
@@ -139,7 +146,7 @@ export default function POSPage() {
   const barcodeRef = useRef<string | null>(null);
   useBarcodeScanner({ enabled: hw.barcodeScannerEnabled, onScan: handleBarcodeScan });
 
-  // Keyboard shortcuts — keep latest handlers in a ref to avoid stale closures
+  // Keyboard shortcuts - keep latest handlers in a ref to avoid stale closures
   const kbRef = useRef<any>({});
   useEffect(() => {
     kbRef.current = { handleProcessSale, handleHoldOrder, cart, saleMutation, holdMutation };
@@ -187,7 +194,7 @@ export default function POSPage() {
         db.products.clear().then(() => db.products.bulkPut(data)).catch(() => {});
         return data;
       } catch {
-        // API failed while nominally online — fall back to IndexedDB
+        // API failed while nominally online - fall back to IndexedDB
         const cached = await db.products.toArray();
         return cached.length > 0 ? cached : [];
       }
@@ -218,6 +225,13 @@ export default function POSPage() {
 
   // Derive categories
   const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
+
+  // Stable colour index per category name
+  const categoryColorIndex = useMemo(() => {
+    const map: Record<string, number> = {};
+    categories.filter(c => c !== 'All').forEach((c, i) => { map[c] = i; });
+    return map;
+  }, [categories]);
 
   // Filter products
   const filteredProducts = allProducts.filter((p: any) => {
@@ -312,7 +326,7 @@ export default function POSPage() {
       cost: parseFloat(product.cost_price || 0),
       tax_rate: product.tax_rate?.rate || 0,
     });
-    toast.success(`Added ${product.name}`, { duration: 800, icon: '✓' });
+    toast.success(`Added ${product.name}`, { duration: 800 });
   };
 
   const handleProcessSale = () => {
@@ -364,7 +378,7 @@ export default function POSPage() {
         change: !isSplitPayment && paymentMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
       });
 
-      toast.success(`Sale saved offline — will sync when connected`, { duration: 4000, icon: '📶' });
+      toast.success(`Sale saved offline - will sync when connected`, { duration: 4000 });
 
       void printReceipt(
         buildReceiptDataFromSale({ reference }, {
@@ -424,7 +438,7 @@ export default function POSPage() {
         <div className="flex items-center justify-between bg-amber-500 text-white px-5 py-2 text-sm font-medium flex-shrink-0">
           <span className="flex items-center gap-2">
             <WifiOff size={15} />
-            Offline mode — sales will be queued and uploaded when reconnected
+            Offline mode  sales will be queued and uploaded when reconnected
             {offlineQueue.length > 0 && (
               <span className="bg-white text-amber-600 text-xs font-bold px-2 py-0.5 rounded-full">
                 {offlineQueue.length} pending
@@ -433,13 +447,13 @@ export default function POSPage() {
           </span>
         </div>
       )}
-      {/* DB sync status bar — shown when online */}
+      {/* DB sync status bar - shown when online */}
       {isOnline && (
         <div className="flex items-center justify-between bg-gray-100 border-b border-gray-200 px-5 py-1 text-xs text-gray-500 flex-shrink-0">
           <span className="flex items-center gap-1.5">
             {isDBSyncing ? <RefreshCw size={11} className="animate-spin" /> : <Database size={11} />}
             {isDBSyncing
-              ? 'Syncing offline database…'
+              ? 'Syncing offline database...'
               : lastSynced
               ? `Offline DB synced ${new Date(lastSynced).toLocaleTimeString()}`
               : 'Offline database not yet synced'}
@@ -458,7 +472,7 @@ export default function POSPage() {
           <span className="flex items-center gap-2">
             {isSyncing ? <RefreshCw size={14} className="animate-spin" /> : <CloudUpload size={14} />}
             {isSyncing
-              ? `Syncing ${offlineQueue.length} offline sale${offlineQueue.length !== 1 ? 's' : ''}…`
+              ? `Syncing ${offlineQueue.length} offline sale${offlineQueue.length !== 1 ? 's' : ''}...`
               : `${offlineQueue.length} offline sale${offlineQueue.length !== 1 ? 's' : ''} pending upload`}
           </span>
           {!isSyncing && (
@@ -472,45 +486,49 @@ export default function POSPage() {
       <div className="flex flex-1 overflow-hidden">
       {/* Left: product area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Search + Category */}
-        <div className="bg-white border-b border-gray-100 px-5 pt-4 pb-3 flex-shrink-0">
-          <div className="relative mb-3">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+
+        {/* Search bar */}
+        <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex-shrink-0">
+          <div className="relative">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products by name or SKU..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              placeholder="Search products by name or SKU... (F2)"
+              className="w-full pl-10 pr-9 py-2.5 border-2 border-blue-400 focus:border-blue-600 rounded-xl text-sm
+                bg-blue-50 focus:bg-white focus:outline-none transition-colors"
             />
             {search && (
-              <button type="button" onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <X size={14} />
               </button>
             )}
           </div>
-          {/* Category pills */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        </div>
+
+        {/* Category tabs */}
+        <div className="bg-white border-b border-gray-200 flex-shrink-0 overflow-x-auto">
+          <div className="flex min-w-max">
             {categories.map((cat) => (
               <button
                 type="button"
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  activeCategory === cat
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                className={`px-5 py-3 font-semibold text-sm border-b-2 transition-colors whitespace-nowrap
+                  ${activeCategory === cat
+                    ? 'border-blue-600 text-blue-600 bg-blue-50/60'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
               >
-                {cat !== 'All' && <span className="mr-1">{getCategoryEmoji(cat)}</span>}
                 {cat}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Product grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Touch-friendly product tile grid */}
+        <div className="flex-1 overflow-y-auto p-3">
           {productsLoading ? (
             <div className="flex items-center justify-center h-40">
               <Loader2 size={24} className="animate-spin text-blue-500" />
@@ -521,31 +539,37 @@ export default function POSPage() {
               <p className="text-sm">No products found</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
               {filteredProducts.map((product: any) => {
-                const stock = product.total_stock ?? 0;
+                const stock      = product.total_stock ?? 0;
                 const outOfStock = stock <= 0;
+                const catName    = product.category?.name ?? 'Other';
+                const idx        = categoryColorIndex[catName] ?? 0;
+                const color      = outOfStock
+                  ? 'bg-gray-100 border border-gray-200 text-gray-400 opacity-60 cursor-not-allowed'
+                  : TILE_COLORS[idx % TILE_COLORS.length];
                 return (
                   <button
                     type="button"
                     key={product.id}
                     onClick={() => !outOfStock && handleAddProduct(product)}
                     disabled={outOfStock}
-                    aria-label={`Add ${product.name} to cart — ${formatCurrency(parseFloat(product.selling_price))}${outOfStock ? ' (out of stock)' : ''}`}
-                    className={`text-left p-4 rounded-2xl bg-white border border-gray-100 shadow-sm transition-all group
-                      ${outOfStock ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5'}`}
+                    className={`${color} rounded-xl p-3 text-left transition-all active:scale-95 active:brightness-90
+                      flex flex-col justify-between shadow-sm min-h-[88px] touch-manipulation`}
                   >
-                    <div className="text-3xl mb-2 text-center">{getCategoryEmoji(product.category?.name ?? '')}</div>
-                    <p className="text-sm font-semibold text-gray-900 truncate text-center mb-1">{product.name}</p>
-                    <p className="text-base font-bold text-blue-600 text-center mb-2">{formatCurrency(parseFloat(product.selling_price))}</p>
-                    <div className="flex items-center justify-center">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        stock > 10 ? 'bg-emerald-100 text-emerald-700' :
-                        stock > 0 ? 'bg-orange-100 text-orange-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {outOfStock ? 'Out of stock' : `${stock} left`}
+                    <span className="font-semibold text-sm leading-snug line-clamp-2 flex-1">
+                      {product.name}
+                    </span>
+                    <div className="mt-2 flex items-end justify-between gap-1">
+                      <span className="font-black text-sm tabular-nums font-mono">
+                        {formatCurrency(parseFloat(product.selling_price))}
                       </span>
+                      {!outOfStock && stock <= 10 && (
+                        <span className="text-[10px] font-semibold opacity-60">{stock} left</span>
+                      )}
+                      {outOfStock && (
+                        <span className="text-[10px] font-semibold text-red-500">Out</span>
+                      )}
                     </div>
                   </button>
                 );
@@ -602,7 +626,7 @@ export default function POSPage() {
                   className="w-full text-sm border-0 focus:outline-none text-gray-600 placeholder-gray-400 bg-transparent"
                 />
                 {(customerResults as any[])?.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-10 mt-1 overflow-hidden">
+                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-xl z-10 mt-1 overflow-hidden">
                     {(customerResults as any[]).map((c: any) => (
                       <button
                         type="button"
@@ -668,7 +692,7 @@ export default function POSPage() {
           {isSplitPayment ? (
             <div className="space-y-2 mb-3">
               {splitPayments.map((sp, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-md px-3 py-2">
                   <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-xs border-0 bg-transparent focus:outline-none text-gray-700 font-medium">
                     {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
@@ -682,7 +706,7 @@ export default function POSPage() {
                 return (
                   <>
                     {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${formatCurrency(remaining)}` : `Over by: ${formatCurrency(-remaining)}`}</div>}
-                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full py-1.5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-1">
+                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full py-1.5 border-2 border-dashed border-gray-200 rounded-md text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-1">
                       <Plus size={12} /> Add payment method
                     </button>
                   </>
@@ -699,7 +723,7 @@ export default function POSPage() {
                     onClick={() => setPaymentMethod(value)}
                     aria-label={`Pay by ${label} (${idx + 1})`}
                     aria-pressed={paymentMethod === value}
-                    className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all ${
+                    className={`flex flex-col items-center gap-1 py-2.5 rounded-md text-xs font-semibold border-2 transition-all ${
                       paymentMethod === value
                         ? 'border-blue-600 bg-blue-600 text-white'
                         : 'border-gray-200 text-gray-500 hover:border-blue-200 hover:text-blue-600'
@@ -719,7 +743,7 @@ export default function POSPage() {
                     value={cashTendered}
                     onChange={(e) => setCashTendered(e.target.value)}
                     placeholder="Cash tendered"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   {change > 0 && (
                     <div className="mt-1.5 bg-emerald-50 rounded-lg px-3 py-1.5 flex justify-between text-sm">
@@ -738,7 +762,7 @@ export default function POSPage() {
             disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0))}
             aria-label="Process sale (F9)"
             aria-keyshortcuts="F9"
-            className={`w-full text-white font-bold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-2 ${
+            className={`w-full text-white font-bold py-3.5 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-2 ${
               isOnline
                 ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
                 : 'bg-amber-500 hover:bg-amber-600 shadow-amber-100'
@@ -754,8 +778,8 @@ export default function POSPage() {
             {saleMutation.isPending
               ? 'Processing...'
               : isOnline
-              ? `Process Sale — ${formatCurrency(total)}`
-              : `Save Offline — ${formatCurrency(total)}`}
+              ? `Process Sale  ${formatCurrency(total)}`
+              : `Save Offline  ${formatCurrency(total)}`}
             {!saleMutation.isPending && <span className="ml-auto text-white/50 text-xs font-normal">F9</span>}
           </button>
 
@@ -765,12 +789,47 @@ export default function POSPage() {
             disabled={cart.items.length === 0 || holdMutation.isPending}
             aria-label="Hold order (F8)"
             aria-keyshortcuts="F8"
-            className="w-full border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-600 font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-600 font-semibold py-2.5 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {holdMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <UtensilsCrossed size={14} />}
             Hold Order
             {!holdMutation.isPending && <span className="ml-auto text-gray-300 text-xs font-normal">F8</span>}
           </button>
+
+          {/* Live kitchen orders panel */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <UtensilsCrossed size={12} />
+                Live Orders
+              </span>
+              <div className="flex items-center gap-2 text-xs font-medium">
+                <a href="/kitchen" target="_blank" rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
+                  Kitchen <ExternalLink size={10} />
+                </a>
+                <span className="text-gray-200">|</span>
+                <a href="/queue" target="_blank" rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
+                  Queue <ExternalLink size={10} />
+                </a>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="flex flex-col items-center bg-blue-50 rounded-lg py-2.5">
+                <span className="text-2xl font-black text-blue-700 tabular-nums leading-none">{kdsNew}</span>
+                <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide mt-0.5">New</span>
+              </div>
+              <div className="flex flex-col items-center bg-amber-50 rounded-lg py-2.5">
+                <span className="text-2xl font-black text-amber-700 tabular-nums leading-none">{kdsPreparing}</span>
+                <span className="text-[10px] font-semibold text-amber-500 uppercase tracking-wide mt-0.5">Cooking</span>
+              </div>
+              <div className="flex flex-col items-center bg-green-50 rounded-lg py-2.5">
+                <span className="text-2xl font-black text-green-700 tabular-nums leading-none">{kdsReady}</span>
+                <span className="text-[10px] font-semibold text-green-500 uppercase tracking-wide mt-0.5">Ready</span>
+              </div>
+            </div>
+          </div>
 
           {/* Keyboard shortcuts hint */}
           <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-3 gap-y-1">

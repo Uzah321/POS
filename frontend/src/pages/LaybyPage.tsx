@@ -91,7 +91,7 @@ export default function LaybyPage() {
           <h1 className="text-2xl font-bold text-gray-900">Layby / Layaway</h1>
           <p className="text-sm text-gray-500 mt-1">Manage deferred payment plans</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 transition-colors">
           <Plus size={16} /> New Layby
         </button>
       </div>
@@ -111,7 +111,7 @@ export default function LaybyPage() {
       </div>
 
       {/* Laybys list */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading...</div>
         ) : laybys.length === 0 ? (
@@ -139,7 +139,7 @@ export default function LaybyPage() {
                   <td className="px-4 py-3 text-sm text-right font-semibold">{format(l.total)}</td>
                   <td className="px-4 py-3 text-sm text-right text-emerald-600">{format(l.deposit_paid)}</td>
                   <td className="px-4 py-3 text-sm text-right text-amber-600 font-semibold">{format(l.balance)}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{l.due_date ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{l.due_date ?? '-'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[l.status]}`}>{l.status}</span></td>
                   <td className="px-4 py-3">
                     <button onClick={() => setSelectedLayby(l)} className="text-gray-400 hover:text-blue-600 transition-colors"><ChevronRight size={16} /></button>
@@ -156,7 +156,7 @@ export default function LaybyPage() {
       {/* New Layby Modal */}
       {showNew && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">New Layby</h2>
               <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -165,24 +165,24 @@ export default function LaybyPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Total Amount</label>
-                  <input type="number" value={form.total} onChange={e => setForm({...form, total: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                  <input type="number" value={form.total} onChange={e => setForm({...form, total: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Deposit</label>
-                  <input type="number" value={form.deposit_paid} onChange={e => setForm({...form, deposit_paid: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                  <input type="number" value={form.deposit_paid} onChange={e => setForm({...form, deposit_paid: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Due Date</label>
-                <input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Items</label>
                 {form.items.map((item, idx) => (
                   <div key={idx} className="flex gap-2 mt-1">
-                    <input value={item.name} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, name: e.target.value} : it)})} placeholder="Item name" className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <input type="number" value={item.quantity} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, quantity: parseFloat(e.target.value)} : it)})} className="w-16 border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" />
-                    <input type="number" value={item.unit_price} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, unit_price: e.target.value} : it)})} className="w-24 border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Price" />
+                    <input value={item.name} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, name: e.target.value} : it)})} placeholder="Item name" className="flex-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input type="number" value={item.quantity} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, quantity: parseFloat(e.target.value)} : it)})} className="w-16 border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" />
+                    <input type="number" value={item.unit_price} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, unit_price: e.target.value} : it)})} className="w-24 border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Price" />
                     {form.items.length > 1 && <button onClick={() => setForm({...form, items: form.items.filter((_,i) => i!==idx)})} className="text-red-400 hover:text-red-600"><X size={14} /></button>}
                   </div>
                 ))}
@@ -190,9 +190,9 @@ export default function LaybyPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
+                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
               </div>
-              <button onClick={handleCreate} disabled={createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+              <button onClick={handleCreate} disabled={createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {createMutation.isPending ? 'Creating...' : 'Create Layby'}
               </button>
             </div>
@@ -203,7 +203,7 @@ export default function LaybyPage() {
       {/* Layby Detail Modal */}
       {selectedLayby && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
                 <h2 className="font-bold text-gray-900">{laybyDetail?.reference ?? selectedLayby.reference}</h2>
@@ -214,22 +214,22 @@ export default function LaybyPage() {
             {laybyDetail && (
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-xs text-gray-400">Total</p><p className="font-bold text-gray-900">{format(laybyDetail.total)}</p></div>
-                  <div className="bg-emerald-50 rounded-xl p-3 text-center"><p className="text-xs text-emerald-500">Paid</p><p className="font-bold text-emerald-700">{format(laybyDetail.deposit_paid)}</p></div>
-                  <div className="bg-amber-50 rounded-xl p-3 text-center"><p className="text-xs text-amber-500">Balance</p><p className="font-bold text-amber-700">{format(laybyDetail.balance)}</p></div>
+                  <div className="bg-gray-50 rounded-md p-3 text-center"><p className="text-xs text-gray-400">Total</p><p className="font-bold text-gray-900">{format(laybyDetail.total)}</p></div>
+                  <div className="bg-emerald-50 rounded-md p-3 text-center"><p className="text-xs text-emerald-500">Paid</p><p className="font-bold text-emerald-700">{format(laybyDetail.deposit_paid)}</p></div>
+                  <div className="bg-amber-50 rounded-md p-3 text-center"><p className="text-xs text-amber-500">Balance</p><p className="font-bold text-amber-700">{format(laybyDetail.balance)}</p></div>
                 </div>
 
                 {laybyDetail.status !== 'complete' && laybyDetail.status !== 'cancelled' && (
-                  <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                  <div className="border border-gray-200 rounded-md p-4 space-y-3">
                     <p className="text-sm font-semibold text-gray-700">Add Payment</p>
                     <div className="flex gap-2">
-                      <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="cash">Cash</option>
                         <option value="card">Card</option>
                         <option value="mobile_money">Mobile</option>
                       </select>
-                      <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder={`Max ${format(laybyDetail.balance)}`} className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <button onClick={() => paymentMutation.mutate({ id: laybyDetail.id, data: { amount: parseFloat(paymentAmount), method: paymentMethod } })} disabled={!paymentAmount || paymentMutation.isPending} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1">
+                      <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder={`Max ${format(laybyDetail.balance)}`} className="flex-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <button onClick={() => paymentMutation.mutate({ id: laybyDetail.id, data: { amount: parseFloat(paymentAmount), method: paymentMethod } })} disabled={!paymentAmount || paymentMutation.isPending} className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1">
                         <CreditCard size={14} /> Pay
                       </button>
                     </div>
@@ -243,7 +243,7 @@ export default function LaybyPage() {
                   ) : (
                     <div className="space-y-2">
                       {laybyDetail.payments.map((p: any) => (
-                        <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2 text-sm">
+                        <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 text-sm">
                           <div><span className="font-medium text-gray-700 capitalize">{p.method}</span>{p.notes && <span className="text-gray-400 ml-2 text-xs">{p.notes}</span>}</div>
                           <span className="font-bold text-emerald-600">{format(p.amount)}</span>
                         </div>
@@ -253,7 +253,7 @@ export default function LaybyPage() {
                 </div>
 
                 {laybyDetail.status !== 'cancelled' && laybyDetail.status !== 'complete' && (
-                  <button onClick={() => cancelMutation.mutate(laybyDetail.id)} disabled={cancelMutation.isPending} className="w-full py-2 border-2 border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50">Cancel Layby</button>
+                  <button onClick={() => cancelMutation.mutate(laybyDetail.id)} disabled={cancelMutation.isPending} className="w-full py-2 border-2 border-red-200 text-red-600 rounded-md text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50">Cancel Layby</button>
                 )}
               </div>
             )}

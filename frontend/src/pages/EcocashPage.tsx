@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ecocashApi, branchesApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Smartphone, TrendingUp, TrendingDown, DollarSign, RotateCcw, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
@@ -81,7 +81,7 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+      <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-bold text-gray-900">Record EcoCash Transaction</h2>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
@@ -150,8 +150,8 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />} Save
             </button>
           </div>
@@ -215,10 +215,10 @@ export default function EcocashPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">EcoCash</h1>
           <p className="text-gray-500 text-sm">
-            {isCashier ? 'Record customer deposits and withdrawals' : 'Agent banking — deposits, withdrawals & float'}
+            {isCashier ? 'Record customer deposits and withdrawals' : 'Agent banking - deposits, withdrawals & float'}
           </p>
         </div>
-        <button type="button" onClick={() => setModal(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm">
+        <button type="button" onClick={() => setModal(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
           <Plus size={16} /> Record Transaction
         </button>
       </div>
@@ -227,30 +227,30 @@ export default function EcocashPage() {
       {isCashier && (
         <div className="grid grid-cols-2 gap-4">
           <button type="button" onClick={() => setModal(true)}
-            className="bg-green-50 border-2 border-green-200 hover:border-green-400 rounded-2xl p-6 flex flex-col items-center gap-3 transition-all group">
+            className="bg-green-50 border-2 border-green-200 hover:border-green-400 rounded-lg p-6 flex flex-col items-center gap-3 transition-all group">
             <div className="w-14 h-14 bg-green-100 group-hover:bg-green-200 rounded-full flex items-center justify-center transition-all">
               <ArrowDownCircle size={28} className="text-green-600" />
             </div>
             <div className="text-center">
               <p className="font-bold text-gray-900 text-lg">Cash Deposit</p>
-              <p className="text-sm text-gray-500">Customer brings cash → receives EcoCash</p>
+              <p className="text-sm text-gray-500">Customer brings cash - ' receives EcoCash</p>
             </div>
           </button>
           <button type="button" onClick={() => setModal(true)}
-            className="bg-blue-50 border-2 border-blue-200 hover:border-blue-400 rounded-2xl p-6 flex flex-col items-center gap-3 transition-all group">
+            className="bg-blue-50 border-2 border-blue-200 hover:border-blue-400 rounded-lg p-6 flex flex-col items-center gap-3 transition-all group">
             <div className="w-14 h-14 bg-blue-100 group-hover:bg-blue-200 rounded-full flex items-center justify-center transition-all">
               <ArrowUpCircle size={28} className="text-blue-600" />
             </div>
             <div className="text-center">
               <p className="font-bold text-gray-900 text-lg">Cash Withdrawal</p>
-              <p className="text-sm text-gray-500">Customer sends EcoCash → receives cash</p>
+              <p className="text-sm text-gray-500">Customer sends EcoCash - ' receives cash</p>
             </div>
           </button>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-md w-fit">
         {(['list', 'summary'] as const).map(t => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all capitalize ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -280,26 +280,26 @@ export default function EcocashPage() {
           ) : summary ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2"><TrendingDown size={18} className="text-green-500" /><span className="text-sm text-gray-500">Deposits</span></div>
                   <p className="text-2xl font-bold text-gray-900">${Number(summary.total_deposits).toFixed(2)}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2"><TrendingUp size={18} className="text-blue-500" /><span className="text-sm text-gray-500">Withdrawals</span></div>
                   <p className="text-2xl font-bold text-gray-900">${Number(summary.total_withdrawals).toFixed(2)}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2"><DollarSign size={18} className="text-yellow-500" /><span className="text-sm text-gray-500">Commission</span></div>
                   <p className="text-2xl font-bold text-gray-900">${Number(summary.total_commission).toFixed(2)}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2"><Smartphone size={18} className="text-purple-500" /><span className="text-sm text-gray-500">Closing Float</span></div>
                   <p className="text-2xl font-bold text-gray-900">${Number(summary.closing_float).toFixed(2)}</p>
                 </div>
               </div>
 
               {summary.transactions?.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">Today's Transactions ({summary.transaction_count})</div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -309,8 +309,8 @@ export default function EcocashPage() {
                           <tr key={tx.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-xs font-mono text-gray-600">{tx.reference}</td>
                             <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[tx.type]}`}>{TYPE_LABELS[tx.type] ?? tx.type}</span></td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '—'}</td>
-                            <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '-'}</td>
+                            <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '-'}</td>
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">${Number(tx.amount).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-yellow-600">${Number(tx.commission_amount).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-purple-700 font-medium">${Number(tx.float_after).toFixed(2)}</td>
@@ -327,7 +327,7 @@ export default function EcocashPage() {
       )}
 
       {tab === 'list' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
           {/* Filters */}
           <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -365,8 +365,8 @@ export default function EcocashPage() {
                       <td className="px-4 py-3 text-xs font-mono text-gray-600">{tx.reference}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(tx.transaction_date), 'dd MMM yyyy')}</td>
                       <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[tx.type]}`}>{TYPE_LABELS[tx.type] ?? tx.type}</span></td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '—'}</td>
-                      <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '-'}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '-'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900">${Number(tx.amount).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{tx.commission_rate}%</td>
                       <td className="px-4 py-3 text-sm text-yellow-600">${Number(tx.commission_amount).toFixed(2)}</td>

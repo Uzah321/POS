@@ -6,6 +6,7 @@ import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import POSPage from './pages/POSPage';
+import CashierPage from './pages/CashierPage';
 import SalesPage from './pages/SalesPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
@@ -23,6 +24,8 @@ import ShiftEndPage from './pages/ShiftEndPage';
 import DayEndPage from './pages/DayEndPage';
 import HardwarePage from './pages/HardwarePage';
 import CustomerDisplayPage from './pages/CustomerDisplayPage';
+import KitchenDisplayPage from './pages/KitchenDisplayPage';
+import QueueDisplayPage from './pages/QueueDisplayPage';
 import LaybyPage from './pages/LaybyPage';
 import QuotationsPage from './pages/QuotationsPage';
 import StocktakePage from './pages/StocktakePage';
@@ -40,6 +43,7 @@ import SalariesPage from './pages/SalariesPage';
 import RentalsPage from './pages/RentalsPage';
 import StockReconciliationPage from './pages/StockReconciliationPage';
 import BranchesPage from './pages/BranchesPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,15 +63,19 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
       <BrowserRouter>
         <Routes>
           <Route element={<GuestRoute />}>
             <Route path="/login" element={<LoginPage />} />
           </Route>
-          {/* Customer display — no auth, opened as a separate window */}
+          {/* Public display screens — no auth, open on any machine */}
           <Route path="/customer-display" element={<CustomerDisplayPage />} />
+          <Route path="/kitchen" element={<KitchenDisplayPage />} />
+          <Route path="/queue" element={<QueueDisplayPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/pos" element={<LayoutWrapper><POSPage /></LayoutWrapper>} />
+            <Route path="/cashier" element={<LayoutWrapper><CashierPage /></LayoutWrapper>} />
             <Route path="/my-sales" element={<LayoutWrapper><MySalesPage /></LayoutWrapper>} />
             <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
             <Route element={<StaffOnlyRoute />}>
@@ -107,6 +115,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </ErrorBoundary>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
     </QueryClientProvider>
   );

@@ -86,7 +86,7 @@ export default function QuotationsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Quotations</h1>
           <p className="text-sm text-gray-500 mt-1">Create and manage price quotes for customers</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700">
           <Plus size={16} /> New Quotation
         </button>
       </div>
@@ -104,7 +104,7 @@ export default function QuotationsPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : quotations.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><FileText size={32} className="mx-auto mb-2" /><p>No quotations found</p></div>
         ) : (
@@ -127,7 +127,7 @@ export default function QuotationsPage() {
                   <td className="px-4 py-3 font-mono text-sm text-gray-700">{q.reference}</td>
                   <td className="px-4 py-3 text-sm text-gray-800">{q.customer?.name ?? 'Walk-in'}</td>
                   <td className="px-4 py-3 text-sm font-bold text-right">{format(q.total)}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{q.valid_until ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{q.valid_until ?? '-'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[q.status]}`}>{q.status}</span></td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
@@ -145,7 +145,7 @@ export default function QuotationsPage() {
       {/* New Quotation Modal */}
       {showNew && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">New Quotation</h2>
               <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -154,7 +154,7 @@ export default function QuotationsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Valid Until</label>
-                  <input type="date" value={form.valid_until} onChange={e => setForm({...form, valid_until: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input type="date" value={form.valid_until} onChange={e => setForm({...form, valid_until: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
 
@@ -185,10 +185,10 @@ export default function QuotationsPage() {
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
+                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
               </div>
 
-              <button onClick={handleCreate} disabled={createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+              <button onClick={handleCreate} disabled={createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {createMutation.isPending ? 'Creating...' : 'Create Quotation'}
               </button>
             </div>
@@ -199,7 +199,7 @@ export default function QuotationsPage() {
       {/* Detail Modal */}
       {selected && quotationDetail && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
                 <h2 className="font-bold text-gray-900">{quotationDetail.reference}</h2>
@@ -225,21 +225,21 @@ export default function QuotationsPage() {
 
               {quotationDetail.status === 'draft' && (
                 <div className="flex gap-2">
-                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'sent' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">
+                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'sent' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700">
                     <Send size={14} /> Mark as Sent
                   </button>
-                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'accepted' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700">
+                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'accepted' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700">
                     <Check size={14} /> Accept
                   </button>
-                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'declined' })} className="flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50">
+                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'declined' })} className="flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 rounded-md text-sm font-semibold hover:bg-red-50">
                     <XCircle size={14} /> Decline
                   </button>
                 </div>
               )}
               {quotationDetail.status === 'sent' && (
                 <div className="flex gap-2">
-                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'accepted' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700"><Check size={14} /> Accept</button>
-                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'declined' })} className="flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50"><XCircle size={14} /> Decline</button>
+                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'accepted' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700"><Check size={14} /> Accept</button>
+                  <button onClick={() => updateMutation.mutate({ id: quotationDetail.id, status: 'declined' })} className="flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 rounded-md text-sm font-semibold hover:bg-red-50"><XCircle size={14} /> Decline</button>
                 </div>
               )}
             </div>

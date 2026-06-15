@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cashflowApi, branchesApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Banknote, TrendingUp, TrendingDown, Edit, Trash2 } from 'lucide-react';
@@ -81,7 +81,7 @@ function EntryModal({ entry, branches, onClose }: { entry?: any; branches: any[]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+      <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-bold text-gray-900">{entry ? 'Edit Entry' : 'Record Cashflow Entry'}</h2>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
@@ -157,8 +157,8 @@ function EntryModal({ entry, branches, onClose }: { entry?: any; branches: any[]
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />} {entry ? 'Update' : 'Save'}
             </button>
           </div>
@@ -220,7 +220,7 @@ export default function CashflowPage() {
           <h1 className="text-2xl font-bold text-gray-900">Cashflow</h1>
           <p className="text-gray-500 text-sm">Track rentals, salaries, safe transfers & other cashflow</p>
         </div>
-        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm">
+        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
           <Plus size={16} /> Record Entry
         </button>
       </div>
@@ -228,15 +228,15 @@ export default function CashflowPage() {
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2"><TrendingDown size={18} className="text-green-500" /><span className="text-sm text-gray-500">Total Inflow</span></div>
             <p className="text-2xl font-bold text-green-600">${Number(summary.total_inflow || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2"><TrendingUp size={18} className="text-red-500" /><span className="text-sm text-gray-500">Total Outflow</span></div>
             <p className="text-2xl font-bold text-red-600">${Number(summary.total_outflow || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2"><Banknote size={18} className="text-blue-500" /><span className="text-sm text-gray-500">Net Cashflow</span></div>
             <p className={`text-2xl font-bold ${Number(summary.net_cashflow || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
               ${Number(summary.net_cashflow || 0).toFixed(2)}
@@ -245,7 +245,7 @@ export default function CashflowPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         {/* Filters */}
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[180px] max-w-sm">
@@ -289,7 +289,7 @@ export default function CashflowPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(e.entry_date), 'dd MMM yyyy')}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${e.flow_type === 'inflow' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {e.flow_type === 'inflow' ? '↓ In' : '↑ Out'}
+                        {e.flow_type === 'inflow' ? '+ In' : '- Out'}
                       </span>
                     </td>
                     <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${CATEGORY_COLORS[e.category] ?? 'bg-gray-100 text-gray-700'}`}>{CATEGORIES.find(c => c.value === e.category)?.label ?? e.category}</span></td>

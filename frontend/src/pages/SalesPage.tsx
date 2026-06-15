@@ -83,7 +83,7 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -127,7 +127,7 @@ export default function SalesPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(s.created_at), 'dd MMM yyyy HH:mm')}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.customer?.name || 'Walk-in'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.cashier?.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{s.items_count || s.items?.length || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{s.items_count || s.items?.length || '-'}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-amber-600">R {parseFloat(s.total).toFixed(2)}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[s.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -161,10 +161,10 @@ export default function SalesPage() {
       {/* Sale Detail Modal */}
       {selectedSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold">Sale Detail — {selectedSale.reference}</h2>
-              <button type="button" onClick={() => setSelectedSale(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <h2 className="text-lg font-bold">Sale Detail - {selectedSale.reference}</h2>
+              <button type="button" onClick={() => setSelectedSale(null)} className="text-gray-400 hover:text-gray-600">-</button>
             </div>
             <div className="p-6 space-y-4">
               {saleDetail ? (

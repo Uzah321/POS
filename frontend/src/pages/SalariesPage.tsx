@@ -67,7 +67,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <h2 className="text-lg font-bold text-gray-900">{salary ? 'Edit Salary Record' : 'Add Salary Record'}</h2>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
@@ -101,7 +101,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
           </div>
 
           {/* Earnings */}
-          <div className="bg-green-50 rounded-xl p-4 space-y-3">
+          <div className="bg-green-50 rounded-md p-4 space-y-3">
             <h3 className="text-sm font-bold text-green-800">Earnings</h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -128,7 +128,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
           </div>
 
           {/* Deductions */}
-          <div className="bg-red-50 rounded-xl p-4 space-y-3">
+          <div className="bg-red-50 rounded-md p-4 space-y-3">
             <h3 className="text-sm font-bold text-red-800">Deductions</h3>
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -151,7 +151,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
           </div>
 
           {/* Net */}
-          <div className={`rounded-xl p-4 flex justify-between items-center ${net >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+          <div className={`rounded-md p-4 flex justify-between items-center ${net >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
             <span className="font-bold text-gray-800">Net Salary (Take-Home)</span>
             <span className={`text-2xl font-bold ${net >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>${net.toFixed(2)}</span>
           </div>
@@ -162,8 +162,8 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />} {salary ? 'Update' : 'Save Record'}
             </button>
           </div>
@@ -184,12 +184,12 @@ function MarkPaidModal({ salary, onClose }: { salary: any; onClose: () => void }
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+      <div className="bg-white rounded-lg w-full max-w-sm shadow-2xl p-6 space-y-4">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold">Mark as Paid</h2>
           <button type="button" onClick={onClose}><X size={18} className="text-gray-400" /></button>
         </div>
-        <p className="text-sm text-gray-600">Salary for <strong>{salary.employee_name}</strong> — Net ${Number(salary.net_salary).toFixed(2)}</p>
+        <p className="text-sm text-gray-600">Salary for <strong>{salary.employee_name}</strong> - Net ${Number(salary.net_salary).toFixed(2)}</p>
         <div>
           <label className="text-sm font-medium text-gray-700">Payment Method</label>
           <select value={method} onChange={e => setMethod(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -204,8 +204,8 @@ function MarkPaidModal({ salary, onClose }: { salary: any; onClose: () => void }
           <input type="date" value={paidAt} onChange={e => setPaidAt(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
         </div>
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm">Cancel</button>
-          <button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+          <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm">Cancel</button>
+          <button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
             {mutation.isPending && <Loader2 size={14} className="animate-spin" />} Confirm Paid
           </button>
         </div>
@@ -258,9 +258,9 @@ export default function SalariesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Salaries</h1>
-          <p className="text-gray-500 text-sm">Employee payroll — basic, allowances, deductions, net pay</p>
+          <p className="text-gray-500 text-sm">Employee payroll - basic, allowances, deductions, net pay</p>
         </div>
-        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm">
+        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
           <Plus size={16} /> Add Salary Record
         </button>
       </div>
@@ -274,7 +274,7 @@ export default function SalariesPage() {
             { label: 'Total Net', value: summary.total_net, color: 'text-blue-600' },
             { label: 'Outstanding', value: summary.total_pending, color: 'text-orange-600' },
           ].map(c => (
-            <div key={c.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <div key={c.label} className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
               <p className="text-xs text-gray-500 mb-1">{c.label}</p>
               <p className={`text-xl font-bold ${c.color}`}>${Number(c.value || 0).toFixed(2)}</p>
             </div>
@@ -282,7 +282,7 @@ export default function SalariesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         {/* Filters */}
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[160px] max-w-xs">
@@ -320,7 +320,7 @@ export default function SalariesPage() {
                   return (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.employee_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{s.position || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{s.position || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.pay_month}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">${Number(s.basic_salary).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-green-700">${allowances.toFixed(2)}</td>

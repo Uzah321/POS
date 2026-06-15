@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { stockReconciliationApi, branchesApi, warehousesApi } from '../api';
 import { Download, Loader2, AlertTriangle, CheckCircle, Package, ClipboardCheck, RefreshCw } from 'lucide-react';
@@ -75,13 +75,13 @@ export default function StockReconciliationPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Stock Reconciliation</h1>
-          <p className="text-gray-500 text-sm">Opening Stock + Purchases − Sales = Expected vs Actual</p>
+          <p className="text-gray-500 text-sm">Opening Stock + Purchases - Sales = Expected vs Actual</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button type="button" onClick={() => navigate('/stocktake')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-xl text-sm">
+          <button type="button" onClick={() => navigate('/stocktake')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-md text-sm">
             <ClipboardCheck size={14} /> Start Stocktake
           </button>
-          <button type="button" onClick={handleExport} className="flex items-center gap-2 border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm hover:bg-gray-50">
+          <button type="button" onClick={handleExport} className="flex items-center gap-2 border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
             <Download size={14} /> Export CSV
           </button>
         </div>
@@ -89,7 +89,7 @@ export default function StockReconciliationPage() {
 
       {/* Weekly stocktake warning */}
       {summary?.stocktake_warning && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-amber-800">
@@ -99,14 +99,14 @@ export default function StockReconciliationPage() {
             </p>
             <p className="text-sm text-amber-700 mt-0.5">
               Stocktakes should be done every week. Without a stocktake, reconciliation uses system stock quantities as the actual count.
-              <button type="button" onClick={() => navigate('/stocktake')} className="ml-2 underline font-medium hover:text-amber-900">Conduct stocktake now →</button>
+              <button type="button" onClick={() => navigate('/stocktake')} className="ml-2 underline font-medium hover:text-amber-900">Conduct stocktake now â†'</button>
             </p>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <div className="bg-white rounded-md border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Quick Select</label>
@@ -159,7 +159,7 @@ export default function StockReconciliationPage() {
               { label: 'Over (Excess)', value: summary?.products_over, color: 'text-yellow-700', bg: 'bg-yellow-50' },
               { label: 'Variance Value', value: `$${Number(summary?.total_variance_value || 0).toFixed(2)}`, color: 'text-orange-700', bg: 'bg-orange-50' },
             ].map(c => (
-              <div key={c.label} className={`${c.bg} rounded-xl border border-gray-100 p-4 shadow-sm`}>
+              <div key={c.label} className={`${c.bg} rounded-md border border-gray-100 p-4 shadow-sm`}>
                 <p className="text-xs text-gray-500 mb-1">{c.label}</p>
                 <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
               </div>
@@ -167,15 +167,15 @@ export default function StockReconciliationPage() {
           </div>
 
           {!summary?.has_period_stocktake && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700 flex items-center gap-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700 flex items-center gap-2">
               <ClipboardCheck size={16} />
-              <span>No stocktake found for this period — actual stock shows <strong>current system quantities</strong>. Conduct a stocktake for accurate counts.</span>
+              <span>No stocktake found for this period " actual stock shows <strong>current system quantities</strong>. Conduct a stocktake for accurate counts.</span>
               {summary?.period_stocktake_ref && <span className="ml-2 font-mono text-xs">{summary.period_stocktake_ref}</span>}
             </div>
           )}
 
           {/* Table */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
               <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
                 {[['', 'Variances Only'], ['ok', 'OK'], ['short', 'Short'], ['over', 'Over']].map(([v, l]) => (
@@ -196,7 +196,7 @@ export default function StockReconciliationPage() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Product', 'SKU', 'Category', 'Opening Stock', '+ Purchases', '− Sales', '= Expected', 'Actual Stock', 'Variance', 'Var. Value', 'Status'].map(h => (
+                    {['Product', 'SKU', 'Category', 'Opening Stock', '+ Purchases', '- Sales', '= Expected', 'Actual Stock', 'Variance', 'Var. Value', 'Status'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -206,7 +206,7 @@ export default function StockReconciliationPage() {
                     <tr>
                       <td colSpan={11} className="text-center py-12 text-gray-400">
                         <CheckCircle size={32} className="mx-auto mb-2 text-green-400" />
-                        <p>All products balanced — no variances found</p>
+                        <p>All products balanced " no variances found</p>
                       </td>
                     </tr>
                   ) : rows.map((r: any) => (
@@ -216,7 +216,7 @@ export default function StockReconciliationPage() {
                       <td className="px-4 py-3 text-xs text-gray-500">{r.category}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{r.opening_stock}</td>
                       <td className="px-4 py-3 text-sm text-green-700 tabular-nums">+{r.purchases}</td>
-                      <td className="px-4 py-3 text-sm text-red-600 tabular-nums">−{r.sales}</td>
+                      <td className="px-4 py-3 text-sm text-red-600 tabular-nums">-{r.sales}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 tabular-nums">{Number(r.expected_stock).toFixed(2)}</td>
                       <td className={`px-4 py-3 text-sm font-semibold tabular-nums ${r.has_stocktake ? 'text-blue-700' : 'text-gray-700'}`}>{r.actual_stock}</td>
                       <td className={`px-4 py-3 text-sm font-bold tabular-nums ${r.variance < 0 ? 'text-red-600' : r.variance > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
@@ -244,7 +244,7 @@ export default function StockReconciliationPage() {
           </div>
         </>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400">
+        <div className="bg-white rounded-md border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400">
           <Package size={40} className="mb-3" />
           <p className="text-sm">Click "Run" to calculate stock reconciliation for the selected period</p>
         </div>

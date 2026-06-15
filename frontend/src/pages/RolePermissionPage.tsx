@@ -64,7 +64,7 @@ export default function RolePermissionPage() {
 
       <div className="space-y-6">
         {roles.map((role: any) => (
-          <div key={role.name} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div key={role.name} className="bg-white rounded-lg border border-gray-100 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Shield size={16} className="text-blue-500" />
@@ -74,7 +74,7 @@ export default function RolePermissionPage() {
               <button
                 onClick={() => handleSave(role.name)}
                 disabled={saving === role.name}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving === role.name ? <Save size={12} className="animate-spin" /> : <Check size={12} />} Save
               </button>

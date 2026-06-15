@@ -433,22 +433,25 @@ class ReportController extends BaseApiController
 
     public function lowStock(Request $request): \Illuminate\Http\JsonResponse
     {
-        $products = \App\Models\Product::with('stock')
-            ->whereHas('stock', function ($q) {
-                $q->whereColumn('quantity', '<=', \DB::raw('products.reorder_point'));
-            })
-            ->orWhereHas('stock', function ($q) {
-                $q->whereColumn('quantity', '<=', \DB::raw('products.alert_threshold'));
-            })
+        $products = \App\Models\Product::with('stocks')
+            ->where('is_active', true)
             ->get()
+            ->filter(function ($p) {
+                $qty       = $p->stocks->sum('quantity');
+                $reorder   = (float) ($p->reorder_point   ?? $p->reorder_level   ?? 0);
+                $alert     = (float) ($p->alert_threshold ?? $p->min_stock_level ?? 0);
+                $threshold = max($reorder, $alert, 1);
+                return $qty <= $threshold;
+            })
+            ->values()
             ->map(function ($p) {
                 return [
                     'id'              => $p->id,
                     'name'            => $p->name,
                     'sku'             => $p->sku,
-                    'stock'           => $p->stock ? $p->stock->quantity : 0,
-                    'reorder_point'   => $p->reorder_point,
-                    'alert_threshold' => $p->alert_threshold,
+                    'stock'           => (float) $p->stocks->sum('quantity'),
+                    'reorder_point'   => $p->reorder_point   ?? 0,
+                    'alert_threshold' => $p->alert_threshold ?? 0,
                 ];
             });
         return $this->success($products);

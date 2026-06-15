@@ -75,7 +75,7 @@ export default function StockTransferPage() {
           <h1 className="text-2xl font-bold text-gray-900">Stock Transfers</h1>
           <p className="text-sm text-gray-500 mt-1">Move stock between branches</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700">
           <Plus size={16} /> New Transfer
         </button>
       </div>
@@ -86,7 +86,7 @@ export default function StockTransferPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : transfers.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><ArrowRightLeft size={32} className="mx-auto mb-2" /><p>No transfers</p></div>
         ) : (
@@ -110,7 +110,7 @@ export default function StockTransferPage() {
                   <td className="px-4 py-3 text-sm">{t.to_branch?.name}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[t.status]}`}>{t.status.replace('_',' ')}</span></td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(t.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-gray-300">›</td>
+                  <td className="px-4 py-3 text-gray-300">-</td>
                 </tr>
               ))}
             </tbody>
@@ -123,7 +123,7 @@ export default function StockTransferPage() {
       {/* New Transfer Modal */}
       {showNew && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="font-bold text-gray-900">New Transfer</h2>
               <button onClick={() => setShowNew(false)}><X size={20} className="text-gray-400" /></button>
@@ -132,14 +132,14 @@ export default function StockTransferPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">From Branch</label>
-                  <select value={form.from_branch_id} onChange={e => setForm({...form, from_branch_id: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select value={form.from_branch_id} onChange={e => setForm({...form, from_branch_id: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">Select...</option>
                     {branchList.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">To Branch</label>
-                  <select value={form.to_branch_id} onChange={e => setForm({...form, to_branch_id: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select value={form.to_branch_id} onChange={e => setForm({...form, to_branch_id: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">Select...</option>
                     {branchList.filter((b: any) => b.id !== parseInt(form.from_branch_id)).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
@@ -149,11 +149,11 @@ export default function StockTransferPage() {
                 <label className="text-xs font-semibold text-gray-500 uppercase">Items</label>
                 {form.items.map((item, idx) => (
                   <div key={idx} className="flex gap-2 mt-1">
-                    <select value={item.product_id} onChange={e => setForm(f => ({...f, items: f.items.map((it,i) => i===idx ? {...it, product_id: e.target.value} : it)}))} className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select value={item.product_id} onChange={e => setForm(f => ({...f, items: f.items.map((it,i) => i===idx ? {...it, product_id: e.target.value} : it)}))} className="flex-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Select product...</option>
                       {productList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <input type="number" value={item.quantity} onChange={e => setForm(f => ({...f, items: f.items.map((it,i) => i===idx ? {...it, quantity: e.target.value} : it)}))} className="w-20 border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" />
+                    <input type="number" value={item.quantity} onChange={e => setForm(f => ({...f, items: f.items.map((it,i) => i===idx ? {...it, quantity: e.target.value} : it)}))} className="w-20 border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" />
                     {form.items.length > 1 && <button onClick={() => setForm(f => ({...f, items: f.items.filter((_,i) => i!==idx)}))} className="text-red-400"><X size={14} /></button>}
                   </div>
                 ))}
@@ -161,9 +161,9 @@ export default function StockTransferPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
+                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
               </div>
-              <button onClick={handleCreate} disabled={createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleCreate} disabled={createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-md hover:bg-blue-700 disabled:opacity-50">
                 {createMutation.isPending ? 'Creating...' : 'Create Transfer'}
               </button>
             </div>
@@ -174,7 +174,7 @@ export default function StockTransferPage() {
       {/* Detail Modal */}
       {selected && transferDetail && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <div>
                 <h2 className="font-bold text-gray-900">{transferDetail.reference}</h2>
@@ -198,17 +198,17 @@ export default function StockTransferPage() {
               </table>
               <div className="flex gap-2 flex-wrap">
                 {transferDetail.status === 'pending' && (
-                  <button onClick={() => actionMutation.mutate({ id: transferDetail.id, action: 'dispatch' })} disabled={actionMutation.isPending} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1">
+                  <button onClick={() => actionMutation.mutate({ id: transferDetail.id, action: 'dispatch' })} disabled={actionMutation.isPending} className="flex-1 py-2.5 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1">
                     {actionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Dispatch
                   </button>
                 )}
                 {transferDetail.status === 'in_transit' && (
-                  <button onClick={() => actionMutation.mutate({ id: transferDetail.id, action: 'receive' })} disabled={actionMutation.isPending} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-1">
+                  <button onClick={() => actionMutation.mutate({ id: transferDetail.id, action: 'receive' })} disabled={actionMutation.isPending} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-1">
                     {actionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Receive
                   </button>
                 )}
                 {(transferDetail.status === 'pending' || transferDetail.status === 'in_transit') && (
-                  <button onClick={() => actionMutation.mutate({ id: transferDetail.id, action: 'cancel' })} disabled={actionMutation.isPending} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 disabled:opacity-50">
+                  <button onClick={() => actionMutation.mutate({ id: transferDetail.id, action: 'cancel' })} disabled={actionMutation.isPending} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-md text-sm font-semibold hover:bg-red-50 disabled:opacity-50">
                     Cancel
                   </button>
                 )}

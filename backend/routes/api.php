@@ -32,6 +32,10 @@ use App\Http\Controllers\Api\StockReconciliationController;
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
 
+// KDS — public so kitchen/queue screens don't need to log in
+Route::get('/kds/orders', [\App\Http\Controllers\Api\KdsController::class, 'orders']);
+Route::patch('/kds/orders/{sale}/status', [\App\Http\Controllers\Api\KdsController::class, 'updateStatus']);
+
 // Protected routes
 Route::post('/auth/login', [AuthController::class, 'login']);
 

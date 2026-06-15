@@ -55,19 +55,19 @@ export default function WebhooksPage() {
           <h1 className="text-2xl font-bold text-gray-900">Webhooks</h1>
           <p className="text-sm text-gray-500 mt-1">Send real-time events to external services</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700">
           <Plus size={16} /> Add Webhook
         </button>
       </div>
 
       <div className="space-y-3">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : webhooks.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 bg-white rounded-2xl border border-gray-100">
+          <div className="p-8 text-center text-gray-400 bg-white rounded-lg border border-gray-100">
             <Zap size={32} className="mx-auto mb-2" /><p>No webhooks configured</p>
           </div>
         ) : (
           webhooks.map((w: any) => (
-            <div key={w.id} className={`bg-white rounded-2xl border p-5 ${w.active ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
+            <div key={w.id} className={`bg-white rounded-lg border p-5 ${w.active ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -85,7 +85,7 @@ export default function WebhooksPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 ml-4">
-                  <button onClick={() => { setTestingId(w.id); testMutation.mutate(w.id); }} disabled={testMutation.isPending && testingId === w.id} className="flex items-center gap-1 px-3 py-1.5 border border-blue-200 text-blue-600 rounded-xl text-xs font-semibold hover:bg-blue-50 disabled:opacity-50">
+                  <button onClick={() => { setTestingId(w.id); testMutation.mutate(w.id); }} disabled={testMutation.isPending && testingId === w.id} className="flex items-center gap-1 px-3 py-1.5 border border-blue-200 text-blue-600 rounded-md text-xs font-semibold hover:bg-blue-50 disabled:opacity-50">
                     <Zap size={12} /> Test
                   </button>
                   <button onClick={() => toggleMutation.mutate({ id: w.id, active: !w.active })} className="text-gray-400 hover:text-blue-600">
@@ -103,7 +103,7 @@ export default function WebhooksPage() {
 
       {showNew && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="font-bold text-gray-900">New Webhook</h2>
               <button onClick={() => setShowNew(false)}><X size={20} className="text-gray-400" /></button>
@@ -111,15 +111,15 @@ export default function WebhooksPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Name</label>
-                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="My Integration" className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="My Integration" className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Endpoint URL</label>
-                <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="https://hooks.example.com/pos" className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="https://hooks.example.com/pos" className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Secret (optional)</label>
-                <input value={form.secret} onChange={e => setForm({...form, secret: e.target.value})} placeholder="Signing secret" className="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input value={form.secret} onChange={e => setForm({...form, secret: e.target.value})} placeholder="Signing secret" className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Events</label>
@@ -132,7 +132,7 @@ export default function WebhooksPage() {
                   ))}
                 </div>
               </div>
-              <button onClick={() => createMutation.mutate(form)} disabled={!form.name || !form.url || form.events.length === 0 || createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={() => createMutation.mutate(form)} disabled={!form.name || !form.url || form.events.length === 0 || createMutation.isPending} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-md hover:bg-blue-700 disabled:opacity-50">
                 {createMutation.isPending ? 'Creating...' : 'Create Webhook'}
               </button>
             </div>

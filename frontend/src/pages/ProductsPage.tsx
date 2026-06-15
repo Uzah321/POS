@@ -10,12 +10,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  'Spirits': '🥃', 'Wine': '🍷', 'Beer & Cider': '🍺', 'Mixers & Soft Drinks': '🥤',
-  'Water': '💧', 'RTD (Ready to Drink)': '🍹', 'Non-Alcoholic': '🫧',
-  'Tobacco': '🚬', 'Accessories': '🔧', 'Snacks & Food': '🍫',
-};
-
 const schema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
@@ -54,11 +48,11 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
     onError: (e: any) => toast.error(e.response?.data?.message || 'Error saving product'),
   });
 
-  const field = 'border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-1 bg-gray-50 focus:bg-white transition-colors';
+  const field = 'border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-1 bg-gray-50 focus:bg-white transition-colors';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">{product ? 'Edit Item' : 'Add New Item'}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1"><X size={18} /></button>
@@ -112,8 +106,8 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             </div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={isSubmitting || mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={isSubmitting || mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
               {product ? 'Update Item' : 'Add Item'}
             </button>
@@ -144,7 +138,7 @@ export default function ProductsPage() {
     queryFn: () => productsApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
   });
 
-  // Accurate aggregate stats — separate lightweight queries
+  // Accurate aggregate stats " separate lightweight queries
   const { data: categoriesAll } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
@@ -177,7 +171,7 @@ export default function ProductsPage() {
     total: data.total,
   } : null);
 
-  // Summary stats — use server-side totals for accuracy across all pages
+  // Summary stats " use server-side totals for accuracy across all pages
   const totalItems = meta?.total ?? products.length;
   const totalCategories = (categoriesAll as any[])?.length ?? new Set(products.map((p: any) => p.category?.name).filter(Boolean)).size;
   const lowStock = lowStockMeta?.meta?.total ?? lowStockMeta?.total ?? products.filter((p: any) => (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_level ?? 5)).length;
@@ -202,14 +196,14 @@ export default function ProductsPage() {
           <button
             type="button"
             onClick={() => setShowImport(true)}
-            className="flex items-center gap-2 border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors"
+            className="flex items-center gap-2 border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 font-semibold px-4 py-2.5 rounded-md text-sm transition-colors"
           >
             <FileSpreadsheet size={16} /> Import Excel
           </button>
           <button
             type="button"
             onClick={() => setModal({ open: true })}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-100 transition-colors"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors"
           >
             <Plus size={16} /> Add Item
           </button>
@@ -224,8 +218,8 @@ export default function ProductsPage() {
           { label: 'Low Stock', value: lowStock, icon: AlertTriangle, iconBg: lowStock > 0 ? 'bg-orange-50' : 'bg-blue-50', iconColor: lowStock > 0 ? 'text-orange-600' : 'text-blue-600' },
           { label: 'Out of Stock', value: outOfStock, icon: AlertTriangle, iconBg: outOfStock > 0 ? 'bg-red-50' : 'bg-blue-50', iconColor: outOfStock > 0 ? 'text-red-600' : 'text-blue-600' },
         ].map(({ label, value, icon: Icon, iconBg, iconColor }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
+          <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-md flex items-center justify-center ${iconBg}`}>
               <Icon size={18} className={iconColor} />
             </div>
             <div>
@@ -237,7 +231,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Products table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-3 flex-wrap flex-1">
             <div className="relative max-w-xs flex-1">
@@ -246,14 +240,14 @@ export default function ProductsPage() {
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Search items..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
               />
             </div>
             {(branchData as any[] || []).length > 1 && (
               <select
                 value={branchId}
                 onChange={(e) => { setBranchId(e.target.value); setPage(1); }}
-                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="border border-gray-200 rounded-md px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
               >
                 <option value="">All Branches</option>
                 {(branchData as any[]).map((b: any) => (
@@ -291,8 +285,8 @@ export default function ProductsPage() {
                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-lg flex-shrink-0">
-                            {CATEGORY_EMOJI[p.category?.name ?? ''] ?? '📦'}
+                          <div className="w-9 h-9 rounded-md bg-blue-50 flex items-center justify-center text-lg flex-shrink-0">
+                            <Package size={16} className="text-blue-400" />
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900">{p.name}</p>
@@ -308,7 +302,7 @@ export default function ProductsPage() {
                           <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
                             {p.category.name}
                           </span>
-                        ) : <span className="text-gray-300">—</span>}
+                        ) : <span className="text-gray-300">"</span>}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="text-sm font-bold text-gray-900">{formatCurrency(parseFloat(p.selling_price || 0))}</span>

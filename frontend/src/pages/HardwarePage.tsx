@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useHardwareStore } from '../stores/hardwareStore';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
@@ -69,7 +69,7 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
 // ---------------------------------------------------------------------------
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+    <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5">
       {title && <h3 className="text-sm font-semibold text-gray-700 mb-4">{title}</h3>}
       {children}
     </div>
@@ -122,7 +122,7 @@ export default function HardwarePage() {
 
   const handleTestPrint = () => {
     void printReceipt({
-      storeName: 'DiaperMart Store',
+      storeName: 'Core',
       storeAddress: '123 Main Street',
       storePhone: '+27 11 000 0000',
       reference: 'TEST-001',
@@ -140,7 +140,7 @@ export default function HardwarePage() {
       amountTendered: 50,
       change: 9.53,
       currency,
-      footer: '*** TEST RECEIPT — NOT A VALID RECEIPT ***',
+      footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
     }, resolveReceiptPrintMode(hw.printerMode)).catch((error: any) => {
       toast.error(error?.message ?? 'Could not print test receipt');
     });
@@ -163,7 +163,7 @@ export default function HardwarePage() {
   const handleTestDisplay = () => {
     broadcastCart({
       type: 'cart',
-      storeName: 'DiaperMart Store',
+      storeName: 'Core',
       currency,
       items: [
         { name: 'Test Item A', qty: 2, price: 10, total: 20 },
@@ -187,7 +187,7 @@ export default function HardwarePage() {
   };
 
   const handleTestCard = async () => {
-    const loadingToast = toast.loading('Simulating card payment…');
+    const loadingToast = toast.loading('Simulating card payment-');
     const result = await simulateCardPayment({ amount: 100, currency: 'ZAR', reference: 'TEST-001' });
     toast.dismiss(loadingToast);
     if (result.success) toast.success(`Approved: ${result.reference}`);
@@ -205,7 +205,7 @@ export default function HardwarePage() {
           <Card title="Printer Mode">
             <div className="space-y-2">
               {(['browser', 'webusb'] as const).map((mode) => (
-                <label key={mode} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="printerMode" value={mode} checked={hw.printerMode === mode}
                     onChange={() => hw.update({ printerMode: mode })} className="accent-blue-600" />
                   <div>
@@ -262,7 +262,7 @@ export default function HardwarePage() {
           <Card title="Barcode Scanner">
             <ToggleRow
               label="Enable barcode scanner"
-              description="Listens for USB/Bluetooth scanner input (HID keyboard wedge — plug-and-play)"
+              description="Listens for USB/Bluetooth scanner input (HID keyboard wedge - plug-and-play)"
               checked={hw.barcodeScannerEnabled}
               onChange={(v) => hw.update({ barcodeScannerEnabled: v })}
             />
@@ -278,11 +278,11 @@ export default function HardwarePage() {
             <div className="space-y-2 text-sm text-gray-600">
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <p>Plug any USB or Bluetooth barcode scanner. Most scanners work in <strong>HID keyboard wedge</strong> mode — no drivers needed.</p>
+                <p>Plug any USB or Bluetooth barcode scanner. Most scanners work in <strong>HID keyboard wedge</strong> mode - no drivers needed.</p>
               </div>
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <p>Scan a barcode from any screen. DiaperMart Store detects the fast keystroke pattern and routes it to the product search.</p>
+                <p>Scan a barcode from any screen. Core detects the fast keystroke pattern and routes it to the product search.</p>
               </div>
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
@@ -297,9 +297,9 @@ export default function HardwarePage() {
 
           <Card title="Test">
             <p className="text-sm text-gray-600 mb-3">Scan a barcode now. The value should appear in the product search on the Register page.</p>
-            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-500">
+            <div className="flex items-center gap-2 bg-gray-50 rounded-md px-4 py-3 text-sm text-gray-500">
               <ScanBarcode size={16} />
-              <span>Waiting for scan… (scanner must be enabled above)</span>
+              <span>Waiting for scan- (scanner must be enabled above)</span>
             </div>
           </Card>
         </div>
@@ -355,7 +355,7 @@ export default function HardwarePage() {
             <div className="space-y-2 text-sm text-gray-600">
               <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Extend your desktop to a second monitor facing the customer.</p></div>
               <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Click <strong>Open Display</strong> below, then drag that window to the customer screen and maximise it.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>The display updates in real time using the browser's <code className="bg-gray-100 px-1 rounded">BroadcastChannel</code> API — no extra server required.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>The display updates in real time using the browser's <code className="bg-gray-100 px-1 rounded">BroadcastChannel</code> API - no extra server required.</p></div>
             </div>
           </Card>
 
@@ -382,7 +382,7 @@ export default function HardwarePage() {
           <Card title="Weighing Scale">
             <div className="space-y-2">
               {(['webserial', 'none'] as const).map((mode) => (
-                <label key={mode} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="scaleMode" value={mode} checked={hw.scaleMode === mode}
                     onChange={() => hw.update({ scaleMode: mode })} className="accent-blue-600" />
                   <div>
@@ -447,7 +447,7 @@ export default function HardwarePage() {
           <Card title="Label Printer Mode">
             <div className="space-y-2">
               {(['browser', 'none'] as const).map((mode) => (
-                <label key={mode} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="labelMode" value={mode} checked={hw.labelPrinterMode === mode}
                     onChange={() => hw.update({ labelPrinterMode: mode })} className="accent-blue-600" />
                   <div>
@@ -475,7 +475,7 @@ export default function HardwarePage() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {[{w:50,h:30,label:'50×30 mm'},{w:60,h:40,label:'60×40 mm'},{w:100,h:50,label:'100×50 mm'}].map((p) => (
+              {[{w:50,h:30,label:'50Ãƒ"30 mm'},{w:60,h:40,label:'60Ãƒ"40 mm'},{w:100,h:50,label:'100Ãƒ"50 mm'}].map((p) => (
                 <button key={p.label} onClick={() => hw.update({ labelWidth: p.w, labelHeight: p.h })}
                   className={`px-3 py-1 rounded-lg text-xs border transition-colors ${hw.labelWidth === p.w && hw.labelHeight === p.h ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                   {p.label}
@@ -499,14 +499,14 @@ export default function HardwarePage() {
           <Card title="Card Machine Mode">
             <div className="space-y-2">
               {(['webhook', 'none'] as const).map((mode) => (
-                <label key={mode} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="cardMode" value={mode} checked={hw.cardMachineMode === mode}
                     onChange={() => hw.update({ cardMachineMode: mode })} className="accent-blue-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{mode === 'webhook' ? 'Webhook / REST API' : 'Disabled (manual)'}</p>
                     <p className="text-xs text-gray-500">
                       {mode === 'webhook'
-                        ? 'DiaperMart Store calls your terminal\'s REST endpoint when a card payment is initiated'
+                        ? 'Core calls your terminal\'s REST endpoint when a card payment is initiated'
                         : 'Process card payments on the terminal manually; record them as "Card" in the POS'}
                     </p>
                   </div>
@@ -525,13 +525,13 @@ export default function HardwarePage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
               />
               <p className="text-xs text-gray-400 mt-1">
-                DiaperMart Store will POST <code className="bg-gray-100 px-1 rounded">{`{ amount, currency, reference }`}</code> to this URL and expect <code className="bg-gray-100 px-1 rounded">{`{ success, reference }`}</code> in response.
+                Core will POST <code className="bg-gray-100 px-1 rounded">{`{ amount, currency, reference }`}</code> to this URL and expect <code className="bg-gray-100 px-1 rounded">{`{ success, reference }`}</code> in response.
               </p>
               <div className="mt-3 space-y-1 text-xs text-gray-500">
                 <p className="font-medium text-gray-700">Compatible terminals:</p>
-                <p>• Yoco Khumo / Yoco Go (via Yoco Konnect bridge)</p>
-                <p>• PayAt (via PayAt integration middleware)</p>
-                <p>• Any terminal with a local HTTP API</p>
+                <p>- Yoco Khumo / Yoco Go (via Yoco Konnect bridge)</p>
+                <p>- PayAt (via PayAt integration middleware)</p>
+                <p>- Any terminal with a local HTTP API</p>
               </div>
             </Card>
           )}
@@ -576,7 +576,7 @@ export default function HardwarePage() {
       {/* Page header */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-md bg-purple-100 flex items-center justify-center">
             <Settings2 size={20} className="text-purple-600" />
           </div>
           <div>

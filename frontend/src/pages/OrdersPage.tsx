@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -96,7 +96,7 @@ function OrderCard({
   const timeAgo = formatDistanceToNow(new Date(order.created_at), { addSuffix: true });
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+    <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-bold text-gray-900 text-sm">{order.reference}</p>
@@ -115,13 +115,13 @@ function OrderCard({
       </div>
 
       {order.customer && (
-        <p className="text-xs text-gray-500">👤 {order.customer.name}</p>
+        <p className="text-xs text-gray-500">Ã°Å¸'Â¤ {order.customer.name}</p>
       )}
 
       <div className="space-y-1">
         {items.slice(0, 3).map((item: any, i: number) => (
           <div key={i} className="flex items-center justify-between text-xs text-gray-600">
-            <span className="truncate">{item.quantity}× {item.name}</span>
+            <span className="truncate">{item.quantity}Ãƒ" {item.name}</span>
             <span className="text-gray-400 ml-2 flex-shrink-0">{format(item.price * item.quantity)}</span>
           </div>
         ))}
@@ -162,7 +162,7 @@ function OrderCard({
 function CompletedCard({ sale, format }: { sale: CompletedSale; format: (v: number) => string }) {
   const timeAgo = formatDistanceToNow(new Date(sale.created_at), { addSuffix: true });
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 opacity-75">
+    <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 opacity-75">
       <div className="flex items-start justify-between mb-2">
         <div>
           <p className="font-bold text-gray-700 text-sm">{sale.reference}</p>
@@ -245,7 +245,7 @@ export default function OrdersPage() {
         <button
           type="button"
           onClick={() => refetch()}
-          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-blue-600 bg-white border border-gray-200 hover:border-blue-300 px-4 py-2 rounded-xl transition-all"
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-blue-600 bg-white border border-gray-200 hover:border-blue-300 px-4 py-2 rounded-md transition-all"
         >
           <RefreshCw size={15} /> Refresh
         </button>
@@ -265,7 +265,7 @@ export default function OrdersPage() {
             return (
               <div key={col.key} className="flex flex-col gap-3">
                 {/* Column header */}
-                <div className={`flex items-center justify-between px-4 py-3 rounded-xl border ${col.bg}`}>
+                <div className={`flex items-center justify-between px-4 py-3 rounded-md border ${col.bg}`}>
                   <div className="flex items-center gap-2">
                     <col.icon size={16} className={col.color} />
                     <span className={`font-semibold text-sm ${col.color}`}>{col.label}</span>
@@ -281,7 +281,7 @@ export default function OrdersPage() {
                 <div className="space-y-3 min-h-[200px]">
                   {col.key === 'completed' ? (
                     completedSales.length === 0 ? (
-                      <div className="flex items-center justify-center h-24 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 text-sm">
+                      <div className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-gray-200 text-gray-400 text-sm">
                         No completed orders today
                       </div>
                     ) : (
@@ -290,7 +290,7 @@ export default function OrdersPage() {
                       ))
                     )
                   ) : colOrders.length === 0 ? (
-                    <div className="flex items-center justify-center h-24 rounded-2xl border-2 border-dashed border-gray-100 text-gray-300 text-sm">
+                    <div className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-gray-100 text-gray-300 text-sm">
                       No orders here
                     </div>
                   ) : (

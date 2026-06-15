@@ -1,4 +1,4 @@
-import Dexie, { type Table } from 'dexie';
+﻿import Dexie, { type Table } from 'dexie';
 
 export interface LocalProduct {
   id: number;
@@ -31,7 +31,7 @@ class PosDb extends Dexie {
   syncMeta!: Table<SyncMeta, string>;
 
   constructor() {
-    super('nexapos-db');
+    super('Core-db');
     this.version(1).stores({
       products: 'id, name, sku',
       customers: 'id, name, phone, email',

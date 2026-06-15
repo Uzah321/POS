@@ -28,7 +28,7 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
   );
 }
 
-const field = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
+const field = 'w-full border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
 
 export default function SettingsPage() {
   const [values, setValues] = useState<Record<string, string>>({});
@@ -82,13 +82,13 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Configure your DiaperMart Store</p>
+          <p className="text-gray-400 text-sm mt-0.5">Configure your Core</p>
         </div>
         <button
           type="button"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md shadow-blue-100 transition-colors disabled:opacity-60"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors disabled:opacity-60"
         >
           {mutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
           Save Changes
@@ -96,7 +96,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Business Profile */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
           <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
             <Building2 size={16} className="text-blue-600" />
@@ -107,7 +107,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Name</label>
-              <input value={values.company_name ?? ''} onChange={set('company_name')} placeholder="DiaperMart Store" className={field} />
+              <input value={values.company_name ?? ''} onChange={set('company_name')} placeholder="Core" className={field} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number</label>
@@ -134,7 +134,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Register Preferences */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
           <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
             <ShoppingCart size={16} className="text-blue-600" />
@@ -160,7 +160,7 @@ export default function SettingsPage() {
             checked={toggles.multi_currency_enabled}
             onChange={(v) => setToggles(t => ({ ...t, multi_currency_enabled: v }))}
           />
-          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">Receipt Printing</p>
             <p className="text-sm text-gray-600 mt-1">Every completed order prints a receipt. Choose the receipt printer mode from the Hardware page for Bluetooth/system or USB receipt printers.</p>
           </div>
@@ -174,7 +174,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Inventory Settings */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
           <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
             <Package size={16} className="text-blue-600" />
@@ -195,7 +195,7 @@ export default function SettingsPage() {
               value={values.low_stock_threshold ?? ''}
               onChange={set('low_stock_threshold')}
               placeholder="5"
-              className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+              className="w-full max-w-xs border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
             />
           </div>
           <div>

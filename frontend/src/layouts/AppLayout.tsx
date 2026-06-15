@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
@@ -7,7 +7,7 @@ import {
   Search, History, Clock, CalendarCheck, Cpu, BookOpen, FileText,
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
-  Building2, GitCompare
+  Building2, GitCompare, Monitor
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -20,7 +20,8 @@ type NavGroup = { id: string; label: string; icon: React.ElementType; items: Nav
 
 const topItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard' },
-  { to: '/pos', label: 'Register', icon: ShoppingCart, perm: 'create_sales' },
+  { to: '/cashier', label: 'Cashier Register', icon: Monitor, perm: 'create_sales' },
+  { to: '/pos', label: 'Advanced POS', icon: ShoppingCart, perm: 'create_sales' },
   { to: '/my-sales', label: 'My Sales', icon: History, perm: 'create_sales' },
   { to: '/ecocash', label: 'EcoCash', icon: Smartphone, perm: 'create_sales' },
   { to: '/shift-end', label: 'Shift End', icon: Clock, perm: 'create_sales' },
@@ -155,11 +156,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         to={to}
         onClick={() => setMobileOpen(false)}
         title={collapsed ? label : undefined}
-        className={`flex items-center gap-3 rounded-xl transition-all text-sm font-medium
+        className={`flex items-center gap-3 rounded-md transition-all text-sm font-medium
           ${indent && !collapsed ? 'pl-9 pr-3 py-1.5' : 'px-3 py-2'}
           ${active
             ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
+            : 'text-gray-500 hover:bg-blue-50 hover:text-blue-700'}`}
       >
         <Icon size={15} className="flex-shrink-0" />
         {!collapsed && <span className="truncate">{label}</span>}
@@ -171,10 +172,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 h-16 border-b border-gray-100 flex-shrink-0 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white text-lg flex-shrink-0">D</div>
+        <div className="w-9 h-9 flex-shrink-0">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+            <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
+            <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
+            <circle cx="18" cy="18" r="4" fill="white"/>
+          </svg>
+        </div>
         {!collapsed && (
           <div>
-            <span className="font-bold text-gray-900 text-base leading-tight block">DiaperMart Store</span>
+            <span className="font-bold text-gray-900 text-base leading-tight block">Core</span>
             <span className="text-xs text-gray-400 truncate block">{user?.branch?.name ?? 'Main Branch'}</span>
           </div>
         )}
@@ -185,12 +192,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Top flat items */}
         {topItems
           .filter(item => {
-            if (isCashier) return ['/pos', '/my-sales', '/ecocash', '/shift-end'].includes(item.to);
+            if (isCashier) return ['/cashier', '/pos', '/my-sales', '/ecocash', '/shift-end'].includes(item.to);
             return canSee(item.perm);
           })
           .map(item => <NavLink key={item.to} {...item} />)}
 
-        {/* Dropdown groups — hidden for cashiers */}
+        {/* Dropdown groups " hidden for cashiers */}
         {!isCashier && (
           <div className="pt-2 space-y-0.5">
             {navGroups.map(group => {
@@ -209,10 +216,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => !collapsed && toggleGroup(group.id)}
                     title={collapsed ? group.label : undefined}
-                    className={`w-full flex items-center rounded-xl text-sm font-semibold transition-all px-3 py-2
+                    className={`w-full flex items-center rounded-md text-sm font-semibold transition-all px-3 py-2
                       ${groupActive && !isOpen ? 'bg-blue-50 text-blue-700'
                         : isOpen ? 'bg-gray-100 text-gray-800'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'}
                       ${collapsed ? 'justify-center' : 'justify-between'}`}
                   >
                     <span className={`flex items-center ${collapsed ? '' : 'gap-3'}`}>
@@ -296,7 +303,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
 
           {!isCashier && (
-            <div className="hidden sm:flex flex-1 max-w-sm items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+            <div className="hidden sm:flex flex-1 max-w-sm items-center gap-2 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
               <Search size={15} className="text-gray-400 flex-shrink-0" />
               <input
                 type="text"
@@ -306,7 +313,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {isCashier && (
-            <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5">
+            <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-1.5">
               <ShoppingCart size={14} className="text-blue-600" />
               <span className="text-sm font-semibold text-blue-700">Cashier Mode</span>
             </div>
@@ -317,7 +324,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-red-600 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-red-600 px-3 py-2 rounded-md hover:bg-red-50 transition-colors"
           >
             <LogOut size={16} />
             <span className="hidden lg:inline">Logout</span>

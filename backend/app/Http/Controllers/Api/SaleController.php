@@ -126,6 +126,7 @@ class SaleController extends BaseApiController
                 'notes'           => $data['notes'] ?? null,
                 'is_offline'      => $data['is_offline'] ?? false,
                 'completed_at'    => now(),
+                'kds_status'      => 'new',
             ]);
 
             // Create line items & deduct stock

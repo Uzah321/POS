@@ -20,7 +20,7 @@ type FormData = z.infer<typeof schema>;
 
 function BranchModal({ branch, onClose }: { branch?: any; onClose: () => void }) {
   const qc = useQueryClient();
-  const field = 'mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
+  const field = 'mt-1 w-full border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -44,7 +44,7 @@ function BranchModal({ branch, onClose }: { branch?: any; onClose: () => void })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">{branch ? 'Edit Branch' : 'Add New Branch'}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1"><X size={18} /></button>
@@ -85,8 +85,8 @@ function BranchModal({ branch, onClose }: { branch?: any; onClose: () => void })
             <span className="text-sm font-medium text-gray-700">Active</span>
           </label>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
               {branch ? 'Update Branch' : 'Add Branch'}
             </button>
@@ -124,7 +124,7 @@ export default function BranchesPage() {
         <button
           type="button"
           onClick={() => setModal({ open: true })}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-100 transition-colors"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors"
         >
           <Plus size={16} /> Add Branch
         </button>
@@ -141,9 +141,9 @@ export default function BranchesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {branches.map((b: any) => (
-            <div key={b.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-all">
+            <div key={b.id} className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-blue-50 rounded-md flex items-center justify-center">
                   <Building2 size={22} className="text-blue-600" />
                 </div>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${b.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>

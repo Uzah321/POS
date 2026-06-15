@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rentalsApi, branchesApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Building2, Edit, Trash2, CreditCard } from 'lucide-react';
@@ -61,7 +61,7 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
           <h2 className="text-lg font-bold">{rental ? 'Edit Rental' : 'Add Rental Property'}</h2>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
@@ -150,8 +150,8 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />} {rental ? 'Update' : 'Save'}
             </button>
           </div>
@@ -186,11 +186,11 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
           <div>
             <h2 className="text-lg font-bold">Record Payment</h2>
-            <p className="text-sm text-gray-500">{rental.property_name} — {rental.tenant_name}</p>
+            <p className="text-sm text-gray-500">{rental.property_name} - {rental.tenant_name}</p>
           </div>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
@@ -223,8 +223,8 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
               </div>
             </div>
             <div className="flex gap-3">
-              <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-xl text-sm">Cancel</button>
-              <button type="submit" disabled={mutation.isPending} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+              <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md text-sm">Cancel</button>
+              <button type="submit" disabled={mutation.isPending} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                 {mutation.isPending && <Loader2 size={14} className="animate-spin" />} Record Payment
               </button>
             </div>
@@ -239,7 +239,7 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
                   <div key={p.id} className="flex justify-between items-center text-sm bg-gray-50 rounded-lg px-3 py-2">
                     <div>
                       <span className="font-medium text-gray-800">{p.period}</span>
-                      <span className="text-gray-400 ml-2">· {format(new Date(p.payment_date), 'dd MMM yyyy')}</span>
+                      <span className="text-gray-400 ml-2">Ã‚Â· {format(new Date(p.payment_date), 'dd MMM yyyy')}</span>
                     </div>
                     <span className="font-semibold text-green-700">${Number(p.amount).toFixed(2)}</span>
                   </div>
@@ -295,9 +295,9 @@ export default function RentalsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
-          <p className="text-gray-500 text-sm">Property rentals — income (collect) and expenses (pay)</p>
+          <p className="text-gray-500 text-sm">Property rentals - income (collect) and expenses (pay)</p>
         </div>
-        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm">
+        <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
           <Plus size={16} /> Add Rental
         </button>
       </div>
@@ -305,22 +305,22 @@ export default function RentalsPage() {
       {/* Summary */}
       {summary && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">Monthly Rental Income</p>
             <p className="text-xl font-bold text-green-600">${Number(summary.total_income_monthly || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">Monthly Rental Expense</p>
             <p className="text-xl font-bold text-red-600">${Number(summary.total_expense_monthly || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+          <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">Active Properties</p>
             <p className="text-xl font-bold text-gray-900">{summary.active_count}</p>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[160px] max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -364,15 +364,15 @@ export default function RentalsPage() {
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.property_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 capitalize">{r.property_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">{r.tenant_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{r.tenant_phone || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{r.tenant_phone || '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-semibold ${r.flow_type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                           {r.flow_type === 'income' ? '+' : '-'}${Number(r.monthly_amount).toFixed(2)} <span className="text-gray-400 font-normal text-xs">{r.currency}</span>
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">
-                        {r.lease_start ? format(new Date(r.lease_start), 'MMM yyyy') : '—'}
-                        {r.lease_end ? ` → ${format(new Date(r.lease_end), 'MMM yyyy')}` : ' → Open'}
+                        {r.lease_start ? format(new Date(r.lease_start), 'MMM yyyy') : '-'}
+                        {r.lease_end ? ` to ${format(new Date(r.lease_end), "MMM yyyy")}` : "Open"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">${totalPaid.toFixed(2)}</td>
                       <td className="px-4 py-3">

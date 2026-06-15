@@ -12,8 +12,8 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'NexaPOS',
-        short_name: 'NexaPOS',
+        name: 'Core',
+        short_name: 'Core',
         description: 'Point of Sale System',
         theme_color: '#2563eb',
         background_color: '#ffffff',

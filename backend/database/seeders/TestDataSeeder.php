@@ -27,8 +27,8 @@ class TestDataSeeder extends Seeder
     {
         $branch    = Branch::where('code', 'MAIN')->first();
         $warehouse = Warehouse::where('code', 'WH-MAIN')->first();
-        $admin     = User::where('email', 'admin@bottlestore.co.za')->first();
-        $cashier   = User::where('email', 'cashier@bottlestore.co.za')->first();
+        $admin     = User::where('email', 'admin@nexapos.com')->first();
+        $cashier   = User::where('email', 'cashier@nexapos.com')->first();
         $vatRate   = TaxRate::where('is_default', true)->first();
         $zeroRate  = TaxRate::where('rate', 0)->first();
 

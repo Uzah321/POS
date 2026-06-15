@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { History, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw, UserCircle2 } from 'lucide-react';
@@ -107,7 +107,7 @@ export default function MySalesPage() {
   const cancelMutation = useMutation({
     mutationFn: (id: number) => salesApi.cancel(id),
     onSuccess: () => {
-      toast.success('Order cancelled — stock has been restored');
+      toast.success('Order cancelled - stock has been restored');
       queryClient.invalidateQueries({ queryKey: ['my-sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
@@ -127,18 +127,18 @@ export default function MySalesPage() {
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-md bg-blue-100 flex items-center justify-center">
           <History size={20} className="text-blue-600" />
         </div>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">My Sales</h1>
           <p className="text-sm text-gray-500">
-            {isCashier ? 'Current shift transactions — resets after each Shift End' : 'Your recent transactions'}
+            {isCashier ? 'Current shift transactions - resets after each Shift End' : 'Your recent transactions'}
           </p>
         </div>
         <button
           onClick={() => refetch()}
-          className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          className="p-2 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
           title="Refresh"
         >
           <RefreshCw size={16} />
@@ -147,7 +147,7 @@ export default function MySalesPage() {
 
       {/* Admin cashier selector */}
       {isAdmin && (
-        <div className="flex items-center gap-3 mb-5 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-3 mb-5 p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
           <UserCircle2 size={17} className="text-blue-500 flex-shrink-0" />
           <span className="text-sm font-medium text-gray-600 flex-shrink-0">Viewing:</span>
           <select
@@ -159,7 +159,7 @@ export default function MySalesPage() {
               else setSelectedCashierId(Number(v));
               setPage(1);
             }}
-            className="flex-1 text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="me">My Sales</option>
             <option value="all">All Cashiers</option>
@@ -200,7 +200,7 @@ export default function MySalesPage() {
             return (
               <div
                 key={sale.id}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
+                className="bg-white rounded-lg border border-gray-100 shadow-sm p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -216,7 +216,7 @@ export default function MySalesPage() {
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {format(new Date(sale.created_at), 'dd MMM yyyy, HH:mm')}
-                      {itemCount > 0 && ` · ${itemCount} item${itemCount !== 1 ? 's' : ''}`}
+                      {itemCount > 0 && ` Ã‚Â· ${itemCount} item${itemCount !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -238,7 +238,7 @@ export default function MySalesPage() {
                   <div className="mt-3 pt-3 border-t border-gray-50 space-y-1">
                     {sale.items.slice(0, 4).map((item) => (
                       <div key={item.id} className="flex justify-between text-xs text-gray-500">
-                        <span>{item.name ?? `Product #${item.product_id}`} × {item.quantity}</span>
+                        <span>{item.name ?? `Product #${item.product_id}`} Ãƒ" {item.quantity}</span>
                         <span>{format_(item.unit_price * item.quantity)}</span>
                       </div>
                     ))}
@@ -257,7 +257,7 @@ export default function MySalesPage() {
       {/* Confirm Cancel Dialog */}
       {confirmCancelId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+          <div className="bg-white rounded-lg shadow-2xl p-6 max-w-sm w-full">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle size={20} className="text-red-500" />
@@ -271,7 +271,7 @@ export default function MySalesPage() {
               <button
                 type="button"
                 onClick={() => setConfirmCancelId(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Keep it
               </button>
@@ -279,9 +279,9 @@ export default function MySalesPage() {
                 type="button"
                 disabled={cancelMutation.isPending}
                 onClick={() => cancelMutation.mutate(confirmCancelId)}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+                className="flex-1 px-4 py-2.5 rounded-md bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-60"
               >
-                {cancelMutation.isPending ? 'Cancelling…' : 'Yes, cancel'}
+                {cancelMutation.isPending ? 'Cancelling-' : 'Yes, cancel'}
               </button>
             </div>
           </div>

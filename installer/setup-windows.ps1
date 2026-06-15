@@ -1,8 +1,8 @@
-# ==============================================================================
-# NexaPOS - Windows Local Installer (PostgreSQL edition)
+﻿# ==============================================================================
+# Core - Windows Local Installer (PostgreSQL edition)
 # Run once as Administrator:
 #   powershell -ExecutionPolicy Bypass -File setup-windows.ps1
-# After setup, double-click the NexaPOS shortcut on the Desktop every day.
+# After setup, double-click the Core shortcut on the Desktop every day.
 # No internet connection is required AFTER this script completes.
 # ==============================================================================
 
@@ -22,9 +22,9 @@ $ComposerPhar = Join-Path $InstallDir "composer.phar"
 $PgVersion  = "16"
 $PgHost     = "127.0.0.1"
 $PgPort     = "5432"
-$PgDatabase = "nexapos"
-$PgUser     = "nexapos"
-$PgPassword = "nexapos123"
+$PgDatabase = "Core"
+$PgUser     = "Core"
+$PgPassword = "Core123"
 $PgSuperPwd = "postgres123"   # postgres superuser password (set during install)
 
 function Write-Step { param($msg) Write-Host "[....] $msg" -ForegroundColor Cyan }
@@ -39,7 +39,7 @@ function Write-Fail {
 
 Clear-Host
 Write-Host ""
-Write-Host "  NexaPOS - Windows Local Installer (PostgreSQL)" -ForegroundColor Green
+Write-Host "  Core - Windows Local Installer (PostgreSQL)" -ForegroundColor Green
 Write-Host "  ================================================" -ForegroundColor Green
 Write-Host ""
 
@@ -290,7 +290,7 @@ Write-OK "Backend dependencies installed"
 Write-Step "Writing backend .env ..."
 $envFile = Join-Path $BackendDir ".env"
 
-$envContent  = "APP_NAME=NexaPOS" + [Environment]::NewLine
+$envContent  = "APP_NAME=Core" + [Environment]::NewLine
 $envContent += "APP_ENV=local" + [Environment]::NewLine
 $envContent += "APP_KEY=" + [Environment]::NewLine
 $envContent += "APP_DEBUG=false" + [Environment]::NewLine
@@ -336,7 +336,7 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
     Push-Location $FrontendDir
     try {
         $prodEnv  = "VITE_API_URL=http://localhost:8080/api" + [Environment]::NewLine
-        $prodEnv += "VITE_APP_NAME=NexaPOS" + [Environment]::NewLine
+        $prodEnv += "VITE_APP_NAME=Core" + [Environment]::NewLine
         [System.IO.File]::WriteAllText(
             (Join-Path $FrontendDir ".env.production"),
             $prodEnv,
@@ -375,14 +375,14 @@ Write-Step "Creating launcher ..."
 $launcherPath = Join-Path $InstallDir "start-pos.bat"
 
 $bat  = "@echo off" + [Environment]::NewLine
-$bat += "title NexaPOS - Local POS Server" + [Environment]::NewLine
+$bat += "title Core - Local POS Server" + [Environment]::NewLine
 $bat += "" + [Environment]::NewLine
 $bat += "REM Ensure PostgreSQL service is running" + [Environment]::NewLine
 $bat += "net start postgresql-x64-$PgVersion >nul 2>&1" + [Environment]::NewLine
 $bat += "" + [Environment]::NewLine
 $bat += "cd /d `"$BackendDir`"" + [Environment]::NewLine
 $bat += "echo." + [Environment]::NewLine
-$bat += "echo  NexaPOS is starting on http://localhost:8080" + [Environment]::NewLine
+$bat += "echo  Core is starting on http://localhost:8080" + [Environment]::NewLine
 $bat += "echo  Database: PostgreSQL $PgDatabase on $PgHost" + [Environment]::NewLine
 $bat += "echo  Close this window to stop the PHP server." + [Environment]::NewLine
 $bat += "echo." + [Environment]::NewLine
@@ -395,24 +395,24 @@ Write-OK "Launcher created at $launcherPath"
 # ── 14. Desktop shortcut ─────────────────────────────────────────────────────────
 Write-Step "Creating desktop shortcut ..."
 $shell    = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut("$env:PUBLIC\Desktop\NexaPOS.lnk")
+$shortcut = $shell.CreateShortcut("$env:PUBLIC\Desktop\Core.lnk")
 $shortcut.TargetPath       = $launcherPath
 $shortcut.WorkingDirectory = $InstallDir
 $shortcut.WindowStyle      = 1
-$shortcut.Description      = "Launch NexaPOS local POS system"
+$shortcut.Description      = "Launch Core local POS system"
 $shortcut.Save()
 Write-OK "Desktop shortcut created"
 
 # ── Done ─────────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "  =============================================" -ForegroundColor Green
-Write-Host "       NEXAPOS SETUP COMPLETE!" -ForegroundColor Green
+Write-Host "       Core SETUP COMPLETE!" -ForegroundColor Green
 Write-Host "  =============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Database : PostgreSQL $PgDatabase @ ${PgHost}:${PgPort}" -ForegroundColor White
 Write-Host "  App URL  : http://localhost:8080/cashier"             -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  To launch: double-click 'NexaPOS' on the Desktop"    -ForegroundColor White
+Write-Host "  To launch: double-click 'Core' on the Desktop"    -ForegroundColor White
 Write-Host "  OR run   : $launcherPath"                             -ForegroundColor Gray
 Write-Host ""
 Read-Host "Press Enter to exit"

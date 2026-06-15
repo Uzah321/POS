@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Core POS post-install setup. Called by Inno Setup after extracting all files.
   Installs PostgreSQL (downloads from internet if not present), creates the
@@ -85,7 +85,7 @@ if (!$pgSvc) {
     if (!$downloaded) { ERR "Failed to download PostgreSQL. Please check your internet connection and re-run setup." }
 
     WAIT "Installing PostgreSQL 17 (this takes 2-4 minutes)..."
-    $pgArgs = "--mode unattended --unattendedmodeui none --superpassword ""NexaPos@2024!"" --serverport 5432 --servicename postgresql-x64-17 --enable-components server"
+    $pgArgs = "--mode unattended --unattendedmodeui none --superpassword ""Core@2024!"" --serverport 5432 --servicename postgresql-x64-17 --enable-components server"
     $proc = Start-Process -FilePath $pgInstaller -ArgumentList $pgArgs -Wait -PassThru -ErrorAction Stop
     Remove-Item $pgInstaller -Force
 
@@ -146,19 +146,19 @@ if (Test-Path $hbaFile) {
 
 
 # ============================================================================
-# STEP 6 - Create nexapos database and user
+# STEP 6 - Create Core database and user
 # ============================================================================
 WAIT "Creating Core POS database..."
 
 $env:PGPASSFILE = ""
 function psql($args) { & $psqlExe -U postgres -p 5432 -h 127.0.0.1 @args 2>$null }
 
-psql @("-c", "DROP DATABASE IF EXISTS nexapos;")
-psql @("-c", "DROP USER IF EXISTS nexapos;")
-psql @("-c", "CREATE USER nexapos WITH PASSWORD 'nexapos123';")
-psql @("-c", "CREATE DATABASE nexapos OWNER nexapos ENCODING 'UTF8';")
-psql @("-c", "GRANT ALL PRIVILEGES ON DATABASE nexapos TO nexapos;")
-psql @("-d", "nexapos", "-c", "GRANT ALL ON SCHEMA public TO nexapos;")
+psql @("-c", "DROP DATABASE IF EXISTS Core;")
+psql @("-c", "DROP USER IF EXISTS Core;")
+psql @("-c", "CREATE USER Core WITH PASSWORD 'Core123';")
+psql @("-c", "CREATE DATABASE Core OWNER Core ENCODING 'UTF8';")
+psql @("-c", "GRANT ALL PRIVILEGES ON DATABASE Core TO Core;")
+psql @("-d", "Core", "-c", "GRANT ALL ON SCHEMA public TO Core;")
 OK "Database and user created"
 
 
@@ -174,10 +174,10 @@ if (Test-Path $hbaBackup) {
     OK "Database security restored"
 }
 
-# Write pgpass.conf so php/artisan can auth as nexapos without password prompts
+# Write pgpass.conf so php/artisan can auth as Core without password prompts
 $pgpassDir = "$env:APPDATA\postgresql"
 if (!(Test-Path $pgpassDir)) { New-Item -ItemType Directory -Path $pgpassDir -Force | Out-Null }
-"localhost:5432:*:nexapos:nexapos123" | Set-Content "$pgpassDir\pgpass.conf" -Encoding ASCII
+"localhost:5432:*:Core:Core123" | Set-Content "$pgpassDir\pgpass.conf" -Encoding ASCII
 $env:PGPASSFILE = "$pgpassDir\pgpass.conf"
 
 
@@ -199,9 +199,9 @@ LOG_LEVEL=error
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_DATABASE=nexapos
-DB_USERNAME=nexapos
-DB_PASSWORD=nexapos123
+DB_DATABASE=Core
+DB_USERNAME=Core
+DB_PASSWORD=Core123
 
 CACHE_DRIVER=file
 SESSION_DRIVER=file
@@ -285,7 +285,7 @@ Write-Host "    Core POS setup complete!" -ForegroundColor Green
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Default login credentials:" -ForegroundColor White
-Write-Host "    Username : admin@nexapos.com" -ForegroundColor Cyan
+Write-Host "    Username : admin@Core.com" -ForegroundColor Cyan
 Write-Host "    Password : Admin@123" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Double-click 'Core POS' on your desktop to launch." -ForegroundColor White

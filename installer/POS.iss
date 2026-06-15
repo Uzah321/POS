@@ -1,5 +1,5 @@
-; ==============================================================================
-; NexaPOS Self-Contained Windows Installer
+﻿; ==============================================================================
+; Core Self-Contained Windows Installer
 ; Requires Inno Setup 6 - https://jrsoftware.org/isdl.php
 ;
 ; BEFORE COMPILING:
@@ -9,7 +9,7 @@
 ;   4. powershell -File installer\prepare-installer.ps1  (downloads PHP)
 ;   5. iscc POS.iss  (compile this file)
 ;
-; Output: installer\Output\NexaPOS-Setup.exe
+; Output: installer\Output\Core-Setup.exe
 ; ==============================================================================
 
 #define AppName      "Core"
@@ -37,13 +37,13 @@ DisableProgramGroupPage=yes
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\start-pos.bat
 MinVersion=10.0.17763
-SetupMutex=NexaPOSSetupMutex
+SetupMutex=CoreSetupMutex
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a &desktop shortcut for NexaPOS"; GroupDescription: "Additional icons:"
+Name: "desktopicon"; Description: "Create a &desktop shortcut for Core"; GroupDescription: "Additional icons:"
 
 [Dirs]
 Name: "{app}\backend\storage\logs"
@@ -76,9 +76,9 @@ Source: "install.ps1";   DestDir: "{app}"; Flags: ignoreversion
 Source: "start-pos.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\NexaPOS";            Filename: "{app}\start-pos.bat"; WorkingDir: "{app}"
-Name: "{group}\Uninstall NexaPOS";  Filename: "{uninstallexe}"
-Name: "{commondesktop}\NexaPOS";    Filename: "{app}\start-pos.bat"; WorkingDir: "{app}"; \
+Name: "{group}\Core";            Filename: "{app}\start-pos.bat"; WorkingDir: "{app}"
+Name: "{group}\Uninstall Core";  Filename: "{uninstallexe}"
+Name: "{commondesktop}\Core";    Filename: "{app}\start-pos.bat"; WorkingDir: "{app}"; \
   Tasks: desktopicon
 
 [Run]
@@ -86,13 +86,13 @@ Name: "{commondesktop}\NexaPOS";    Filename: "{app}\start-pos.bat"; WorkingDir:
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install.ps1"" -AppDir ""{app}"""; \
   WorkingDir: "{app}"; \
-  StatusMsg: "Configuring NexaPOS (installs database - may take a few minutes)..."; \
+  StatusMsg: "Configuring Core (installs database - may take a few minutes)..."; \
   Flags: waituntilterminated
 
 ; Offer to launch after install
 Filename: "{app}\start-pos.bat"; \
   WorkingDir: "{app}"; \
-  Description: "Launch NexaPOS now"; \
+  Description: "Launch Core now"; \
   Flags: postinstall nowait skipifsilent unchecked shellexec
 
 [UninstallRun]
@@ -111,7 +111,7 @@ begin
   GetWindowsVersionEx(Version);
   if (Version.Major < 10) or ((Version.Major = 10) and (Version.Build < 17763)) then
   begin
-    MsgBox('NexaPOS requires Windows 10 (version 1809) or later.' + #13#10 +
+    MsgBox('Core requires Windows 10 (version 1809) or later.' + #13#10 +
            'Please upgrade your Windows before installing.', mbError, MB_OK);
     Result := False;
     Exit;

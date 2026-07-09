@@ -6,6 +6,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, X, ChevronRight, CreditCard, Package } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 const STATUSES = ['pending', 'partial', 'complete', 'cancelled'];
 const STATUS_COLORS: Record<string, string> = {
@@ -52,21 +53,30 @@ export default function LaybyPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/laybys', data),
-    onSuccess: () => { toast.success('Layby created!'); qc.invalidateQueries({ queryKey: ['laybys'] }); setShowNew(false); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (data: any) => offlineMutate(() => api.post('/laybys', data), 'laybys', 'create', data),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Layby saved offline — will sync when server is back');
+      else { toast.success('Layby created!'); qc.invalidateQueries({ queryKey: ['laybys'] }); }
+      setShowNew(false);
+    },
   });
 
   const paymentMutation = useMutation({
-    mutationFn: ({ id, data }: any) => api.post(`/laybys/${id}/payment`, data),
-    onSuccess: () => { toast.success('Payment added!'); qc.invalidateQueries({ queryKey: ['layby', selectedLayby?.id] }); qc.invalidateQueries({ queryKey: ['laybys'] }); setPaymentAmount(''); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: ({ id, data }: any) => offlineMutate(() => api.post(`/laybys/${id}/payment`, data), 'laybys', 'add_payment', { _url: `/laybys/${id}/payment`, _method: 'POST', ...data }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Payment saved offline — will sync when server is back');
+      else { toast.success('Payment added!'); qc.invalidateQueries({ queryKey: ['layby', selectedLayby?.id] }); qc.invalidateQueries({ queryKey: ['laybys'] }); }
+      setPaymentAmount('');
+    },
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/laybys/${id}/cancel`),
-    onSuccess: () => { toast.success('Layby cancelled'); qc.invalidateQueries({ queryKey: ['laybys'] }); setSelectedLayby(null); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot cancel'),
+    mutationFn: (id: number) => offlineMutate(() => api.post(`/laybys/${id}/cancel`), 'laybys', 'cancel', { _url: `/laybys/${id}/cancel`, _method: 'POST' }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Cancellation queued offline — will sync when server is back');
+      else { toast.success('Layby cancelled'); qc.invalidateQueries({ queryKey: ['laybys'] }); }
+      setSelectedLayby(null);
+    },
   });
 
   const laybys: any[] = data?.data ?? (Array.isArray(data) ? data : []);

@@ -2,8 +2,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import api from '../lib/axios';
+import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
+import { db } from '../lib/db';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
+import NumericKeypad from '../components/ui/NumericKeypad';
 
 interface SaleSummaryItem {
   id: number;
@@ -54,12 +58,16 @@ const METHOD_LABEL: Record<string, string> = {
 
 export default function ShiftEndPage() {
   const { hasRole, user } = useAuthStore();
-  const { format } = useCurrencyStore();
+  const { format, currencies } = useCurrencyStore();
   const qc = useQueryClient();
   const [submitted, setSubmitted] = useState(false);
 
   const isCashier = hasRole('cashier');
   const isManager = hasRole('admin') || hasRole('manager');
+
+  // Per-currency cash declaration (one entry per active currency)
+  const activeCurrencies = currencies.filter((c) => c.is_active);
+  const [currencyCash, setCurrencyCash] = useState<Record<string, string>>({});
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     defaultValues: { declared_cash: '', notes: '' },
@@ -67,10 +75,70 @@ export default function ShiftEndPage() {
 
   const declaredCashValue = parseFloat(watch('declared_cash') || '0') || 0;
 
+  // Total declared cash converted to base currency from all currency entries
+  const totalDeclaredFromCurrencies = activeCurrencies.reduce((sum, c) => {
+    const amt = parseFloat(currencyCash[c.code] || '0') || 0;
+    return sum + (c.exchange_rate > 0 ? amt / c.exchange_rate : amt);
+  }, 0);
+
+  // If per-currency entries exist, use their total; otherwise fall back to single field
+  const effectiveDeclaredCash = activeCurrencies.length > 1
+    ? totalDeclaredFromCurrencies
+    : declaredCashValue;
+
   // Load shift summary (cashiers only)
   const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
     queryKey: ['shift-summary'],
-    queryFn: () => api.get('/shift-end/summary').then(r => r.data.data as ShiftSummary),
+    queryFn: async () => {
+      try {
+        return await api.get('/shift-end/summary').then(r => r.data.data as ShiftSummary);
+      } catch {
+        // API unavailable — compute shift summary from today's local IndexedDB sales
+        const userId = user?.id ?? 0;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayStr = todayStart.toISOString();
+
+        const todaySales = await db.sales
+          .filter(s => s.cashier_id === userId && s.status === 'completed' && s.created_at >= todayStr)
+          .toArray();
+
+        const sumPayments = (method: string) =>
+          todaySales.flatMap(s => s.payments ?? []).filter(p => p.method === method).reduce((sum, p) => sum + p.amount, 0);
+
+        const cash_sales         = sumPayments('cash');
+        const card_sales         = sumPayments('card');
+        const mobile_money_sales = sumPayments('mobile_money');
+        const other_sales = todaySales
+          .flatMap(s => s.payments ?? [])
+          .filter(p => !['cash', 'card', 'mobile_money'].includes(p.method))
+          .reduce((sum, p) => sum + p.amount, 0);
+        const total_sales = todaySales.reduce((sum, s) => sum + s.total, 0);
+
+        const sorted = [...todaySales].sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+        return {
+          shift_start: sorted.length > 0 ? sorted[0].created_at : new Date().toISOString(),
+          total_sales,
+          total_transactions: todaySales.length,
+          cash_sales,
+          card_sales,
+          mobile_money_sales,
+          other_sales,
+          expected_cash: cash_sales,
+          sales: todaySales
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+            .map(s => ({
+              id: Math.abs(s.id),
+              reference: s.reference,
+              completed_at: s.completed_at ?? s.created_at,
+              total: s.total,
+              items_count: s.items_count,
+              payments: s.payments ?? [],
+            })),
+        } as ShiftSummary;
+      }
+    },
     enabled: isCashier,
     refetchInterval: 30000, // auto-refresh every 30s
   });
@@ -86,25 +154,33 @@ export default function ShiftEndPage() {
     : (historyData as any)?.data ?? [];
 
   const submitMutation = useMutation({
-    mutationFn: (data: { declared_cash: number; notes: string }) => api.post('/shift-end', data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shift-summary'] });
-      qc.invalidateQueries({ queryKey: ['shift-history'] });
-      qc.invalidateQueries({ queryKey: ['my-sales'] }); // clears cashier's My Sales for new shift
+    mutationFn: (data: { declared_cash: number; notes: string }) => offlineMutate(() => api.post('/shift-end', data), 'shift_end', 'create', { _url: '/shift-end', _method: 'POST', ...data }),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Shift end saved offline - will sync when server is back');
+      else { qc.invalidateQueries({ queryKey: ['shift-summary'] }); qc.invalidateQueries({ queryKey: ['shift-history'] }); qc.invalidateQueries({ queryKey: ['my-sales'] }); }
       setSubmitted(true);
     },
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => api.patch(`/shift-end/${id}/approve`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shift-history'] }),
+    mutationFn: (id: number) => offlineMutate(() => api.patch(`/shift-end/${id}/approve`), 'shift_end', 'approve', { _url: `/shift-end/${id}/approve`, _method: 'PATCH' }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Approval saved offline - will sync when server is back');
+      else qc.invalidateQueries({ queryKey: ['shift-history'] });
+    },
   });
 
   const onSubmit = (data: FormData) => {
-    submitMutation.mutate({ declared_cash: parseFloat(data.declared_cash), notes: data.notes });
+    const finalDeclared = activeCurrencies.length > 1
+      ? totalDeclaredFromCurrencies
+      : parseFloat(data.declared_cash);
+    submitMutation.mutate({
+      declared_cash: finalDeclared,
+      notes: data.notes,
+    } as any);
   };
 
-  const variance = summary ? declaredCashValue - summary.expected_cash : 0;
+  const variance = summary ? effectiveDeclaredCash - summary.expected_cash : 0;
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -193,12 +269,29 @@ export default function ShiftEndPage() {
                   ['Mobile Money', summary.mobile_money_sales, 'bg-purple-50 text-purple-700'],
                   ['Other',        summary.other_sales,        'bg-gray-50 text-gray-700'],
                 ].map(([label, amount, cls]) => (
-                  <div key={label} className={`rounded-lg p-3 ${cls}`}>
-                    <p className="text-xs font-medium opacity-70">{label}</p>
+                  <div key={label as string} className={`rounded-lg p-3 ${cls}`}>
+                    <p className="text-xs font-medium opacity-70">{label as string}</p>
                     <p className="text-base font-bold mt-0.5">{format(amount as number)}</p>
                   </div>
                 ))}
               </div>
+
+              {/* Per-currency equivalent breakdown */}
+              {activeCurrencies.length > 1 && (
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Cash equivalents per currency</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {activeCurrencies.map((cur) => (
+                      <div key={cur.code} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
+                        <p className="text-xs text-gray-500 font-medium">{cur.symbol} {cur.code}</p>
+                        <p className="text-sm font-bold text-gray-800 mt-0.5">
+                          {cur.symbol}{(summary.cash_sales * cur.exchange_rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -265,38 +358,71 @@ export default function ShiftEndPage() {
             <h2 className="font-semibold text-gray-800 mb-1">Close Shift</h2>
             <p className="text-sm text-gray-500 mb-4">Count the cash in your drawer and enter the amount below.</p>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Expected Cash
-                  </label>
-                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-green-700">
-                    {format(summary?.expected_cash ?? 0)}
-                  </div>
+
+              {/* Expected cash */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expected Cash in Drawer</label>
+                <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-green-700">
+                  {format(summary?.expected_cash ?? 0)}
                 </div>
+              </div>
+
+              {/* Per-currency cash declaration */}
+              {activeCurrencies.length > 1 ? (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">Actual Cash by Currency <span className="text-red-500">*</span></label>
+                  <div className="space-y-4">
+                    {activeCurrencies.map((cur) => (
+                      <div key={cur.code} className="border border-gray-200 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold text-gray-700">{cur.symbol} {cur.code}</span>
+                          {cur.exchange_rate !== 1 && (
+                            <span className="text-xs text-gray-400">
+                              ≈ {format((parseFloat(currencyCash[cur.code] || '0') || 0) / cur.exchange_rate)} base
+                            </span>
+                          )}
+                        </div>
+                        <NumericKeypad
+                          value={currencyCash[cur.code] ?? ''}
+                          onChange={(v) => setCurrencyCash((prev) => ({ ...prev, [cur.code]: v }))}
+                          label={`${cur.symbol} ${cur.code} cash in drawer`}
+                          confirmLabel="✓ Set"
+                          confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {totalDeclaredFromCurrencies > 0 && (
+                    <div className="flex justify-between text-sm font-semibold text-gray-700 border-t border-gray-200 pt-2">
+                      <span>Total (base currency)</span>
+                      <span className="text-blue-700">{format(totalDeclaredFromCurrencies)}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Actual Cash in Drawer <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    {...register('declared_cash', {
-                      required: 'Enter the cash amount',
-                      min: { value: 0, message: 'Must be â‰¥ 0' },
-                    })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  <NumericKeypad
+                    value={watch('declared_cash') ?? ''}
+                    onChange={(v) => {
+                      // react-hook-form field sync
+                      const event = { target: { value: v } } as React.ChangeEvent<HTMLInputElement>;
+                      register('declared_cash').onChange(event);
+                    }}
+                    label="Cash in drawer"
+                    confirmLabel="✓ Set Amount"
+                    confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
                   />
                   {errors.declared_cash && (
                     <p className="text-red-500 text-xs mt-1">{errors.declared_cash.message}</p>
                   )}
                 </div>
-              </div>
+              )}
 
               {/* Live variance */}
-              {watch('declared_cash') !== '' && (
+              {(activeCurrencies.length > 1 ? totalDeclaredFromCurrencies > 0 : watch('declared_cash') !== '') && (
                 <div className={`flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium ${
                   variance === 0 ? 'bg-gray-50 text-gray-700'
                   : variance > 0 ? 'bg-green-50 text-green-700'

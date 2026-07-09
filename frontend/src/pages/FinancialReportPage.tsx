@@ -4,6 +4,7 @@ import { financialReportApi, branchesApi } from '../api';
 import { Download, Loader2, BarChart2, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { useCurrencyStore } from '../stores/currencyStore';
 
 type Period = 'daily' | 'weekly' | 'monthly';
 
@@ -16,10 +17,10 @@ function downloadBlob(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
-function PLRow({ label, value, isBold, isNegative, isPercent, isHighlight }: {
-  label: string; value: number | string; isBold?: boolean; isNegative?: boolean; isPercent?: boolean; isHighlight?: boolean;
+function PLRow({ label, value, isBold, isNegative, isPercent, isHighlight, fmt }: {
+  label: string; value: number | string; isBold?: boolean; isNegative?: boolean; isPercent?: boolean; isHighlight?: boolean; fmt: (n: number) => string;
 }) {
-  const displayVal = isPercent ? `${value}%` : `$${Number(value).toFixed(2)}`;
+  const displayVal = isPercent ? `${Number(value).toFixed(1)}%` : fmt(Number(value));
   return (
     <div className={`flex items-center justify-between px-6 py-3 border-b border-gray-100 last:border-0 ${isHighlight ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
       <span className={`text-sm ${isBold ? 'font-bold text-gray-900' : 'text-gray-700'}`}>{label}</span>
@@ -41,6 +42,7 @@ export default function FinancialReportPage() {
   const [dateTo, setDateTo]       = useState(today);
   const [month, setMonth]         = useState(new Date().toISOString().slice(0, 7));
   const [branchId, setBranchId]   = useState('');
+  const { format: formatAmount }  = useCurrencyStore();
 
   const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []) });
   const branches = branchData || [];
@@ -176,12 +178,12 @@ export default function FinancialReportPage() {
             </div>
 
             <div className="divide-y divide-gray-50">
-              <PLRow label="Sales" value={report.sales} isBold />
-              <PLRow label="Less: Cost of Sales" value={report.less_cost_of_sales} isNegative />
-              <PLRow label="Gross Profit" value={report.gross_profit} isBold />
-              <PLRow label="% GP (Gross Profit Margin)" value={report.gp_percent} isPercent />
-              <PLRow label="Less: Deductions / Expenses" value={report.less_deductions} isNegative />
-              <PLRow label="Profit B/d (Net Profit)" value={report.profit_bd} isBold isHighlight />
+              <PLRow label="Sales" value={report.sales} isBold fmt={formatAmount} />
+              <PLRow label="Less: Cost of Goods Sold (COGS)" value={report.less_cost_of_sales} isNegative fmt={formatAmount} />
+              <PLRow label="Gross Profit" value={report.gross_profit} isBold fmt={formatAmount} />
+              <PLRow label="% Gross Profit Margin" value={report.gp_percent} isPercent fmt={formatAmount} />
+              <PLRow label="Less: Expenses / Deductions" value={report.less_deductions} isNegative fmt={formatAmount} />
+              <PLRow label="Net Profit (Profit B/d)" value={report.profit_bd} isBold isHighlight fmt={formatAmount} />
             </div>
 
             <div className="px-6 py-3 border-t border-gray-100 grid grid-cols-2 gap-3 bg-gray-50">
@@ -192,7 +194,7 @@ export default function FinancialReportPage() {
               <div className="text-center">
                 <p className="text-xs text-gray-500">Avg. Sale Value</p>
                 <p className="text-lg font-bold text-gray-900">
-                  ${report.total_transactions > 0 ? (Number(report.sales) / report.total_transactions).toFixed(2) : '0.00'}
+                  {formatAmount(report.total_transactions > 0 ? (Number(report.sales) / report.total_transactions) : 0)}
                 </p>
               </div>
             </div>
@@ -211,7 +213,7 @@ export default function FinancialReportPage() {
                   <div key={pm.method}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="font-medium text-gray-700 capitalize">{pm.method}</span>
-                      <span className="text-gray-900 font-semibold">${pm.amount.toFixed(2)} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                      <span className="text-gray-900 font-semibold">{formatAmount(pm.amount)} <span className="text-gray-400 font-normal">({pct}%)</span></span>
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -234,7 +236,7 @@ export default function FinancialReportPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [`$${Number(value ?? 0).toFixed(2)}`, 'Revenue']} />
+                    <Tooltip formatter={(value) => [formatAmount(Number(value ?? 0)), 'Revenue']} />
                     <Legend />
                     <Bar dataKey="Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>

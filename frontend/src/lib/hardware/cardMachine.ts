@@ -1,11 +1,11 @@
 /**
  * Card Machine / POS Terminal Integration
  *
- * Provides a webhook-based stub that can call any external terminal endpoint.
+ * Provides a webhook-based stub that can call a local terminal endpoint.
  * Common use cases:
  *   - Yoco (South Africa) payment terminal via Yoco SDK
  *   - PayAt terminal webhook
- *   - Custom payment gateway bridge
+ *   - Custom payment gateway bridge running on this machine or the LAN
  *
  * The webhook receives the payment request and should respond with:
  *   { success: true, reference: "TXN-..." } on approval
@@ -26,6 +26,26 @@ export interface CardPaymentResult {
   raw?: unknown;
 }
 
+function isLocalNetworkUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl, window.location.origin);
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const parts = host.split('.').map((part) => Number(part));
+
+    if (url.origin === window.location.origin) return true;
+    if (host === 'localhost' || host === '::1') return true;
+    if (host.startsWith('127.')) return true;
+    if (host.startsWith('10.')) return true;
+    if (host.startsWith('192.168.')) return true;
+    if (parts.length === 4 && parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (host.endsWith('.local') || !host.includes('.')) return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Initiate a card payment via configured webhook URL.
  * The endpoint must be same-origin or have CORS headers set.
@@ -37,6 +57,10 @@ export async function initiateCardPayment(
 ): Promise<CardPaymentResult> {
   if (!webhookUrl) {
     return { success: false, message: 'Card machine webhook URL not configured' };
+  }
+
+  if (!isLocalNetworkUrl(webhookUrl)) {
+    return { success: false, message: 'Offline mode only allows local or LAN card machine URLs' };
   }
 
   const controller = new AbortController();

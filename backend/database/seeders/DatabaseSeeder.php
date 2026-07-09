@@ -13,7 +13,6 @@ use App\Models\Setting;
 use App\Models\ExpenseCategory;
 use App\Models\Currency;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 
@@ -53,19 +52,19 @@ class DatabaseSeeder extends Seeder
         Role::findByName('accountant')->syncPermissions(['view_dashboard','view_sales','view_reports','view_financial_reports','view_expenses','manage_expenses','approve_expenses']);
 
         // Main branch
-        $branch = Branch::firstOrCreate(['code' => 'MAIN'], ['name'=>'Main Branch','code'=>'MAIN','address'=>'123 Main Street','city'=>'Johannesburg','phone'=>'+27 11 000 0000','email'=>'main@nexapos.com','currency'=>'USD','is_main'=>true,'is_active'=>true]);
+        $branch = Branch::firstOrCreate(['code' => 'MAIN'], ['name'=>'Main Branch','code'=>'MAIN','address'=>'123 Main Street','city'=>'Johannesburg','phone'=>'+27 11 000 0000','email'=>'main@corepos.local','currency'=>'USD','is_main'=>true,'is_active'=>true]);
 
         // Default warehouse
         Warehouse::firstOrCreate(['code' => 'WH-MAIN'], ['name'=>'Main Warehouse','code'=>'WH-MAIN','branch_id'=>$branch->id,'is_default'=>true,'is_active'=>true]);
 
         // Users
-        $admin = User::firstOrCreate(['email'=>'admin@nexapos.com'],['name'=>'System Admin','username'=>'admin','password'=>Hash::make('Admin@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        $admin = User::firstOrCreate(['email'=>'admin@corepos.local'],['name'=>'System Admin','username'=>'admin','password'=>'Admin@123','branch_id'=>$branch->id,'is_active'=>true]);
         if (!$admin->username) { $admin->update(['username' => 'admin']); }
         $admin->syncRoles(['admin']);
-        $manager = User::firstOrCreate(['email'=>'manager@nexapos.com'],['name'=>'Store Manager','username'=>'manager','password'=>Hash::make('Manager@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        $manager = User::firstOrCreate(['email'=>'manager@corepos.local'],['name'=>'Store Manager','username'=>'manager','password'=>'Manager@123','branch_id'=>$branch->id,'is_active'=>true]);
         if (!$manager->username) { $manager->update(['username' => 'manager']); }
         $manager->syncRoles(['manager']);
-        $cashier = User::firstOrCreate(['email'=>'cashier@nexapos.com'],['name'=>'John Cashier','username'=>'cashier1','password'=>Hash::make('Cashier@123'),'branch_id'=>$branch->id,'is_active'=>true]);
+        $cashier = User::firstOrCreate(['email'=>'cashier@corepos.local'],['name'=>'John Cashier','username'=>'cashier1','password'=>'Cashier@123','branch_id'=>$branch->id,'is_active'=>true]);
         if (!$cashier->username) { $cashier->update(['username' => 'cashier1']); }
         $cashier->syncRoles(['cashier']);
 
@@ -130,7 +129,7 @@ class DatabaseSeeder extends Seeder
             ['company_name','Core','company'],
             ['company_address','123 Main Street, Johannesburg','company'],
             ['company_phone','+27 11 000 0000','company'],
-            ['company_email','info@nexapos.com','company'],
+            ['company_email','info@corepos.local','company'],
             ['company_vat_number','4123456789','company'],
             ['currency','USD','pos'],
             ['currency_symbol','$','pos'],
@@ -143,7 +142,7 @@ class DatabaseSeeder extends Seeder
             Setting::firstOrCreate(['key'=>$key],['key'=>$key,'value'=>$value,'group'=>$group]);
         }
 
-        $this->command->info('Seeded! Login: admin@nexapos.com / Admin@123');
+        $this->command->info('Seeded! Login: admin@corepos.local / Admin@123');
 
         if (! app()->environment('production')) {
             $this->call(TestDataSeeder::class);

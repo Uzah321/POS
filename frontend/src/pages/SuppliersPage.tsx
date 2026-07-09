@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
+import { offlineMutate, handleOfflineSuccess } from "../lib/offlineMutation";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -26,9 +27,14 @@ function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => v
     defaultValues: supplier || { credit_limit: 0, payment_terms: 30 },
   });
   const mutation = useMutation({
-    mutationFn: (d: FormData) => supplier ? suppliersApi.update(supplier.id, d) : suppliersApi.create(d),
-    onSuccess: () => { toast.success(supplier ? "Supplier updated" : "Supplier created"); qc.invalidateQueries({ queryKey: ["suppliers"] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Error"),
+    mutationFn: (d: FormData) => supplier
+      ? offlineMutate(() => suppliersApi.update(supplier.id, d), 'suppliers', 'update', d as any, supplier.id)
+      : offlineMutate(() => suppliersApi.create(d), 'suppliers', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'suppliers', supplier ? 'update' : 'create', d as any, supplier?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(supplier ? 'Supplier updated' : 'Supplier created'); qc.invalidateQueries({ queryKey: ['suppliers'] }); }
+      onClose();
+    },
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -72,8 +78,11 @@ export default function SuppliersPage() {
     queryFn: () => suppliersApi.list({ search, page, per_page: 20 }).then((r) => r.data?.data),
   });
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => suppliersApi.delete(id),
-    onSuccess: () => { toast.success("Supplier deleted"); qc.invalidateQueries({ queryKey: ["suppliers"] }); },
+    mutationFn: (id: number) => offlineMutate(() => suppliersApi.delete(id), 'suppliers', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'suppliers', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Supplier deleted'); qc.invalidateQueries({ queryKey: ['suppliers'] }); }
+    },
   });
 
   const suppliers = data?.data || [];

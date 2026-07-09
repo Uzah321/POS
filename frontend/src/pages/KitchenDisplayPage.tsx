@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { loadKdsSettings, getKdsTheme } from '../lib/kdsSettings';
 
 type KdsStatus = 'new' | 'preparing' | 'ready' | 'served';
 
@@ -27,20 +28,6 @@ const STATUS_LABEL: Record<KdsStatus, string> = {
   served:    'Done',
 };
 
-const STATUS_COLOR: Record<KdsStatus, string> = {
-  new:       'border-blue-500  bg-gray-900',
-  preparing: 'border-amber-400 bg-gray-900',
-  ready:     'border-green-400 bg-gray-900',
-  served:    'border-gray-600  bg-gray-900',
-};
-
-const STATUS_BADGE: Record<KdsStatus, string> = {
-  new:       'bg-blue-600  text-white',
-  preparing: 'bg-amber-500 text-white',
-  ready:     'bg-green-500 text-white',
-  served:    'bg-gray-600  text-white',
-};
-
 const BTN_COLOR: Record<KdsStatus, string> = {
   new:       'bg-amber-500 hover:bg-amber-400 text-white',
   preparing: 'bg-green-500 hover:bg-green-400 text-white',
@@ -50,9 +37,13 @@ const BTN_COLOR: Record<KdsStatus, string> = {
 
 function elapsed(placed_at: string): string {
   const secs = Math.floor((Date.now() - new Date(placed_at).getTime()) / 1000);
-  if (secs < 60)  return `${secs}s`;
+  if (secs < 60)   return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+}
+
+function isUrgent(placed_at: string, urgentMinutes: number): boolean {
+  return (Date.now() - new Date(placed_at).getTime()) / 60000 >= urgentMinutes;
 }
 
 function useElapsed() {
@@ -61,14 +52,21 @@ function useElapsed() {
 }
 
 export default function KitchenDisplayPage() {
-  const [orders, setOrders]   = useState<KdsOrder[]>([]);
+  const settings = loadKdsSettings();
+  const t = getKdsTheme(settings.kdsTheme);
+  const colsClass = settings.kdsColumns === 'auto'
+    ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+    : `grid-cols-${settings.kdsColumns}`;
+
+  const [orders, setOrders]     = useState<KdsOrder[]>([]);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
-  const [error, setError]     = useState('');
-  const prevIds               = useRef<Set<number>>(new Set());
-  const audio                 = useRef<AudioContext | null>(null);
+  const [error, setError]       = useState('');
+  const prevIds                 = useRef<Set<number>>(new Set());
+  const audio                   = useRef<AudioContext | null>(null);
   useElapsed();
 
   const beep = () => {
+    if (!settings.kdsSoundEnabled) return;
     try {
       if (!audio.current) audio.current = new AudioContext();
       const ctx = audio.current;
@@ -84,10 +82,9 @@ export default function KitchenDisplayPage() {
     try {
       const { data } = await axios.get('/api/kds/orders');
       const list: KdsOrder[] = data.data ?? [];
-      const newIds = new Set(list.map(o => o.id));
       const hasNew = list.some(o => o.kds_status === 'new' && !prevIds.current.has(o.id));
       if (hasNew) beep();
-      prevIds.current = newIds;
+      prevIds.current = new Set(list.map(o => o.id));
       setOrders(list);
       setError('');
     } catch {
@@ -97,9 +94,9 @@ export default function KitchenDisplayPage() {
 
   useEffect(() => {
     fetchOrders();
-    const t = setInterval(fetchOrders, 4000);
-    return () => clearInterval(t);
-  }, []);
+    const interval = setInterval(fetchOrders, settings.kdsRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [settings.kdsRefreshInterval]);
 
   const bump = async (order: KdsOrder) => {
     const next = STATUS_NEXT[order.kds_status];
@@ -112,48 +109,61 @@ export default function KitchenDisplayPage() {
     setUpdating(prev => { const s = new Set(prev); s.delete(order.id); return s; });
   };
 
-  const active  = orders.filter(o => o.kds_status !== 'served');
-  const newCnt  = orders.filter(o => o.kds_status === 'new').length;
-  const prepCnt = orders.filter(o => o.kds_status === 'preparing').length;
-  const readyCnt= orders.filter(o => o.kds_status === 'ready').length;
+  const visible  = settings.kdsShowServed ? orders : orders.filter(o => o.kds_status !== 'served');
+  const newCnt   = orders.filter(o => o.kds_status === 'new').length;
+  const prepCnt  = orders.filter(o => o.kds_status === 'preparing').length;
+  const readyCnt = orders.filter(o => o.kds_status === 'ready').length;
+
+  const cardBorder: Record<KdsStatus, string> = {
+    new:     t.cardBorderNew,
+    preparing: t.cardBorderPrep,
+    ready:   t.cardBorderReady,
+    served:  t.cardBorderServed,
+  };
+  const badge: Record<KdsStatus, string> = {
+    new:      t.badgeNew,
+    preparing: t.badgePrep,
+    ready:    t.badgeReady,
+    served:   t.badgeServed,
+  };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
+    <div className={`min-h-screen ${t.bg} text-white flex flex-col`}>
 
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between flex-shrink-0">
+      <div className={`${t.header} border-b ${t.headerBorder} px-6 py-3 flex items-center justify-between flex-shrink-0`}>
         <div className="flex items-center gap-4">
-          <span className="font-bold text-xl text-white tracking-tight">Kitchen Display</span>
+          <span className={`font-bold text-xl ${t.text} tracking-tight`}>{settings.kdsDisplayName}</span>
           {error
             ? <span className="text-red-400 text-sm">{error}</span>
-            : <span className="text-gray-600 text-xs font-mono hidden lg:inline">
+            : <span className={`${t.textMuted} text-xs font-mono hidden lg:inline`}>
                 {window.location.protocol}//{window.location.host}/kitchen
               </span>
           }
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
-            <span className="text-gray-400">New</span>
-            <span className="font-bold text-white ml-1">{newCnt}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+            <span className={t.textMuted}>New</span>
+            <span className={`font-bold ${t.text} ml-1`}>{newCnt}</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
-            <span className="text-gray-400">Preparing</span>
-            <span className="font-bold text-white ml-1">{prepCnt}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+            <span className={t.textMuted}>Preparing</span>
+            <span className={`font-bold ${t.text} ml-1`}>{prepCnt}</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block"></span>
-            <span className="text-gray-400">Ready</span>
-            <span className="font-bold text-white ml-1">{readyCnt}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />
+            <span className={t.textMuted}>Ready</span>
+            <span className={`font-bold ${t.text} ml-1`}>{readyCnt}</span>
           </span>
         </div>
       </div>
 
       {/* Order grid */}
       <div className="flex-1 p-4 overflow-y-auto">
-        {active.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-700 select-none">
+        {visible.length === 0 ? (
+          <div className={`flex flex-col items-center justify-center h-full gap-4 ${t.emptyText} select-none`}>
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
               <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
               <path d="M9 12l2 2 4-4"/>
@@ -161,25 +171,23 @@ export default function KitchenDisplayPage() {
             <p className="text-2xl font-semibold">All clear — no pending orders</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {active.map(order => {
-              const isNew = order.kds_status === 'new';
+          <div className={`grid ${colsClass} gap-4`}>
+            {visible.map(order => {
+              const urgent = order.kds_status === 'new' && isUrgent(order.placed_at, settings.kdsUrgentMinutes);
               return (
                 <div key={order.id}
-                  className={`rounded-xl border-2 ${STATUS_COLOR[order.kds_status]} flex flex-col overflow-hidden
-                    ${isNew ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-950' : ''}`}>
+                  className={`rounded-xl border-2 ${cardBorder[order.kds_status]} ${t.cardBg} flex flex-col overflow-hidden
+                    ${order.kds_status === 'new' ? `ring-2 ${t.ringNew} ring-offset-2` : ''}
+                    ${urgent ? 'animate-pulse' : ''}`}>
 
                   {/* Card header */}
-                  <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-                    <span className="font-black text-3xl text-white tabular-nums">{order.ticket}</span>
+                  <div className={`px-4 py-3 border-b ${t.divider} flex items-center justify-between`}>
+                    <span className={`font-black text-3xl ${t.text} tabular-nums`}>{order.ticket}</span>
                     <div className="flex flex-col items-end gap-1">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${STATUS_BADGE[order.kds_status]}`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${badge[order.kds_status]}`}>
                         {order.kds_status}
                       </span>
-                      <span className={`text-xs tabular-nums ${
-                        elapsed(order.placed_at).includes('m') && parseInt(elapsed(order.placed_at)) > 5
-                          ? 'text-red-400 font-bold' : 'text-gray-500'
-                      }`}>
+                      <span className={`text-xs tabular-nums ${urgent ? 'text-red-400 font-bold' : t.textMuted}`}>
                         {elapsed(order.placed_at)}
                       </span>
                     </div>
@@ -189,10 +197,10 @@ export default function KitchenDisplayPage() {
                   <div className="flex-1 px-4 py-3 space-y-1.5 min-h-0">
                     {order.items.map((item, i) => (
                       <div key={i} className="flex items-baseline gap-2">
-                        <span className="text-amber-400 font-bold text-lg tabular-nums w-6 text-right flex-shrink-0">
+                        <span className={`${t.itemQty} font-bold text-lg tabular-nums w-6 text-right flex-shrink-0`}>
                           {item.qty}×
                         </span>
-                        <span className="text-white text-base font-medium leading-tight">{item.name}</span>
+                        <span className={`${t.text} text-base font-medium leading-tight`}>{item.name}</span>
                       </div>
                     ))}
                   </div>

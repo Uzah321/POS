@@ -129,6 +129,11 @@ class SaleController extends BaseApiController
                 'kds_status'      => 'new',
             ]);
 
+            // Pre-load cost prices for all products in this sale
+            $productIds  = collect($data['items'])->pluck('product_id')->unique();
+            $costPrices  = \App\Models\Product::whereIn('id', $productIds)
+                ->pluck('cost_price', 'id');
+
             // Create line items & deduct stock
             foreach ($lineItems as $item) {
                 SaleItem::create([
@@ -137,7 +142,7 @@ class SaleController extends BaseApiController
                     'product_variant_id' => $item['product_variant_id'] ?? null,
                     'quantity'           => $item['quantity'],
                     'unit_price'         => $item['unit_price'],
-                    'cost_price'         => 0,
+                    'cost_price'         => (float) ($costPrices[$item['product_id']] ?? 0),
                     'discount_amount'    => $item['discount_amount'],
                     'tax_amount'         => $item['tax_amount'],
                     'subtotal'           => $item['subtotal'],

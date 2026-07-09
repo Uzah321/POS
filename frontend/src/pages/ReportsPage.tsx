@@ -7,10 +7,82 @@ import {
 } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
-const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Branch Consolidation'];
+const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Branch Consolidation', 'Cashup History'];
+
+function printCashupReport(records: any[], from: string, to: string, fmt: (n: number) => string) {
+  const statusColor = (s: string) => ({ pending: '#b45309', approved: '#16a34a', rejected: '#dc2626' }[s] ?? '#6b7280');
+  const rows = records.map(r => `
+    <tr>
+      <td>${r.user?.name ?? '-'}<br><small style="color:#888">@${r.user?.username ?? ''}</small></td>
+      <td>${r.branch?.name ?? '-'}</td>
+      <td>${new Date(r.shift_start).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</td>
+      <td>${new Date(r.shift_end).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</td>
+      <td style="text-align:right">${r.total_transactions}</td>
+      <td style="text-align:right">${fmt(r.total_sales)}</td>
+      <td style="text-align:right">${fmt(r.cash_sales ?? 0)}</td>
+      <td style="text-align:right">${fmt(r.expected_cash)}</td>
+      <td style="text-align:right">${fmt(r.declared_cash)}</td>
+      <td style="text-align:right; color:${r.variance >= 0 ? '#16a34a' : '#dc2626'}; font-weight:bold">
+        ${r.variance >= 0 ? '+' : ''}${fmt(r.variance)}
+      </td>
+      <td style="text-align:center"><span style="color:${statusColor(r.status)};font-weight:600;text-transform:capitalize">${r.status}</span></td>
+      <td>${r.notes ?? ''}</td>
+    </tr>`).join('');
+
+  const totalSales = records.reduce((s, r) => s + (r.total_sales || 0), 0);
+  const totalExpected = records.reduce((s, r) => s + (r.expected_cash || 0), 0);
+  const totalDeclared = records.reduce((s, r) => s + (r.declared_cash || 0), 0);
+  const totalVariance = totalDeclared - totalExpected;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Cashup History Report</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Courier New',monospace; font-size:10px; color:#000; padding:8mm; }
+  h1 { font-size:16px; text-align:center; margin-bottom:2px; }
+  .sub { text-align:center; color:#555; margin-bottom:8px; font-size:11px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  th { background:#f3f4f6; border:1px solid #d1d5db; padding:4px 6px; text-align:left; font-size:9px; text-transform:uppercase; }
+  td { border:1px solid #e5e7eb; padding:4px 6px; vertical-align:top; }
+  tfoot td { background:#f9fafb; font-weight:bold; }
+  .header-row { text-align:center; margin-bottom:4px; }
+  @media print { @page { margin:8mm; size:A4 landscape; } }
+</style>
+</head><body>
+<div class="header-row"><h1>***CASHUP HISTORY REPORT***</h1></div>
+<div class="sub">${from} to ${to} &mdash; ${records.length} record${records.length !== 1 ? 's' : ''}</div>
+<div class="sub">Printed: ${new Date().toLocaleString()}</div>
+<table>
+  <thead><tr>
+    <th>Cashier</th><th>Branch</th><th>Shift Start</th><th>Shift End</th>
+    <th style="text-align:right">Txns</th><th style="text-align:right">Total Sales</th>
+    <th style="text-align:right">Cash Sales</th><th style="text-align:right">Expected Cash</th>
+    <th style="text-align:right">Declared Cash</th><th style="text-align:right">Variance</th>
+    <th style="text-align:center">Status</th><th>Notes</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr>
+    <td colspan="5" style="text-align:right">TOTALS</td>
+    <td style="text-align:right">${fmt(totalSales)}</td>
+    <td></td>
+    <td style="text-align:right">${fmt(totalExpected)}</td>
+    <td style="text-align:right">${fmt(totalDeclared)}</td>
+    <td style="text-align:right;color:${totalVariance >= 0 ? '#16a34a' : '#dc2626'}">${totalVariance >= 0 ? '+' : ''}${fmt(totalVariance)}</td>
+    <td colspan="2"></td>
+  </tr></tfoot>
+</table>
+</body></html>`;
+
+  const w = window.open('', '_blank', 'width=1024,height=700,toolbar=0,scrollbars=1');
+  if (!w) { alert('Allow popups to print reports'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); }, 400);
+}
 
 export default function ReportsPage() {
   const [tab, setTab] = useState('Sales');
@@ -45,6 +117,12 @@ export default function ReportsPage() {
   const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth, branchId], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Monthly Report' });
   const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId, branchId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances' });
   const { data: consolidationData, isLoading: loadingConsolidation } = useQuery({ queryKey: ['report-consolidation', from, to], queryFn: () => api.get('/reports/branch-consolidation', { params: { date_from: from, date_to: to } }).then(r => r.data?.data), enabled: tab === 'Branch Consolidation' });
+  const { data: cashupRaw, isLoading: loadingCashup } = useQuery({
+    queryKey: ['report-cashup', from, to, branchId],
+    queryFn: () => api.get('/shift-end', { params: { date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}), per_page: 200 } }).then(r => r.data?.data),
+    enabled: tab === 'Cashup History',
+  });
+  const cashupRecords: any[] = cashupRaw?.data ?? [];
 
   const downloadPdf = (url: string, params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
@@ -120,6 +198,12 @@ export default function ReportsPage() {
          ...stockData.products.map((p: any) => [p.name, p.sku, p.category, p.current_stock, p.reorder_level, p.units_sold, p.stock_value, p.is_out ? 'OUT' : p.is_low_stock ? 'LOW' : 'OK'])],
         `stock-variances-${from}-${to}`
       );
+    } else if (tab === 'Cashup History' && cashupRecords.length > 0) {
+      exportToExcel(
+        [['Cashier', 'Branch', 'Shift Start', 'Shift End', 'Transactions', 'Total Sales', 'Cash Sales', 'Expected Cash', 'Declared Cash', 'Variance', 'Status', 'Notes'],
+         ...cashupRecords.map((r: any) => [r.user?.name, r.branch?.name, r.shift_start, r.shift_end, r.total_transactions, r.total_sales, r.cash_sales, r.expected_cash, r.declared_cash, r.variance, r.status, r.notes ?? ''])],
+        `cashup-history-${from}-${to}`
+      );
     } else if (tab === 'Branch Consolidation' && consolidationData) {
       const branches = consolidationData.branches || [];
       const totals   = consolidationData.totals || {};
@@ -150,7 +234,7 @@ export default function ReportsPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-md p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
-        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Stock Variances', 'Branch Consolidation'].includes(tab) && (
+        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Stock Variances', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
           <>
             <label className="text-sm text-gray-600">From:</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
@@ -198,6 +282,14 @@ export default function ReportsPage() {
               <Download size={13} /> PDF
             </button>
           </>
+        )}
+        {tab === 'Cashup History' && cashupRecords.length > 0 && (
+          <button
+            onClick={() => printCashupReport(cashupRecords, from, to, fmt)}
+            className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg"
+          >
+            <Printer size={13} /> Print Report
+          </button>
         )}
       </div>
 
@@ -382,6 +474,111 @@ export default function ReportsPage() {
             </div>
           </div>
         ) : <p className="text-gray-400">No stock data.</p>
+      )}
+
+      {/* Cashup History */}
+      {tab === 'Cashup History' && (
+        loadingCashup
+          ? <div className="bg-gray-100 rounded-md h-32 animate-pulse" />
+          : cashupRecords.length === 0
+            ? <div className="bg-white rounded-md border border-gray-100 p-12 text-center text-gray-400">No cashup records for this period.</div>
+            : (
+              <div className="space-y-4">
+                {/* Summary strip */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    ['Total Shifts', String(cashupRecords.length)],
+                    ['Total Sales', fmt(cashupRecords.reduce((s, r) => s + (r.total_sales || 0), 0))],
+                    ['Total Expected Cash', fmt(cashupRecords.reduce((s, r) => s + (r.expected_cash || 0), 0))],
+                    ['Total Declared Cash', fmt(cashupRecords.reduce((s, r) => s + (r.declared_cash || 0), 0))],
+                  ].map(([label, val]) => (
+                    <div key={label} className="bg-white border border-gray-200 rounded-md p-4">
+                      <p className="text-xs text-gray-500">{label}</p>
+                      <p className="text-lg font-bold text-gray-900 mt-1">{val}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Net variance card */}
+                {(() => {
+                  const totalVar = cashupRecords.reduce((s, r) => s + (r.variance || 0), 0);
+                  return (
+                    <div className={`flex items-center justify-between rounded-md border px-5 py-3 text-sm font-semibold ${totalVar >= 0 ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                      <span>Net Cash Variance (all shifts)</span>
+                      <span>{totalVar >= 0 ? '+' : ''}{fmt(totalVar)}</span>
+                    </div>
+                  );
+                })()}
+                {/* Table */}
+                <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Cashier</th>
+                          <th className="px-4 py-3 text-left">Branch</th>
+                          <th className="px-4 py-3 text-left">Shift Start</th>
+                          <th className="px-4 py-3 text-left">Shift End</th>
+                          <th className="px-4 py-3 text-right">Txns</th>
+                          <th className="px-4 py-3 text-right">Total Sales</th>
+                          <th className="px-4 py-3 text-right">Cash Sales</th>
+                          <th className="px-4 py-3 text-right">Expected</th>
+                          <th className="px-4 py-3 text-right">Declared</th>
+                          <th className="px-4 py-3 text-right">Variance</th>
+                          <th className="px-4 py-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {cashupRecords.map((r: any) => (
+                          <tr key={r.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-gray-900">{r.user?.name ?? '-'}</p>
+                              <p className="text-xs text-gray-400">@{r.user?.username}</p>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-xs">{r.branch?.name ?? '-'}</td>
+                            <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                              {new Date(r.shift_start).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                              {new Date(r.shift_end).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </td>
+                            <td className="px-4 py-3 text-right text-gray-700">{r.total_transactions}</td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(r.total_sales)}</td>
+                            <td className="px-4 py-3 text-right text-gray-700">{fmt(r.cash_sales ?? 0)}</td>
+                            <td className="px-4 py-3 text-right text-gray-700">{fmt(r.expected_cash)}</td>
+                            <td className="px-4 py-3 text-right text-gray-700">{fmt(r.declared_cash)}</td>
+                            <td className={`px-4 py-3 text-right font-bold ${r.variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {r.variance >= 0 ? '+' : ''}{fmt(r.variance)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                r.status === 'approved' ? 'bg-green-100 text-green-700'
+                                : r.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-red-100 text-red-700'
+                              }`}>{r.status}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                        <tr className="font-bold">
+                          <td colSpan={4} className="px-4 py-3 text-gray-700 text-right">TOTALS</td>
+                          <td className="px-4 py-3 text-right">{cashupRecords.reduce((s, r) => s + r.total_transactions, 0)}</td>
+                          <td className="px-4 py-3 text-right">{fmt(cashupRecords.reduce((s, r) => s + r.total_sales, 0))}</td>
+                          <td className="px-4 py-3 text-right">{fmt(cashupRecords.reduce((s, r) => s + (r.cash_sales ?? 0), 0))}</td>
+                          <td className="px-4 py-3 text-right">{fmt(cashupRecords.reduce((s, r) => s + r.expected_cash, 0))}</td>
+                          <td className="px-4 py-3 text-right">{fmt(cashupRecords.reduce((s, r) => s + r.declared_cash, 0))}</td>
+                          {(() => {
+                            const v = cashupRecords.reduce((s, r) => s + r.variance, 0);
+                            return <td className={`px-4 py-3 text-right ${v >= 0 ? 'text-green-600' : 'text-red-600'}`}>{v >= 0 ? '+' : ''}{fmt(v)}</td>;
+                          })()}
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )
       )}
 
       {/* Branch Consolidation */}

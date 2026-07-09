@@ -23,7 +23,7 @@ export default function SalesPage() {
   const [branchId, setBranchId] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const hw = useHardwareStore();
-  const { activeCurrency } = useCurrencyStore();
+  const { activeCurrency, format: formatAmount } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
 
   const { data: storeSettings } = useQuery({
@@ -55,6 +55,8 @@ export default function SalesPage() {
       await printReceipt(
         buildReceiptDataFromSale(sale, {
           currency,
+          currencyCode: activeCurrency?.code ?? 'USD',
+          currencyRate: activeCurrency?.exchange_rate ?? 1,
           storeName: storeSettings?.company_name,
           storeAddress: storeSettings?.company_address,
           storePhone: storeSettings?.company_phone,
@@ -128,7 +130,7 @@ export default function SalesPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{s.customer?.name || 'Walk-in'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.cashier?.name}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.items_count || s.items?.length || '-'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-amber-600">R {parseFloat(s.total).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-amber-600">{formatAmount(parseFloat(s.total))}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[s.status] || 'bg-gray-100 text-gray-600'}`}>
                         {s.status}
@@ -182,16 +184,16 @@ export default function SalesPage() {
                         <thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left text-xs text-gray-500">Product</th><th className="px-3 py-2 text-right text-xs text-gray-500">Qty</th><th className="px-3 py-2 text-right text-xs text-gray-500">Price</th><th className="px-3 py-2 text-right text-xs text-gray-500">Total</th></tr></thead>
                         <tbody className="divide-y divide-gray-100">
                           {saleDetail.items?.map((item: any) => (
-                            <tr key={item.id}><td className="px-3 py-2">{item.product?.name}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">R {parseFloat(item.unit_price).toFixed(2)}</td><td className="px-3 py-2 text-right font-medium">R {parseFloat(item.total).toFixed(2)}</td></tr>
+                            <tr key={item.id}><td className="px-3 py-2">{item.product?.name}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{formatAmount(parseFloat(item.unit_price))}</td><td className="px-3 py-2 text-right font-medium">{formatAmount(parseFloat(item.total))}</td></tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                   </div>
                   <div className="space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>R {parseFloat(saleDetail.subtotal).toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>R {parseFloat(saleDetail.tax_total).toFixed(2)}</span></div>
-                    <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span className="text-amber-600">R {parseFloat(saleDetail.total).toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatAmount(parseFloat(saleDetail.subtotal))}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatAmount(parseFloat(saleDetail.tax_total))}</span></div>
+                    <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span className="text-amber-600">{formatAmount(parseFloat(saleDetail.total))}</span></div>
                   </div>
                   <div className="pt-2">
                     <button

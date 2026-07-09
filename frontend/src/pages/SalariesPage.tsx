@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
@@ -60,9 +61,14 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
   const net       = gross - totalDed;
 
   const mutation = useMutation({
-    mutationFn: (d: FormData) => salary ? salariesApi.update(salary.id, d) : salariesApi.create(d),
-    onSuccess: () => { toast.success(salary ? 'Updated' : 'Salary record created'); qc.invalidateQueries({ queryKey: ['salaries'] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (d: FormData) => salary
+      ? offlineMutate(() => salariesApi.update(salary.id, d), 'salaries', 'update', d as any, salary.id)
+      : offlineMutate(() => salariesApi.create(d), 'salaries', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'salaries', salary ? 'update' : 'create', d as any, salary?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(salary ? 'Updated' : 'Salary record created'); qc.invalidateQueries({ queryKey: ['salaries'] }); }
+      onClose();
+    },
   });
 
   return (
@@ -178,9 +184,12 @@ function MarkPaidModal({ salary, onClose }: { salary: any; onClose: () => void }
   const [method, setMethod] = useState('cash');
   const [paidAt, setPaidAt] = useState(new Date().toISOString().split('T')[0]);
   const mutation = useMutation({
-    mutationFn: () => salariesApi.markPaid(salary.id, { payment_method: method, paid_at: paidAt }),
-    onSuccess: () => { toast.success('Marked as paid'); qc.invalidateQueries({ queryKey: ['salaries'] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: () => offlineMutate(() => salariesApi.markPaid(salary.id, { payment_method: method, paid_at: paidAt }), 'salaries', 'mark_paid', { payment_method: method, paid_at: paidAt }, salary.id),
+    onSuccess: (result) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'salaries', 'update', { status: 'paid', payment_method: method, paid_at: paidAt }, salary.id); toast.success('Marked as paid offline — will sync when server is back'); }
+      else { toast.success('Marked as paid'); qc.invalidateQueries({ queryKey: ['salaries'] }); }
+      onClose();
+    },
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -237,9 +246,11 @@ export default function SalariesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => salariesApi.delete(id),
-    onSuccess: () => { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['salaries'] }); },
-    onError: () => toast.error('Delete failed'),
+    mutationFn: (id: number) => offlineMutate(() => salariesApi.delete(id), 'salaries', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'salaries', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['salaries'] }); }
+    },
   });
 
   const handleExport = async () => {

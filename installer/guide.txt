@@ -1,0 +1,92 @@
+For the machine that's already broken (quick manual fix)
+Open Notepad as Administrator and edit C:\POS\php\php.ini.
+
+Find this block (around line 778):
+
+
+;extension_dir = "./"
+; On windows:
+;extension_dir = "ext"
+Change it to:
+
+
+;extension_dir = "./"
+; On windows:
+extension_dir = "C:\POS\php\ext"
+Then open PowerShell as Administrator and run:
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\POS\install.ps1"
+
+run on a broken machine:
+
+Set-Location C:\POS\backend
+& ..\php\php.exe -c ..\php\php.ini artisan key:generate --force
+& ..\php\php.exe -c ..\php\php.ini artisan config:cache
+Stop-Process -Name php -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+Start-Process -FilePath "C:\POS\php\php.exe" -ArgumentList "-c `"C:\POS\php\php.ini`" `"C:\POS\backend\artisan`" serve --host=127.0.0.1 --port=8080" -WorkingDirectory "C:\POS\backend" -WindowStyle Hidden
+Start-Process "C:\POS\desktop\Core.exe"
+
+
+
+Stop-Process -Name php -Force -ErrorAction SilentlyContinue
+cd C:\POS\backend
+
+.\..\..\php\php.exe -c ..\php\php.ini artisan key:generate --force
+.\..\..\php\php.exe -c ..\php\php.ini artisan migrate --force
+.\..\..\php\php.exe -c ..\php\php.ini artisan db:seed --force
+.\..\..\php\php.exe -c ..\php\php.ini artisan config:cache
+.\..\..\php\php.exe -c ..\php\php.ini artisan route:cache
+Then double-click Core on the Desktop to open the desktop app.
+
+To rebuild the installer for future machines
+Inno Setup is not on this machine. Install it first:
+
+Step 1 — Download and install Inno Setup 6 (free):
+https://jrsoftware.org/isdl.php
+
+Step 2 — Open PowerShell in the project root and recompile:
+
+
+cd "c:\Users\dingulwazi.zondo\Desktop\POSS\POS"
+& "C:\Program Files (x86)\Inno Setup 6\iscc.exe" "installer\POS.iss"
+This produces a fresh installer\Output\Core-Setup.exe with the extension_dir and login credential fixes already baked in.
+
+Step 3 — Copy Core-Setup.exe to the new machine and run it as Administrator.
+
+
+
+# Create the missing .env file
+@"
+APP_NAME=Core
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=http://localhost:8080
+
+LOG_CHANNEL=single
+LOG_LEVEL=error
+
+DB_CONNECTION=sqlite
+DB_DATABASE=C:/POS/backend/database/database.sqlite
+
+CACHE_DRIVER=file
+SESSION_DRIVER=file
+QUEUE_CONNECTION=sync
+"@ | Out-File -FilePath "C:\POS\backend\.env" -Encoding UTF8
+
+# Create the SQLite database file if it doesn't exist
+if (!(Test-Path "C:\POS\backend\database\database.sqlite")) {
+    New-Item -ItemType File -Path "C:\POS\backend\database\database.sqlite" -Force | Out-Null
+}
+
+# Now generate the app key and run setup
+& ..\php\php.exe -c ..\php\php.ini artisan key:generate --force
+& ..\php\php.exe -c ..\php\php.ini artisan migrate --force
+& ..\php\php.exe -c ..\php\php.ini artisan db:seed --force
+& ..\php\php.exe -c ..\php\php.ini artisan config:cache
+
+# Restart PHP
+Stop-Process -Name php -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+Start-Process -FilePath "C:\POS\php\php.exe" -ArgumentList "-c `"C:\POS\php\php.ini`" `"C:\POS\backend\artisan`" serve --host=127.0.0.1 --port=8080" -WorkingDirectory "C:\POS\backend" -WindowStyle Hidden
+Start-Process "C:\POS\desktop\Core.exe"

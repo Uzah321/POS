@@ -62,7 +62,7 @@ return new class extends Migration
                 )",
                 [$constraintName, $tableName]
             ),
-            'mysql' => (bool) DB::scalar(
+            'mysql', 'mariadb' => (bool) DB::scalar(
                 "select exists (
                     select 1
                     from information_schema.table_constraints

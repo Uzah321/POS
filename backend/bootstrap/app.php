@@ -22,5 +22,28 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // API routes must get JSON errors, never HTML redirects
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+        });
+        $exceptions->render(function (\Illuminate\Auth\Access\AuthorizationException $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+            }
+        });
+        $exceptions->render(function (\Illuminate\Validation\ValidationException $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
+            }
+        });
+        // Catch-all: any unhandled exception on an API route returns JSON, never an HTML 500 page
+        $exceptions->render(function (\Throwable $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                $status  = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+                $message = config('app.debug') ? $e->getMessage() : 'Server error.';
+                return response()->json(['success' => false, 'message' => $message], $status);
+            }
+        });
     })->create();

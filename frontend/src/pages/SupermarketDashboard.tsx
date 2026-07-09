@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, salesApi } from '../api';
+import { db } from '../lib/db';
+import { useAuthStore } from '../stores/authStore';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -33,25 +35,82 @@ function StatCard({ label, value, sub, icon: Icon, iconBg, trend }: {
 }
 
 export default function SupermarketDashboard() {
-  const { format: formatCurrency } = useCurrencyStore();
+  const { format: formatCurrency, activeCurrency } = useCurrencyStore();
+  const { user } = useAuthStore();
+  const currencySymbol = activeCurrency?.symbol ?? 'R';
   const today = format(new Date(), 'EEEE, MMMM d');
+  const branchId = user?.branch?.id;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => reportsApi.dashboard().then(r => r.data),
+    queryKey: ['dashboard', 'supermarket', branchId],
+    queryFn: async () => {
+      try {
+        return await reportsApi.dashboard().then(r => r.data);
+      } catch {
+        // Build dashboard stats from local IndexedDB sales (filtered to this branch)
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const todayStr = todayStart.toISOString();
+
+        const allSales = await db.sales.filter(s =>
+          s.status === 'completed' && (!branchId || s.branch_id === branchId)
+        ).toArray();
+        const todaySales = allSales.filter(s => s.created_at >= todayStr);
+
+        const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
+
+        const salesTrend = Array.from({ length: 30 }, (_, i) => {
+          const d = new Date(now);
+          d.setDate(d.getDate() - (29 - i));
+          d.setHours(0, 0, 0, 0);
+          const next = new Date(d);
+          next.setDate(next.getDate() + 1);
+          const dStr = d.toISOString();
+          const nStr = next.toISOString();
+          const daySales = allSales.filter(s => s.created_at >= dStr && s.created_at < nStr);
+          return {
+            date: d.toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' }),
+            revenue: daySales.reduce((sum, s) => sum + s.total, 0),
+          };
+        });
+
+        const allPayments = allSales.flatMap(s => s.payments ?? []);
+        const paymentBreakdown = [
+          { method: 'Cash', total: allPayments.filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0) },
+          { method: 'Card', total: allPayments.filter(p => p.method === 'card').reduce((sum, p) => sum + p.amount, 0) },
+          { method: 'Mobile Money', total: allPayments.filter(p => p.method === 'mobile_money').reduce((sum, p) => sum + p.amount, 0) },
+        ].filter(p => p.total > 0);
+
+        const totalProducts = await db.products.count();
+
+        return {
+          data: {
+            today: { revenue: todayRevenue, sales_count: todaySales.length },
+            total_products: totalProducts,
+            low_stock_count: 0,
+            sales_trend: salesTrend,
+            top_products: [],
+            payment_breakdown: paymentBreakdown,
+          },
+        };
+      }
+    },
   });
 
   const { data: heldData } = useQuery({
     queryKey: ['held-sales-dashboard'],
-    queryFn: () => salesApi.listHeld().then(r => r.data),
+    queryFn: async () => {
+      try { return await salesApi.listHeld().then(r => r.data); } catch { return { data: [] }; }
+    },
     refetchInterval: 30000,
   });
 
-  const d               = data?.data || {};
-  const trend           = d.sales_trend || [];
-  const topProducts     = d.top_products || [];
-  const paymentBreakdown = d.payment_breakdown || [];
-  const openOrders      = Array.isArray(heldData?.data) ? heldData.data : [];
+  const d                = data?.data || {};
+  const trend            = Array.isArray(d.sales_trend)       ? d.sales_trend       : [];
+  const topProducts      = Array.isArray(d.top_products)      ? d.top_products      : [];
+  const paymentBreakdown = Array.isArray(d.payment_breakdown) ? d.payment_breakdown : [];
+  const openOrders       = Array.isArray(heldData?.data)      ? heldData.data       : [];
 
   return (
     <div className="space-y-6">
@@ -100,7 +159,7 @@ export default function SupermarketDashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v?.slice(5)} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
               <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
                 contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
               <Area type="monotone" dataKey="revenue" stroke="#2563eb" fill="url(#blueGrad)" strokeWidth={2.5} dot={false} />

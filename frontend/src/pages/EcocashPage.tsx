@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 const TYPE_LABELS: Record<string, string> = {
   deposit:          'Deposit (Cash In)',
@@ -67,14 +68,12 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
     : TYPE_LABELS;
 
   const mutation = useMutation({
-    mutationFn: (d: FormData) => ecocashApi.create(d),
-    onSuccess: () => {
-      toast.success('Transaction recorded');
-      qc.invalidateQueries({ queryKey: ['ecocash'] });
-      qc.invalidateQueries({ queryKey: ['ecocash-summary'] });
+    mutationFn: (d: FormData) => offlineMutate(() => ecocashApi.create(d), 'ecocash', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'ecocash', 'create', d as any); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success('Transaction recorded'); qc.invalidateQueries({ queryKey: ['ecocash'] }); qc.invalidateQueries({ queryKey: ['ecocash-summary'] }); }
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
   });
 
   const showCommission = txType === 'deposit' || txType === 'withdrawal';
@@ -192,9 +191,11 @@ export default function EcocashPage() {
   });
 
   const reverseMutation = useMutation({
-    mutationFn: (id: number) => ecocashApi.reverse(id),
-    onSuccess: () => { toast.success('Reversed'); qc.invalidateQueries({ queryKey: ['ecocash'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (id: number) => offlineMutate(() => ecocashApi.reverse(id), 'ecocash', 'reverse', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'ecocash', 'update', { status: 'reversed' }, id); toast.success('Reversal queued offline — will sync when server is back'); }
+      else { toast.success('Reversed'); qc.invalidateQueries({ queryKey: ['ecocash'] }); }
+    },
   });
 
   const handleExport = async () => {

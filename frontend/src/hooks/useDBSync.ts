@@ -1,59 +1,52 @@
-import { useState, useCallback, useEffect } from 'react';
-import toast from 'react-hot-toast';
-import { productsApi, customersApi } from '../api';
+﻿/**
+ * useDBSync — local-only offline POS
+ *
+ * Silently refreshes the IndexedDB cache from the local PHP server on mount
+ * so the POS can display products/customers even during the brief startup
+ * window before the server is fully ready.
+ *
+ * No toasts, no sync buttons, no periodic polling.
+ * The local PHP server IS the database — there is nothing to "sync to".
+ */
+import { useCallback, useEffect } from 'react';
+import {
+  productsApi, customersApi, usersApi,
+} from '../api';
 import { db } from '../lib/db';
-import { useOfflineStore } from '../stores/offlineStore';
-
-const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 export function useDBSync() {
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSynced, setLastSynced] = useState<number | null>(null);
-  const isOnline = useOfflineStore((s) => s.isOnline);
-
-  const syncNow = useCallback(async (silent = false) => {
-    if (isSyncing || !navigator.onLine) return;
-    setIsSyncing(true);
+  const refreshCache = useCallback(async () => {
     try {
-      const [products, customers] = await Promise.all([
+      const [products, customers, usersResp] = await Promise.all([
         productsApi.list({ per_page: 500, is_active: 1 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
         customersApi.list({ per_page: 500 }).then(r => r.data?.data?.data ?? []),
+        usersApi.list({ per_page: 500 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
       ]);
 
-      await db.transaction('rw', db.products, db.customers, db.syncMeta, async () => {
+      await db.transaction('rw', db.products, db.customers, db.users, db.syncMeta, async () => {
         await db.products.clear();
         await db.products.bulkPut(products);
         await db.customers.clear();
         await db.customers.bulkPut(customers);
+        await db.users.clear();
+        await db.users.bulkPut(usersResp);
         await db.syncMeta.put({ key: 'last_sync', synced_at: Date.now() });
       });
-
-      const now = Date.now();
-      setLastSynced(now);
-      if (!silent) {
-        toast.success(`Offline database synced — ${products.length} products, ${customers.length} customers`);
-      }
-    } catch (err: any) {
-      if (!silent) toast.error('Sync failed: ' + (err?.message ?? 'Unknown error'));
-    } finally {
-      setIsSyncing(false);
+    } catch {
+      // Server not yet ready — IndexedDB retains previous data, POS continues working
     }
-  }, [isSyncing]);
-
-  useEffect(() => {
-    db.syncMeta.get('last_sync').then(meta => {
-      if (meta) setLastSynced(meta.synced_at);
-    });
   }, []);
 
-  // Auto-sync on mount or when we come back online, if data is stale
   useEffect(() => {
-    if (!isOnline) return;
-    db.syncMeta.get('last_sync').then(meta => {
-      const stale = !meta || (Date.now() - meta.synced_at) > SYNC_INTERVAL_MS;
-      if (stale) void syncNow(true);
-    });
-  }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Clear stale pending mutations from old app versions on first mount
+    db.pendingMutations.count().then(n => {
+      if (n > 0) db.pendingMutations.clear().catch(() => {});
+    }).catch(() => {});
 
-  return { isSyncing, lastSynced, syncNow };
+    // Silently populate cache from local server
+    void refreshCache();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Expose refreshCache as syncNow for any callers that still use it
+  return { isSyncing: false, lastSynced: null as number | null, syncNow: refreshCache };
 }

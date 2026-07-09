@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
+import toast from 'react-hot-toast';
 
 type BizType = 'restaurant' | 'supermarket';
 
@@ -48,16 +49,26 @@ export default function BusinessTypeModal({ onSelect }: Props) {
   const saveMutation = useMutation({
     mutationFn: (type: BizType) => settingsApi.update({ business_type: type }),
     onSuccess: (_, type) => {
+      // Instantly update every ['settings'] observer (AppLayout nav) without waiting for a refetch
+      qc.setQueryData(['settings'], (old: any) => old ? { ...old, business_type: type } : { business_type: type });
       qc.invalidateQueries({ queryKey: ['settings'] });
       onSelect(type);
+    },
+    onError: (e: any) => {
+      toast.error(e.response?.data?.message || 'Failed to save business type');
     },
   });
 
   const confirm = async () => {
     if (!selected) return;
     setSaving(true);
-    await saveMutation.mutateAsync(selected);
-    setSaving(false);
+    try {
+      await saveMutation.mutateAsync(selected);
+    } catch {
+      // error handled by onError above
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

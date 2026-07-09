@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { Plus, X, Zap, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 const AVAILABLE_EVENTS = ['sale.created', 'sale.refunded', 'product.low_stock', 'layby.created', 'layby.paid', 'customer.created', 'stocktake.completed'];
 
@@ -18,19 +19,26 @@ export default function WebhooksPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/webhooks', data),
-    onSuccess: () => { toast.success('Webhook created!'); qc.invalidateQueries({ queryKey: ['webhooks'] }); setShowNew(false); setForm({ name: '', url: '', secret: '', events: [] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (data: any) => offlineMutate(() => api.post('/webhooks', data), 'webhooks', 'create', { _url: '/webhooks', _method: 'POST', ...data }),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Webhook saved offline - will sync when server is back');
+      else { toast.success('Webhook created!'); qc.invalidateQueries({ queryKey: ['webhooks'] }); }
+      setShowNew(false);
+      setForm({ name: '', url: '', secret: '', events: [] });
+    },
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, active }: any) => api.put(`/webhooks/${id}`, { active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['webhooks'] }),
+    mutationFn: ({ id, active }: any) => offlineMutate(() => api.put(`/webhooks/${id}`, { active }), 'webhooks', 'update', { _url: `/webhooks/${id}`, _method: 'PUT', active }, id),
+    onSuccess: (result) => { if (!result.offline) qc.invalidateQueries({ queryKey: ['webhooks'] }); },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/webhooks/${id}`),
-    onSuccess: () => { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['webhooks'] }); },
+    mutationFn: (id: number) => offlineMutate(() => api.delete(`/webhooks/${id}`), 'webhooks', 'delete', { _url: `/webhooks/${id}`, _method: 'DELETE' }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Deletion queued offline - will sync when server is back');
+      else { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['webhooks'] }); }
+    },
   });
 
   const testMutation = useMutation({
@@ -53,7 +61,7 @@ export default function WebhooksPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Webhooks</h1>
-          <p className="text-sm text-gray-500 mt-1">Send real-time events to external services</p>
+          <p className="text-sm text-gray-500 mt-1">Send real-time events to local or LAN services</p>
         </div>
         <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700">
           <Plus size={16} /> Add Webhook
@@ -115,7 +123,8 @@ export default function WebhooksPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Endpoint URL</label>
-                <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="https://hooks.example.com/pos" className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="http://127.0.0.1:8080/pos-hook" className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p className="text-xs text-gray-400 mt-1">Offline mode allows localhost, this computer, or private LAN addresses only.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Secret (optional)</label>

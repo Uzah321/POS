@@ -1,293 +1,810 @@
-﻿<#
+<#
 .SYNOPSIS
   Core POS post-install setup. Called by Inno Setup after extracting all files.
-  Installs PostgreSQL (downloads from internet if not present), creates the
-  database, configures Laravel, and creates the launch shortcut.
+    Configures PHP, installs local MariaDB, runs migrations and seeds.
 #>
 param(
     [string]$AppDir = "C:\POS"
 )
 
-$ErrorActionPreference = "SilentlyContinue"
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-$Host.UI.RawUI.WindowTitle = "Core POS First-Time Setup"
+$ErrorActionPreference = "Stop"
+$Host.UI.RawUI.WindowTitle = "Core POS Setup"
 
 function Log($m)  { Write-Host "  $m" }
-function OK($m)   { Write-Host "  [OK] $m" -ForegroundColor Green }
-function WAIT($m) { Write-Host "  [...] $m" -ForegroundColor Yellow }
-function ERR($m) {
+function OK($m)   { Write-Host "  [OK] $m"    -ForegroundColor Green }
+function WAIT($m) { Write-Host "  [...] $m"   -ForegroundColor Yellow }
+function ERR($m)  {
     Write-Host ""
     Write-Host "  [ERROR] $m" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "  Core POS setup did not complete. Please check the error above." -ForegroundColor Red
-    Write-Host "  You can re-run setup from: $AppDir\install.ps1" -ForegroundColor Yellow
     Write-Host ""
     Read-Host "  Press Enter to close"
     exit 1
 }
+function Set-Or-AddEnvValue([string]$text, [string]$key, [string]$value) {
+    if ($text -match "(?m)^$key=") {
+        $replacement = [System.Text.RegularExpressions.MatchEvaluator]{ param($match) "$key=$value" }
+        return [Regex]::Replace($text, "(?m)^$key=.*$", $replacement)
+    }
+
+    if ($text.Length -gt 0 -and !$text.EndsWith("`r`n") -and !$text.EndsWith("`n")) {
+        $text += "`r`n"
+    }
+
+    return $text + "$key=$value`r`n"
+}
+
+function Stop-CoreServerProcesses {
+    Stop-ScheduledTask -TaskName "Core POS Server" -ErrorAction SilentlyContinue
+
+    try {
+        Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -ieq $php) } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    } catch {}
+}
+
+function Test-LocalCoreServer([int]$port = 8080, [int]$attempts = 20) {
+    $url = "http://127.0.0.1:$port/api/currencies"
+
+    for ($attempt = 0; $attempt -lt $attempts; $attempt++) {
+        try {
+            $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3 -Headers @{ "Accept" = "application/json" }
+            $c = [int]$r.StatusCode
+            if ($c -eq 200 -or $c -eq 401) { return $true }
+        } catch {
+            if ($_.Exception.Response) {
+                $c = [int]$_.Exception.Response.StatusCode
+                if ($c -eq 200 -or $c -eq 401) { return $true }
+            }
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    return $false
+}
 
 Clear-Host
 Write-Host ""
-Write-Host "  Core POS - First-Time Setup" -ForegroundColor Cyan
-Write-Host "  ===========================" -ForegroundColor Cyan
+Write-Host "  Core POS v1.2 - First-Time Setup" -ForegroundColor Cyan
+Write-Host "  =================================" -ForegroundColor Cyan
 Write-Host "  Installing to: $AppDir" -ForegroundColor Gray
 Write-Host ""
 
-$php     = "$AppDir\php\php.exe"
-$phpIni  = "$AppDir\php\php.ini"
-$artisan = "$AppDir\backend\artisan"
-$envFile = "$AppDir\backend\.env"
+$php         = "$AppDir\php\php.exe"
+$phpIni      = "$AppDir\php\php.ini"
+$artisan     = "$AppDir\backend\artisan"
+$envFile     = "$AppDir\backend\.env"
+$vcRedist    = "$AppDir\redist\vc_redist.x64.exe"
+$mariaMsi    = "$AppDir\redist\mariadb-installer.msi"
+$laravelLog  = "$AppDir\backend\storage\logs\laravel.log"
+$mariaInstallLog = "$AppDir\mariadb-install.log"
+$mariaUninstallLog = "$AppDir\mariadb-uninstall.log"
 
+$dbHost          = "127.0.0.1"
+$dbPort          = "3307"
+$dbName          = "core_pos"
+$dbUser          = "core_pos"
+$dbPassword      = "CorePosDb@2026"
+$mariaRootPass   = "CoreRoot@2026"
+$mariaService    = "CoreMariaDB"
+$mariaInstallDir = "$AppDir\MariaDB"
+$mariaDataDir    = "$AppDir\MariaDB\data"
 
-# ============================================================================
-# STEP 1 - Fix PHP extension_dir to absolute path in php.ini
-# ============================================================================
-WAIT "Configuring PHP runtime..."
-if (!(Test-Path $php)) { ERR "PHP not found at $php. The installer may be incomplete." }
+$phpRuntimeArgs = @(
+    "-n",
+    "-d", "extension_dir=$AppDir\php\ext",
+    "-d", "extension=pdo_mysql",
+    "-d", "extension=mysqli",
+    "-d", "extension=pdo_sqlite",
+    "-d", "extension=sqlite3",
+    "-d", "extension=mbstring",
+    "-d", "extension=openssl",
+    "-d", "extension=fileinfo",
+    "-d", "extension=curl",
+    "-d", "extension=zip",
+    "-d", "extension=intl",
+    "-d", "extension=sodium",
+    "-d", "extension=gd",
+    "-d", "date.timezone=UTC",
+    "-d", "opcache.enable=0",
+    "-d", "opcache.enable_cli=0"
+)
 
-$ini = [System.IO.File]::ReadAllText($phpIni)
-$ini = $ini -replace 'extension_dir\s*=\s*"ext"', "extension_dir = `"$AppDir\php\ext`""
-$ini = $ini -replace '^extension_dir\s*=\s*ext', "extension_dir = `"$AppDir\php\ext`""
-[System.IO.File]::WriteAllText($phpIni, $ini)
-OK "PHP configured"
+function Get-PhpRuntimeArgumentString {
+    return '-n -d "extension_dir=' + $AppDir + '\php\ext" -d extension=pdo_mysql -d extension=mysqli -d extension=pdo_sqlite -d extension=sqlite3 -d extension=mbstring -d extension=openssl -d extension=fileinfo -d extension=curl -d extension=zip -d extension=intl -d extension=sodium -d extension=gd -d date.timezone=UTC -d opcache.enable=0 -d opcache.enable_cli=0'
+}
 
+function Test-MsiSuccessExitCode([int]$exitCode) {
+    return ($exitCode -eq 0 -or $exitCode -eq 3010)
+}
 
-# ============================================================================
-# STEP 2 - Check for PostgreSQL; install if missing
-# ============================================================================
-WAIT "Checking for PostgreSQL..."
-$pgSvc = Get-Service | Where-Object { $_.Name -like "postgresql*" } | Select-Object -First 1
+function Invoke-MariaDbMsiInstall {
+    if (!(Test-Path $mariaMsi)) { ERR "MariaDB installer missing at $mariaMsi. The installer package is incomplete." }
 
-if (!$pgSvc) {
-    Write-Host ""
-    Write-Host "  PostgreSQL is not installed." -ForegroundColor Yellow
-    Write-Host "  Downloading PostgreSQL 17 installer (~330 MB)." -ForegroundColor Yellow
-    Write-Host "  This is a one-time download - please wait..." -ForegroundColor Yellow
-    Write-Host ""
+    $msiArgs = @(
+        "/i", "`"$mariaMsi`"",
+        "/qn", "/norestart", "/L*v", "`"$mariaInstallLog`"",
+        "SERVICENAME=$mariaService",
+        "PASSWORD=$mariaRootPass",
+        "PORT=$dbPort",
+        "UTF8=1",
+        "INSTALLDIR=`"$mariaInstallDir`"",
+        "DATADIR=`"$mariaDataDir`""
+    ) -join " "
 
-    $pgInstaller = "$env:TEMP\pg17-setup.exe"
-    $pgUrls = @(
-        "https://get.enterprisedb.com/postgresql/postgresql-17.5-1-windows-x64.exe",
-        "https://get.enterprisedb.com/postgresql/postgresql-17.4-1-windows-x64.exe"
+    $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArgs -Wait -PassThru
+    if (!(Test-MsiSuccessExitCode -exitCode $proc.ExitCode)) { ERR "MariaDB installation failed with exit code $($proc.ExitCode)." }
+}
+
+function Invoke-MariaDbMsiUninstall {
+    if (!(Test-Path $mariaMsi)) { return }
+
+    $msiArgs = @(
+        "/x", "`"$mariaMsi`"",
+        "/qn", "/norestart", "/L*v", "`"$mariaUninstallLog`""
+    ) -join " "
+
+    $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArgs -Wait -PassThru -ErrorAction SilentlyContinue
+    if ($proc -and (@(0, 1605, 1614, 3010) -notcontains [int]$proc.ExitCode)) {
+        Log "(MariaDB cleanup returned exit code $($proc.ExitCode); continuing with install retry)"
+    }
+}
+
+function Find-MySqlClient {
+    $candidates = @(
+        "$mariaInstallDir\bin\mysql.exe",
+        "$AppDir\MariaDB\bin\mysql.exe"
     )
 
-    $downloaded = $false
-    foreach ($url in $pgUrls) {
-        try {
-            Write-Host "  Downloading from EDB..." -ForegroundColor DarkGray
-            $wc = New-Object System.Net.WebClient
-            $wc.DownloadFile($url, $pgInstaller)
-            $downloaded = $true
-            break
-        } catch { }
-    }
-    if (!$downloaded) { ERR "Failed to download PostgreSQL. Please check your internet connection and re-run setup." }
-
-    WAIT "Installing PostgreSQL 17 (this takes 2-4 minutes)..."
-    $pgArgs = "--mode unattended --unattendedmodeui none --superpassword ""Core@2024!"" --serverport 5432 --servicename postgresql-x64-17 --enable-components server"
-    $proc = Start-Process -FilePath $pgInstaller -ArgumentList $pgArgs -Wait -PassThru -ErrorAction Stop
-    Remove-Item $pgInstaller -Force
-
-    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 1) {
-        ERR "PostgreSQL installation failed (exit code $($proc.ExitCode))."
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
     }
 
-    Start-Sleep -Seconds 6
-    $pgSvc = Get-Service | Where-Object { $_.Name -like "postgresql*" } | Select-Object -First 1
-    if (!$pgSvc) { ERR "PostgreSQL service not found after installation. Please install PostgreSQL 17 manually." }
-    OK "PostgreSQL 17 installed"
+    $matches = Get-ChildItem "C:\Program Files\MariaDB*\bin\mysql.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending
+    if ($matches) { return $matches[0].FullName }
+
+    return $null
+}
+
+function Find-MySqlDumpClient {
+    $candidates = @(
+        "$mariaInstallDir\bin\mysqldump.exe",
+        "$AppDir\MariaDB\bin\mysqldump.exe"
+    )
+
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+
+    $matches = Get-ChildItem "C:\Program Files\MariaDB*\bin\mysqldump.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending
+    if ($matches) { return $matches[0].FullName }
+
+    return $null
+}
+
+function Invoke-MySql([string]$sql, [string]$user = "root", [string]$password = $mariaRootPass) {
+    $mysql = Find-MySqlClient
+    if (!$mysql) { ERR "mysql.exe not found after MariaDB installation." }
+
+    $args = @(
+        "--protocol=tcp",
+        "--host=$dbHost",
+        "--port=$dbPort",
+        "--user=$user",
+        "--password=$password",
+        "--execute=$sql"
+    )
+    $out = & $mysql @args 2>&1
+    if ($LASTEXITCODE -ne 0) { ERR "MariaDB command failed.`n$out" }
+    return $out
+}
+
+function Invoke-MySqlScalar([string]$sql, [string]$user = "root", [string]$password = $mariaRootPass) {
+    $mysql = Find-MySqlClient
+    if (!$mysql) { return $null }
+
+    $args = @(
+        "--batch",
+        "--skip-column-names",
+        "--protocol=tcp",
+        "--host=$dbHost",
+        "--port=$dbPort",
+        "--user=$user",
+        "--password=$password",
+        "--execute=$sql"
+    )
+    $out = & $mysql @args 2>&1
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return (($out | Out-String).Trim())
+}
+
+function Test-CoreDatabaseExists {
+    $out = Invoke-MySqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '$dbName';"
+    return ($out -match '^\s*[1-9]')
+}
+
+function Test-CoreTableExists([string]$tableName) {
+    $out = Invoke-MySqlScalar "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '$dbName' AND TABLE_NAME = '$tableName';"
+    return ($out -match '^\s*[1-9]')
+}
+
+function Get-CoreTableRowCount([string]$tableName) {
+    $out = Invoke-MySqlScalar "SELECT COUNT(*) FROM $dbName.$tableName;"
+    if ($out -match '^\s*(\d+)') { return [int]$matches[1] }
+    return 0
+}
+
+function Backup-CoreDatabaseForUpdate {
+    $mysqldump = Find-MySqlDumpClient
+    if (!$mysqldump) { ERR "mysqldump.exe not found. Refusing to update without a database backup." }
+
+    $backupDir = Join-Path $AppDir "backups"
+    if (!(Test-Path $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupFile = Join-Path $backupDir "core_pos-before-update-$stamp.sql"
+    $backupErr = Join-Path $backupDir "core_pos-before-update-$stamp.err.log"
+
+    $args = @(
+        "--protocol=tcp",
+        "--host=$dbHost",
+        "--port=$dbPort",
+        "--user=root",
+        "--password=$mariaRootPass",
+        "--single-transaction",
+        "--routines",
+        "--events",
+        "--databases",
+        $dbName
+    )
+
+    $proc = Start-Process -FilePath $mysqldump -ArgumentList $args -RedirectStandardOutput $backupFile -RedirectStandardError $backupErr -WindowStyle Hidden -Wait -PassThru
+    if ($proc.ExitCode -ne 0 -or !(Test-Path $backupFile) -or (Get-Item $backupFile).Length -eq 0) {
+        $backupTail = if (Test-Path $backupErr) { (Get-Content $backupErr | Select-Object -Last 20) -join "`n" } else { "No backup error log" }
+        ERR "Could not create database backup before update. Existing database was not changed.`n`n$backupTail"
+    }
+
+    Remove-Item $backupErr -Force -ErrorAction SilentlyContinue
+    OK "Database backup created: $backupFile"
+}
+
+function Wait-ForMariaDb {
+    $candidatePorts = @([int]$dbPort, 3306) | Select-Object -Unique
+
+    for ($attempt = 0; $attempt -lt 90; $attempt++) {
+        foreach ($port in $candidatePorts) {
+            try {
+                $client = New-Object System.Net.Sockets.TcpClient
+                $iar = $client.BeginConnect($dbHost, [int]$port, $null, $null)
+                if ($iar.AsyncWaitHandle.WaitOne(1000, $false)) {
+                    $client.EndConnect($iar)
+                    $client.Close()
+                    $script:dbPort = [string]$port
+                    return $true
+                }
+                $client.Close()
+            } catch {}
+        }
+        Start-Sleep -Seconds 1
+    }
+    return $false
+}
+
+function Resolve-MariaDbServiceName {
+    $preferred = Get-Service -Name $mariaService -ErrorAction SilentlyContinue
+    if ($preferred) { return $preferred.Name }
+
+    foreach ($name in @('MariaDB', 'MySQL')) {
+        $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
+        if ($svc) { return $svc.Name }
+    }
+
+    $match = Get-Service -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like '*MariaDB*' -or $_.DisplayName -like '*MariaDB*' } |
+        Select-Object -First 1
+    if ($match) { return $match.Name }
+
+    return $null
+}
+
+function Get-MariaDbDiagnostics {
+    $parts = New-Object System.Collections.Generic.List[string]
+    $parts.Add("Requested service: $mariaService")
+    $parts.Add("Current service: $mariaService")
+    $parts.Add("Requested ports checked: $dbPort, 3306")
+
+    try {
+        $services = Get-Service -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like '*MariaDB*' -or $_.DisplayName -like '*MariaDB*' -or $_.Name -like '*MySQL*' -or $_.DisplayName -like '*MySQL*' } |
+            Select-Object Name, Status, DisplayName
+        $parts.Add("Services:`n" + (($services | Format-Table -AutoSize | Out-String).Trim()))
+    } catch {}
+
+    try {
+        $ports = netstat -ano | Select-String ':3306|:3307'
+        $parts.Add("Ports:`n" + (($ports | Out-String).Trim()))
+    } catch {}
+
+    if (Test-Path $mariaInstallLog) {
+        $parts.Add("MariaDB MSI log tail:`n" + ((Get-Content $mariaInstallLog | Select-Object -Last 40) -join "`n"))
+    }
+
+    if (Test-Path $mariaUninstallLog) {
+        $parts.Add("MariaDB MSI cleanup log tail:`n" + ((Get-Content $mariaUninstallLog | Select-Object -Last 40) -join "`n"))
+    }
+
+    $errLogs = @()
+    foreach ($path in @($mariaDataDir, "$mariaInstallDir\data", "C:\Program Files\MariaDB*\data")) {
+        $errLogs += Get-ChildItem $path -Filter "*.err" -ErrorAction SilentlyContinue
+    }
+    foreach ($log in ($errLogs | Select-Object -First 3)) {
+        $parts.Add("MariaDB error log ($($log.FullName)):`n" + ((Get-Content $log.FullName | Select-Object -Last 40) -join "`n"))
+    }
+
+    return ($parts -join "`n`n")
+}
+
+function Ensure-MariaDbService {
+    $preferred = Get-Service -Name $mariaService -ErrorAction SilentlyContinue
+    if ($preferred) { return $preferred.Name }
+
+    Invoke-MariaDbMsiInstall
+
+    $resolvedService = Resolve-MariaDbServiceName
+    if ($resolvedService) { return $resolvedService }
+
+    Log "(MariaDB MSI completed but no service was created; clearing stale MSI registration and retrying)"
+    Invoke-MariaDbMsiUninstall
+    Invoke-MariaDbMsiInstall
+
+    $resolvedService = Resolve-MariaDbServiceName
+    if ($resolvedService) { return $resolvedService }
+
+    ERR "MariaDB service was not found after installation.`n`n$(Get-MariaDbDiagnostics)"
+}
+
+# STEP 1: Verify PHP
+WAIT "Checking PHP runtime..."
+if (!(Test-Path $php)) { ERR "PHP not found at $php. The installer package may be incomplete." }
+OK "PHP found"
+
+WAIT "Stopping previous local server if running..."
+Stop-CoreServerProcesses
+OK "Previous local server stopped"
+
+# STEP 1b: Install Visual C++ Redistributable (required by PHP 8.3)
+WAIT "Installing Visual C++ Runtime..."
+if (Test-Path $vcRedist) {
+    Start-Process -FilePath $vcRedist -ArgumentList "/install /quiet /norestart" -Wait -ErrorAction SilentlyContinue
+    Remove-Item $vcRedist -Force -ErrorAction SilentlyContinue
+    OK "Visual C++ Runtime installed"
 } else {
-    OK "PostgreSQL found ($($pgSvc.Name))"
+    OK "Visual C++ Runtime already present (or installer not bundled)"
 }
 
+# STEP 2: Configure PHP extensions for MariaDB
+WAIT "Configuring PHP extensions..."
+$ini = [System.IO.File]::ReadAllText($phpIni)
 
-# ============================================================================
-# STEP 3 - Ensure service is running
-# ============================================================================
-if ($pgSvc.Status -ne "Running") {
-    WAIT "Starting PostgreSQL service..."
-    Start-Service $pgSvc.Name
-    Start-Sleep -Seconds 5
-}
-OK "PostgreSQL service is running"
-
-
-# ============================================================================
-# STEP 4 - Locate psql.exe and data directory
-# ============================================================================
-WAIT "Locating PostgreSQL binaries..."
-$psqlExe = Get-ChildItem "C:\Program Files\PostgreSQL" -Recurse -Filter "psql.exe" -ErrorAction SilentlyContinue |
-           Select-Object -First 1 -ExpandProperty FullName
-if (!$psqlExe) {
-    ERR "psql.exe not found under C:\Program Files\PostgreSQL. PostgreSQL may not have installed correctly."
-}
-$pgBinDir = Split-Path $psqlExe
-$pgDataDir = Join-Path (Split-Path $pgBinDir -Parent) "data"
-OK "psql found at $psqlExe"
-
-
-# ============================================================================
-# STEP 5 - Temporarily enable trust auth so we can create the DB user
-# ============================================================================
-$hbaFile   = "$pgDataDir\pg_hba.conf"
-$hbaBackup = "$pgDataDir\pg_hba.conf.nexabak"
-
-if (Test-Path $hbaFile) {
-    WAIT "Configuring database access for setup..."
-    Copy-Item $hbaFile $hbaBackup -Force
-    $hba = Get-Content $hbaFile
-    $hba = $hba -replace '\bscram-sha-256\b', 'trust' -replace '\bmd5\b', 'trust'
-    $hba | Set-Content $hbaFile
-    Restart-Service $pgSvc.Name
-    Start-Sleep -Seconds 6
-    OK "Database access configured"
+$ini = $ini -replace '(?m)^[; ]*extension_dir\s*=\s*"[^"]*"', "extension_dir = `"$AppDir\php\ext`""
+foreach ($ext in @('pdo_mysql','mysqli','pdo_sqlite','sqlite3','mbstring','openssl','fileinfo','curl','zip','intl','sodium','gd')) {
+    $ini = $ini -replace ";extension=$ext", "extension=$ext"
 }
 
+# Keep OPcache disabled for the bundled CLI server. On some Windows builds,
+# loading the extension can stop PHP with an ASLR opcode-handler fatal error.
+$ini = $ini -replace '(?m)^[; ]*zend_extension\s*=\s*opcache\s*$', ";zend_extension=opcache"
+$ini = $ini -replace '(?m)^[; ]*opcache\.enable\s*=.*$', "opcache.enable=0"
+$ini = $ini -replace '(?m)^[; ]*opcache\.enable_cli\s*=.*$', "opcache.enable_cli=0"
 
-# ============================================================================
-# STEP 6 - Create Core database and user
-# ============================================================================
-WAIT "Creating Core POS database..."
+[System.IO.File]::WriteAllText($phpIni, $ini, [System.Text.Encoding]::UTF8)
+OK "PHP configured for MariaDB"
 
-$env:PGPASSFILE = ""
-function psql($args) { & $psqlExe -U postgres -p 5432 -h 127.0.0.1 @args 2>$null }
+# STEP 3: Install and configure MariaDB local server
+WAIT "Installing local MariaDB database server..."
+$resolvedService = Ensure-MariaDbService
+$mariaService = $resolvedService
 
-psql @("-c", "DROP DATABASE IF EXISTS Core;")
-psql @("-c", "DROP USER IF EXISTS Core;")
-psql @("-c", "CREATE USER Core WITH PASSWORD 'Core123';")
-psql @("-c", "CREATE DATABASE Core OWNER Core ENCODING 'UTF8';")
-psql @("-c", "GRANT ALL PRIVILEGES ON DATABASE Core TO Core;")
-psql @("-d", "Core", "-c", "GRANT ALL ON SCHEMA public TO Core;")
-OK "Database and user created"
-
-
-# ============================================================================
-# STEP 7 - Restore pg_hba.conf to secure password auth
-# ============================================================================
-if (Test-Path $hbaBackup) {
-    WAIT "Restoring database security settings..."
-    Copy-Item $hbaBackup $hbaFile -Force
-    Remove-Item $hbaBackup -Force
-    Restart-Service $pgSvc.Name
-    Start-Sleep -Seconds 5
-    OK "Database security restored"
+try {
+    Set-Service -Name $mariaService -StartupType Automatic -ErrorAction Stop
+} catch {
+    Log "(MariaDB startup type was not changed: $($_.Exception.Message))"
 }
 
-# Write pgpass.conf so php/artisan can auth as Core without password prompts
-$pgpassDir = "$env:APPDATA\postgresql"
-if (!(Test-Path $pgpassDir)) { New-Item -ItemType Directory -Path $pgpassDir -Force | Out-Null }
-"localhost:5432:*:Core:Core123" | Set-Content "$pgpassDir\pgpass.conf" -Encoding ASCII
-$env:PGPASSFILE = "$pgpassDir\pgpass.conf"
+try {
+    Start-Service -Name $mariaService -ErrorAction Stop
+} catch {
+    Log "(MariaDB service start reported: $($_.Exception.Message))"
+}
 
+if (!(Wait-ForMariaDb)) { ERR "MariaDB service did not start on ${dbHost}:${dbPort} or ${dbHost}:3306.`n`n$(Get-MariaDbDiagnostics)" }
+OK "MariaDB service is running locally on port $dbPort"
 
-# ============================================================================
-# STEP 8 - Write .env
-# ============================================================================
-WAIT "Writing application configuration..."
+$databaseExistedBeforeSetup = Test-CoreDatabaseExists
+$usersExistedBeforeSetup = $false
+if ($databaseExistedBeforeSetup -and (Test-CoreTableExists "users")) {
+    $usersExistedBeforeSetup = ((Get-CoreTableRowCount "users") -gt 0)
+}
+$isUpdateInstall = ($databaseExistedBeforeSetup -and $usersExistedBeforeSetup)
 
-$envContent = @"
-APP_NAME=Core
-APP_ENV=production
-APP_KEY=
-APP_DEBUG=false
-APP_URL=http://localhost:8080
-
-LOG_CHANNEL=single
-LOG_LEVEL=error
-
-DB_CONNECTION=pgsql
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=Core
-DB_USERNAME=Core
-DB_PASSWORD=Core123
-
-CACHE_DRIVER=file
-SESSION_DRIVER=file
-QUEUE_CONNECTION=sync
+WAIT "Preparing Core database and user..."
+$setupSql = @"
+CREATE DATABASE IF NOT EXISTS $dbName CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$dbUser'@'127.0.0.1' IDENTIFIED BY '$dbPassword';
+CREATE USER IF NOT EXISTS '$dbUser'@'localhost' IDENTIFIED BY '$dbPassword';
+ALTER USER '$dbUser'@'127.0.0.1' IDENTIFIED BY '$dbPassword';
+ALTER USER '$dbUser'@'localhost' IDENTIFIED BY '$dbPassword';
+GRANT ALL PRIVILEGES ON $dbName.* TO '$dbUser'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON $dbName.* TO '$dbUser'@'localhost';
+FLUSH PRIVILEGES;
 "@
-
-[System.IO.File]::WriteAllText($envFile, $envContent)
-OK "Application configuration written"
-
-
-# ============================================================================
-# STEP 9 - Run artisan setup commands
-# ============================================================================
-function artisan($args) {
-    & $php -c $phpIni $artisan @args 2>$null
+Invoke-MySql $setupSql | Out-Null
+if ($databaseExistedBeforeSetup) {
+    OK "MariaDB database ready - existing data preserved"
+} else {
+    OK "MariaDB database ready"
 }
 
-WAIT "Generating application key..."
-artisan @("key:generate", "--force")
-OK "Application key generated"
+if ($isUpdateInstall) {
+    WAIT "Backing up existing database before update..."
+    Backup-CoreDatabaseForUpdate
+}
 
-WAIT "Running database migrations..."
-artisan @("migrate", "--force")
-OK "Database tables created"
+# STEP 4: Write .env
+WAIT "Writing application configuration..."
+$envText = if (Test-Path $envFile) { Get-Content $envFile -Raw } else { "" }
 
-WAIT "Seeding default data (products, users, settings)..."
-artisan @("db:seed", "--force")
-OK "Default data loaded"
+# Remove any stale MySQL/PostgreSQL settings
+$envText = [Regex]::Replace($envText, "(?m)^DB_HOST=.*$", "")
+$envText = [Regex]::Replace($envText, "(?m)^DB_PORT=.*$", "")
+$envText = [Regex]::Replace($envText, "(?m)^DB_DATABASE=.*$", "")
+$envText = [Regex]::Replace($envText, "(?m)^DB_USERNAME=.*$", "")
+$envText = [Regex]::Replace($envText, "(?m)^DB_PASSWORD=.*$", "")
 
-WAIT "Caching application for performance..."
-artisan @("config:cache")
-artisan @("route:cache")
-artisan @("view:cache")
+$envText = Set-Or-AddEnvValue $envText "APP_NAME" "Core"
+$envText = Set-Or-AddEnvValue $envText "APP_ENV" "production"
+$envText = Set-Or-AddEnvValue $envText "APP_DEBUG" "false"
+$envText = Set-Or-AddEnvValue $envText "APP_URL" "http://127.0.0.1:8080"
+$envText = Set-Or-AddEnvValue $envText "FRONTEND_URL" "http://127.0.0.1:8080"
+$envText = Set-Or-AddEnvValue $envText "OFFLINE_MODE" "true"
+$envText = Set-Or-AddEnvValue $envText "LOG_CHANNEL" "single"
+$envText = Set-Or-AddEnvValue $envText "LOG_LEVEL" "error"
+$envText = Set-Or-AddEnvValue $envText "DB_CONNECTION" "mariadb"
+$envText = Set-Or-AddEnvValue $envText "DB_HOST" $dbHost
+$envText = Set-Or-AddEnvValue $envText "DB_PORT" $dbPort
+$envText = Set-Or-AddEnvValue $envText "DB_DATABASE" $dbName
+$envText = Set-Or-AddEnvValue $envText "DB_USERNAME" $dbUser
+$envText = Set-Or-AddEnvValue $envText "DB_PASSWORD" $dbPassword
+$envText = Set-Or-AddEnvValue $envText "DB_CHARSET" "utf8mb4"
+$envText = Set-Or-AddEnvValue $envText "DB_COLLATION" "utf8mb4_unicode_ci"
+$envText = Set-Or-AddEnvValue $envText "DB_DUMP_PATH" "$mariaInstallDir\bin\mysqldump.exe"
+$envText = Set-Or-AddEnvValue $envText "SESSION_DRIVER" "file"
+$envText = Set-Or-AddEnvValue $envText "QUEUE_CONNECTION" "sync"
+$envText = Set-Or-AddEnvValue $envText "CACHE_STORE" "file"
+$envText = Set-Or-AddEnvValue $envText "FILESYSTEM_DISK" "local"
+$envText = Set-Or-AddEnvValue $envText "MAIL_MAILER" "log"
+$envText = Set-Or-AddEnvValue $envText "BROADCAST_CONNECTION" "log"
+
+if ($envText -notmatch '(?m)^APP_KEY=') {
+    $envText += "APP_KEY=`r`n"
+}
+
+[System.IO.File]::WriteAllText($envFile, $envText, [System.Text.Encoding]::UTF8)
+if (!(Test-Path $envFile)) { ERR "Configuration file could not be created at $envFile." }
+
+$envText = Get-Content $envFile -Raw
+if ($envText -notmatch '(?m)^DB_CONNECTION=mariadb') {
+    ERR "Configuration file at $envFile does not have DB_CONNECTION=mariadb."
+}
+OK "Configuration written"
+
+# STEP 5: Grant write access to Laravel runtime directories
+WAIT "Granting application write permissions..."
+$writablePaths = @(
+    "$AppDir\backend\storage",
+    "$AppDir\backend\bootstrap\cache"
+)
+
+foreach ($path in $writablePaths) {
+    if (!(Test-Path $path)) {
+        New-Item -ItemType Directory -Path $path -Force | Out-Null
+    }
+
+    $grantResult = & icacls $path /grant "*S-1-5-32-545:(OI)(CI)M" /T /C 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        ERR "Could not grant write permission on $($path).`n$grantResult"
+    }
+}
+OK "Application folders are writable"
+
+# STEP 6: Artisan setup
+function artisan($cmd) {
+    $args = @($phpRuntimeArgs + @($artisan) + $cmd)
+    $result = & $php @args 2>&1
+    return $result
+}
+
+# Clear any stale bootstrap cache from a previous install or bundled artifacts
+# so artisan always reads from .env rather than from an old cached config
+WAIT "Clearing bootstrap cache..."
+Get-ChildItem "$AppDir\backend\bootstrap\cache" -Filter "*.php" -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+OK "Bootstrap cache cleared"
+
+$envText = Get-Content $envFile -Raw
+if ($envText -match '(?m)^APP_KEY=base64:') {
+    OK "Application key preserved"
+} else {
+    WAIT "Generating application key..."
+    artisan @("key:generate", "--force") | Out-Null
+    $envText = Get-Content $envFile -Raw
+    if ($envText -notmatch 'APP_KEY=base64:') { ERR "key:generate failed. Check PHP logs." }
+    OK "Application key set"
+}
+
+WAIT "Applying database migrations..."
+$out = artisan @("migrate", "--force")
+if ($LASTEXITCODE -ne 0 -and $out -notmatch "Nothing to migrate") { ERR "Migrations failed.`n$out" }
+OK "Database schema is up to date"
+
+WAIT "Applying default data (preserves existing records)..."
+$out = artisan @("db:seed", "--force")
+if ($LASTEXITCODE -ne 0) { ERR "Seeder failed.`n$out" }
+OK "Default data ready"
+
+WAIT "Caching application..."
+$cfgOut = artisan @("config:cache")
+if ($LASTEXITCODE -ne 0) { ERR "config:cache failed - check .env and PHP extensions.`n$cfgOut" }
+artisan @("route:cache")  | Out-Null
+artisan @("view:cache")   | Out-Null
 OK "Application cached"
 
-
-# ============================================================================
-# STEP 10 - Rewrite start-pos.bat with absolute paths for this install
-# ============================================================================
+# STEP 7: Create start-pos.bat
 WAIT "Creating launcher script..."
-
-$batContent = "@echo off" + [char]13 + [char]10 +
-"title Core" + [char]13 + [char]10 +
-"net start $($pgSvc.Name) >nul 2>&1" + [char]13 + [char]10 +
-"netstat -ano | find `"8080`" | find `"LISTENING`" >nul 2>&1 && (" + [char]13 + [char]10 +
-"    start `"`" http://localhost:8080/cashier" + [char]13 + [char]10 +
-"    goto :eof" + [char]13 + [char]10 +
-")" + [char]13 + [char]10 +
-"start /B `"`" `"$AppDir\php\php.exe`" -c `"$AppDir\php\php.ini`" `"$AppDir\backend\artisan`" serve --host=0.0.0.0 --port=8080" + [char]13 + [char]10 +
-"timeout /t 3 /nobreak >nul" + [char]13 + [char]10 +
-"start `"`" http://localhost:8080/cashier" + [char]13 + [char]10
-
-[System.IO.File]::WriteAllText("$AppDir\start-pos.bat", $batContent)
+$bat  = "@echo off" + [char]13 + [char]10
+$bat += "title Core POS" + [char]13 + [char]10
+$bat += "set PHPRC=$AppDir\php" + [char]13 + [char]10
+$bat += "" + [char]13 + [char]10
+$bat += "if exist `"$AppDir\desktop\Core.exe`" (" + [char]13 + [char]10
+$bat += "    start `"`" `"$AppDir\desktop\Core.exe`"" + [char]13 + [char]10
+$bat += "    exit /b 0" + [char]13 + [char]10
+$bat += ")" + [char]13 + [char]10
+$bat += "" + [char]13 + [char]10
+$bat += "echo Core desktop app is missing. Please reinstall Core." + [char]13 + [char]10
+$bat += "pause"
+[System.IO.File]::WriteAllText("$AppDir\start-pos.bat", $bat, [System.Text.Encoding]::ASCII)
 OK "Launcher script written"
 
+# STEP 7b: Set PHPRC system env var so all PHP child processes find php.ini automatically
+WAIT "Configuring PHP environment..."
+try {
+    [System.Environment]::SetEnvironmentVariable("PHPRC", "$AppDir\php", "Machine")
+    OK "PHPRC set - PHP extensions will load correctly"
+} catch {
+    Log "(PHPRC not set as Machine var - this is OK, extensions still load from exe directory)"
+}
 
-# ============================================================================
-# STEP 11 - Desktop shortcut
-# ============================================================================
+# STEP 7c: Register Windows Task Scheduler to auto-start PHP server on login
+WAIT "Registering auto-start service (runs at Windows login)..."
+try {
+    $taskName   = "Core POS Server"
+    $phpArgs    = (Get-PhpRuntimeArgumentString) + " `"$AppDir\backend\artisan`" serve --host=127.0.0.1 --port=8080"
+
+    $action   = New-ScheduledTaskAction `
+                    -Execute "$AppDir\php\php.exe" `
+                    -Argument $phpArgs `
+                    -WorkingDirectory "$AppDir\backend"
+
+    $trigger  = New-ScheduledTaskTrigger -AtLogon
+
+    $settings = New-ScheduledTaskSettingsSet `
+                    -ExecutionTimeLimit (New-TimeSpan -Seconds 0) `
+                    -RestartCount 5 `
+                    -RestartInterval (New-TimeSpan -Minutes 1) `
+                    -StartWhenAvailable `
+                    -MultipleInstances IgnoreNew
+
+    # Run as BUILTIN\Users so it starts for any logged-in user
+    $principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Highest
+
+    Register-ScheduledTask `
+        -TaskName   $taskName `
+        -Action     $action `
+        -Trigger    $trigger `
+        -Settings   $settings `
+        -Principal  $principal `
+        -Force | Out-Null
+
+    # Start it immediately so we don't need a reboot
+    Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if (Test-LocalCoreServer -port 8080 -attempts 20) {
+        OK "Auto-start registered - Core POS server is running locally"
+    } else {
+        OK "Auto-start registered - desktop app will start the local server on launch"
+    }
+} catch {
+    Log "(Auto-start skipped: $($_.Exception.Message))"
+}
+
+# STEP 8: Run startup smoke test - tests PHP, MariaDB, AND actual admin login
+WAIT "Running startup smoke test..."
+$smokePort      = 18080
+$smokeBase      = "http://127.0.0.1:$smokePort"
+$smokeCurrUrl   = "$smokeBase/api/currencies"
+$smokeLoginUrl  = "$smokeBase/api/auth/login"
+$smokeOutLog    = "$AppDir\backend\storage\logs\smoke-stdout.log"
+$smokeErrLog    = "$AppDir\backend\storage\logs\smoke-stderr.log"
+
+Remove-Item $smokeOutLog, $smokeErrLog -Force -ErrorAction SilentlyContinue
+
+$smokeArgs = @($phpRuntimeArgs + @(
+    $artisan,
+    "serve",
+    "--host=127.0.0.1",
+    "--port=$smokePort"
+))
+$smokeProc = Start-Process -FilePath $php -ArgumentList $smokeArgs -WorkingDirectory "$AppDir\backend" -RedirectStandardOutput $smokeOutLog -RedirectStandardError $smokeErrLog -PassThru -WindowStyle Hidden
+
+# Phase 1: wait for the server to be reachable (currencies is a public endpoint)
+$serverUp = $false
+try {
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        Start-Sleep -Seconds 1
+        try {
+            $r = Invoke-WebRequest -Uri $smokeCurrUrl -UseBasicParsing -TimeoutSec 5 `
+                     -Headers @{ "Accept" = "application/json" }
+            $c = [int]$r.StatusCode
+            if ($c -eq 200 -or $c -eq 401) { $serverUp = $true; break }
+            if ($c -eq 500) { break }
+        } catch {
+            if ($_.Exception.Response) {
+                $c = [int]$_.Exception.Response.StatusCode
+                if ($c -eq 200 -or $c -eq 401) { $serverUp = $true; break }
+                if ($c -eq 500) { break }
+            }
+        }
+        if ($smokeProc.HasExited) { break }
+    }
+} catch {}
+
+if (!$serverUp) {
+    if ($smokeProc -and !$smokeProc.HasExited) { Stop-Process -Id $smokeProc.Id -Force -ErrorAction SilentlyContinue }
+    $laravelTail  = if (Test-Path $laravelLog)  { (Get-Content $laravelLog  | Select-Object -Last 20) -join "`n" } else { "No laravel.log" }
+    $smokeErrTail = if (Test-Path $smokeErrLog) { (Get-Content $smokeErrLog | Select-Object -Last 20) -join "`n" } else { "No smoke stderr log" }
+    ERR "Server did not start - PHP or MariaDB issue.`n`nLaravel log:`n$laravelTail`n`nPHP stderr:`n$smokeErrTail"
+}
+OK "Server is up (PHP + MariaDB responding)"
+
+if ($isUpdateInstall) {
+    if ($smokeProc -and !$smokeProc.HasExited) {
+        Stop-Process -Id $smokeProc.Id -Force -ErrorAction SilentlyContinue
+    }
+    OK "Existing login credentials preserved"
+} else {
+    # Phase 2: test actual admin login with the seeded credentials on first install
+    WAIT "Verifying admin login credentials..."
+    $loginOk = $false
+    try {
+        $body = '{"username":"admin","password":"Admin@123"}'
+        $r = Invoke-WebRequest -Uri $smokeLoginUrl -Method POST -Body $body `
+                 -ContentType "application/json" -UseBasicParsing -TimeoutSec 15 `
+                 -Headers @{ "Accept" = "application/json" }
+        $json = $r.Content | ConvertFrom-Json
+        if ($json.data.token -or $json.success -eq $true) { $loginOk = $true }
+    } catch {
+        $loginOk = $false
+    }
+
+    if ($smokeProc -and !$smokeProc.HasExited) {
+        Stop-Process -Id $smokeProc.Id -Force -ErrorAction SilentlyContinue
+    }
+
+    if (!$loginOk) {
+        $laravelTail = if (Test-Path $laravelLog) { (Get-Content $laravelLog | Select-Object -Last 30) -join "`n" } else { "No laravel.log" }
+        ERR "Admin login test failed - the seeded credentials (admin / Admin@123) were rejected.`n`nThis usually means the database seeder did not complete correctly.`n`nLaravel log:`n$laravelTail"
+    }
+    OK "Admin login verified (credentials work)"
+}
+
+# STEP 9: Desktop shortcut
 WAIT "Creating desktop shortcut..."
 try {
     $wsh = New-Object -ComObject WScript.Shell
     $lnk = $wsh.CreateShortcut("$env:PUBLIC\Desktop\Core.lnk")
-    $lnk.TargetPath      = "$AppDir\start-pos.bat"
+    $lnk.TargetPath       = "$AppDir\desktop\Core.exe"
     $lnk.WorkingDirectory = $AppDir
-    $lnk.Description     = "Core POS Point of Sale"
-    $lnk.IconLocation    = "shell32.dll,22"
+    $lnk.Description      = "Core POS Point of Sale"
+    $lnk.IconLocation     = "$AppDir\desktop\Core.exe,0"
     $lnk.Save()
     OK "Desktop shortcut created"
 } catch {
-    Log "(Shortcut creation skipped: $($_.Exception.Message))"
+    Log "(Shortcut skipped - $($_.Exception.Message))"
 }
 
+# STEP 10: Touchscreen & power settings for dedicated POS hardware
+WAIT "Configuring touchscreen and power settings for POS..."
+try {
+    # ── Disable Windows' built-in virtual keyboard auto-popup ─────────────────
+    # Prevents Windows from launching its own on-screen keyboard when the
+    # cashier taps a text field — Core has its own numeric keypad.
+    $tabletTipPath = "HKCU:\Software\Microsoft\TabletTip\1.7"
+    if (!(Test-Path $tabletTipPath)) {
+        New-Item -Path $tabletTipPath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $tabletTipPath -Name "EnableDesktopModeAutoInvoke" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $tabletTipPath -Name "TipbandDesiredVisibility" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
 
-# ============================================================================
+    # Disable the floating touch keyboard button in the taskbar
+    $inputPanelPath = "HKCU:\Software\Microsoft\Input\TIPC"
+    if (!(Test-Path $inputPanelPath)) { New-Item -Path $inputPanelPath -Force | Out-Null }
+    Set-ItemProperty -Path $inputPanelPath -Name "ClientId" -Value "" -Type String -Force -ErrorAction SilentlyContinue
+
+    # ── Prevent text prediction / personalisation (GDPR + privacy) ───────────
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Input\Settings" -Name "InsightsEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+
+    # ── Power plan: High Performance, never sleep, display always on ─────────
+    # Switch to High Performance plan (GUID 8c5e7fda-...)
+    & powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        # If the built-in GUID is unavailable, duplicate the current plan and customise it
+        $newGuid = & powercfg /duplicatescheme SCHEME_BALANCED 2>$null | Select-String '[0-9a-f]{8}-' | ForEach-Object { $_.Matches[0].Value }
+        if ($newGuid) { & powercfg /setactive $newGuid 2>$null }
+    }
+    # AC (plugged-in): display never turns off, PC never sleeps, never hibernates
+    & powercfg /change monitor-timeout-ac 0 2>$null
+    & powercfg /change standby-timeout-ac 0 2>$null
+    & powercfg /change hibernate-timeout-ac 0 2>$null
+    # DC (on battery) — same, in case the machine runs on UPS
+    & powercfg /change monitor-timeout-dc 0 2>$null
+    & powercfg /change standby-timeout-dc 0 2>$null
+
+    # ── Disable screen saver ─────────────────────────────────────────────────
+    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveActive" -Value "0" -Type String -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaverIsSecure" -Value "0" -Type String -Force -ErrorAction SilentlyContinue
+
+    # ── Disable Windows Update auto-restart notifications ────────────────────
+    # Prevents Windows from rebooting the POS machine mid-shift.
+    $auPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+    if (!(Test-Path $auPath)) { New-Item -Path $auPath -Force | Out-Null }
+    Set-ItemProperty -Path $auPath -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $auPath -Name "AUOptions" -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue  # Download but do not install
+
+    # ── Clean up stale localStorage from older Core installs ─────────────────
+    # v1.1 stored a "pos-offline-queue" key that is no longer used.
+    # Delete the Electron Local Storage directory so it starts clean.
+    # Held orders (cart-storage) are only in-memory in v1.2; no data loss.
+    $electronAppData = Join-Path $env:APPDATA "Core"
+    foreach ($lsDir in @(
+        (Join-Path $electronAppData "Local Storage"),
+        (Join-Path $electronAppData "Session Storage")
+    )) {
+        if (Test-Path $lsDir) {
+            Remove-Item $lsDir -Recurse -Force -ErrorAction SilentlyContinue
+            Log "(Cleared stale Electron storage at $lsDir)"
+        }
+    }
+
+    OK "Touchscreen and power settings configured"
+} catch {
+    Log "(Some POS settings could not be applied: $($_.Exception.Message))"
+}
+
 # DONE
-# ============================================================================
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Green
-Write-Host "    Core POS setup complete!" -ForegroundColor Green
+Write-Host "    Core POS v1.2 setup complete!" -ForegroundColor Green
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Default login credentials:" -ForegroundColor White
-Write-Host "    Username : admin@Core.com" -ForegroundColor Cyan
-Write-Host "    Password : Admin@123" -ForegroundColor Cyan
+if ($isUpdateInstall) {
+    Write-Host "  Update complete. Existing database and login credentials were preserved." -ForegroundColor White
+} else {
+    Write-Host "  Default login:" -ForegroundColor White
+    Write-Host "    Username : admin" -ForegroundColor Cyan
+    Write-Host "    Password : Admin@123" -ForegroundColor Cyan
+}
 Write-Host ""
-Write-Host "  Double-click 'Core POS' on your desktop to launch." -ForegroundColor White
+Write-Host "  Double-click 'Core' on the Desktop to launch." -ForegroundColor White
 Write-Host ""
 Read-Host "  Press Enter to close this window"

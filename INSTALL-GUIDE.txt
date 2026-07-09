@@ -1,0 +1,159 @@
+================================================================================
+  CORE POS - INSTALLATION GUIDE
+================================================================================
+
+
+--------------------------------------------------------------------------------
+  PART 1: BUILD THE INSTALLER  (do this ONCE on YOUR machine)
+--------------------------------------------------------------------------------
+
+  Do this on your own computer before giving anything to the customer.
+
+  Step 1.  Open PowerShell as Administrator
+           - Press the Windows key
+           - Type: PowerShell
+           - Right-click "Windows PowerShell"
+           - Click "Run as administrator"
+
+  Step 2.  Navigate to the installer folder
+           Type this and press Enter:
+             cd "C:\Users\dingulwazi.zondo\Desktop\POSS\POS\installer"
+
+  Step 3.  Run the build script
+           Type this and press Enter:
+             powershell -ExecutionPolicy Bypass -File rebuild-installer.ps1
+
+           This will:
+             - Build the React frontend
+             - Download PHP 8.3 (about 30 MB, saved for next time)
+             - Download VC++ Runtime (about 25 MB, saved for next time)
+             - Package everything into a single setup file
+
+           Wait for it to finish. It takes about 3-5 minutes the first time,
+           faster on repeat runs.
+
+  Step 4.  When done, you will see:
+             Build complete!
+             Installer: installer\Output\Core-Setup.exe
+
+  Step 5.  Copy Core-Setup.exe to a USB drive or send it to the customer.
+           That single file is all they need.
+
+  !! You only need to redo this when you update the software. !!
+
+
+--------------------------------------------------------------------------------
+  PART 2: INSTALL ON A FRESH MACHINE  (customer follows these steps)
+--------------------------------------------------------------------------------
+
+  Requirements:
+    - Windows 10 or Windows 11
+    - Administrator access on the machine
+    - No internet connection required
+
+  -----------------------------------------------------------------------
+  Step 1.  Copy Core-Setup.exe onto the machine
+           (from USB drive, network share, email, etc.)
+           Put it anywhere - Desktop is fine.
+
+  Step 2.  Right-click Core-Setup.exe
+           Click "Run as administrator"
+
+           If Windows shows a blue warning ("Windows protected your PC"):
+             - Click "More info"
+             - Click "Run anyway"
+
+  Step 3.  The installer wizard opens.
+           Click Next, accept the default install location (C:\POS),
+           then click Install.
+
+  Step 4.  A black setup window will appear automatically.
+           It will show progress as it:
+             - Installs the Visual C++ Runtime
+             - Configures the database
+             - Creates the admin account
+             - Tests that everything works
+
+           THIS TAKES 2-4 MINUTES. Do not close it.
+
+  Step 5.  When you see:
+             Core POS setup complete!
+             Login: admin / Admin@123
+
+           Press Enter to close the black window.
+
+  Step 6.  The installer wizard will show a final checkbox:
+             "Launch Core now"
+           Leave it ticked and click Finish.
+
+           Core POS will open in your browser automatically.
+
+  -----------------------------------------------------------------------
+
+    Restart only if:
+      - The browser did not open after clicking Finish, AND
+      - Double-clicking the "Core" shortcut on the Desktop does nothing.
+
+    After restarting, just double-click the "Core" shortcut. No other steps.
+
+  -----------------------------------------------------------------------
+  Step 7.  Log in with:
+             Username:  admin
+             Password:  Admin@123
+
+           Change the password after your first login.
+
+  Step 8.  Core POS starts automatically every time Windows starts.
+           You do not need to run the installer again.
+           Just double-click the "Core" shortcut on the Desktop to open it.
+
+
+--------------------------------------------------------------------------------
+  DAILY USE
+--------------------------------------------------------------------------------
+
+  To open Core POS:
+    Double-click the "Core" shortcut on the Desktop.
+    The browser will open and Core will load within a few seconds.
+
+  If the browser shows "This site can't be reached":
+    Wait 10 seconds and refresh the page.
+    If still not working, double-click the "Core" shortcut again.
+
+  To use from another device on the same network (phone, tablet, another PC):
+    Open a browser and go to:   http://<this-computer-ip>:8080
+    To find this computer's IP: press Win+R, type cmd, press Enter,
+                                then type:  ipconfig
+                                Look for "IPv4 Address"
+
+
+--------------------------------------------------------------------------------
+  DEFAULT LOGIN CREDENTIALS
+--------------------------------------------------------------------------------
+
+    Admin:    admin / Admin@123
+    Manager:  manager / Manager@123
+    Cashier:  cashier1 / Cashier@123
+
+  Change all passwords after first login.
+
+
+--------------------------------------------------------------------------------
+  IF SOMETHING GOES WRONG
+--------------------------------------------------------------------------------
+
+  The setup log is saved at:
+    C:\POS\backend\storage\logs\laravel.log
+
+  The server log is saved at:
+    C:\POS\backend\storage\logs\server.log
+
+  To restart the Core POS server manually:
+    1. Press Win+R
+    2. Type: services.msc  (or open Task Scheduler)
+    3. Find "Core POS Server" and click Start
+
+  OR simply restart the computer. Core starts automatically on login.
+
+
+================================================================================

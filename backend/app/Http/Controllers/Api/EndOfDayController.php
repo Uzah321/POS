@@ -130,7 +130,7 @@ class EndOfDayController extends BaseApiController
             'actual_cash'          => $data['actual_cash'],
             'difference'           => $difference,
             'notes'                => $data['notes'] ?? null,
-            'status'               => 'completed',
+            'status'               => 'closed',
         ]);
 
         return $this->success($eod->load('user', 'branch'), 'End of day submitted successfully', 201);

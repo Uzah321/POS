@@ -7,7 +7,9 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 import { format } from 'date-fns';
+import { useCurrencyStore } from '../stores/currencyStore';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-600',
@@ -23,13 +25,17 @@ const poSchema = z.object({ supplier_id: z.coerce.number().min(1), expected_date
 
 function POModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const { format: formatAmount, activeCurrency } = useCurrencyStore();
   const [items, setItems] = useState([{ product_name: '', quantity: 1, unit_cost: 0 }]);
   const { data: suppliers } = useQuery({ queryKey: ['suppliers-list'], queryFn: () => suppliersApi.list().then(r => r.data?.data?.data || r.data?.data || []) });
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(poSchema) });
   const mutation = useMutation({
-    mutationFn: (d: any) => purchaseOrdersApi.create({ ...d, items }),
-    onSuccess: () => { toast.success('Purchase order created'); qc.invalidateQueries({ queryKey: ['purchase-orders'] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (d: any) => offlineMutate(() => purchaseOrdersApi.create({ ...d, items }), 'purchase_orders', 'create', { ...d, items }),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Purchase order saved offline - will sync when server is back');
+      else { toast.success('Purchase order created'); qc.invalidateQueries({ queryKey: ['purchase-orders'] }); }
+      onClose();
+    },
   });
   const addItem = () => setItems([...items, { product_name: '', quantity: 1, unit_cost: 0 }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
@@ -50,15 +56,28 @@ function POModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <div className="flex items-center justify-between mb-2"><label className="text-sm font-semibold text-gray-700">Order Items</label><button type="button" onClick={addItem} className="text-xs text-amber-600 hover:text-amber-800 font-medium">+ Add Item</button></div>
+            {/* Column headers */}
+            <div className="grid grid-cols-12 gap-2 mb-1 px-1">
+              <span className="col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Product Name</span>
+              <span className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</span>
+              <span className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost ({activeCurrency?.symbol ?? '$'})</span>
+              <span className="col-span-1"></span>
+            </div>
             {items.map((item, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 mb-2">
-                <input value={item.product_name} onChange={(e) => updateItem(i, 'product_name', e.target.value)} placeholder="Product name" className="col-span-5 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                <input type="number" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', +e.target.value)} placeholder="Qty" className="col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                <input type="number" step="0.01" value={item.unit_cost} onChange={(e) => updateItem(i, 'unit_cost', +e.target.value)} placeholder="Unit cost" className="col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                <button type="button" onClick={() => removeItem(i)} className="col-span-1 flex items-center justify-center text-red-400 hover:text-red-600"><X size={14} /></button>
+                <input value={item.product_name} onChange={(e) => updateItem(i, 'product_name', e.target.value)} placeholder="e.g. Coca Cola 330ml" className="col-span-5 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', +e.target.value)} placeholder="0" className="col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                <div className="col-span-3 relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">{activeCurrency?.symbol ?? '$'}</span>
+                  <input type="number" step="0.01" min="0" value={item.unit_cost} onChange={(e) => updateItem(i, 'unit_cost', +e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <button type="button" onClick={() => removeItem(i)} className="col-span-1 flex items-center justify-center text-red-400 hover:text-red-600" title="Remove item"><X size={14} /></button>
               </div>
             ))}
-            <div className="text-right text-sm font-semibold text-gray-700 mt-2">Total: <span className="text-amber-600">R {total.toFixed(2)}</span></div>
+            <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+              <span className="text-xs text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+              <span className="text-sm font-semibold text-gray-700">Total: <span className="text-amber-600 text-base">{formatAmount(total)}</span></span>
+            </div>
           </div>
           <div><label className="text-sm font-medium text-gray-700">Notes</label><textarea {...register('notes')} rows={2} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none" /></div>
           <div className="flex gap-3 pt-2">
@@ -79,6 +98,7 @@ export default function PurchasesPage() {
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const qc = useQueryClient();
+  const { format: formatAmount } = useCurrencyStore();
 
   const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []), staleTime: 120000 });
   const { data, isLoading } = useQuery({
@@ -86,9 +106,11 @@ export default function PurchasesPage() {
     queryFn: () => purchaseOrdersApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
   });
   const approveMutation = useMutation({
-    mutationFn: (id: number) => purchaseOrdersApi.approve(id),
-    onSuccess: () => { toast.success('PO approved'); qc.invalidateQueries({ queryKey: ['purchase-orders'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (id: number) => offlineMutate(() => purchaseOrdersApi.approve(id), 'purchase_orders', 'approve', { _url: `/purchase-orders/${id}/approve`, _method: 'POST' }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Approval saved offline - will sync when server is back');
+      else { toast.success('PO approved'); qc.invalidateQueries({ queryKey: ['purchase-orders'] }); }
+    },
   });
 
   const orders = data?.data || [];
@@ -122,7 +144,7 @@ export default function PurchasesPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(o.created_at), 'dd MMM yyyy')}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{o.supplier?.name}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{o.items_count || o.items?.length || '-'}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-amber-600">R {parseFloat(o.total_amount || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-amber-600">{formatAmount(parseFloat(o.total_amount || 0))}</td>
                       <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-600'}`}>{o.status?.replace('_', ' ')}</span></td>
                       <td className="px-4 py-3">
                         {(o.status === 'draft' || o.status === 'pending') && (

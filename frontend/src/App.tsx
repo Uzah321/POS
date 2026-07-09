@@ -43,14 +43,18 @@ import SalariesPage from './pages/SalariesPage';
 import RentalsPage from './pages/RentalsPage';
 import StockReconciliationPage from './pages/StockReconciliationPage';
 import BranchesPage from './pages/BranchesPage';
+import StockProductionPage from './pages/StockProductionPage';
+import BarcodeLabelsPage from './pages/BarcodeLabelsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      staleTime: 30000,
-      // Serve cached data when offline instead of showing a loading spinner
+      retry: 0,
+      staleTime: 5 * 60 * 1000,       // 5 min — avoid re-fetching on every navigation
+      gcTime: 15 * 60 * 1000,          // keep cached data for 15 min
+      refetchOnWindowFocus: false,      // don't refetch when user alt-tabs back
+      refetchOnReconnect: false,        // not useful in a local POS context
       networkMode: 'offlineFirst',
     },
   },
@@ -109,6 +113,8 @@ export default function App() {
               <Route path="/salaries" element={<LayoutWrapper><SalariesPage /></LayoutWrapper>} />
               <Route path="/rentals" element={<LayoutWrapper><RentalsPage /></LayoutWrapper>} />
               <Route path="/stock-reconciliation" element={<LayoutWrapper><StockReconciliationPage /></LayoutWrapper>} />
+              <Route path="/stock-production" element={<LayoutWrapper><StockProductionPage /></LayoutWrapper>} />
+              <Route path="/barcode-labels" element={<LayoutWrapper><BarcodeLabelsPage /></LayoutWrapper>} />
               <Route path="/branches" element={<LayoutWrapper><BranchesPage /></LayoutWrapper>} />
             </Route>
             <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />

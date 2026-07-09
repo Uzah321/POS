@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { branchesApi } from '../api';
-import { Plus, Edit, Trash2, Loader2, X, Building2, MapPin, Phone, Mail } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, X, Building2, MapPin, Phone, Mail, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 const schema = z.object({
   name:     z.string().min(1, 'Branch name is required'),
@@ -32,14 +33,16 @@ function BranchModal({ branch, onClose }: { branch?: any; onClose: () => void })
   const mutation = useMutation({
     mutationFn: (d: FormData) => {
       const payload = { ...d, currency: d.currency || undefined, email: d.email || undefined };
-      return branch ? branchesApi.update(branch.id, payload) : branchesApi.create(payload);
+      return branch
+        ? offlineMutate(() => branchesApi.update(branch.id, payload), 'branches', 'update', payload as any, branch.id)
+        : offlineMutate(() => branchesApi.create(payload), 'branches', 'create', payload as any);
     },
-    onSuccess: () => {
-      toast.success(branch ? 'Branch updated' : 'Branch created');
-      qc.invalidateQueries({ queryKey: ['branches'] });
+    onSuccess: (result, d) => {
+      const payload = { ...d, currency: d.currency || undefined, email: d.email || undefined };
+      if (result.offline) { handleOfflineSuccess(qc, result, 'branches', branch ? 'update' : 'create', payload as any, branch?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(branch ? 'Branch updated' : 'Branch created'); qc.invalidateQueries({ queryKey: ['branches'] }); }
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error saving branch'),
   });
 
   return (
@@ -101,15 +104,17 @@ export default function BranchesPage() {
   const [modal, setModal] = useState<{ open: boolean; branch?: any }>({ open: false });
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['branches'],
     queryFn: () => branchesApi.list().then(r => r.data?.data || []),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => branchesApi.delete(id),
-    onSuccess: () => { toast.success('Branch removed'); qc.invalidateQueries({ queryKey: ['branches'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot remove this branch'),
+    mutationFn: (id: number) => offlineMutate(() => branchesApi.delete(id), 'branches', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'branches', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Branch removed'); qc.invalidateQueries({ queryKey: ['branches'] }); }
+    },
   });
 
   const branches: any[] = Array.isArray(data) ? data : [];
@@ -130,9 +135,21 @@ export default function BranchesPage() {
         </button>
       </div>
 
+      {isError && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="flex-shrink-0" />
+            Unable to reach the server. Check that Core POS is running.
+          </div>
+          <button type="button" onClick={() => refetch()} className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900">
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-blue-500" /></div>
-      ) : branches.length === 0 ? (
+      ) : branches.length === 0 && !isError ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
           <Building2 size={48} className="text-gray-200 mb-3" />
           <p className="font-medium">No branches found</p>

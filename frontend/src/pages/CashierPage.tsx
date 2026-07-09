@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { productsApi, salesApi, settingsApi } from '../api';
@@ -9,11 +10,13 @@ import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
-import { useOfflineSync } from '../hooks/useOfflineSync';
-import { useOfflineStore } from '../stores/offlineStore';
 import { useDBSync } from '../hooks/useDBSync';
 import { db } from '../lib/db';
-import { Loader2, WifiOff, Plus, Minus, Trash2, RefreshCw } from 'lucide-react';
+import { offlineMutate } from '../lib/offlineMutation';
+import { useServerHealth } from '../hooks/useServerHealth';
+import NumericKeypad from '../components/ui/NumericKeypad';
+import SearchModal from '../components/ui/SearchModal';
+import { Loader2, Plus, Minus, Trash2, RefreshCw, Keyboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -30,6 +33,7 @@ export default function CashierPage() {
   const [payMethod, setPayMethod]             = useState<PayMethod>('cash');
   const [cashTendered, setCashTendered]       = useState('');
   const [currentTime, setCurrentTime]         = useState(new Date());
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   const codeRef     = useRef<HTMLInputElement>(null);
   const tenderedRef = useRef<HTMLInputElement>(null);
@@ -43,9 +47,8 @@ export default function CashierPage() {
   const currency     = activeCurrency?.symbol ?? '$';
   const branchId     = user?.branch?.id ?? 1;
 
-  const { isOnline, queue: offlineQueue } = useOfflineSync();
-  const enqueue = useOfflineStore(s => s.enqueue);
-  const { isSyncing: isDBSyncing, lastSynced, syncNow } = useDBSync();
+  useDBSync();
+  const { isServerUp: isOnline } = useServerHealth();
 
   // Clock
   useEffect(() => {
@@ -90,7 +93,6 @@ export default function CashierPage() {
   const { data: allProductsData, isLoading: productsLoading } = useQuery({
     queryKey: ['pos-products'],
     queryFn: async () => {
-      if (!navigator.onLine) return db.products.toArray();
       try {
         const data = await productsApi.list({ per_page: 500, is_active: 1 })
           .then(r => r.data?.data?.data ?? r.data?.data ?? []);
@@ -134,6 +136,13 @@ export default function CashierPage() {
   }, [cart.items, hw.customerDisplayEnabled]);
 
   const addProduct = (product: any) => {
+    // Block sale if stock is zero/negative and setting is enabled
+    const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
+    const blockNeg = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
+    if (blockNeg && stock !== null && stock <= 0) {
+      toast.error(`${product.name} is out of stock`);
+      return;
+    }
     cart.addItem({
       product_id: product.id,
       name:       product.name,
@@ -171,19 +180,46 @@ export default function CashierPage() {
 
   // ── Sale mutation ────────────────────────────────────────────────────────────
   const saleMutation = useMutation({
-    mutationFn: (payload: object) => salesApi.create(payload),
-    onSuccess: (res) => {
-      const sale = res.data?.data;
-      toast.success(`Sale ${sale?.reference} complete!`);
+    mutationFn: (payload: object) => offlineMutate(() => salesApi.create(payload), 'sales', 'create', payload as Record<string, unknown>),
+    onSuccess: (result, variables) => {
+      const sale = (result as any).data?.data;
+
+      // Persist to IndexedDB so My Sales / Cashup / Dashboard work when API is unavailable
+      const paymentsFromPayload = (variables as any).payments ?? [];
+      const now = new Date().toISOString();
+      db.sales.put({
+        id: sale?.id ?? -(Date.now()),
+        reference: sale?.reference ?? `ONLINE-${Date.now()}`,
+        status: 'completed',
+        total: cart.total(),
+        subtotal: cart.subtotal(),
+        tax: cart.taxTotal(),
+        discount: 0,
+        items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+        items_count: cart.items.length,
+        payments: paymentsFromPayload,
+        cashier_id: user?.id ?? 0,
+        cashier_name: user?.name ?? '',
+        branch_id: branchId,
+        created_at: now,
+        completed_at: now,
+        is_offline: !!result.offline,
+      }).catch(() => {});
+
+      toast.success(`Sale ${sale?.reference ?? ''} complete!`);
 
       void printReceipt(
-        buildReceiptDataFromSale(sale, {
+        buildReceiptDataFromSale(sale ?? null, {
           storeName, storeAddress, storePhone,
           cashier: user?.name ?? '', currency,
           paymentMethod: payMethod,
           amountTendered: payMethod === 'cash' ? parseFloat(cashTendered) || cart.total() : undefined,
           change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
           itemsFallback: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+          vatNumber: storeSettings?.company_vat_number,
+          currencyCode: activeCurrency?.code ?? 'USD',
+          currencyRate: activeCurrency?.exchange_rate ?? 1,
+          posNumber: String(user?.branch?.id ?? 1),
         }),
         resolveReceiptPrintMode(hw.printerMode)
       ).catch((err: any) => toast.error(err?.message ?? 'Receipt printing failed'));
@@ -196,18 +232,16 @@ export default function CashierPage() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setTimeout(() => codeRef.current?.focus(), 80);
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Sale failed'),
   });
 
   // ── Hold mutation ────────────────────────────────────────────────────────────
   const holdMutation = useMutation({
-    mutationFn: (payload: object) => salesApi.hold(payload),
-    onSuccess: () => {
+    mutationFn: (payload: object) => offlineMutate(() => salesApi.hold(payload), 'sales', 'hold', payload as Record<string, unknown>),
+    onSuccess: (_result) => {
       toast.success('Order held!');
       cart.clearCart();
       setTimeout(() => codeRef.current?.focus(), 80);
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Hold failed'),
   });
 
   const buildSalePayload = () => ({
@@ -235,19 +269,7 @@ export default function CashierPage() {
     }
 
     if (!isOnline) {
-      const reference = `OFFLINE-${Date.now()}`;
-      enqueue(buildSalePayload(), {
-        reference,
-        items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: (i.price - i.discount) * i.quantity })),
-        subtotal: cart.subtotal(), tax: cart.taxTotal(), discount: 0, total: cart.total(),
-        paymentMethod: payMethod,
-        amountTendered: payMethod === 'cash' ? parseFloat(cashTendered) || undefined : undefined,
-        change:         payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
-      });
-      toast.success('Sale saved — will sync when connected', { duration: 4000, icon: '📶' });
-      cart.clearCart();
-      setCashTendered('');
-      setTimeout(() => codeRef.current?.focus(), 80);
+      toast.error('Local server is starting up — wait a moment and try again');
       return;
     }
 
@@ -299,6 +321,7 @@ export default function CashierPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
       {/* ── Header card ────────────────────────────────────────────────────── */}
@@ -307,26 +330,15 @@ export default function CashierPage() {
           <div className="flex items-center gap-5">
             <span className="text-blue-600 font-bold text-base">{storeName}</span>
             <span className="text-gray-400 text-sm">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
-            {isOnline && (
-              <button type="button" onClick={() => void syncNow(false)}
-                className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors text-xs"
-                title="Sync offline database">
-                {isDBSyncing
-                  ? <><RefreshCw size={11} className="animate-spin" /> Syncing...</>
-                  : lastSynced ? <span>DB ✓</span> : <span>DB ?</span>
-                }
-              </button>
-            )}
           </div>
           <div className="flex items-center gap-4 text-sm">
             {!isOnline ? (
-              <span className="flex items-center gap-1.5 text-amber-500 font-semibold">
-                <WifiOff size={13} /> Offline
-                {offlineQueue.length > 0 && <span className="text-xs">({offlineQueue.length} queued)</span>}
+              <span className="flex items-center gap-1.5 text-amber-500 font-semibold text-xs">
+                Server starting...
               </span>
             ) : (
               <span className="flex items-center gap-1.5 text-blue-500 font-medium text-sm">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> Online
+                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> Ready
               </span>
             )}
             <span className="text-gray-400">{fmtDate(currentTime)}</span>
@@ -348,9 +360,18 @@ export default function CashierPage() {
                 value={codeInput}
                 onChange={e => { setCodeInput(e.target.value); setMatchedProducts([]); }}
                 placeholder="Scan barcode or type product code / name..."
-                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-md px-4 py-2.5 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors"
+                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-md px-4 py-2.5 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
               />
+              {/* Touch keyboard button */}
+              <button
+                type="button"
+                onClick={() => setShowSearchModal(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-lg touch-manipulation"
+                title="Open on-screen keyboard"
+              >
+                <Keyboard size={15} />
+              </button>
               {matchedProducts.length > 1 && (
                 <div className="absolute top-full left-0 right-0 z-50 bg-white rounded-md border border-gray-200 shadow-xl max-h-72 overflow-y-auto mt-1">
                   <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-400 font-semibold uppercase tracking-wider">
@@ -386,10 +407,10 @@ export default function CashierPage() {
       <div className="flex flex-1 overflow-hidden gap-4 px-4 pb-4 min-h-0">
 
         {/* Left: items card */}
-        <div className="flex-1 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
           {/* Column headers */}
           <div className="flex items-center bg-gray-50 border-b border-gray-100 px-4 py-2.5 flex-shrink-0">
-            <span className="w-28 text-center flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wider">QTY</span>
+            <span className="w-36 text-center flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wider">QTY</span>
             <span className="flex-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</span>
             <span className="w-28 text-right pr-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</span>
             <span className="w-8"></span>
@@ -410,18 +431,18 @@ export default function CashierPage() {
                 const lineTotal = (item.price - item.discount) * item.quantity;
                 return (
                   <div key={item.product_id}
-                    className={`flex items-center px-4 py-2.5 border-b border-gray-50 text-sm ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                    <div className="w-28 flex items-center justify-center gap-1.5 flex-shrink-0">
+                    className={`flex items-center px-4 py-3.5 border-b border-gray-50 text-base ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                    <div className="w-36 flex items-center justify-center gap-2 flex-shrink-0">
                       <button type="button"
                         onClick={() => cart.updateQty(item.product_id, item.quantity - 1)}
-                        className="w-6 h-6 rounded bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 flex items-center justify-center transition-colors">
-                        <Minus size={10} />
+                        className="w-10 h-10 rounded bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 flex items-center justify-center transition-colors touch-manipulation">
+                        <Minus size={16} />
                       </button>
-                      <span className="w-8 text-center font-bold text-gray-900 tabular-nums">{item.quantity}</span>
+                      <span className="w-10 text-center font-bold text-gray-900 tabular-nums">{item.quantity}</span>
                       <button type="button"
                         onClick={() => cart.updateQty(item.product_id, item.quantity + 1)}
-                        className="w-6 h-6 rounded bg-gray-100 hover:bg-blue-100 hover:text-blue-600 text-gray-500 flex items-center justify-center transition-colors">
-                        <Plus size={10} />
+                        className="w-10 h-10 rounded bg-gray-100 hover:bg-blue-100 hover:text-blue-600 text-gray-500 flex items-center justify-center transition-colors touch-manipulation">
+                        <Plus size={16} />
                       </button>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -433,8 +454,8 @@ export default function CashierPage() {
                     <button type="button"
                       onClick={() => cart.removeItem(item.product_id)}
                       title="Remove item"
-                      className="w-8 flex justify-center text-gray-300 hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
+                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors touch-manipulation">
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 );
@@ -455,92 +476,81 @@ export default function CashierPage() {
         </div>
 
         {/* Right: payment column */}
-        <div className="w-72 xl:w-80 flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
+        <div className="w-[33.333%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[500px] max-w-[580px] flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
 
           {/* Total box */}
-          <div className="bg-blue-600 rounded-lg shadow-lg shadow-blue-200 px-5 py-3.5 flex items-center justify-between flex-shrink-0">
-            <span className="text-white/70 font-semibold text-sm tracking-wide">TOTAL</span>
-            <span className="text-white font-bold text-2xl tabular-nums font-mono">{formatCurrency(total)}</span>
+          <div className="bg-blue-600 rounded-lg shadow-lg shadow-blue-200 px-6 py-5 flex items-center justify-between flex-shrink-0">
+            <span className="text-white/70 font-semibold text-base tracking-wide">TOTAL</span>
+            <span className="text-white font-bold text-3xl tabular-nums font-mono">{formatCurrency(total)}</span>
           </div>
 
           {/* Payment method card */}
-          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-shrink-0">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Payment Method</p>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 flex-shrink-0">
+            <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Payment Method</p>
+            <div className="grid grid-cols-3 gap-3">
               {PAY_METHODS.map(({ value, label, key, activeClass }) => (
                 <button key={value} type="button"
                   onClick={() => setPayMethod(value)}
-                  className={`flex flex-col items-center py-3 rounded-md border-2 font-bold text-xs transition-all
+                  className={`flex flex-col items-center py-5 rounded-md border-2 font-bold text-sm transition-all touch-manipulation
                     ${payMethod === value
                       ? activeClass
                       : 'border-gray-200 text-gray-500 bg-white hover:border-blue-200 hover:bg-blue-50'
                     }`}
                 >
-                  <span className="text-xs opacity-50 mb-0.5">{key}</span>
+                  <span className="text-sm opacity-50 mb-1">{key}</span>
                   {label}
                 </button>
               ))}
             </div>
 
             {payMethod === 'cash' && (
-              <div className="mt-4 space-y-2">
-                <div>
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">
-                    Cash Tendered
-                  </label>
-                  <input
-                    ref={tenderedRef}
-                    type="number" step="0.01" min="0"
-                    value={cashTendered}
-                    onChange={e => setCashTendered(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleProcessSale(); } }}
-                    placeholder="0.00"
-                    className="w-full border-2 border-gray-200 focus:border-blue-500 rounded-md px-4 py-2.5 text-xl font-bold text-right font-mono focus:outline-none transition-colors"
-                  />
-                </div>
-                {change > 0 && (
-                  <div className="flex justify-between items-center bg-blue-50 border-2 border-blue-200 rounded-md px-4 py-2.5">
-                    <span className="text-sm font-semibold text-gray-500">Change</span>
-                    <span className="text-2xl font-bold text-blue-700 font-mono tabular-nums">
-                      {formatCurrency(change)}
-                    </span>
-                  </div>
-                )}
+              <div className="mt-5 space-y-3">
+                <NumericKeypad
+                  value={cashTendered}
+                  onChange={setCashTendered}
+                  onConfirm={handleProcessSale}
+                  label="Cash Tendered"
+                  confirmLabel={change > 0 ? `✓  Change: ${formatCurrency(change)}` : '✓ Process Sale'}
+                  confirmCls={canProcess ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
+                  disabled={!canProcess && cart.items.length === 0}
+                />
               </div>
             )}
           </div>
 
           {/* Action buttons card */}
-          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-2 flex-shrink-0">
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-3 flex-shrink-0">
             <button type="button"
               onClick={handleProcessSale}
               disabled={!canProcess}
-              className={`w-full py-3.5 rounded-md font-bold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm
-                ${isOnline
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-100'
-                }`}
+              className="w-full py-5 rounded-md font-bold text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 touch-manipulation"
             >
               {saleMutation.isPending
                 ? <span className="flex items-center justify-center gap-2">
-                    <Loader2 size={16} className="animate-spin" /> Processing...
+                    <Loader2 size={18} className="animate-spin" /> Processing...
                   </span>
-                : <span>F9 — {isOnline ? 'Charge' : 'Save Offline'} {formatCurrency(total)}</span>
+                : <span>F9 — Process Order {formatCurrency(total)}</span>
               }
             </button>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button type="button"
                 onClick={() => { cart.clearCart(); setCashTendered(''); setTimeout(() => codeRef.current?.focus(), 40); }}
                 disabled={cart.items.length === 0}
-                className="py-2.5 rounded-md border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-xs uppercase disabled:opacity-30 transition-colors">
+                className="py-4 rounded-md border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
                 F5 Clear
               </button>
               <button type="button"
                 onClick={handleHoldOrder}
                 disabled={cart.items.length === 0 || holdMutation.isPending}
-                className="py-2.5 rounded-md border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-xs uppercase disabled:opacity-30 transition-colors">
-                {holdMutation.isPending ? <Loader2 size={12} className="animate-spin mx-auto" /> : 'F8 Hold'}
+                className="py-4 rounded-md border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
+                {holdMutation.isPending ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'F8 Hold'}
+              </button>
+              <button type="button"
+                onClick={() => window.location.reload()}
+                className="py-4 rounded-md border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1"
+                title="Refresh if frozen">
+                <RefreshCw size={14} /> Refresh
               </button>
             </div>
           </div>
@@ -554,11 +564,11 @@ export default function CashierPage() {
                   Live Orders
                 </p>
                 <div className="flex items-center gap-2 text-xs font-semibold">
-                  <a href="/kitchen" target="_blank" rel="noopener"
-                    className="text-orange-500 hover:text-orange-600 transition-colors">Kitchen ↗</a>
+                  <Link to="/kitchen"
+                    className="text-orange-500 hover:text-orange-600 transition-colors">Kitchen</Link>
                   <span className="text-gray-200">·</span>
-                  <a href="/queue" target="_blank" rel="noopener"
-                    className="text-blue-500 hover:text-blue-600 transition-colors">Queue ↗</a>
+                  <Link to="/queue"
+                    className="text-blue-500 hover:text-blue-600 transition-colors">Queue</Link>
                 </div>
               </div>
               {kdsOrders.length === 0 ? (
@@ -594,5 +604,28 @@ export default function CashierPage() {
         </div>
       </div>
     </div>
+
+    {/* Touch keyboard search modal */}
+    {showSearchModal && (
+      <SearchModal
+        value={codeInput}
+        onChange={(v) => { setCodeInput(v); setMatchedProducts([]); }}
+        onClose={() => {
+          setShowSearchModal(false);
+          // Auto-submit if search has content
+          if (codeInput.trim()) {
+            const ql = codeInput.trim().toLowerCase();
+            const matches = allProducts.filter(p => p.name.toLowerCase().includes(ql) || (p.sku ?? '').toLowerCase().includes(ql));
+            if (matches.length === 1) { addProduct(matches[0]); }
+            else if (matches.length > 1) { setMatchedProducts(matches.slice(0, 8)); }
+            else if (matches.length === 0 && codeInput.trim()) { toast.error(`"${codeInput.trim()}" not found`); }
+          }
+          setTimeout(() => codeRef.current?.focus(), 80);
+        }}
+        placeholder="Scan barcode or type product name..."
+        label="Product Search"
+      />
+    )}
+    </>
   );
 }

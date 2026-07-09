@@ -129,9 +129,11 @@ class ShiftEndController extends BaseApiController
             ->when(! $user->hasRole(['admin', 'manager']), fn($q) => $q->where('user_id', $user->id))
             ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
             ->when($request->date, fn($q) => $q->whereDate('shift_end', $request->date))
+            ->when($request->date_from, fn($q) => $q->whereDate('shift_end', '>=', $request->date_from))
+            ->when($request->date_to, fn($q) => $q->whereDate('shift_end', '<=', $request->date_to))
             ->when($request->user_id, fn($q) => $q->where('user_id', $request->user_id));
 
-        return $this->paginated($query->latest()->paginate($request->per_page ?? 20));
+        return $this->paginated($query->latest()->paginate($request->per_page ?? 100));
     }
 
     /** PATCH /shift-end/{id}/approve — manager approves a shift end */

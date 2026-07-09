@@ -1,10 +1,16 @@
 import axios from 'axios';
 
-// In production: set VITE_API_URL=https://api.your-domain.com/api in .env
-// In development: proxy via Vite (vite.config.ts) so '/api' works
+// Desktop/offline builds use the bundled local Laravel server under /api.
+// Development may set VITE_API_URL=http://localhost:8080/api if needed.
+const configuredBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
+const localBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api';
+
+// Local-only POS: all requests go to the bundled PHP server on 127.0.0.1:8080.
+// Timeout is generous because the machine may be busy (background indexing, etc.).
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: configuredBaseUrl || localBaseUrl,
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Plus, Pencil, Trash2, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { currenciesApi } from '../api';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
 
 const schema = z.object({
@@ -48,15 +49,22 @@ export default function CurrenciesPage() {
   };
 
   const save = useMutation({
-    mutationFn: (d: FormData) => editing ? currenciesApi.update(editing.id, d) : currenciesApi.create(d),
-    onSuccess: () => { toast.success(editing ? 'Currency updated' : 'Currency added'); qc.invalidateQueries({ queryKey: ['currencies-all'] }); setShowModal(false); },
-    onError: (e: any) => toast.error(e.response?.data?.message ?? 'Failed'),
+    mutationFn: (d: FormData) => editing
+      ? offlineMutate(() => currenciesApi.update(editing.id, d), 'currencies', 'update', d as any, editing.id)
+      : offlineMutate(() => currenciesApi.create(d), 'currencies', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'currencies', editing ? 'update' : 'create', d as any, editing?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(editing ? 'Currency updated' : 'Currency added'); qc.invalidateQueries({ queryKey: ['currencies-all'] }); }
+      setShowModal(false);
+    },
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => currenciesApi.delete(id),
-    onSuccess: () => { toast.success('Currency removed'); qc.invalidateQueries({ queryKey: ['currencies-all'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message ?? 'Cannot delete'),
+    mutationFn: (id: number) => offlineMutate(() => currenciesApi.delete(id), 'currencies', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'currencies', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Currency removed'); qc.invalidateQueries({ queryKey: ['currencies-all'] }); }
+    },
   });
 
   const onSubmit = (d: FormData) => save.mutate(d);

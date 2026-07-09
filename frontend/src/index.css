@@ -2,5 +2,150 @@
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, system-ui, sans-serif; }
+@layer base {
+	:root {
+		--desktop-bg: #d8dee8;
+		--desktop-bg-dark: #b9c3d2;
+		--panel-top: #ffffff;
+		--panel-bottom: #eef3f8;
+		--panel-border: #b8c3d2;
+		--panel-border-dark: #7e8da1;
+		--ink: #142033;
+		--muted-ink: #526173;
+		--command-blue-top: #2f6fe5;
+		--command-blue-bottom: #164cae;
+		--command-blue-edge: #0d387f;
+	}
+
+	* { box-sizing: border-box; }
+
+	html,
+	body,
+	#root {
+		min-height: 100%;
+	}
+
+	body {
+		margin: 0;
+		font-family: Inter, system-ui, sans-serif;
+		color: var(--ink);
+		background:
+			linear-gradient(135deg, rgba(255,255,255,0.32) 0 25%, transparent 25% 50%, rgba(255,255,255,0.18) 50% 75%, transparent 75%) 0 0 / 18px 18px,
+			linear-gradient(180deg, #edf1f6 0%, var(--desktop-bg) 44%, var(--desktop-bg-dark) 100%);
+	}
+
+	::selection {
+		background: #1d4ed8;
+		color: white;
+	}
+}
+
+@layer components {
+	.app-shell {
+		background:
+			radial-gradient(circle at 18% 10%, rgba(255,255,255,0.62), transparent 28%),
+			linear-gradient(180deg, #dce3ed 0%, #c7d1df 100%);
+	}
+
+	.app-sidebar {
+		background: linear-gradient(180deg, #f9fbfd 0%, #e7edf5 58%, #d6dfeb 100%) !important;
+		border-right: 1px solid #8796aa !important;
+		box-shadow: inset -1px 0 0 rgba(255,255,255,0.72), 8px 0 18px rgba(31, 41, 55, 0.13) !important;
+	}
+
+	.app-titlebar,
+	.app-topbar {
+		background: linear-gradient(180deg, #fefefe 0%, #eef3f8 52%, #d9e2ed 100%) !important;
+		border-color: #aab7c7 !important;
+		box-shadow: inset 0 1px 0 white, 0 1px 3px rgba(15, 23, 42, 0.14) !important;
+	}
+
+	.app-workspace {
+		background:
+			linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px) 0 0 / 24px 24px,
+			linear-gradient(180deg, #e7edf4 0%, #d4dde9 100%) !important;
+	}
+
+	:where(.bg-white.rounded-lg, .bg-white.rounded-md, .bg-white.rounded-xl, .bg-white.rounded-2xl) {
+		background: linear-gradient(180deg, var(--panel-top) 0%, var(--panel-bottom) 100%) !important;
+		border-color: var(--panel-border) !important;
+		box-shadow:
+			inset 0 1px 0 rgba(255,255,255,0.9),
+			inset 0 -1px 0 rgba(126,141,161,0.16),
+			0 1px 2px rgba(15,23,42,0.08),
+			0 10px 24px rgba(31,41,55,0.10) !important;
+	}
+
+	:where(.shadow-sm) {
+		box-shadow:
+			inset 0 1px 0 rgba(255,255,255,0.7),
+			0 1px 2px rgba(15,23,42,0.12),
+			0 6px 16px rgba(15,23,42,0.08) !important;
+	}
+
+	:where(button, a, select, input, textarea) {
+		font-family: inherit;
+	}
+
+	:where(input, select, textarea) {
+		border-color: #aeb9c8 !important;
+		background: linear-gradient(180deg, #f8fafc 0%, #e9eef5 100%) !important;
+		box-shadow: inset 0 1px 2px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.86) !important;
+	}
+
+	:where(input:focus, select:focus, textarea:focus) {
+		background: #ffffff !important;
+		border-color: #2459bc !important;
+		box-shadow: inset 0 1px 2px rgba(15,23,42,0.08), 0 0 0 3px rgba(37,99,235,0.17) !important;
+	}
+
+	:where(button[class*="bg-blue-600"], a[class*="bg-blue-600"]) {
+		background: linear-gradient(180deg, var(--command-blue-top) 0%, var(--command-blue-bottom) 100%) !important;
+		border: 1px solid var(--command-blue-edge) !important;
+		box-shadow:
+			inset 0 1px 0 rgba(255,255,255,0.36),
+			inset 0 -1px 0 rgba(0,0,0,0.22),
+			0 1px 1px rgba(15,23,42,0.18),
+			0 8px 16px rgba(29,78,216,0.22) !important;
+		text-shadow: 0 1px 0 rgba(0,0,0,0.24);
+	}
+
+	:where(button[class*="bg-blue-600"], a[class*="bg-blue-600"]):hover {
+		background: linear-gradient(180deg, #3d7df0 0%, #0f3f99 100%) !important;
+		transform: translateY(-1px);
+	}
+
+	:where(button[class*="bg-blue-600"], a[class*="bg-blue-600"]):active {
+		transform: translateY(0);
+		box-shadow: inset 0 2px 5px rgba(0,0,0,0.26), 0 1px 0 rgba(255,255,255,0.7) !important;
+	}
+
+	:where(button[class*="border"], a[class*="border"]):not([class*="bg-blue-600"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-orange"]):not([class*="bg-purple"]) {
+		background: linear-gradient(180deg, #ffffff 0%, #e8eef6 100%);
+		border-color: #9facbf !important;
+		box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(15,23,42,0.12);
+	}
+
+	:where(table) {
+		border-collapse: separate;
+		border-spacing: 0;
+	}
+
+	:where(thead) {
+		background: linear-gradient(180deg, #edf2f7 0%, #d6e0ec 100%) !important;
+		box-shadow: inset 0 1px 0 white, inset 0 -1px 0 #a9b6c7;
+	}
+
+	:where(th) {
+		color: #334155 !important;
+		text-shadow: 0 1px 0 white;
+	}
+
+	:where(tbody tr) {
+		background-color: rgba(255,255,255,0.72);
+	}
+
+	:where(tbody tr:hover) {
+		background-color: #f4f8fc !important;
+	}
+}

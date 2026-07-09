@@ -4,6 +4,7 @@ import api from '../lib/axios';
 import { Plus, X, ArrowRightLeft, Loader2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
@@ -42,19 +43,20 @@ export default function StockTransferPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/stock-transfers', data),
-    onSuccess: () => { toast.success('Transfer created!'); qc.invalidateQueries({ queryKey: ['stock-transfers'] }); setShowNew(false); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (data: any) => offlineMutate(() => api.post('/stock-transfers', data), 'stock_transfers', 'create', data),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Transfer saved offline — will sync when server is back');
+      else { toast.success('Transfer created!'); qc.invalidateQueries({ queryKey: ['stock-transfers'] }); }
+      setShowNew(false);
+    },
   });
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: string }) => api.post(`/stock-transfers/${id}/${action}`),
-    onSuccess: (_, vars) => {
-      toast.success(`Transfer ${vars.action === 'dispatch' ? 'dispatched' : vars.action === 'receive' ? 'received' : 'cancelled'}!`);
-      qc.invalidateQueries({ queryKey: ['stock-transfer', selected?.id] });
-      qc.invalidateQueries({ queryKey: ['stock-transfers'] });
+    mutationFn: ({ id, action }: { id: number; action: string }) => offlineMutate(() => api.post(`/stock-transfers/${id}/${action}`), 'stock_transfers', action, { _url: `/stock-transfers/${id}/${action}`, _method: 'POST' }, id),
+    onSuccess: (result, vars) => {
+      if (result.offline) toast.success(`${vars.action} queued offline — will sync when server is back`);
+      else { toast.success(`Transfer ${vars.action === 'dispatch' ? 'dispatched' : vars.action === 'receive' ? 'received' : 'cancelled'}!`); qc.invalidateQueries({ queryKey: ['stock-transfer', selected?.id] }); qc.invalidateQueries({ queryKey: ['stock-transfers'] }); }
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
   });
 
   const transfers: any[] = data?.data ?? (Array.isArray(data) ? data : []);

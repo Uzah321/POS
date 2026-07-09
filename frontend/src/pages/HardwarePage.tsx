@@ -2,7 +2,7 @@
 import { useHardwareStore } from '../stores/hardwareStore';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
-  Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight
+  Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, printLabel, printReceipt,
@@ -16,6 +16,17 @@ import { simulateCardPayment } from '../lib/hardware/cardMachine';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import toast from 'react-hot-toast';
+import {
+  type ReceiptSettings,
+  FONT_FAMILY_MAP,
+  loadReceiptSettings,
+  saveReceiptSettings,
+} from '../lib/receiptSettings';
+import {
+  type KdsSettings,
+  loadKdsSettings,
+  saveKdsSettings,
+} from '../lib/kdsSettings';
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -29,6 +40,7 @@ const TABS = [
   { id: 'label',     label: 'Label Printer',     icon: Tag         },
   { id: 'card',      label: 'Card Machine',      icon: CreditCard  },
   { id: 'touch',     label: 'Touchscreen',       icon: Touchpad    },
+  { id: 'kds',       label: 'KDS / Queue',       icon: ChefHat     },
 ];
 
 // ---------------------------------------------------------------------------
@@ -84,6 +96,14 @@ export default function HardwarePage() {
   const { user } = useAuthStore();
   const { activeCurrency } = useCurrencyStore();
   const [tab, setTab] = useState('printer');
+
+  const [receipt, setReceiptRaw] = useState<ReceiptSettings>(() => loadReceiptSettings());
+  const setR = <K extends keyof ReceiptSettings>(key: K, val: ReceiptSettings[K]) =>
+    setReceiptRaw(r => { const n = { ...r, [key]: val }; saveReceiptSettings(n); return n; });
+
+  const [kds, setKdsRaw] = useState<KdsSettings>(() => loadKdsSettings());
+  const setK = <K extends keyof KdsSettings>(key: K, val: KdsSettings[K]) =>
+    setKdsRaw(k => { const n = { ...k, [key]: val }; saveKdsSettings(n); return n; });
 
   // Scale hook
   const scale = useWeighingScale(hw.scaleBaudRate);
@@ -253,6 +273,111 @@ export default function HardwarePage() {
               <Printer size={14} />Print Test Receipt
             </button>
           </Card>
+
+          {/* ── Receipt Design ─────────────────────────────────── */}
+          <div className="pt-2">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Receipt Design</p>
+            <div className="space-y-4">
+
+              <Card title="Layout">
+                <div className="flex gap-2 mb-2">
+                  {(['fiscal', 'simple', 'minimal'] as const).map(l => (
+                    <button key={l} type="button" onClick={() => setR('layout', l)}
+                      className={`flex-1 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${receipt.layout === l ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400">
+                  {receipt.layout === 'fiscal'  && 'Full fiscal tax invoice with VAT breakdown, item codes, and payment summary.'}
+                  {receipt.layout === 'simple'  && 'Store name, items with qty and price, subtotals, cashier name.'}
+                  {receipt.layout === 'minimal' && 'Bare minimum: store name, item totals, grand total, payment method.'}
+                </p>
+              </Card>
+
+              <Card title="Font & Paper">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Font Family</label>
+                    <select value={receipt.fontFamily} onChange={e => setR('fontFamily', e.target.value as ReceiptSettings['fontFamily'])}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <option value="courier">Courier New</option>
+                      <option value="arial">Arial</option>
+                      <option value="verdana">Verdana</option>
+                      <option value="georgia">Georgia</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Font Size</label>
+                    <select value={receipt.fontSize} onChange={e => setR('fontSize', Number(e.target.value) as ReceiptSettings['fontSize'])}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      {([10, 11, 12, 13, 14] as const).map(s => <option key={s} value={s}>{s}px</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Paper Width</label>
+                    <select value={receipt.paperWidth} onChange={e => setR('paperWidth', e.target.value as ReceiptSettings['paperWidth'])}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <option value="58mm">58 mm (small)</option>
+                      <option value="80mm">80 mm (standard)</option>
+                      <option value="a4">A4</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Divider Style</label>
+                    <select value={receipt.dividerStyle} onChange={e => setR('dividerStyle', e.target.value as ReceiptSettings['dividerStyle'])}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <option value="dashed">Dashed</option>
+                      <option value="solid">Solid</option>
+                      <option value="double">Double</option>
+                    </select>
+                  </div>
+                </div>
+                {receipt.layout === 'fiscal' && (
+                  <div className="mt-3">
+                    <label className="text-xs text-gray-500 block mb-1">Header Title</label>
+                    <input value={receipt.headerTitle} onChange={e => setR('headerTitle', e.target.value)}
+                      placeholder="***FISCAL TAX INVOICE***"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                )}
+              </Card>
+
+              <Card title="Show / Hide Sections">
+                {[
+                  { key: 'showCashierName',  label: 'Cashier name',                      hide: false },
+                  { key: 'showOrderType',    label: 'Order type (Sit-in / Takeaway)',     hide: false },
+                  { key: 'showVatBreakdown', label: 'VAT breakdown',                      hide: receipt.layout === 'minimal' },
+                  { key: 'showVatNote',      label: '"All Prices VAT Inclusive" note',    hide: receipt.layout !== 'fiscal' },
+                  { key: 'showItemCodes',    label: 'Item barcode / SKU codes',           hide: receipt.layout === 'minimal' },
+                ].filter(r => !r.hide).map(({ key, label }) => (
+                  <ToggleRow key={key} label={label}
+                    checked={receipt[key as keyof ReceiptSettings] as boolean}
+                    onChange={v => setR(key as keyof ReceiptSettings, v as any)} />
+                ))}
+              </Card>
+
+              {/* Live mini preview */}
+              <Card title="Preview">
+                <div className="border border-gray-200 rounded-lg bg-gray-50 p-3 max-w-[180px]"
+                  style={{ fontFamily: FONT_FAMILY_MAP[receipt.fontFamily], fontSize: `${receipt.fontSize}px`, lineHeight: '1.5' }}>
+                  <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
+                  <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? 'My Store' : ''}</div>
+                  {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>My Store</div>}
+                  <div className="my-1" style={{ borderTop: receipt.dividerStyle === 'solid' ? '1px solid #000' : receipt.dividerStyle === 'double' ? '3px double #000' : '1px dashed #000' }} />
+                  {receipt.layout !== 'minimal' && <><div className="flex justify-between"><span>Ref</span><span>001</span></div><div className="flex justify-between"><span>Date</span><span>17 Jun</span></div><div className="my-1" style={{ borderTop: '1px dashed #999' }} /></>}
+                  <div className="flex justify-between"><span>Coca Cola</span><span>50.00</span></div>
+                  <div className="flex justify-between"><span>Bread</span><span>25.00</span></div>
+                  <div className="my-1" style={{ borderTop: receipt.dividerStyle === 'solid' ? '1px solid #000' : receipt.dividerStyle === 'double' ? '3px double #000' : '1px dashed #000' }} />
+                  {receipt.showVatBreakdown && receipt.layout !== 'minimal' && <><div className="flex justify-between"><span>Net</span><span>65.22</span></div><div className="flex justify-between"><span>VAT</span><span>9.78</span></div></>}
+                  <div className="flex justify-between font-bold"><span>TOTAL</span><span>75.00</span></div>
+                  <div className="my-1" style={{ borderTop: '1px dashed #999' }} />
+                  <div>CASH</div>
+                  {receipt.showCashierName && <div>Cashier: Jane</div>}
+                </div>
+              </Card>
+            </div>
+          </div>
         </div>
       );
 
@@ -506,7 +631,7 @@ export default function HardwarePage() {
                     <p className="text-sm font-medium text-gray-900">{mode === 'webhook' ? 'Webhook / REST API' : 'Disabled (manual)'}</p>
                     <p className="text-xs text-gray-500">
                       {mode === 'webhook'
-                        ? 'Core calls your terminal\'s REST endpoint when a card payment is initiated'
+                        ? 'Core calls your terminal\'s local REST endpoint when a card payment is initiated'
                         : 'Process card payments on the terminal manually; record them as "Card" in the POS'}
                     </p>
                   </div>
@@ -520,17 +645,17 @@ export default function HardwarePage() {
               <input
                 type="url"
                 value={hw.cardMachineWebhookUrl}
-                placeholder="http://localhost:8080/api/pay"
+                placeholder="http://127.0.0.1:8080/api/pay"
                 onChange={(e) => hw.update({ cardMachineWebhookUrl: e.target.value })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
               />
               <p className="text-xs text-gray-400 mt-1">
-                Core will POST <code className="bg-gray-100 px-1 rounded">{`{ amount, currency, reference }`}</code> to this URL and expect <code className="bg-gray-100 px-1 rounded">{`{ success, reference }`}</code> in response.
+                Core will POST <code className="bg-gray-100 px-1 rounded">{`{ amount, currency, reference }`}</code> to a local or LAN URL and expect <code className="bg-gray-100 px-1 rounded">{`{ success, reference }`}</code> in response.
               </p>
               <div className="mt-3 space-y-1 text-xs text-gray-500">
                 <p className="font-medium text-gray-700">Compatible terminals:</p>
-                <p>- Yoco Khumo / Yoco Go (via Yoco Konnect bridge)</p>
-                <p>- PayAt (via PayAt integration middleware)</p>
+                <p>- Yoco Khumo / Yoco Go (via a local bridge)</p>
+                <p>- PayAt (via local integration middleware)</p>
                 <p>- Any terminal with a local HTTP API</p>
               </div>
             </Card>
@@ -564,6 +689,136 @@ export default function HardwarePage() {
               <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Use <strong>F9</strong> (hardware button) or the on-screen "Process Sale" button to complete a transaction.</p></div>
             </div>
           </Card>
+        </div>
+      );
+
+      // ---- KDS / Queue Display ----------------------------
+      case 'kds': return (
+        <div className="space-y-4">
+
+          {/* KDS sub-section */}
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Kitchen Display (KDS)</p>
+
+          <Card title="Theme">
+            <div className="flex gap-2">
+              {([
+                { v: 'dark',          label: 'Dark',          cls: 'bg-gray-900 text-white' },
+                { v: 'light',         label: 'Light',         cls: 'bg-white text-gray-900 border border-gray-300' },
+                { v: 'high-contrast', label: 'High Contrast', cls: 'bg-black text-yellow-400 border border-yellow-500' },
+              ] as const).map(({ v, label, cls }) => (
+                <button key={v} type="button" onClick={() => setK('kdsTheme', v)}
+                  className={`flex-1 py-2 px-2 rounded-md text-xs font-medium transition-all ${cls} ${kds.kdsTheme === v ? 'ring-2 ring-blue-500 ring-offset-1' : 'opacity-60 hover:opacity-100'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Configuration">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Display Name</label>
+                <input value={kds.kdsDisplayName} onChange={e => setK('kdsDisplayName', e.target.value)}
+                  placeholder="Kitchen Display" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Refresh Interval</label>
+                <select value={kds.kdsRefreshInterval} onChange={e => setK('kdsRefreshInterval', Number(e.target.value) as KdsSettings['kdsRefreshInterval'])}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value={2}>Every 2 seconds</option>
+                  <option value={4}>Every 4 seconds</option>
+                  <option value={6}>Every 6 seconds</option>
+                  <option value={10}>Every 10 seconds</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Grid Columns</label>
+                <select value={kds.kdsColumns} onChange={e => setK('kdsColumns', e.target.value as KdsSettings['kdsColumns'])}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="auto">Auto (responsive)</option>
+                  <option value="2">2 columns</option>
+                  <option value="3">3 columns</option>
+                  <option value="4">4 columns</option>
+                  <option value="5">5 columns</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Urgent Alert After (min)</label>
+                <input type="number" min={1} max={60} value={kds.kdsUrgentMinutes}
+                  onChange={e => setK('kdsUrgentMinutes', Number(e.target.value))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <ToggleRow label="Sound alert on new order" description="Play a beep when a new order arrives on the KDS"
+                checked={kds.kdsSoundEnabled} onChange={v => setK('kdsSoundEnabled', v)} />
+              <ToggleRow label="Show served orders" description="Keep served order cards visible on screen"
+                checked={kds.kdsShowServed} onChange={v => setK('kdsShowServed', v)} />
+            </div>
+          </Card>
+
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1 mb-4">Customer Queue Display</p>
+          </div>
+
+          <Card title="Theme">
+            <div className="flex gap-2">
+              {([
+                { v: 'dark',          label: 'Dark',          cls: 'bg-gray-900 text-white' },
+                { v: 'light',         label: 'Light',         cls: 'bg-white text-gray-900 border border-gray-300' },
+                { v: 'high-contrast', label: 'High Contrast', cls: 'bg-black text-yellow-400 border border-yellow-500' },
+              ] as const).map(({ v, label, cls }) => (
+                <button key={v} type="button" onClick={() => setK('queueTheme', v)}
+                  className={`flex-1 py-2 px-2 rounded-md text-xs font-medium transition-all ${cls} ${kds.queueTheme === v ? 'ring-2 ring-blue-500 ring-offset-1' : 'opacity-60 hover:opacity-100'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Configuration">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Screen Title</label>
+                <input value={kds.queueStoreName} onChange={e => setK('queueStoreName', e.target.value)}
+                  placeholder="Order Status" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Ticket Number Size</label>
+                <select value={kds.queueTicketSize} onChange={e => setK('queueTicketSize', e.target.value as KdsSettings['queueTicketSize'])}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="sm">Small</option>
+                  <option value="md">Medium</option>
+                  <option value="lg">Large</option>
+                  <option value="xl">Extra Large</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">"Preparing" Column Label</label>
+                <input value={kds.queuePreparingLabel} onChange={e => setK('queuePreparingLabel', e.target.value)}
+                  placeholder="Now Preparing" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">"Ready" Column Label</label>
+                <input value={kds.queueReadyLabel} onChange={e => setK('queueReadyLabel', e.target.value)}
+                  placeholder="Ready for Collection" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">Footer Message</label>
+                <input value={kds.queueFooterMessage} onChange={e => setK('queueFooterMessage', e.target.value)}
+                  placeholder="Watch this screen — your number will appear when your order is ready"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <ToggleRow label="Show clock" description="Display a live clock in the top-right corner of the queue screen"
+                checked={kds.queueShowClock} onChange={v => setK('queueShowClock', v)} />
+            </div>
+          </Card>
+
+          <div className="rounded-md bg-orange-50 border border-orange-100 px-4 py-3 text-sm text-orange-700">
+            Open <strong>/kitchen</strong> or <strong>/queue</strong> in a separate browser tab or on a TV — settings apply immediately on reload. Changes save automatically.
+          </div>
         </div>
       );
 

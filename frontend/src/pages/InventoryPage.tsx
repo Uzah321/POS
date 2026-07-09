@@ -4,6 +4,7 @@ import { inventoryApi, productsApi, warehousesApi } from '../api';
 import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
 export default function InventoryPage() {
@@ -43,15 +44,13 @@ export default function InventoryPage() {
   });
 
   const addStockMutation = useMutation({
-    mutationFn: (payload: object) => inventoryApi.adjust(payload),
-    onSuccess: () => {
-      toast.success('Stock added successfully!');
+    mutationFn: (payload: object) => offlineMutate(() => inventoryApi.adjust(payload), 'inventory', 'adjust', payload as Record<string, unknown>),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Stock saved offline - will sync when server is back');
+      else { toast.success('Stock added successfully!'); qc.invalidateQueries({ queryKey: ['inventory'] }); qc.invalidateQueries({ queryKey: ['pos-products'] }); }
       setShowAddStock(false);
       resetAddForm();
-      qc.invalidateQueries({ queryKey: ['inventory'] });
-      qc.invalidateQueries({ queryKey: ['pos-products'] });
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to add stock'),
   });
 
   const resetAddForm = () => {

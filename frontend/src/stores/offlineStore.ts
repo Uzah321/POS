@@ -1,64 +1,40 @@
+/**
+ * offlineStore — local-only POS build
+ *
+ * The only state tracked here is whether the local PHP server is reachable.
+ * The sale queue and sync machinery have been removed because everything runs
+ * on a local server (127.0.0.1:8080) — there is no remote server to sync to.
+ */
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-
-export interface PendingSale {
-  localId: string;
-  payload: Record<string, unknown>;
-  queuedAt: string;
-  attempts: number;
-  lastError?: string;
-  receiptMeta: {
-    reference: string;
-    items: Array<{ name: string; qty: number; price: number; total: number }>;
-    subtotal: number;
-    tax: number;
-    discount: number;
-    total: number;
-    paymentMethod: string;
-    amountTendered?: number;
-    change?: number;
-  };
-}
 
 interface OfflineState {
+  /** True when the local PHP server is responding on 127.0.0.1:8080 */
   isOnline: boolean;
-  queue: PendingSale[];
-  isSyncing: boolean;
   setOnline: (v: boolean) => void;
-  enqueue: (payload: Record<string, unknown>, receiptMeta: PendingSale['receiptMeta']) => string;
-  dequeue: (localId: string) => void;
-  markAttempt: (localId: string, error?: string) => void;
+
+  // ─── Legacy stubs kept so existing call-sites compile without changes ──────
+  queue: never[];
+  isSyncing: boolean;
+  enqueue: () => string;
+  dequeue: () => void;
+  markAttempt: () => void;
   setSyncing: (v: boolean) => void;
 }
 
-let _seq = 0;
+export const useOfflineStore = create<OfflineState>()((set) => ({
+  isOnline: true,   // optimistic — useServerHealth corrects within seconds
+  queue: [],
+  isSyncing: false,
 
-export const useOfflineStore = create<OfflineState>()(
-  persist(
-    (set, get) => ({
-      isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
-      queue: [],
-      isSyncing: false,
+  setOnline: (v) => set({ isOnline: v }),
 
-      setOnline: (v) => set({ isOnline: v }),
+  // No-ops: local-only build has no queue
+  enqueue: () => '',
+  dequeue: () => {},
+  markAttempt: () => {},
+  setSyncing: () => {},
+}));
 
-      enqueue: (payload, receiptMeta) => {
-        const localId = `OFF-${Date.now()}-${++_seq}`;
-        set({ queue: [...get().queue, { localId, payload, queuedAt: new Date().toISOString(), attempts: 0, receiptMeta }] });
-        return localId;
-      },
+// Legacy type alias kept so imports of PendingSale still compile
+export type PendingSale = never;
 
-      dequeue: (localId) => set({ queue: get().queue.filter((s) => s.localId !== localId) }),
-
-      markAttempt: (localId, error) =>
-        set({
-          queue: get().queue.map((s) =>
-            s.localId === localId ? { ...s, attempts: s.attempts + 1, lastError: error } : s
-          ),
-        }),
-
-      setSyncing: (v) => set({ isSyncing: v }),
-    }),
-    { name: 'pos-offline-queue' }
-  )
-);

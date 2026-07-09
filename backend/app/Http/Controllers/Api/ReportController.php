@@ -484,7 +484,7 @@ class ReportController extends BaseApiController
      * Sales → Less CoS → Gross Profit → %GP → Less Deductions → Profit B/d
      * Supports period=daily|weekly|monthly and date/month params.
      */
-    public function financialSummary(Request $request): \Illuminate\Http\JsonResponse
+    public function financialSummary(Request $request): \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\StreamedResponse
     {
         $period   = $request->period ?? 'daily';
         $branchId = $request->branch_id;
@@ -509,6 +509,15 @@ class ReportController extends BaseApiController
         $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
             ->selectRaw('SUM(cost_price * quantity) as total')
             ->value('total') ?? 0;
+
+        // If cost_price was not recorded on sale items (legacy zero), derive COGS
+        // from the product's current cost_price as a best-effort fallback.
+        if ((float) $cogs === 0.0 && $sales->count() > 0) {
+            $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
+                ->join('products', 'products.id', '=', 'sale_items.product_id')
+                ->selectRaw('SUM(products.cost_price * sale_items.quantity) as total')
+                ->value('total') ?? 0;
+        }
 
         $expenses = Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))

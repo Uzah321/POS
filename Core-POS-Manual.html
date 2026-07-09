@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Core POS — Installation Guide &amp; User Manual</title>
+<style>
+  /* ── Reset & Base ───────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 10.5pt; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #1e293b;
+    background: #fff;
+    line-height: 1.65;
+  }
+
+  /* ── Page layout ────────────────────────────────────────────────────── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 18mm 18mm 16mm 18mm;
+    position: relative;
+  }
+  @media screen { .page { box-shadow: 0 4px 24px rgba(0,0,0,.12); margin: 12px auto; } }
+
+  /* ── Cover page ─────────────────────────────────────────────────────── */
+  .cover {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 297mm;
+    text-align: center;
+    background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #1e40af 100%);
+    color: #fff;
+    border-radius: 0;
+    padding: 30mm 20mm;
+  }
+  .cover .logo-ring {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.12);
+    border: 3px solid rgba(255,255,255,.3);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 22px;
+    font-size: 36px;
+  }
+  .cover h1 { font-size: 42pt; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .cover .cover-sub { font-size: 14pt; color: rgba(255,255,255,.7); margin-bottom: 40px; letter-spacing: 2px; text-transform: uppercase; }
+  .cover .doc-title { font-size: 20pt; font-weight: 700; margin-bottom: 10px; color: #93c5fd; }
+  .cover .doc-subtitle { font-size: 12pt; color: rgba(255,255,255,.6); margin-bottom: 60px; }
+  .cover .cover-meta {
+    border-top: 1px solid rgba(255,255,255,.2);
+    padding-top: 24px;
+    display: flex; gap: 40px;
+    font-size: 9pt; color: rgba(255,255,255,.5);
+  }
+  .cover .cover-meta span b { color: rgba(255,255,255,.8); display: block; font-size: 10pt; }
+
+  /* ── TOC ────────────────────────────────────────────────────────────── */
+  .toc-page { padding-top: 14mm; }
+  .toc-title { font-size: 22pt; font-weight: 800; color: #1e40af; margin-bottom: 6px; }
+  .toc-rule { height: 3px; background: #1e40af; width: 50px; border-radius: 2px; margin-bottom: 28px; }
+  .toc-section { margin-bottom: 6px; }
+  .toc-section a { text-decoration: none; color: #1e293b; display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px dotted #cbd5e1; }
+  .toc-section a:hover { color: #1e40af; }
+  .toc-section a .toc-pg { color: #94a3b8; font-size: 9pt; }
+  .toc-section.h1 a { font-size: 11pt; font-weight: 700; color: #1e40af; border-bottom: 1px solid #e2e8f0; margin-top: 10px; }
+  .toc-section.h2 a { font-size: 10pt; padding-left: 16px; color: #334155; }
+  .toc-section.h3 a { font-size: 9pt; padding-left: 32px; color: #64748b; }
+
+  /* ── Chapter headers ─────────────────────────────────────────────────── */
+  .chapter-cover {
+    min-height: 60mm;
+    display: flex; align-items: flex-end;
+    padding-bottom: 12mm;
+    margin-bottom: 14mm;
+    border-bottom: 3px solid #e2e8f0;
+  }
+  .chapter-num { font-size: 9pt; font-weight: 700; color: #94a3b8; letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .chapter-title { font-size: 26pt; font-weight: 800; color: #0f172a; line-height: 1.15; }
+  .chapter-stripe {
+    width: 5px; min-height: 70px; background: #1e40af; border-radius: 3px;
+    margin-right: 18px; flex-shrink: 0; align-self: stretch;
+  }
+
+  /* ── Section headings ───────────────────────────────────────────────── */
+  h2 { font-size: 14pt; font-weight: 700; color: #1e40af; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #eff6ff; }
+  h3 { font-size: 11pt; font-weight: 700; color: #0f172a; margin: 14px 0 6px; }
+  h4 { font-size: 10pt; font-weight: 700; color: #334155; margin: 10px 0 4px; }
+  p  { margin-bottom: 8px; }
+
+  /* ── Info boxes ─────────────────────────────────────────────────────── */
+  .box {
+    border-radius: 8px; padding: 12px 16px; margin: 12px 0;
+    display: flex; gap: 12px; align-items: flex-start;
+    font-size: 9.5pt;
+  }
+  .box-icon { font-size: 16px; flex-shrink: 0; line-height: 1.4; }
+  .box.info    { background: #eff6ff; border-left: 4px solid #3b82f6; }
+  .box.tip     { background: #f0fdf4; border-left: 4px solid #22c55e; }
+  .box.warning { background: #fff7ed; border-left: 4px solid #f59e0b; }
+  .box.danger  { background: #fef2f2; border-left: 4px solid #ef4444; }
+
+  /* ── Steps ──────────────────────────────────────────────────────────── */
+  .steps { counter-reset: step-counter; margin: 12px 0; }
+  .step  { display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start; }
+  .step-num {
+    counter-increment: step-counter;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #1e40af; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 10pt; flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-body { flex: 1; }
+  .step-body strong { display: block; margin-bottom: 3px; }
+
+  /* ── Code / commands ─────────────────────────────────────────────────── */
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+    border-radius: 4px; padding: 1px 6px; font-size: 9pt;
+    color: #be123c;
+  }
+  pre {
+    background: #0f172a; color: #e2e8f0;
+    border-radius: 8px; padding: 14px 16px; margin: 10px 0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 8.5pt; line-height: 1.6; overflow: hidden;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  pre .comment { color: #64748b; }
+  pre .cmd { color: #86efac; }
+  pre .str { color: #fcd34d; }
+
+  /* ── Tables ──────────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+  th { background: #1e40af; color: #fff; padding: 8px 12px; text-align: left; font-size: 9pt; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  tr:hover td { background: #eff6ff; }
+
+  /* ── Feature cards ───────────────────────────────────────────────────── */
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+  .feature-card {
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 12px 14px; background: #fafafa;
+  }
+  .feature-card .fc-icon { font-size: 20px; margin-bottom: 6px; }
+  .feature-card .fc-title { font-weight: 700; font-size: 10pt; color: #0f172a; margin-bottom: 4px; }
+  .feature-card .fc-desc { font-size: 9pt; color: #64748b; }
+  .feature-card .fc-url { font-size: 8.5pt; color: #3b82f6; font-family: monospace; margin-top: 4px; }
+
+  /* ── Badge / pill ────────────────────────────────────────────────────── */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 8pt; font-weight: 600; }
+  .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+  .badge-green  { background: #dcfce7; color: #15803d; }
+  .badge-orange { background: #fed7aa; color: #c2410c; }
+  .badge-gray   { background: #f1f5f9; color: #475569; }
+  .badge-red    { background: #fee2e2; color: #b91c1c; }
+
+  /* ── Page footer ─────────────────────────────────────────────────────── */
+  .pg-footer {
+    position: absolute; bottom: 10mm; left: 18mm; right: 18mm;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 8pt; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 6px;
+  }
+
+  /* ── Credentials box ─────────────────────────────────────────────────── */
+  .creds {
+    background: #0f172a; border-radius: 10px; padding: 16px 20px;
+    margin: 12px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .creds .cred-row { display: flex; flex-direction: column; }
+  .creds .cred-label { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+  .creds .cred-value { font-family: 'Consolas', monospace; font-size: 11pt; color: #38bdf8; font-weight: 700; }
+
+  /* ── Network diagram ─────────────────────────────────────────────────── */
+  .net-diagram {
+    border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px;
+    margin: 12px 0; display: flex; align-items: center; justify-content: center;
+    gap: 0; background: #f8fafc; flex-wrap: wrap;
+  }
+  .net-box {
+    border: 2px solid #3b82f6; border-radius: 8px; padding: 10px 16px;
+    background: #fff; text-align: center; min-width: 110px;
+  }
+  .net-box .nb-icon { font-size: 22px; }
+  .net-box .nb-label { font-size: 8.5pt; font-weight: 700; color: #1e40af; margin-top: 4px; }
+  .net-box .nb-sub { font-size: 7.5pt; color: #64748b; }
+  .net-box.server { border-color: #1e40af; background: #eff6ff; }
+  .net-arrow { font-size: 24px; color: #94a3b8; margin: 0 10px; }
+
+  /* ── Permission matrix ───────────────────────────────────────────────── */
+  .perm-table td:first-child { font-weight: 600; }
+  .check { color: #16a34a; font-size: 13pt; font-weight: 700; }
+  .cross { color: #dc2626; font-size: 13pt; }
+
+  /* ── Print ───────────────────────────────────────────────────────────── */
+  @media print {
+    html { font-size: 10pt; }
+    .page { box-shadow: none; margin: 0; width: 100%; padding: 14mm 16mm 14mm 16mm; }
+    .page-break { page-break-before: always; }
+    a { color: inherit; text-decoration: none; }
+    pre { page-break-inside: avoid; }
+    .box { page-break-inside: avoid; }
+    .step { page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+    h3 { page-break-after: avoid; }
+    .chapter-cover { page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     COVER
+════════════════════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="cover">
+    <div class="logo-ring">🛒</div>
+    <h1>Core</h1>
+    <p class="cover-sub">Point of Sale System</p>
+    <p class="doc-title">Installation Guide &amp; User Manual</p>
+    <p class="doc-subtitle">Complete reference for setup, configuration, and daily operation</p>
+    <div class="cover-meta">
+      <span><b>Version</b> 1.0</span>
+      <span><b>Platform</b> Windows 10/11</span>
+      <span><b>Database</b> MariaDB 11.4</span>
+      <span><b>Issued</b> June 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     TABLE OF CONTENTS
+════════════════════════════════════════════════════════════════════ -->
+<div class="page page-break toc-page">
+  <div class="toc-title">Contents</div>
+  <div class="toc-rule"></div>
+
+  <div class="toc-section h1"><a href="#part1"><span>Part 1 — Installation Guide</span><span class="toc-pg">3</span></a></div>
+  <div class="toc-section h2"><a href="#req"><span>1.1 System Requirements</span><span class="toc-pg">3</span></a></div>
+  <div class="toc-section h2"><a href="#install-steps"><span>1.2 Installation Steps</span><span class="toc-pg">3</span></a></div>
+  <div class="toc-section h2"><a href="#first-login"><span>1.3 First Login</span><span class="toc-pg">4</span></a></div>
+  <div class="toc-section h2"><a href="#network"><span>1.4 Network &amp; Multi-Screen Setup</span><span class="toc-pg">4</span></a></div>
+  <div class="toc-section h2"><a href="#firewall"><span>1.5 Firewall Configuration</span><span class="toc-pg">5</span></a></div>
+  <div class="toc-section h2"><a href="#daily-start"><span>1.6 Starting the System Daily</span><span class="toc-pg">5</span></a></div>
+
+  <div class="toc-section h1"><a href="#part2"><span>Part 2 — User Manual</span><span class="toc-pg">6</span></a></div>
+  <div class="toc-section h2"><a href="#overview"><span>2.1 System Overview</span><span class="toc-pg">6</span></a></div>
+  <div class="toc-section h2"><a href="#dashboard"><span>2.2 Dashboard</span><span class="toc-pg">6</span></a></div>
+  <div class="toc-section h2"><a href="#pos"><span>2.3 Point of Sale — Advanced POS (Restaurant)</span><span class="toc-pg">7</span></a></div>
+  <div class="toc-section h2"><a href="#cashier"><span>2.4 Cashier Register (Supermarket)</span><span class="toc-pg">8</span></a></div>
+  <div class="toc-section h2"><a href="#kds"><span>2.5 Kitchen Display &amp; Queue Screen</span><span class="toc-pg">9</span></a></div>
+  <div class="toc-section h2"><a href="#products"><span>2.6 Products &amp; Inventory</span><span class="toc-pg">10</span></a></div>
+  <div class="toc-section h2"><a href="#purchasing"><span>2.7 Purchasing &amp; Suppliers</span><span class="toc-pg">11</span></a></div>
+  <div class="toc-section h2"><a href="#customers"><span>2.8 Customers</span><span class="toc-pg">11</span></a></div>
+  <div class="toc-section h2"><a href="#sales"><span>2.9 Sales &amp; Orders</span><span class="toc-pg">12</span></a></div>
+  <div class="toc-section h2"><a href="#finance"><span>2.10 Finance (Expenses, Cashflow, Salaries)</span><span class="toc-pg">13</span></a></div>
+  <div class="toc-section h2"><a href="#reports"><span>2.11 Reports</span><span class="toc-pg">14</span></a></div>
+  <div class="toc-section h2"><a href="#shifts"><span>2.12 Shift End &amp; Day End</span><span class="toc-pg">14</span></a></div>
+  <div class="toc-section h2"><a href="#branches"><span>2.13 Branches</span><span class="toc-pg">15</span></a></div>
+  <div class="toc-section h2"><a href="#users"><span>2.14 Users &amp; Roles</span><span class="toc-pg">15</span></a></div>
+  <div class="toc-section h2"><a href="#settings"><span>2.15 Settings &amp; Configuration</span><span class="toc-pg">16</span></a></div>
+  <div class="toc-section h2"><a href="#hardware"><span>2.16 Hardware &amp; Peripherals</span><span class="toc-pg">17</span></a></div>
+  <div class="toc-section h2"><a href="#backup"><span>2.17 Backup &amp; Restore</span><span class="toc-pg">17</span></a></div>
+  <div class="toc-section h2"><a href="#advanced"><span>2.18 Advanced Features</span><span class="toc-pg">18</span></a></div>
+
+  <div class="toc-section h1"><a href="#part3"><span>Part 3 — Troubleshooting</span><span class="toc-pg">19</span></a></div>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>Version 1.0</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PART 1 — INSTALLATION
+════════════════════════════════════════════════════════════════════ -->
+<div class="page page-break" id="part1">
+  <div class="chapter-cover">
+    <div class="chapter-stripe"></div>
+    <div>
+      <span class="chapter-num">Part One</span>
+      <div class="chapter-title">Installation Guide</div>
+    </div>
+  </div>
+
+  <h2 id="req">1.1 System Requirements</h2>
+  <table>
+    <tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr>
+    <tr><td>Operating System</td><td>Windows 10 (version 1809+) 64-bit</td><td>Windows 11 64-bit</td></tr>
+    <tr><td>Processor</td><td>Dual-core 2 GHz</td><td>Quad-core 2.5 GHz+</td></tr>
+    <tr><td>RAM</td><td>4 GB</td><td>8 GB</td></tr>
+    <tr><td>Disk Space</td><td>2 GB free</td><td>10 GB free (for database growth)</td></tr>
+    <tr><td>Display</td><td>1280 × 720</td><td>1920 × 1080</td></tr>
+    <tr><td>Network</td><td>Not required</td><td>Local Wi-Fi/LAN for multi-screen</td></tr>
+    <tr><td>Internet</td><td>Not required after install</td><td>Not required</td></tr>
+    <tr><td>User rights</td><td colspan="2">Administrator account required during setup</td></tr>
+  </table>
+
+  <div class="box info">
+    <span class="box-icon">ℹ️</span>
+    <div>Core POS runs entirely offline. No internet connection is needed after the initial installation. All data is stored locally in a MariaDB database on the same machine.</div>
+  </div>
+
+  <h2 id="install-steps">1.2 Installation Steps</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>Copy the installer to the target machine</strong>
+        Copy <code>Core-Setup.exe</code> to the machine. A USB drive works fine — no internet is needed.
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Run as Administrator</strong>
+        Right-click <code>Core-Setup.exe</code> → <em>Run as administrator</em>. If prompted by Windows Defender or UAC, click <em>Yes</em> / <em>Run anyway</em>.
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Follow the Setup Wizard</strong>
+        Accept the default installation path (<code>C:\POS</code>) and click <em>Next</em> through the wizard pages. No options need to be changed.
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <strong>Wait for automatic configuration (2–5 minutes)</strong>
+        A setup window opens and automatically:
+        <ul style="margin: 6px 0 0 16px; font-size: 9.5pt;">
+          <li>Installs the Visual C++ Runtime (required by PHP)</li>
+          <li>Installs MariaDB database silently</li>
+          <li>Creates the <code>corepos</code> database and application user</li>
+          <li>Runs all database migrations and seeds default data</li>
+          <li>Creates a <em>Core</em> shortcut on the Desktop</li>
+        </ul>
+        <div class="box tip" style="margin-top: 8px;">
+          <span class="box-icon">✅</span>
+          <div>The window will say <em>"Core POS setup complete!"</em> when finished. Press Enter to close it.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <strong>Launch Core POS</strong>
+        Double-click the <em>Core</em> shortcut on the Desktop, or tick <em>"Launch Core now"</em> at the end of the wizard. Your browser opens automatically at <code>http://localhost:8080</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>3</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="first-login">1.3 First Login</h2>
+  <p>After the browser opens, you will see the Core POS login screen. Use the default administrator credentials below:</p>
+
+  <div class="creds">
+    <div class="cred-row">
+      <span class="cred-label">Email / Username</span>
+      <span class="cred-value">admin@nexapos.com</span>
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">Password</span>
+      <span class="cred-value">Admin@123</span>
+    </div>
+  </div>
+
+  <div class="box warning">
+    <span class="box-icon">⚠️</span>
+    <div>Change the administrator password immediately after the first login. Go to <strong>Settings → Users</strong> and update the admin account's password to something secure.</div>
+  </div>
+
+  <p>After logging in, go to <strong>Settings → General</strong> and set your business type (Restaurant or Supermarket), business name, currency, and tax rates.</p>
+
+  <h2 id="network">1.4 Network &amp; Multi-Screen Setup</h2>
+  <p>Core POS supports multiple screens on the same local network. The machine where Core is installed acts as the server. Tablets, laptops, or smart TVs on the same Wi-Fi can connect to it for:</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="fc-icon">👨‍🍳</div>
+      <div class="fc-title">Kitchen Display (KDS)</div>
+      <div class="fc-desc">Shows incoming orders to kitchen staff. Updates in real-time. Staff can bump order status.</div>
+      <div class="fc-url">http://[SERVER-IP]:8080/kitchen</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon">📺</div>
+      <div class="fc-title">Queue Display</div>
+      <div class="fc-desc">Shows order numbers to waiting customers. Displayed on a TV or public screen.</div>
+      <div class="fc-url">http://[SERVER-IP]:8080/queue</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon">🖥️</div>
+      <div class="fc-title">Customer Display</div>
+      <div class="fc-desc">Shows current sale items and totals to the customer facing the cashier.</div>
+      <div class="fc-url">http://[SERVER-IP]:8080/customer-display</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon">💻</div>
+      <div class="fc-title">Additional POS Terminals</div>
+      <div class="fc-desc">Any device on the LAN can log in and operate as a full cashier terminal.</div>
+      <div class="fc-url">http://[SERVER-IP]:8080/cashier</div>
+    </div>
+  </div>
+
+  <div class="net-diagram">
+    <div class="net-box server">
+      <div class="nb-icon">🖥️</div>
+      <div class="nb-label">POS Server</div>
+      <div class="nb-sub">Core installed here<br>192.168.1.10:8080</div>
+    </div>
+    <div class="net-arrow">⇄</div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div class="net-box"><div class="nb-icon">👨‍🍳</div><div class="nb-label">Kitchen Screen</div><div class="nb-sub">/kitchen</div></div>
+      <div class="net-box"><div class="nb-icon">📺</div><div class="nb-label">Queue TV</div><div class="nb-sub">/queue</div></div>
+    </div>
+    <div class="net-arrow">⇄</div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div class="net-box"><div class="nb-icon">💻</div><div class="nb-label">Cashier 2</div><div class="nb-sub">/cashier</div></div>
+      <div class="net-box"><div class="nb-icon">📱</div><div class="nb-label">Customer Display</div><div class="nb-sub">/customer-display</div></div>
+    </div>
+  </div>
+
+  <h3>Finding the Server IP Address</h3>
+  <p>On the POS machine, open PowerShell or Command Prompt and type:</p>
+  <pre><span class="cmd">ipconfig</span>
+<span class="comment"># Look for "IPv4 Address" under your active network adapter
+# Example output:
+   IPv4 Address. . . : <span class="str">192.168.1.10</span></span></pre>
+
+  <p>Then on any device on the same network, open a browser and go to <code>http://192.168.1.10:8080/kitchen</code> (replace with your actual IP).</p>
+
+  <h2 id="firewall">1.5 Firewall Configuration</h2>
+  <p>Windows Firewall may block connections from other devices. Run this command once on the POS server machine (as Administrator):</p>
+  <pre><span class="cmd">netsh advfirewall firewall add rule name="Core POS" dir=in action=allow protocol=TCP localport=8080</span></pre>
+  <p>This only needs to be done once. After this, all devices on the local network can connect to the POS server.</p>
+
+  <h2 id="daily-start">1.6 Starting the System Daily</h2>
+  <p>Each day, simply double-click the <strong>Core</strong> shortcut on the Desktop. It will:</p>
+  <ul style="margin: 8px 0 0 18px;">
+    <li>Start the MariaDB database service automatically</li>
+    <li>Launch the PHP web server on port 8080</li>
+    <li>Open your browser at the cashier screen</li>
+  </ul>
+  <div class="box tip">
+    <span class="box-icon">💡</span>
+    <div>Leave the black command window open while the system is in use. Closing it will stop the POS server. All other screens (kitchen, queue, cashier terminals) will stop working until you re-launch.</div>
+  </div>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>4</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PART 2 — USER MANUAL
+════════════════════════════════════════════════════════════════════ -->
+<div class="page page-break" id="part2">
+  <div class="chapter-cover">
+    <div class="chapter-stripe"></div>
+    <div>
+      <span class="chapter-num">Part Two</span>
+      <div class="chapter-title">User Manual</div>
+    </div>
+  </div>
+
+  <h2 id="overview">2.1 System Overview</h2>
+  <p>Core POS is a full-featured point-of-sale system that supports both <strong>Restaurant</strong> and <strong>Supermarket</strong> business types. The navigation automatically adapts to the business type set in Settings.</p>
+
+  <table>
+    <tr><th>Business Type</th><th>Main POS Screen</th><th>Extra Features</th></tr>
+    <tr><td><span class="badge badge-orange">Restaurant</span></td><td>Advanced POS (<code>/pos</code>)</td><td>Orders, Kitchen Display, Queue Display</td></tr>
+    <tr><td><span class="badge badge-blue">Supermarket</span></td><td>Cashier Register (<code>/cashier</code>)</td><td>Held Orders, Customer Display</td></tr>
+  </table>
+
+  <h3>Navigation</h3>
+  <p>The sidebar on the left contains all menu items. Items are grouped by function. On smaller screens, use the hamburger menu (☰) to show/hide the sidebar. The top bar shows the current user, branch, and quick-access buttons.</p>
+
+  <h2 id="dashboard">2.2 Dashboard</h2>
+  <p>The Dashboard is the home screen shown to managers and administrators after login. It displays live business statistics for today and the current month.</p>
+
+  <h3>Restaurant Dashboard</h3>
+  <table>
+    <tr><th>Card / Widget</th><th>What it Shows</th></tr>
+    <tr><td>Kitchen Status bar</td><td>Live count of New / Preparing / Ready orders from the KDS</td></tr>
+    <tr><td>Revenue Today</td><td>Total sales revenue for today</td></tr>
+    <tr><td>Orders Today</td><td>Number of completed orders</td></tr>
+    <tr><td>Avg Order Value</td><td>Revenue ÷ orders — average spend per table/cover</td></tr>
+    <tr><td>Active Kitchen</td><td>Orders currently in the kitchen (not yet served)</td></tr>
+    <tr><td>Sales Trend Chart</td><td>Area chart of daily revenue for the last 30 days</td></tr>
+    <tr><td>Popular Dishes</td><td>Top items sold ranked by quantity with progress bars</td></tr>
+    <tr><td>Live Kitchen Orders</td><td>Cards showing each active ticket, status and items</td></tr>
+    <tr><td>Month Summary</td><td>Month-to-date revenue, order count, and customer count</td></tr>
+  </table>
+
+  <h3>Supermarket Dashboard</h3>
+  <table>
+    <tr><th>Card / Widget</th><th>What it Shows</th></tr>
+    <tr><td>Sales Today</td><td>Total revenue and transaction count for today</td></tr>
+    <tr><td>Transactions</td><td>Number of sales completed today</td></tr>
+    <tr><td>Average Basket</td><td>Revenue ÷ transactions — average spend per customer</td></tr>
+    <tr><td>Low Stock</td><td>Count of products below their minimum stock level</td></tr>
+    <tr><td>Sales Trend</td><td>30-day area chart of revenue</td></tr>
+    <tr><td>Top Selling Items</td><td>Best-selling products by quantity and revenue</td></tr>
+    <tr><td>Payment Methods</td><td>Pie chart of cash vs card vs EcoCash vs other</td></tr>
+    <tr><td>Held Orders</td><td>List of parked (on-hold) sales waiting to be completed</td></tr>
+    <tr><td>Month Summary</td><td>Month-to-date revenue, sales count, and customers</td></tr>
+  </table>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>5</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="pos">2.3 Advanced POS — Restaurant</h2>
+  <p>The Advanced POS (<code>/pos</code>) is designed for table-service restaurants. It supports table management, modifiers, order routing to the kitchen, and split payments.</p>
+
+  <h3>Starting a Sale</h3>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Select or create a table / order</strong> — Click an available table on the floor plan, or press <em>New Order</em> for takeaway.</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Add items</strong> — Search by name or scan a barcode. Products are grouped by category. Click an item to add it to the order.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Apply modifiers / notes</strong> — Tap a line item to adjust quantity, add a note (e.g. "no chilli"), or apply a discount.</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Send to Kitchen</strong> — Click <em>Send to KDS</em>. The order appears instantly on the Kitchen Display Screen.</div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Collect payment</strong> — When the customer is ready, click <em>Charge</em>. Select the payment method and confirm. A receipt is generated.</div></div>
+  </div>
+
+  <h3>Payment Methods Accepted</h3>
+  <div class="feature-grid">
+    <div class="feature-card"><div class="fc-icon">💵</div><div class="fc-title">Cash</div><div class="fc-desc">Enter amount tendered. System calculates change automatically.</div></div>
+    <div class="feature-card"><div class="fc-icon">💳</div><div class="fc-title">Card</div><div class="fc-desc">Credit/debit card via external terminal. Mark as card payment in the system.</div></div>
+    <div class="feature-card"><div class="fc-icon">📱</div><div class="fc-title">EcoCash</div><div class="fc-desc">Mobile money payment. Enter reference number and confirm.</div></div>
+    <div class="feature-card"><div class="fc-icon">🔀</div><div class="fc-title">Split Payment</div><div class="fc-desc">Customer pays part cash, part card — handled within a single transaction.</div></div>
+  </div>
+
+  <h3>Holding / Parking a Sale</h3>
+  <p>To pause a sale and start a new one (e.g. while waiting for a customer to return), click <em>Hold Order</em>. The order is saved and can be recalled from the <em>Held Orders</em> list.</p>
+
+  <h3>Applying Discounts</h3>
+  <ul style="margin: 6px 0 0 18px; font-size: 9.5pt; line-height: 1.8;">
+    <li><strong>Line discount</strong> — Tap a product line and enter a % or fixed discount on that item only.</li>
+    <li><strong>Order discount</strong> — Apply a % discount to the entire order at the payment screen.</li>
+    <li><strong>Customer discount</strong> — Customers with a discount rate on their profile get it automatically when linked to the sale.</li>
+  </ul>
+
+  <h2 id="cashier">2.4 Cashier Register — Supermarket</h2>
+  <p>The Cashier Register (<code>/cashier</code>) is optimised for high-volume, fast-paced supermarket checkout. It supports barcode scanning, quick product search, and rapid payment processing.</p>
+
+  <h3>Cashier Workflow</h3>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Scan or search products</strong> — Use a barcode scanner or type in the search box. Products are added to the basket instantly.</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Review basket</strong> — The right panel shows all items, quantities, and the running total including tax.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Link a customer (optional)</strong> — Search by name or phone number to apply loyalty points or a customer discount.</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Charge</strong> — Click <em>Charge</em>, select payment method(s), and confirm. Receipt prints automatically if a printer is connected.</div></div>
+  </div>
+
+  <h3>Price Check</h3>
+  <p>Scan any item barcode without adding it to the basket by pressing the <em>Price Check</em> button first. The price is displayed without affecting the current sale.</p>
+
+  <h3>Returns &amp; Refunds</h3>
+  <p>To process a return, go to <strong>Sales</strong>, find the original sale, click <em>View</em>, and select <em>Refund</em>. Choose which items to return and the refund method. Stock is automatically added back to inventory.</p>
+
+  <h3>Layby Sales</h3>
+  <p>A customer can reserve goods by paying a deposit. Go to <strong>Laybys</strong> or click <em>Layby</em> on the cashier screen. Enter the deposit amount. The customer returns later and pays the balance to collect the goods.</p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>6</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="kds">2.5 Kitchen Display System &amp; Queue Screen</h2>
+
+  <div class="box info">
+    <span class="box-icon">ℹ️</span>
+    <div>Both screens are <strong>public</strong> — they require no login and open directly in a browser. They are designed to run on a dedicated screen or TV, always visible to kitchen staff or customers.</div>
+  </div>
+
+  <h3>Kitchen Display Screen (KDS) — <code>/kitchen</code></h3>
+  <p>The KDS shows all active orders sent from the POS. Each order card displays the ticket number, table/reference, and list of items. Kitchen staff bump orders through the workflow:</p>
+
+  <table>
+    <tr><th>Status</th><th>Meaning</th><th>Card Colour</th></tr>
+    <tr><td><span class="badge badge-blue">New</span></td><td>Order just received, not yet started</td><td>Blue border</td></tr>
+    <tr><td><span class="badge badge-orange">Preparing</span></td><td>Kitchen is actively cooking this order</td><td>Amber border</td></tr>
+    <tr><td><span class="badge badge-green">Ready</span></td><td>Order is ready for collection / service</td><td>Green border</td></tr>
+    <tr><td><span class="badge badge-gray">Served</span></td><td>Order delivered to customer — removed from screen</td><td>Hidden</td></tr>
+  </table>
+
+  <h4>Bumping an Order</h4>
+  <p>Click the button at the bottom of each order card to advance it to the next status. The button label changes automatically: <em>Bump to Preparing → Mark Ready → Served</em>.</p>
+
+  <h4>Auto-refresh</h4>
+  <p>The KDS polls for new orders every 6 seconds. No manual refresh is needed. An audio notification plays when a new order arrives (browser must allow sound).</p>
+
+  <h3>Queue Display Screen — <code>/queue</code></h3>
+  <p>The Queue Display shows order numbers on a TV visible to waiting customers. When an order is marked <em>Ready</em> on the KDS, the ticket number appears on the queue board. When the customer collects and the order is marked <em>Served</em>, the number is removed.</p>
+
+  <h3>Accessing KDS from another device</h3>
+  <ol style="margin: 8px 0 0 18px; font-size: 9.5pt; line-height: 2;">
+    <li>Find the POS server's IP address (see Section 1.3)</li>
+    <li>Open a browser on the kitchen screen device</li>
+    <li>Navigate to <code>http://[SERVER-IP]:8080/kitchen</code></li>
+    <li>Bookmark the page or set it as the browser's home page</li>
+  </ol>
+
+  <h2 id="products">2.6 Products &amp; Inventory</h2>
+
+  <h3>Products (<code>/products</code>)</h3>
+  <p>The Products page is the master catalogue of everything sold in your business.</p>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>Name</td><td>Product name displayed on receipts and the POS screen</td></tr>
+    <tr><td>Barcode / SKU</td><td>Used for barcode scanning. Can be auto-generated.</td></tr>
+    <tr><td>Category</td><td>Groups products in the POS product grid</td></tr>
+    <tr><td>Selling Price</td><td>Price charged to the customer (tax-inclusive or exclusive per settings)</td></tr>
+    <tr><td>Cost Price</td><td>What you paid for it — used to calculate gross profit in reports</td></tr>
+    <tr><td>Unit</td><td>e.g. Each, Kg, Litre — shown on receipts</td></tr>
+    <tr><td>Tax Rate</td><td>VAT or custom tax applied to this product</td></tr>
+    <tr><td>Min Stock Level</td><td>Trigger for low-stock alerts on the dashboard</td></tr>
+    <tr><td>Track Inventory</td><td>Enable to deduct stock from inventory on each sale</td></tr>
+  </table>
+
+  <h3>Inventory (<code>/inventory</code>)</h3>
+  <p>Shows current stock levels for all products with inventory tracking enabled. Columns include: product name, current quantity, minimum level, and unit of measure.</p>
+
+  <h4>Adding Stock</h4>
+  <p>Stock is added automatically when you record a <strong>Purchase</strong> (see Section 2.7). You can also manually adjust stock by clicking the <em>Adjust</em> button on any inventory row — useful for corrections after a physical count.</p>
+
+  <h3>Stocktake (<code>/stocktake</code>)</h3>
+  <p>Use this when doing a full physical count. Enter the counted quantity for each product. The system calculates variances (differences between expected and actual stock) and lets you submit the count to update inventory.</p>
+
+  <h3>Stock Transfer (<code>/stock-transfers</code>)</h3>
+  <p>Transfer stock between branches. Select the source branch, destination branch, product, and quantity. The transfer is logged and both branches' inventory is updated.</p>
+
+  <h3>Stock Reconciliation (<code>/stock-reconciliation</code>)</h3>
+  <p>Reconcile discrepancies between system stock and physical count. Records the reason for adjustments (wastage, theft, damage) for audit purposes.</p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>7</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="purchasing">2.7 Purchasing &amp; Suppliers</h2>
+
+  <h3>Suppliers (<code>/suppliers</code>)</h3>
+  <p>Maintain a list of all your suppliers. Each supplier record stores contact details, address, and payment terms. Suppliers are linked to purchase orders.</p>
+
+  <h3>Purchases (<code>/purchases</code>)</h3>
+  <p>Record stock coming into the business from suppliers.</p>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Click "New Purchase"</strong> and select a supplier.</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Add products and quantities</strong> received, along with the cost price per unit.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Enter the reference number</strong> from the supplier's delivery note or invoice.</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Save the purchase.</strong> Stock levels update automatically for all items on the order.</div></div>
+  </div>
+
+  <h2 id="customers">2.8 Customers</h2>
+
+  <h3>Customer Records (<code>/customers</code>)</h3>
+  <p>Core POS maintains a customer database that supports loyalty tracking, credit accounts, and discount profiles.</p>
+  <table>
+    <tr><th>Field</th><th>Purpose</th></tr>
+    <tr><td>Name</td><td>Full name — searchable from the POS</td></tr>
+    <tr><td>Email / Phone</td><td>Contact details for receipts and communications</td></tr>
+    <tr><td>Discount Rate (%)</td><td>Automatic discount applied whenever this customer is linked to a sale</td></tr>
+    <tr><td>Credit Limit</td><td>Maximum credit balance allowed (0 = no credit)</td></tr>
+    <tr><td>Loyalty Points</td><td>Accumulated from purchases — redeemable as store credit</td></tr>
+    <tr><td>Balance</td><td>Outstanding credit balance owed by the customer</td></tr>
+    <tr><td>Branch</td><td>Home branch for multi-branch setups</td></tr>
+  </table>
+
+  <h3>Customer Credit</h3>
+  <p>When a customer has a credit limit set, they can make purchases on account. The balance is tracked and can be paid off later. Statements can be generated from the customer record.</p>
+
+  <h2 id="sales">2.9 Sales &amp; Orders</h2>
+
+  <h3>Sales History (<code>/sales</code>)</h3>
+  <p>A complete log of every completed sale. You can filter by date range, cashier, branch, or payment method. Each sale can be:</p>
+  <ul style="margin: 6px 0 0 18px; line-height: 1.9; font-size: 9.5pt;">
+    <li><strong>Viewed</strong> — see full itemised breakdown and payment details</li>
+    <li><strong>Re-printed</strong> — reprint the receipt to the configured printer</li>
+    <li><strong>Refunded</strong> — process a full or partial return</li>
+    <li><strong>Exported</strong> — download as CSV or PDF</li>
+  </ul>
+
+  <h3>Orders (<code>/orders</code>) — Restaurant only</h3>
+  <p>The Orders page shows all table orders in a restaurant context, including open orders, held orders, and recently completed orders. Staff can reassign orders to tables or merge tickets from here.</p>
+
+  <h3>My Sales (<code>/my-sales</code>)</h3>
+  <p>Each cashier can view only their own sales for the current shift. This page is accessible to all staff roles and is used for self-reconciliation at shift end.</p>
+
+  <h3>Quotations (<code>/quotations</code>)</h3>
+  <p>Generate a price quotation for a customer without completing a sale. Quotations can be saved, printed, and later converted into a completed sale with one click.</p>
+
+  <h3>Laybys (<code>/laybys</code>)</h3>
+  <p>A layby (layaway) allows a customer to reserve goods by paying a deposit. Key actions:</p>
+  <ul style="margin: 6px 0 0 18px; line-height: 1.9; font-size: 9.5pt;">
+    <li><strong>New layby</strong> — create from the cashier screen or from the Laybys page</li>
+    <li><strong>Add payment</strong> — record partial payments against the layby balance</li>
+    <li><strong>Complete</strong> — when fully paid, convert to a completed sale</li>
+    <li><strong>Cancel</strong> — refund and release stock back to inventory</li>
+  </ul>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>8</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="finance">2.10 Finance</h2>
+
+  <h3>Expenses (<code>/expenses</code>)</h3>
+  <p>Record business expenses such as rent, utilities, salaries, and supplies. Each expense entry includes:</p>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>Category</td><td>Type of expense (rent, electricity, stock, etc.)</td></tr>
+    <tr><td>Amount</td><td>Value of the expense</td></tr>
+    <tr><td>Date</td><td>When the expense occurred</td></tr>
+    <tr><td>Description</td><td>Notes or reference number</td></tr>
+    <tr><td>Branch</td><td>Which branch incurred the expense</td></tr>
+  </table>
+
+  <h3>Cashflow (<code>/cashflow</code>)</h3>
+  <p>Tracks all money moving in and out of the business. Shows a timeline of sales income versus expenses, giving a net cash position per day and per month. Use this to monitor whether the business is cash-positive.</p>
+
+  <h3>Financial Report (<code>/financial-report</code>)</h3>
+  <p>A profit &amp; loss summary showing:</p>
+  <ul style="margin: 6px 0 0 18px; line-height: 1.9; font-size: 9.5pt;">
+    <li>Gross Sales Revenue</li>
+    <li>Cost of Goods Sold (COGS)</li>
+    <li>Gross Profit and Gross Margin %</li>
+    <li>Total Expenses by category</li>
+    <li>Net Profit</li>
+  </ul>
+  <p>Filter by date range and branch. Export to PDF or CSV for accountants.</p>
+
+  <h3>Salaries (<code>/salaries</code>)</h3>
+  <p>Manage staff payroll. Set up each employee's salary, record monthly payroll runs, and track payment status. Salary payments are linked to the expense system so they appear in the P&amp;L automatically.</p>
+
+  <h3>Commissions (<code>/commissions</code>)</h3>
+  <p>Set commission rates per product or category for specific sales staff. The system calculates earned commissions based on sales. Commission reports can be run per employee per period.</p>
+
+  <h3>EcoCash (<code>/ecocash</code>)</h3>
+  <p>Dedicated EcoCash (mobile money) management. View all EcoCash transactions, reconcile payments, and export for reporting to mobile money providers.</p>
+
+  <h3>Rentals (<code>/rentals</code>)</h3>
+  <p>For businesses that rent out equipment or space. Create rental agreements with start/end dates and rates. The system tracks active rentals and generates invoices automatically on the due date.</p>
+
+  <h2 id="reports">2.11 Reports</h2>
+  <p>The Reports page (<code>/reports</code>) is the central reporting hub. All reports can be filtered by date range and branch.</p>
+
+  <table>
+    <tr><th>Report</th><th>Description</th></tr>
+    <tr><td>Sales Summary</td><td>Total sales, returns, discounts, and net revenue for the period</td></tr>
+    <tr><td>Sales by Product</td><td>Which products sold most, quantities, and revenue contribution</td></tr>
+    <tr><td>Sales by Category</td><td>Revenue breakdown by product category</td></tr>
+    <tr><td>Sales by Cashier</td><td>Performance per staff member — useful for commissions and reviews</td></tr>
+    <tr><td>Sales by Payment Method</td><td>Cash vs card vs EcoCash vs credit — for bank reconciliation</td></tr>
+    <tr><td>Hourly Sales</td><td>When during the day is your business busiest</td></tr>
+    <tr><td>Stock Movement</td><td>Products purchased, sold, adjusted — full audit trail</td></tr>
+    <tr><td>Customer Report</td><td>Top customers by spend, loyalty points, and credit balances</td></tr>
+    <tr><td>Expenses Report</td><td>Expenses by category and period</td></tr>
+    <tr><td>Tax Report</td><td>VAT collected per period — for ZIMRA / SARS submissions</td></tr>
+  </table>
+
+  <h2 id="shifts">2.12 Shift End &amp; Day End</h2>
+
+  <h3>Shift End (<code>/shift-end</code>)</h3>
+  <p>Each cashier runs a Shift End when their shift finishes. The process:</p>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><strong>System summary</strong> — Shows total sales, expected cash in drawer, and total by payment method for the shift.</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Count cash</strong> — Enter the actual notes and coins counted in the drawer.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Variance</strong> — System shows the difference (over/short). Provide a reason if there is a discrepancy.</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Submit</strong> — Shift is closed. Manager is notified if there is a significant variance.</div></div>
+  </div>
+
+  <h3>Day End (<code>/day-end</code>)</h3>
+  <p>The Day End is run by a manager at the close of business. It consolidates all shifts for the day, produces the end-of-day report, and resets the daily counters. The report includes total sales, total cash, all payment methods, and a reconciliation summary.</p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>9</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="branches">2.13 Branches</h2>
+  <p>Core POS supports multiple business locations (branches) from a single installation. Branches share the same product catalogue and user base but have separate sales, inventory, and financial data.</p>
+
+  <h3>Managing Branches (<code>/branches</code>)</h3>
+  <p>Create and manage branches from the Branches page (admin only). Each branch has a name, address, and contact details. The active branch is shown in the top navigation bar.</p>
+
+  <h3>Branch Filtering</h3>
+  <p>On all reports, sales, and inventory pages, a <strong>Branch</strong> filter dropdown allows managers to view data for one branch or across all branches simultaneously.</p>
+
+  <div class="box info">
+    <span class="box-icon">ℹ️</span>
+    <div>Stock transfers between branches are handled on the <strong>Stock Transfers</strong> page. Inventory levels are maintained independently per branch.</div>
+  </div>
+
+  <h2 id="users">2.14 Users &amp; Roles</h2>
+
+  <h3>Users (<code>/users</code>)</h3>
+  <p>Manage all staff who have access to Core POS. Each user has:</p>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>Name</td><td>Staff member's full name</td></tr>
+    <tr><td>Email</td><td>Used to log in. Must be unique.</td></tr>
+    <tr><td>Password</td><td>Minimum 8 characters. Set by admin on creation.</td></tr>
+    <tr><td>Role</td><td>Determines what pages and actions the user can access</td></tr>
+    <tr><td>Branch</td><td>Home branch for this user</td></tr>
+    <tr><td>Active</td><td>Disable a user to block their access without deleting their history</td></tr>
+  </table>
+
+  <h3>Roles &amp; Permissions (<code>/roles-permissions</code>)</h3>
+  <p>Core POS uses a role-based access control system. Each role has a set of permissions. Default roles:</p>
+
+  <table class="perm-table">
+    <tr><th>Permission</th><th>Admin</th><th>Manager</th><th>Cashier</th><th>Staff</th></tr>
+    <tr><td>Make Sales</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td></tr>
+    <tr><td>View Dashboard</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    <tr><td>View Reports</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    <tr><td>Manage Products</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    <tr><td>Manage Users</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    <tr><td>Apply Discounts</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td></tr>
+    <tr><td>Process Refunds</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    <tr><td>Manage Settings</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    <tr><td>Backup &amp; Restore</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+  </table>
+
+  <p>Custom roles can be created with any combination of permissions from the Roles &amp; Permissions page.</p>
+
+  <h3>Attendance (<code>/attendance</code>)</h3>
+  <p>Tracks clock-in and clock-out times for all staff. Staff members clock in when they start their shift. Managers can view attendance history, export timesheets, and calculate hours worked per employee.</p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>10</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="settings">2.15 Settings &amp; Configuration</h2>
+  <p>Settings (<code>/settings</code>) is accessible to administrators only. It controls the global behaviour of Core POS.</p>
+
+  <h3>General Settings</h3>
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td>Business Name</td><td>Appears on receipts, reports, and the browser title</td></tr>
+    <tr><td>Business Type</td><td><strong>Restaurant</strong> or <strong>Supermarket</strong> — controls navigation and features shown</td></tr>
+    <tr><td>Logo</td><td>Upload your logo. Appears on receipts and the login screen.</td></tr>
+    <tr><td>Address</td><td>Printed on customer receipts</td></tr>
+    <tr><td>Phone / Email</td><td>Printed on customer receipts</td></tr>
+    <tr><td>Tax Number</td><td>VAT registration number printed on receipts (optional)</td></tr>
+    <tr><td>Receipt Footer</td><td>Custom message at the bottom of every receipt</td></tr>
+  </table>
+
+  <h3>Currency Settings (<code>/currencies</code>)</h3>
+  <p>Core POS supports multiple currencies. The base currency is used for all calculations and reports. Additional currencies can be configured with exchange rates for accepting foreign payments.</p>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>Currency Code</td><td>e.g. USD, ZWL, ZAR</td></tr>
+    <tr><td>Symbol</td><td>e.g. $, R — displayed on screen and receipts</td></tr>
+    <tr><td>Exchange Rate</td><td>Rate against the base currency (base currency rate = 1)</td></tr>
+    <tr><td>Default</td><td>One currency must be set as default</td></tr>
+  </table>
+
+  <h3>Tax Configuration</h3>
+  <p>Set up tax rates (e.g. VAT 15%) from Settings. Tax can be applied per product or as a store-wide default. Tax is calculated at the point of sale and reported separately in the Tax Report.</p>
+
+  <h3>Switching Business Type</h3>
+  <p>To switch from Restaurant to Supermarket (or vice versa), go to Settings → General, change the <em>Business Type</em> field, and save. The sidebar navigation and dashboard will update immediately on next page load.</p>
+
+  <div class="box warning">
+    <span class="box-icon">⚠️</span>
+    <div>Changing business type changes which POS screen is shown. Restaurant-specific features (KDS, Orders, Queue) are hidden in Supermarket mode. Existing sales data is not affected.</div>
+  </div>
+
+  <h3>Webhooks (<code>/webhooks</code>)</h3>
+  <p>Webhooks allow Core POS to notify external systems (e.g. accounting software, loyalty apps) when events occur, such as a new sale or a refund. Configure the target URL and select which events to send. The system sends a JSON payload to the URL on each event.</p>
+
+  <h2 id="hardware">2.16 Hardware &amp; Peripherals</h2>
+  <p>Configure connected hardware from <code>/hardware</code>.</p>
+
+  <h3>Receipt Printer</h3>
+  <p>Core POS supports ESC/POS thermal receipt printers connected via USB or network. Configure the printer type and connection in Hardware Settings. Test print from the same page. Receipts print automatically on each completed sale.</p>
+
+  <h3>Barcode Scanner</h3>
+  <p>USB barcode scanners work as keyboard input devices — plug in and scan. No driver or configuration needed. The scanner input is captured by the product search field on both the POS and Cashier screens.</p>
+
+  <h3>Cash Drawer</h3>
+  <p>If connected via the receipt printer's RJ11 port, the cash drawer opens automatically when a cash payment is completed. Configure the drawer kick pulse in Hardware Settings.</p>
+
+  <h3>Customer Display</h3>
+  <p>A secondary screen connected to the cashier PC can show the running sale to the customer at <code>/customer-display</code>. It updates in real-time as items are scanned.</p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>11</span></div>
+</div>
+
+<div class="page page-break">
+  <h2 id="backup">2.17 Backup &amp; Restore</h2>
+
+  <div class="box danger">
+    <span class="box-icon">🔴</span>
+    <div>Back up your data regularly. A hardware failure without a backup means all sales history, customer records, and product data is permanently lost. We recommend a daily backup to an external USB drive or cloud storage.</div>
+  </div>
+
+  <h3>Creating a Backup (<code>/backups</code>)</h3>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Go to Backups</strong> from the sidebar (admin only).</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Click "Create Backup".</strong> The system exports all data to a compressed file.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Download the backup file</strong> and copy it to a USB drive or email it to yourself. Store it off the POS machine.</div></div>
+  </div>
+
+  <h3>Restoring from Backup</h3>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Backups</strong> and click <em>Restore</em>.</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body">Upload the backup file.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body">Confirm the restore. The system will restart automatically. All data is replaced with the backup.</div></div>
+  </div>
+
+  <div class="box warning">
+    <span class="box-icon">⚠️</span>
+    <div>Restore overwrites all current data. Any sales made after the backup date will be lost. Only restore from backup when recovering from a failure or migrating to a new machine.</div>
+  </div>
+
+  <h2 id="advanced">2.18 Advanced Features</h2>
+
+  <h3>Audit Logs (<code>/audit-logs</code>)</h3>
+  <p>Every significant action in Core POS is recorded in the audit log: logins, sales, refunds, product changes, user changes, and settings modifications. Each entry shows the user, action, timestamp, and what changed. This provides a full accountability trail for compliance and dispute resolution.</p>
+
+  <h3>Stocktake</h3>
+  <p>A formal inventory count. The system generates a list of all stocked products. Staff enter the physical count per product. After submission, the system updates inventory quantities to match the count and records any variances.</p>
+  <p><strong>Recommended practice:</strong> Run a stocktake at the end of each month and after any major delivery.</p>
+
+  <h3>Stock Reconciliation</h3>
+  <p>If a variance is found during stocktake or daily operations, use Stock Reconciliation to formally record the adjustment with a reason (theft, wastage, damage, data error). This maintains the integrity of your inventory audit trail.</p>
+
+  <h3>Currencies — Multi-Currency Sales</h3>
+  <p>When a customer pays in a foreign currency, select the currency at the payment screen. The system converts the amount at the configured exchange rate and records the sale in the base currency for reporting purposes.</p>
+
+  <h3>Webhooks &amp; Integrations</h3>
+  <p>Core POS can push real-time event notifications to external systems. Supported events include: <code>sale.completed</code>, <code>sale.refunded</code>, <code>product.updated</code>, <code>customer.created</code>. Each webhook fires a POST request with a JSON payload to your configured endpoint URL.</p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>12</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PART 3 — TROUBLESHOOTING
+════════════════════════════════════════════════════════════════════ -->
+<div class="page page-break" id="part3">
+  <div class="chapter-cover">
+    <div class="chapter-stripe"></div>
+    <div>
+      <span class="chapter-num">Part Three</span>
+      <div class="chapter-title">Troubleshooting</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Error / Symptom</th><th>Likely Cause</th><th>Fix</th></tr>
+    <tr>
+      <td>Browser shows "This site can't be reached" at localhost:8080</td>
+      <td>PHP server not running</td>
+      <td>Double-click the Core desktop shortcut to start the server</td>
+    </tr>
+    <tr>
+      <td>VCRUNTIME140.dll not found</td>
+      <td>Visual C++ Runtime missing on target machine</td>
+      <td>Re-run <code>Core-Setup.exe</code> — the new version installs it automatically</td>
+    </tr>
+    <tr>
+      <td>White screen / 500 Server Error</td>
+      <td>Missing <code>.env</code> file or application key not set</td>
+      <td>Run <code>install.ps1</code> again as Administrator from <code>C:\POS</code></td>
+    </tr>
+    <tr>
+      <td>Invalid credentials at login</td>
+      <td>Seeder did not complete correctly</td>
+      <td>Open PowerShell in <code>C:\POS</code> and run:<br><code>php\php.exe backend\artisan db:seed --force</code></td>
+    </tr>
+    <tr>
+      <td>Kitchen screen shows "No connection"</td>
+      <td>KDS device on different network, or firewall blocking port 8080</td>
+      <td>Check the firewall rule (Section 1.5) and confirm both devices are on the same Wi-Fi</td>
+    </tr>
+    <tr>
+      <td>pdo_mysql extension missing</td>
+      <td>PHP bundled ini not updated</td>
+      <td>Re-run <code>install.ps1</code> to reconfigure php.ini</td>
+    </tr>
+    <tr>
+      <td>MariaDB service not starting</td>
+      <td>Port 3306 in use by another MySQL instance</td>
+      <td>Open Services (services.msc), stop MySQL service, then restart MariaDB</td>
+    </tr>
+    <tr>
+      <td>"n.slice is not a function" crash</td>
+      <td>API returned unexpected data format</td>
+      <td>Already fixed in current version. Update the frontend build.</td>
+    </tr>
+    <tr>
+      <td>Receipt not printing</td>
+      <td>Printer driver or ESC/POS config wrong</td>
+      <td>Go to Hardware settings and click "Test Print" to verify connection</td>
+    </tr>
+    <tr>
+      <td>Stock levels not updating after sale</td>
+      <td>"Track Inventory" not enabled on product</td>
+      <td>Edit the product and enable the <em>Track Inventory</em> toggle</td>
+    </tr>
+  </table>
+
+  <h2 style="margin-top: 24px;">Recovery Scripts</h2>
+  <p>If the system is in an unrecoverable state, run these commands in PowerShell (as Administrator) from <code>C:\POS</code>:</p>
+
+  <h3>Reset and Re-seed the Database</h3>
+  <pre><span class="comment"># Run from C:\POS in an Administrator PowerShell</span>
+<span class="cmd">php\php.exe -c php\php.ini backend\artisan migrate:fresh --force</span>
+<span class="cmd">php\php.exe -c php\php.ini backend\artisan db:seed --force</span></pre>
+
+  <div class="box danger">
+    <span class="box-icon">🔴</span>
+    <div><strong>Warning:</strong> <code>migrate:fresh</code> drops and recreates all tables. All sales data will be permanently deleted. Only use this on a fresh install or test machine.</div>
+  </div>
+
+  <h3>Regenerate Application Key</h3>
+  <pre><span class="cmd">php\php.exe -c php\php.ini backend\artisan key:generate --force</span></pre>
+
+  <h3>Reset Admin Password</h3>
+  <pre><span class="cmd">php\php.exe -c php\php.ini -r "require 'backend/vendor/autoload.php'; (new Laravel\Lumen\Application(realpath('backend')))->make('db'); DB::table('users')->where('email','admin@nexapos.com')->update(['password' => bcrypt('Admin@123')]);"</span>
+
+<span class="comment"># Or use artisan tinker:</span>
+<span class="cmd">php\php.exe -c php\php.ini backend\artisan tinker</span>
+<span class="str">>>> \App\Models\User::where('email','admin@nexapos.com')->first()->update(['password' => bcrypt('Admin@123')])</span></pre>
+
+  <h3>Clear Application Cache</h3>
+  <pre><span class="cmd">php\php.exe -c php\php.ini backend\artisan cache:clear</span>
+<span class="cmd">php\php.exe -c php\php.ini backend\artisan config:clear</span>
+<span class="cmd">php\php.exe -c php\php.ini backend\artisan route:clear</span>
+<span class="cmd">php\php.exe -c php\php.ini backend\artisan view:clear</span></pre>
+
+  <h2 style="margin-top: 24px;">Default Credentials Reference</h2>
+  <table>
+    <tr><th>Item</th><th>Value</th></tr>
+    <tr><td>Admin login email</td><td>admin@nexapos.com</td></tr>
+    <tr><td>Admin login password</td><td>Admin@123</td></tr>
+    <tr><td>POS web address (local)</td><td>http://localhost:8080</td></tr>
+    <tr><td>Database name</td><td>corepos</td></tr>
+    <tr><td>Database host</td><td>127.0.0.1:3306</td></tr>
+    <tr><td>Database user</td><td>corepos</td></tr>
+    <tr><td>Install directory</td><td>C:\POS</td></tr>
+  </table>
+
+  <h2 style="margin-top: 24px;">Support Contact</h2>
+  <p>For support, contact your Core POS administrator or system provider.</p>
+  <p>Email: <strong>dingulwazi0108.zondo@gmail.com</strong></p>
+
+  <div class="pg-footer"><span>Core POS — Installation Guide &amp; User Manual</span><span>13</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     BACK COVER
+════════════════════════════════════════════════════════════════════ -->
+<div class="page page-break">
+  <div class="cover" style="background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%); min-height: 297mm; justify-content: flex-end; align-items: flex-start; padding: 30mm 22mm;">
+    <div style="color: rgba(255,255,255,.15); font-size: 80pt; font-weight: 900; line-height: 1; margin-bottom: 30px; letter-spacing: -4px;">Core</div>
+    <div style="width: 100%; border-top: 1px solid rgba(255,255,255,.1); padding-top: 20px;">
+      <p style="color: rgba(255,255,255,.5); font-size: 9pt; margin-bottom: 4px;">Core POS — Installation Guide &amp; User Manual</p>
+      <p style="color: rgba(255,255,255,.3); font-size: 8.5pt;">Version 1.0 · Windows 10/11 · MariaDB 11.4 · June 2026</p>
+      <p style="color: rgba(255,255,255,.3); font-size: 8.5pt; margin-top: 8px;">© 2026 Core POS. All rights reserved.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// Add print button for convenience
+window.addEventListener('load', function() {
+  var btn = document.createElement('div');
+  btn.innerHTML = '🖨️ Print / Save as PDF';
+  btn.style.cssText = 'position:fixed;top:16px;right:16px;background:#1e40af;color:#fff;padding:10px 18px;border-radius:8px;cursor:pointer;font-family:sans-serif;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);';
+  btn.onclick = function() { window.print(); };
+  document.body.appendChild(btn);
+});
+</script>
+</body>
+</html>

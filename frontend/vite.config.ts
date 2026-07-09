@@ -8,8 +8,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Ensure the service worker is included in the build output
-      injectRegister: 'auto',
+      // Register the service worker manually so localhost installs can opt out.
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'Core',
@@ -33,28 +33,48 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /\/api\/products(\?.*)?$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-products', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-products', networkTimeoutSeconds: 3, expiration: { maxEntries: 10, maxAgeSeconds: 86400 } },
           },
           {
             urlPattern: /\/api\/categories(\?.*)?$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-categories', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-categories', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
             urlPattern: /\/api\/settings(\?.*)?$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-settings', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-settings', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
             urlPattern: /\/api\/currencies(\?.*)?$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-currencies', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-currencies', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
           },
           {
             urlPattern: /\/api\/warehouses(\?.*)?$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-warehouses', expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-warehouses', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+          },
+          {
+            urlPattern: /\/api\/customers(\?.*)?$/,
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-customers', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+          },
+          {
+            urlPattern: /\/api\/branches(\?.*)?$/,
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-branches', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+          },
+          {
+            urlPattern: /\/api\/tax-rates(\?.*)?$/,
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-tax-rates', networkTimeoutSeconds: 3, expiration: { maxEntries: 5, maxAgeSeconds: 86400 } },
+          },
+          {
+            urlPattern: /\/api\/auth\/me$/,
+            handler: 'NetworkFirst',
+            options: { cacheName: 'api-auth', networkTimeoutSeconds: 3, expiration: { maxEntries: 2, maxAgeSeconds: 3600 } },
           },
         ],
         navigateFallback: '/index.html',
@@ -63,6 +83,10 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    outDir: '../backend/public',
+    emptyOutDir: false,
+  },
   server: {
     proxy: {
       '/api': {

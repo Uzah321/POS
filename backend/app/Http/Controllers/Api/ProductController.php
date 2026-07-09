@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\Product;
 use App\Models\Stock;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ProductController extends BaseApiController
@@ -39,30 +40,50 @@ class ProductController extends BaseApiController
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
-            'name'           => 'required|string|max:255',
-            'sku'            => 'nullable|string|unique:products',
-            'barcode'        => 'nullable|string|unique:products',
-            'category_id'    => 'nullable|exists:categories,id',
-            'brand_id'       => 'nullable|exists:brands,id',
-            'tax_rate_id'    => 'nullable|exists:tax_rates,id',
-            'unit_id'        => 'nullable|exists:units,id',
-            'description'    => 'nullable|string',
-            'cost_price'     => 'required|numeric|min:0',
-            'selling_price'  => 'required|numeric|min:0',
-            'wholesale_price'=> 'nullable|numeric|min:0',
-            'has_variants'   => 'boolean',
-            'track_stock'    => 'boolean',
-            'reorder_level'  => 'integer|min:0',
-            'reorder_quantity'=> 'integer|min:0',
-            'expires'        => 'boolean',
-            'alert_quantity' => 'integer|min:0',
+            'name'            => 'required|string|max:255',
+            'sku'             => 'nullable|string|unique:products',
+            'barcode'         => 'nullable|string|unique:products',
+            'category_id'     => 'nullable|exists:categories,id',
+            'brand_id'        => 'nullable|exists:brands,id',
+            'tax_rate_id'     => 'nullable|exists:tax_rates,id',
+            'unit_id'         => 'nullable|exists:units,id',
+            'description'     => 'nullable|string',
+            'cost_price'      => 'required|numeric|min:0',
+            'selling_price'   => 'required|numeric|min:0',
+            'wholesale_price' => 'nullable|numeric|min:0',
+            'has_variants'    => 'boolean',
+            'track_stock'     => 'boolean',
+            'reorder_level'   => 'integer|min:0',
+            'reorder_quantity' => 'integer|min:0',
+            'expires'         => 'boolean',
+            'alert_quantity'  => 'integer|min:0',
+            'initial_quantity' => 'nullable|numeric|min:0',
         ]);
 
+        $initialQty = (float) ($data['initial_quantity'] ?? 0);
+        unset($data['initial_quantity']);
+
+        $data['reorder_level'] = 5;
         $data['slug'] = Str::slug($data['name']) . '-' . uniqid();
 
-        $product = Product::create($data);
+        $product = DB::transaction(function () use ($data, $initialQty) {
+            $product = Product::create($data);
 
-        return $this->success($product->load('category', 'brand', 'unit', 'taxRate'), 'Product created', 201);
+            if ($initialQty > 0) {
+                $warehouse = \App\Models\Warehouse::where('is_default', true)->first()
+                          ?? \App\Models\Warehouse::first();
+                if ($warehouse) {
+                    Stock::updateOrCreate(
+                        ['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'product_variant_id' => null, 'batch_number' => null],
+                        ['quantity' => $initialQty]
+                    );
+                }
+            }
+
+            return $product;
+        });
+
+        return $this->success($product->load('category', 'brand', 'unit', 'taxRate')->loadSum('stocks', 'quantity'), 'Product created', 201);
     }
 
     public function show(Product $product): \Illuminate\Http\JsonResponse

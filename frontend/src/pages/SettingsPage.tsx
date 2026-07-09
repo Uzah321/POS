@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { settingsApi } from '../api';
 import { Loader2, Save, Building2, ShoppingCart, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -39,9 +40,9 @@ export default function SettingsPage() {
     receipt_auto_print: false,
     low_stock_alerts: true,
     require_table_number: false,
+    block_negative_stock: true,
   });
-
-  const { isLoading } = useQuery({
+const { isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => settingsApi.get().then(r => {
       const data = r.data?.data || {};
@@ -54,18 +55,24 @@ export default function SettingsPage() {
         receipt_auto_print: data.receipt_auto_print === 'true' || data.receipt_auto_print === true,
         low_stock_alerts: data.low_stock_alerts !== 'false' && data.low_stock_alerts !== false,
         require_table_number: data.require_table_number === 'true' || data.require_table_number === true,
+        block_negative_stock: data.block_negative_stock !== 'false' && data.block_negative_stock !== false,
       }));
       return data;
     }),
   });
 
   const mutation = useMutation({
-    mutationFn: () => settingsApi.update({
-      ...values,
-      ...Object.fromEntries(Object.entries(toggles).map(([k, v]) => [k, v.toString()])),
-    }),
-    onSuccess: () => toast.success('Settings saved successfully'),
-    onError: () => toast.error('Failed to save settings'),
+    mutationFn: () => {
+      const payload = {
+        ...values,
+        ...Object.fromEntries(Object.entries(toggles).map(([k, v]) => [k, v.toString()])),
+      };
+      return offlineMutate(() => settingsApi.update(payload), 'settings', 'update', { _url: '/settings', _method: 'POST', ...payload });
+    },
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Settings saved offline - will sync when server is back');
+      else toast.success('Settings saved successfully');
+    },
   });
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -170,6 +177,42 @@ export default function SettingsPage() {
             checked={toggles.require_table_number}
             onChange={(v) => setToggles(t => ({ ...t, require_table_number: v }))}
           />
+
+          {/* POS Tile Colour Theme */}
+          <div className="py-4 border-b border-gray-50">
+            <p className="text-sm font-semibold text-gray-900 mb-0.5">Product Tile Colour Theme</p>
+            <p className="text-xs text-gray-400 mb-3">Choose the colour scheme for product tiles on the Advanced POS register.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { key: 'rainbow',    label: 'Rainbow',    swatches: ['bg-green-200','bg-blue-200','bg-purple-200','bg-orange-200','bg-pink-200'] },
+                { key: 'blue',       label: 'Ocean Blue', swatches: ['bg-blue-100','bg-blue-200','bg-blue-300','bg-sky-100','bg-cyan-100'] },
+                { key: 'green',      label: 'Forest',     swatches: ['bg-green-100','bg-emerald-100','bg-teal-100','bg-green-200','bg-emerald-200'] },
+                { key: 'warm',       label: 'Warm Tones', swatches: ['bg-orange-100','bg-amber-100','bg-yellow-100','bg-red-100','bg-pink-100'] },
+                { key: 'monochrome', label: 'Monochrome', swatches: ['bg-gray-50','bg-gray-100','bg-gray-200','bg-gray-50','bg-white'] },
+                { key: 'dark',       label: 'Dark',       swatches: ['bg-gray-800','bg-gray-700','bg-slate-800','bg-zinc-800','bg-neutral-800'] },
+              ].map(({ key, label, swatches }) => {
+                const active = (values.pos_tile_theme ?? 'rainbow') === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setValues(v => ({ ...v, pos_tile_theme: key }))}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 transition-all text-left touch-manipulation ${
+                      active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex gap-0.5 flex-shrink-0">
+                      {swatches.slice(0, 4).map((s, i) => (
+                        <span key={i} className={`w-4 h-4 rounded-sm ${s} border border-black/5`} />
+                      ))}
+                    </div>
+                    <span className={`text-sm font-medium ${active ? 'text-blue-700' : 'text-gray-700'}`}>{label}</span>
+                    {active && <span className="ml-auto w-4 h-4 rounded-full bg-blue-500 flex-shrink-0 flex items-center justify-center"><svg viewBox="0 0 10 10" className="w-2.5 h-2.5" fill="white"><path d="M2 5l2 2 4-4"/></svg></span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -187,6 +230,12 @@ export default function SettingsPage() {
             description="Show alerts when items fall below reorder point"
             checked={toggles.low_stock_alerts}
             onChange={(v) => setToggles(t => ({ ...t, low_stock_alerts: v }))}
+          />
+          <ToggleRow
+            label="Block Sales of Out-of-Stock Items"
+            description="Prevent selling products when stock is zero or negative. Disable to allow selling regardless of stock level."
+            checked={toggles.block_negative_stock}
+            onChange={(v) => setToggles(t => ({ ...t, block_negative_stock: v }))}
           />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Default Low Stock Threshold</label>
@@ -210,6 +259,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

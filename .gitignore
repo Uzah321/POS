@@ -1,0 +1,7 @@
+# Installer build artifacts (regenerable, too large for GitHub)
+installer/Output/
+installer/redist/
+installer/Core-Setup-online.exe
+
+# Contains hardcoded server credentials, must never be committed
+ssh_run.js

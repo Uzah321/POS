@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Run this script ONCE on this machine to download PHP and prepare all assets
-  needed to build the NexaPOS self-contained installer .exe.
+  needed to build the Core self-contained installer .exe.
   After this runs successfully, compile POS.iss with Inno Setup 6.
 #>
 
@@ -19,8 +19,8 @@ function ERR($m)  { Write-Host "`n  [ERROR] $m`n" -ForegroundColor Red; exit 1 }
 
 Clear-Host
 Write-Host ""
-Write-Host "  NexaPOS - Installer Preparation" -ForegroundColor Cyan
-Write-Host "  ================================" -ForegroundColor Cyan
+Write-Host "  Core POS - Installer Preparation" -ForegroundColor Cyan
+Write-Host "  =================================" -ForegroundColor Cyan
 Write-Host ""
 
 # -- 1. Verify backend vendor is installed ------------------------------------
@@ -77,16 +77,28 @@ WAIT "Building php.ini..."
 $iniSrc = if (Test-Path "$PhpDir\php.ini-production") { "$PhpDir\php.ini-production" } else { "$PhpDir\php.ini-development" }
 $ini = Get-Content $iniSrc -Raw
 
-$ini = $ini -replace ';extension=pdo_pgsql',  'extension=pdo_pgsql'
-$ini = $ini -replace ';extension=pgsql',       'extension=pgsql'
-$ini = $ini -replace ';extension=mbstring',    'extension=mbstring'
-$ini = $ini -replace ';extension=openssl',     'extension=openssl'
-$ini = $ini -replace ';extension=fileinfo',    'extension=fileinfo'
-$ini = $ini -replace ';extension=curl',        'extension=curl'
-$ini = $ini -replace ';extension=zip',         'extension=zip'
-$ini = $ini -replace ';extension=intl',        'extension=intl'
-$ini = $ini -replace ';extension=sodium',      'extension=sodium'
-$ini = $ini -replace ';extension=gd',          'extension=gd'
+$ini = $ini -replace ';extension=pdo_mysql',  'extension=pdo_mysql'
+$ini = $ini -replace ';extension=mysqli',     'extension=mysqli'
+$ini = $ini -replace ';extension=pdo_sqlite', 'extension=pdo_sqlite'
+$ini = $ini -replace ';extension=sqlite3',    'extension=sqlite3'
+$ini = $ini -replace ';extension=mbstring',   'extension=mbstring'
+$ini = $ini -replace ';extension=openssl',    'extension=openssl'
+$ini = $ini -replace ';extension=fileinfo',   'extension=fileinfo'
+$ini = $ini -replace ';extension=curl',       'extension=curl'
+$ini = $ini -replace ';extension=zip',        'extension=zip'
+$ini = $ini -replace ';extension=intl',       'extension=intl'
+$ini = $ini -replace ';extension=sodium',     'extension=sodium'
+$ini = $ini -replace ';extension=gd',         'extension=gd'
+
+# Set absolute extension_dir so PHP finds the DLLs regardless of working directory.
+# php.ini-production ships with this line commented as '; extension_dir = "ext"'.
+$ini = $ini -replace '(?m)^[; ]*extension_dir\s*=\s*"ext"\s*$', 'extension_dir = "C:\POS\php\ext"'
+
+# Keep OPcache disabled for the bundled CLI server. On some Windows builds,
+# loading the extension can stop PHP with an ASLR opcode-handler fatal error.
+$ini = $ini -replace '(?m)^[; ]*zend_extension\s*=\s*opcache\s*$', ';zend_extension=opcache'
+$ini = $ini -replace '(?m)^[; ]*opcache\.enable\s*=.*$', 'opcache.enable=0'
+$ini = $ini -replace '(?m)^[; ]*opcache\.enable_cli\s*=.*$', 'opcache.enable_cli=0'
 
 [System.IO.File]::WriteAllText("$PhpDir\php.ini", $ini)
 OK "php.ini configured (extensions enabled)"
@@ -100,5 +112,5 @@ Write-Host "  1. Install Inno Setup 6 (free): https://jrsoftware.org/isdl.php" -
 Write-Host "  2. Compile the installer (one of):" -ForegroundColor White
 Write-Host "       iscc `"$PSScriptRoot\POS.iss`"" -ForegroundColor Gray
 Write-Host "       OR open POS.iss in Inno Setup IDE and press F9" -ForegroundColor Gray
-Write-Host "  3. Installer output: $PSScriptRoot\Output\NexaPOS-Setup.exe" -ForegroundColor White
+Write-Host "  3. Installer output: $PSScriptRoot\Output\Core-Setup.exe" -ForegroundColor White
 Write-Host ""

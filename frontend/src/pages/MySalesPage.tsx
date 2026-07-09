@@ -1,10 +1,10 @@
 ﻿import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { History, XCircle, CheckCircle, Clock, AlertTriangle, RefreshCw, UserCircle2 } from 'lucide-react';
+import { History, XCircle, CheckCircle, Clock, RefreshCw, UserCircle2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
-import toast from 'react-hot-toast';
 import { salesApi, usersApi } from '../api';
+import { db } from '../lib/db';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 
@@ -59,20 +59,13 @@ interface StaffUser {
 }
 
 export default function MySalesPage() {
-  const { user, hasPermission, hasRole } = useAuthStore();
-  const canVoid = hasPermission('void_sales');
+  const { user, hasRole } = useAuthStore();
   const isCashier = hasRole('cashier');
   const isAdmin = !isCashier;
-  const { activeCurrency } = useCurrencyStore();
-  const queryClient = useQueryClient();
-  const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
+  const { format: formatAmount } = useCurrencyStore();
+  const [page, setPage] = useState(1);
   // null = current user; 0 = all cashiers; positive number = specific cashier
   const [selectedCashierId, setSelectedCashierId] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
-
-  const symbol = activeCurrency?.symbol ?? '$';
-  const format_ = (v: number) =>
-    `${symbol}${Number(v ?? 0).toFixed(2)}`;
 
   // Fetch staff list for admin cashier selector
   const { data: staffList } = useQuery({
@@ -98,26 +91,58 @@ export default function MySalesPage() {
       const params: Record<string, any> = { page, per_page: 20, sort_by: 'created_at', sort_dir: 'desc' };
       if (effectiveCashierId) params.cashier_id = effectiveCashierId;
       if (isCashier) params.current_shift = 1;
-      const res = await salesApi.list(params);
-      return res.data?.data;
+      try {
+        const res = await salesApi.list(params);
+        // Cache API results into IndexedDB so future offline fallback has fresh data
+        const apiSales: any[] = res.data?.data?.data ?? (Array.isArray(res.data?.data) ? res.data.data : []);
+        if (apiSales.length > 0) {
+          db.sales.bulkPut(apiSales.map((s: any) => ({
+            id: s.id,
+            reference: s.reference,
+            status: s.status ?? 'completed',
+            total: s.total ?? s.total_amount ?? 0,
+            items: s.items ?? [],
+            items_count: s.items_count ?? s.items?.length ?? 0,
+            payments: s.payments ?? [],
+            cashier_id: s.cashier?.id ?? s.cashier_id ?? 0,
+            cashier_name: s.cashier?.name ?? '',
+            branch_id: s.branch_id ?? 1,
+            created_at: s.created_at,
+            completed_at: s.completed_at,
+          }))).catch(() => {});
+        }
+        return res.data?.data;
+      } catch {
+        // API unavailable — serve from local IndexedDB
+        let allSales = await db.sales.orderBy('created_at').reverse().toArray();
+        if (effectiveCashierId) allSales = allSales.filter(s => s.cashier_id === effectiveCashierId);
+        allSales = allSales.filter(s => s.status === 'completed');
+        const total = allSales.length;
+        const from = (page - 1) * 20;
+        const pageSales = allSales.slice(from, from + 20);
+        return {
+          data: pageSales.map(s => ({
+            id: s.id,
+            reference: s.reference,
+            status: s.status,
+            total: s.total,
+            total_amount: s.total,
+            created_at: s.created_at,
+            items: s.items ?? [],
+            items_count: s.items_count,
+            cashier: s.cashier_name ? { name: s.cashier_name } : undefined,
+          })),
+          meta: {
+            current_page: page,
+            last_page: Math.ceil(total / 20) || 1,
+            from: total > 0 ? from + 1 : 0,
+            to: Math.min(from + 20, total),
+            total,
+          },
+        };
+      }
     },
     enabled: !!user?.id,
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: (id: number) => salesApi.cancel(id),
-    onSuccess: () => {
-      toast.success('Order cancelled - stock has been restored');
-      queryClient.invalidateQueries({ queryKey: ['my-sales'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['pos-products'] });
-      setConfirmCancelId(null);
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? 'Failed to cancel order';
-      toast.error(msg);
-      setConfirmCancelId(null);
-    },
   });
 
   const sales: Sale[] = salesData?.data ?? (Array.isArray(salesData) ? salesData : []);
@@ -196,7 +221,6 @@ export default function MySalesPage() {
           {sales.map((sale) => {
             const total = Number(sale.total ?? sale.total_amount ?? 0);
             const itemCount = sale.items_count ?? sale.items?.length ?? 0;
-            const canCancel = sale.status === 'completed' && canVoid;
             return (
               <div
                 key={sale.id}
@@ -220,16 +244,7 @@ export default function MySalesPage() {
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-base font-bold text-gray-900">{format_(total)}</p>
-                    {canCancel && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmCancelId(sale.id)}
-                        className="mt-1 text-xs text-red-500 hover:text-red-700 hover:underline transition-colors"
-                      >
-                        Cancel order
-                      </button>
-                    )}
+                    <p className="text-base font-bold text-gray-900">{formatAmount(total)}</p>
                   </div>
                 </div>
 
@@ -238,8 +253,8 @@ export default function MySalesPage() {
                   <div className="mt-3 pt-3 border-t border-gray-50 space-y-1">
                     {sale.items.slice(0, 4).map((item) => (
                       <div key={item.id} className="flex justify-between text-xs text-gray-500">
-                        <span>{item.name ?? `Product #${item.product_id}`} Ãƒ" {item.quantity}</span>
-                        <span>{format_(item.unit_price * item.quantity)}</span>
+                        <span>{item.name ?? `Product #${item.product_id}`} × {item.quantity}</span>
+                        <span>{formatAmount(item.unit_price * item.quantity)}</span>
                       </div>
                     ))}
                     {sale.items.length > 4 && (
@@ -253,40 +268,6 @@ export default function MySalesPage() {
         </div>
       )}
       <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
-
-      {/* Confirm Cancel Dialog */}
-      {confirmCancelId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-lg shadow-2xl p-6 max-w-sm w-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle size={20} className="text-red-500" />
-              </div>
-              <div>
-                <h2 className="font-bold text-gray-900">Cancel this order?</h2>
-                <p className="text-sm text-gray-500">Stock will be restored automatically.</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmCancelId(null)}
-                className="flex-1 px-4 py-2.5 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Keep it
-              </button>
-              <button
-                type="button"
-                disabled={cancelMutation.isPending}
-                onClick={() => cancelMutation.mutate(confirmCancelId)}
-                className="flex-1 px-4 py-2.5 rounded-md bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-60"
-              >
-                {cancelMutation.isPending ? 'Cancelling-' : 'Yes, cancel'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

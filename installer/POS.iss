@@ -1,25 +1,26 @@
 ﻿; ==============================================================================
-; Core Self-Contained Windows Installer
+; Core Self-Contained Windows Installer  v1.2
 ; Requires Inno Setup 6 - https://jrsoftware.org/isdl.php
 ;
 ; BEFORE COMPILING:
 ;   1. cd frontend && npm run build        (build React app)
-;   2. installer\deploy-frontend.bat       (copy to backend/public)
+;   2. cd frontend && npm run build:desktop (build native desktop shell)
 ;   3. cd backend && composer install --no-dev --optimize-autoloader
 ;   4. powershell -File installer\prepare-installer.ps1  (downloads PHP)
 ;   5. iscc POS.iss  (compile this file)
 ;
-; Output: installer\Output\Core-Setup.exe
+; Output: installer\Output\Core-Setup-1.2.exe
 ; ==============================================================================
 
 #define AppName      "Core"
-#define AppVersion   "1.0"
+#define AppVersion   "1.2"
 #define AppPublisher "Core POS"
 
 [Setup]
 AppId={{A7F2C3E1-D4B5-4E6F-9A8B-0C1D2E3F4A5B}
 AppName={#AppName}
 AppVersion={#AppVersion}
+AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL=http://localhost:8080
 AppSupportURL=http://localhost:8080
@@ -27,17 +28,20 @@ DefaultDirName=C:\POS
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 OutputDir=Output
-OutputBaseFilename=Core-Setup
+OutputBaseFilename=Core-Setup-1.2
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
-UninstallDisplayName={#AppName}
-UninstallDisplayIcon={app}\start-pos.bat
+UninstallDisplayName={#AppName} {#AppVersion}
+UninstallDisplayIcon={app}\desktop\Core.exe
 MinVersion=10.0.17763
 SetupMutex=CoreSetupMutex
+VersionInfoVersion=1.2.0.0
+VersionInfoProductName={#AppName}
+VersionInfoDescription={#AppName} {#AppVersion} Setup
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -52,17 +56,29 @@ Name: "{app}\backend\storage\framework\sessions"
 Name: "{app}\backend\storage\framework\views"
 Name: "{app}\backend\storage\app\public"
 Name: "{app}\backend\bootstrap\cache"
+Name: "{app}\backend\database"
 
 [Files]
-; ── PHP 8.3 NTS x64 (downloaded by prepare-installer.ps1) ──────────────────
+; ── PHP 8.3 NTS x64 (downloaded by rebuild-installer.ps1) ──────────────────
 Source: "redist\php\*"; DestDir: "{app}\php"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
+
+; ── VC++ 2015-2022 Redistributable (required by PHP 8.3) ─────────────────────
+Source: "redist\vc_redist.x64.exe"; DestDir: "{app}\redist"; \
+  Flags: ignoreversion deleteafterinstall
+
+; ── MariaDB local database server (offline scalable database) ────────────────
+Source: "redist\mariadb-installer.msi"; DestDir: "{app}\redist"; \
+  Flags: ignoreversion
 
 ; ── Laravel backend - split by directory so .env is never overwritten ───────
 Source: "..\backend\app\*";        DestDir: "{app}\backend\app";       Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\backend\bootstrap\*";  DestDir: "{app}\backend\bootstrap"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\backend\config\*";     DestDir: "{app}\backend\config";    Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\backend\database\*";   DestDir: "{app}\backend\database";  Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\backend\database\factories\*";  DestDir: "{app}\backend\database\factories";  Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\backend\database\migrations\*"; DestDir: "{app}\backend\database\migrations"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\backend\database\seeders\*";    DestDir: "{app}\backend\database\seeders";    Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\backend\database\list_tables.php"; DestDir: "{app}\backend\database";         Flags: ignoreversion
 Source: "..\backend\public\*";     DestDir: "{app}\backend\public";    Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\backend\resources\*";  DestDir: "{app}\backend\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\backend\routes\*";     DestDir: "{app}\backend\routes";    Flags: ignoreversion recursesubdirs createallsubdirs
@@ -73,12 +89,17 @@ Source: "..\backend\composer.lock"; DestDir: "{app}\backend";          Flags: ig
 
 ; ── Setup and launcher scripts ──────────────────────────────────────────────
 Source: "install.ps1";   DestDir: "{app}"; Flags: ignoreversion
+Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start-pos.bat"; DestDir: "{app}"; Flags: ignoreversion
 
+; ── Native desktop shell - built by frontend\npm run build:desktop ──────────
+Source: "..\frontend\dist-electron\win-unpacked\*"; DestDir: "{app}\desktop"; \
+  Flags: ignoreversion recursesubdirs createallsubdirs
+
 [Icons]
-Name: "{group}\Core";            Filename: "{app}\start-pos.bat"; WorkingDir: "{app}"
+Name: "{group}\Core";            Filename: "{app}\desktop\Core.exe"; WorkingDir: "{app}"
 Name: "{group}\Uninstall Core";  Filename: "{uninstallexe}"
-Name: "{commondesktop}\Core";    Filename: "{app}\start-pos.bat"; WorkingDir: "{app}"; \
+Name: "{commondesktop}\Core";    Filename: "{app}\desktop\Core.exe"; WorkingDir: "{app}"; \
   Tasks: desktopicon
 
 [Run]
@@ -90,15 +111,15 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Flags: waituntilterminated
 
 ; Offer to launch after install
-Filename: "{app}\start-pos.bat"; \
+Filename: "{app}\desktop\Core.exe"; \
   WorkingDir: "{app}"; \
   Description: "Launch Core now"; \
   Flags: postinstall nowait skipifsilent unchecked shellexec
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
-  Parameters: "-NoProfile -Command ""Stop-Process -Name php -Force -ErrorAction SilentlyContinue"""; \
-  RunOnceId: "StopPHP"; Flags: runhidden
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall.ps1"" -AppDir ""{app}"""; \
+  RunOnceId: "StopAndClean"; Flags: runhidden
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

@@ -5,6 +5,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { Clock, CheckCircle, ChefHat, ShoppingBag, RefreshCw, Loader2, Table } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 type OrderStatus = 'open' | 'preparing' | 'ready' | 'completed';
 
@@ -203,20 +204,19 @@ export default function OrdersPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) => salesApi.updateHeldStatus(id, status),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['held-orders'] });
-      toast.success('Order updated');
+    mutationFn: ({ id, status }: { id: number; status: string }) => offlineMutate(() => salesApi.updateHeldStatus(id, status), 'held_orders', 'update', { order_status: status }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Order status saved offline — will sync when server is back');
+      else { qc.invalidateQueries({ queryKey: ['held-orders'] }); toast.success('Order updated'); }
     },
-    onError: () => toast.error('Failed to update order'),
     onSettled: () => setAdvancingId(null),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => salesApi.deleteHeld(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['held-orders'] });
-      toast.success('Order removed');
+    mutationFn: (id: number) => offlineMutate(() => salesApi.deleteHeld(id), 'held_orders', 'delete', {}, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Order removed offline — will sync when server is back');
+      else { qc.invalidateQueries({ queryKey: ['held-orders'] }); toast.success('Order removed'); }
     },
   });
 

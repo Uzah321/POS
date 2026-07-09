@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 const CATEGORIES = [
   { value: 'rental',           label: 'Rental Income' },
@@ -70,13 +71,14 @@ function EntryModal({ entry, branches, onClose }: { entry?: any; branches: any[]
   });
 
   const mutation = useMutation({
-    mutationFn: (d: FormData) => entry ? cashflowApi.update(entry.id, d) : cashflowApi.create(d),
-    onSuccess: () => {
-      toast.success(entry ? 'Entry updated' : 'Entry recorded');
-      qc.invalidateQueries({ queryKey: ['cashflow'] });
+    mutationFn: (d: FormData) => entry
+      ? offlineMutate(() => cashflowApi.update(entry.id, d), 'cashflow', 'update', d as any, entry.id)
+      : offlineMutate(() => cashflowApi.create(d), 'cashflow', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'cashflow', entry ? 'update' : 'create', d as any, entry?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(entry ? 'Entry updated' : 'Entry recorded'); qc.invalidateQueries({ queryKey: ['cashflow'] }); }
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
   });
 
   return (
@@ -197,9 +199,11 @@ export default function CashflowPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => cashflowApi.delete(id),
-    onSuccess: () => { toast.success('Entry deleted'); qc.invalidateQueries({ queryKey: ['cashflow'] }); },
-    onError: () => toast.error('Delete failed'),
+    mutationFn: (id: number) => offlineMutate(() => cashflowApi.delete(id), 'cashflow', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'cashflow', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Entry deleted'); qc.invalidateQueries({ queryKey: ['cashflow'] }); }
+    },
   });
 
   const handleExport = async () => {

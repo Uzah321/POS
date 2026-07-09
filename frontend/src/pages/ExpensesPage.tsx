@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 const schema = z.object({
   title: z.string().min(1),
@@ -26,9 +27,14 @@ function ExpenseModal({ expense, categories, onClose }: { expense?: any; categor
     defaultValues: expense || { expense_date: new Date().toISOString().split('T')[0], payment_method: 'cash' },
   });
   const mutation = useMutation({
-    mutationFn: (d: FormData) => expense ? expensesApi.update(expense.id, d) : expensesApi.create(d),
-    onSuccess: () => { toast.success(expense ? 'Expense updated' : 'Expense recorded'); qc.invalidateQueries({ queryKey: ['expenses'] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (d: FormData) => expense
+      ? offlineMutate(() => expensesApi.update(expense.id, d), 'expenses', 'update', d as any, expense.id)
+      : offlineMutate(() => expensesApi.create(d), 'expenses', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'expenses', expense ? 'update' : 'create', d as any, expense?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(expense ? 'Expense updated' : 'Expense recorded'); qc.invalidateQueries({ queryKey: ['expenses'] }); }
+      onClose();
+    },
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -68,8 +74,11 @@ export default function ExpensesPage() {
   const { data, isLoading } = useQuery({ queryKey: ['expenses', search, branchId, page], queryFn: () => expensesApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data) });
   const { data: catData } = useQuery({ queryKey: ['expense-categories'], queryFn: () => expensesApi.categories().then(r => r.data?.data || []) });
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => expensesApi.delete(id),
-    onSuccess: () => { toast.success('Expense deleted'); qc.invalidateQueries({ queryKey: ['expenses'] }); },
+    mutationFn: (id: number) => offlineMutate(() => expensesApi.delete(id), 'expenses', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'expenses', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Expense deleted'); qc.invalidateQueries({ queryKey: ['expenses'] }); }
+    },
   });
 
   const expenses = data?.data || [];

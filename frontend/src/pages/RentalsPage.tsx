@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
@@ -54,9 +55,14 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
   });
 
   const mutation = useMutation({
-    mutationFn: (d: RentalFormData) => rental ? rentalsApi.update(rental.id, d) : rentalsApi.create(d),
-    onSuccess: () => { toast.success(rental ? 'Updated' : 'Rental created'); qc.invalidateQueries({ queryKey: ['rentals'] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (d: RentalFormData) => rental
+      ? offlineMutate(() => rentalsApi.update(rental.id, d), 'rentals', 'update', d as any, rental.id)
+      : offlineMutate(() => rentalsApi.create(d), 'rentals', 'create', d as any),
+    onSuccess: (result, d) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'rentals', rental ? 'update' : 'create', d as any, rental?.id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success(rental ? 'Updated' : 'Rental created'); qc.invalidateQueries({ queryKey: ['rentals'] }); }
+      onClose();
+    },
   });
 
   return (
@@ -173,9 +179,12 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
     },
   });
   const mutation = useMutation({
-    mutationFn: (d: PaymentFormData) => rentalsApi.addPayment(rental.id, d),
-    onSuccess: () => { toast.success('Payment recorded'); qc.invalidateQueries({ queryKey: ['rentals'] }); qc.invalidateQueries({ queryKey: ['rental-payments', rental.id] }); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error'),
+    mutationFn: (d: PaymentFormData) => offlineMutate(() => rentalsApi.addPayment(rental.id, d), 'rentals', 'add_payment', d as any, rental.id),
+    onSuccess: (result) => {
+      if (result.offline) { toast.success('Payment saved offline — will sync when server is back'); }
+      else { toast.success('Payment recorded'); qc.invalidateQueries({ queryKey: ['rentals'] }); qc.invalidateQueries({ queryKey: ['rental-payments', rental.id] }); }
+      onClose();
+    },
   });
 
   const { data: pmtData } = useQuery({
@@ -274,9 +283,11 @@ export default function RentalsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => rentalsApi.delete(id),
-    onSuccess: () => { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['rentals'] }); },
-    onError: () => toast.error('Delete failed'),
+    mutationFn: (id: number) => offlineMutate(() => rentalsApi.delete(id), 'rentals', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'rentals', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['rentals'] }); }
+    },
   });
 
   const handleExport = async () => {

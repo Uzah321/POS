@@ -3,8 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>core</title>
+    <!-- Touchscreen POS: disable double-tap zoom, pinch zoom, and scroll bounce -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Core POS</title>
+    <style>
+      /* Prevent tap highlight and callout on all elements */
+      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      /* Disable text selection on buttons/tiles but keep it for inputs */
+      button, [role="button"] { -webkit-user-select: none; user-select: none; }
+      /* Prevent overscroll bounce on touchscreen */
+      html, body { overscroll-behavior: none; height: 100%; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

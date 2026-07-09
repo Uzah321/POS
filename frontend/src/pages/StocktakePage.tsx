@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
-import { Plus, X, ClipboardCheck, Check, AlertCircle } from 'lucide-react';
+import { Plus, X, ClipboardCheck, Check, AlertCircle, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-600',
@@ -37,21 +38,27 @@ export default function StocktakePage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.post('/stocktakes', { branch_id: user?.branch?.id }),
-    onSuccess: (res) => { toast.success('Stocktake created!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); setSelected(res.data?.data); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: () => offlineMutate(() => api.post('/stocktakes', { branch_id: user?.branch?.id }), 'stocktakes', 'create', { branch_id: user?.branch?.id }),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Stocktake queued offline — will sync when server is back');
+      else { toast.success('Stocktake created!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); const d = (result as any).data?.data; if (d) setSelected(d); }
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, items }: any) => api.put(`/stocktakes/${id}`, { items }),
-    onSuccess: () => { toast.success('Counts saved!'); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: ({ id, items }: any) => offlineMutate(() => api.put(`/stocktakes/${id}`, { items }), 'stocktakes', 'update', { items }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Counts saved offline — will sync when server is back');
+      else { toast.success('Counts saved!'); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); }
+    },
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/stocktakes/${id}/complete`),
-    onSuccess: () => { toast.success('Stocktake completed - stock levels updated!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (id: number) => offlineMutate(() => api.post(`/stocktakes/${id}/complete`), 'stocktakes', 'complete', { _url: `/stocktakes/${id}/complete`, _method: 'POST' }, id),
+    onSuccess: (result) => {
+      if (result.offline) toast.success('Completion queued offline — will sync when server is back');
+      else { toast.success('Stocktake completed - stock levels updated!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); }
+    },
   });
 
   const stocktakes: any[] = data?.data ?? data ?? [];
@@ -63,6 +70,80 @@ export default function StocktakePage() {
   };
 
   const variances = stocktakeDetail?.items?.filter((it: any) => it.counted_qty !== null && it.variance !== 0 && it.variance !== null) ?? [];
+
+  const downloadCountSheet = () => {
+    if (!stocktakeDetail) return;
+    const ref = stocktakeDetail.reference ?? selected?.reference ?? 'stocktake';
+    const date = new Date().toLocaleDateString();
+    const rows = stocktakeDetail.items ?? [];
+
+    // Build CSV
+    const csvLines = [
+      `Stocktake Count Sheet`,
+      `Reference: ${ref}`,
+      `Date: ${date}`,
+      `Branch: ${stocktakeDetail.branch?.name ?? '-'}`,
+      ``,
+      `Product,SKU,Category,Expected Qty,Counted Qty,Variance,Notes`,
+      ...rows.map((it: any) =>
+        [
+          `"${it.product?.name ?? ''}"`,
+          `"${it.product?.sku ?? ''}"`,
+          `"${it.product?.category?.name ?? ''}"`,
+          it.expected_qty ?? '',
+          '',   // Counted Qty — blank for physical counting
+          '',   // Variance — filled in after count
+          '',   // Notes
+        ].join(',')
+      ),
+    ];
+    const csvContent = csvLines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `count-sheet-${ref}-${date.replace(/\//g, '-')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('Count sheet downloaded');
+  };
+
+  const printCountSheet = () => {
+    if (!stocktakeDetail) return;
+    const ref = stocktakeDetail.reference ?? selected?.reference ?? 'stocktake';
+    const date = new Date().toLocaleDateString();
+    const rows: any[] = stocktakeDetail.items ?? [];
+    const rowsHtml = rows.map((it: any, idx: number) => `
+      <tr style="border-bottom:1px solid #e5e7eb">
+        <td style="padding:6px 8px">${idx + 1}</td>
+        <td style="padding:6px 8px">${it.product?.name ?? ''}</td>
+        <td style="padding:6px 8px">${it.product?.sku ?? ''}</td>
+        <td style="padding:6px 8px">${it.product?.category?.name ?? ''}</td>
+        <td style="padding:6px 8px;text-align:center">${it.expected_qty ?? ''}</td>
+        <td style="padding:6px 8px;min-width:60px">&nbsp;</td>
+        <td style="padding:6px 8px;min-width:60px">&nbsp;</td>
+        <td style="padding:6px 8px;min-width:80px">&nbsp;</td>
+      </tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><title>Count Sheet - ${ref}</title>
+      <style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th{background:#f3f4f6;padding:6px 8px;text-align:left;border-bottom:2px solid #d1d5db}@media print{button{display:none}}</style>
+      </head><body>
+      <h2 style="margin:0 0 4px">Stocktake Count Sheet</h2>
+      <p style="margin:0 0 12px;color:#6b7280">Ref: ${ref} &nbsp;|&nbsp; Date: ${date} &nbsp;|&nbsp; Branch: ${stocktakeDetail.branch?.name ?? '-'}</p>
+      <table>
+        <thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Category</th><th>Expected</th><th>Counted</th><th>Variance</th><th>Notes</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <p style="margin-top:24px;font-size:11px;color:#9ca3af">Cashier signature: _________________________ &nbsp;&nbsp; Date: _____________</p>
+      </body></html>`;
+    const win = window.open('', '_blank');
+    if (!win) { toast.error('Pop-up blocked. Allow pop-ups and try again.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
 
   return (
     <div className="space-y-6">
@@ -120,7 +201,27 @@ export default function StocktakePage() {
                 <h2 className="font-bold text-gray-900">{stocktakeDetail?.reference ?? selected.reference}</h2>
                 {stocktakeDetail && <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[stocktakeDetail.status]}`}>{stocktakeDetail.status.replace('_',' ')}</span>}
               </div>
-              <button onClick={() => setSelected(null)}><X size={20} className="text-gray-400" /></button>
+              <div className="flex items-center gap-2">
+                {stocktakeDetail && (
+                  <>
+                    <button
+                      onClick={downloadCountSheet}
+                      title="Download count sheet as CSV"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+                    >
+                      <Download size={13} /> CSV
+                    </button>
+                    <button
+                      onClick={printCountSheet}
+                      title="Print count sheet"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors"
+                    >
+                      <Download size={13} /> Print
+                    </button>
+                  </>
+                )}
+                <button onClick={() => setSelected(null)}><X size={20} className="text-gray-400" /></button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               {detailLoading ? <div className="text-center text-gray-400 py-8">Loading...</div> : (

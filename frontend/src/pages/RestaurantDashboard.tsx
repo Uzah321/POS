@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { reportsApi } from '../api';
 import axios from 'axios';
+import { db } from '../lib/db';
+import { useAuthStore } from '../stores/authStore';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, ShoppingCart, TrendingUp, Clock, ChefHat, CheckCircle, Loader2 } from 'lucide-react';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -45,12 +48,55 @@ function KdsBadge({ label, count, color }: { label: string; count: number; color
 }
 
 export default function RestaurantDashboard() {
-  const { format: formatCurrency } = useCurrencyStore();
+  const { format: formatCurrency, activeCurrency } = useCurrencyStore();
+  const { user } = useAuthStore();
+  const currencySymbol = activeCurrency?.symbol ?? 'R';
   const today = format(new Date(), 'EEEE, MMMM d');
+  const branchId = user?.branch?.id;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => reportsApi.dashboard().then(r => r.data),
+    queryKey: ['dashboard', 'restaurant', branchId],
+    queryFn: async () => {
+      try {
+        return await reportsApi.dashboard().then(r => r.data);
+      } catch {
+        // Build dashboard stats from local IndexedDB sales (filtered to this branch)
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const todayStr = todayStart.toISOString();
+
+        const allSales = await db.sales.filter(s =>
+          s.status === 'completed' && (!branchId || s.branch_id === branchId)
+        ).toArray();
+        const todaySales = allSales.filter(s => s.created_at >= todayStr);
+
+        const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
+
+        const salesTrend = Array.from({ length: 30 }, (_, i) => {
+          const d = new Date(now);
+          d.setDate(d.getDate() - (29 - i));
+          d.setHours(0, 0, 0, 0);
+          const next = new Date(d);
+          next.setDate(next.getDate() + 1);
+          const dStr = d.toISOString();
+          const nStr = next.toISOString();
+          const daySales = allSales.filter(s => s.created_at >= dStr && s.created_at < nStr);
+          return {
+            date: d.toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' }),
+            revenue: daySales.reduce((sum, s) => sum + s.total, 0),
+          };
+        });
+
+        return {
+          data: {
+            today: { revenue: todayRevenue, sales_count: todaySales.length },
+            sales_trend: salesTrend,
+            top_products: [],
+          },
+        };
+      }
+    },
   });
 
   const { data: kdsData } = useQuery({
@@ -60,9 +106,9 @@ export default function RestaurantDashboard() {
   });
 
   const d           = data?.data || {};
-  const trend       = d.sales_trend || [];
-  const topProducts = d.top_products || [];
-  const kdsOrders   = kdsData?.data || [];
+  const trend       = Array.isArray(d.sales_trend)   ? d.sales_trend   : [];
+  const topProducts = Array.isArray(d.top_products)  ? d.top_products  : [];
+  const kdsOrders   = Array.isArray(kdsData?.data)   ? kdsData.data    : [];
 
   const newOrders       = kdsOrders.filter((o: any) => o.kds_status === 'new').length;
   const preparingOrders = kdsOrders.filter((o: any) => o.kds_status === 'preparing').length;
@@ -99,10 +145,10 @@ export default function RestaurantDashboard() {
           <KdsBadge label="Preparing"   count={preparingOrders} color="amber" />
           <KdsBadge label="Ready"       count={readyOrders}     color="green" />
         </div>
-        <a href="/kitchen" target="_blank" rel="noopener"
+        <Link to="/kitchen"
           className="text-xs text-orange-400 hover:text-orange-300 font-semibold whitespace-nowrap border border-orange-800 rounded-md px-3 py-1.5 transition-colors flex-shrink-0">
-          Open Kitchen →
-        </a>
+          Open Kitchen
+        </Link>
       </div>
 
       {/* Stats */}
@@ -132,7 +178,7 @@ export default function RestaurantDashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v?.slice(5)} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
               <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
                 contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
               <Area type="monotone" dataKey="revenue" stroke="#f97316" fill="url(#orangeGrad)" strokeWidth={2.5} dot={false} />
@@ -176,10 +222,10 @@ export default function RestaurantDashboard() {
             <span className={`w-2 h-2 rounded-full ${totalActive > 0 ? 'bg-orange-400 animate-pulse' : 'bg-gray-300'}`} />
             Live Kitchen Orders
           </h2>
-          <a href="/kitchen" target="_blank" rel="noopener"
+          <Link to="/kitchen"
             className="text-xs text-orange-500 hover:text-orange-600 font-semibold">
-            Open display →
-          </a>
+            Open display
+          </Link>
         </div>
         {kdsOrders.filter((o: any) => o.kds_status !== 'served').length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

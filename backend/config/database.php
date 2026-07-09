@@ -38,9 +38,9 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
+            'busy_timeout' => 5000,       // wait up to 5 s when DB is locked by another write
+            'journal_mode' => 'WAL',      // allows concurrent reads during writes
+            'synchronous' => 'NORMAL',    // safe + faster than FULL for WAL
             'transaction_mode' => 'DEFERRED',
         ],
 

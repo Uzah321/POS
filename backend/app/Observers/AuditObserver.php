@@ -30,7 +30,7 @@ class AuditObserver
 
     public function created(Model $model): void
     {
-        $this->log('created', $model, [], $model->toArray());
+        $this->log('created', $model, [], $model->getAttributes());
     }
 
     public function updated(Model $model): void
@@ -44,6 +44,6 @@ class AuditObserver
 
     public function deleted(Model $model): void
     {
-        $this->log('deleted', $model, $model->toArray());
+        $this->log('deleted', $model, $model->getAttributes());
     }
 }

@@ -5,8 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { authApi } from '../api';
 import { useAuthStore } from '../stores/authStore';
+import { useServerHealth } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, WifiOff } from 'lucide-react';
 
 const schema = z.object({
   username: z.string().min(1, 'Username required'),
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
+  const { isServerUp } = useServerHealth();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -29,11 +31,14 @@ export default function LoginPage() {
       const { user, token } = res.data.data;
       setAuth(user, token);
       toast.success(`Welcome back, ${user.name}!`);
-      // Cashiers go straight to the POS register; everyone else to dashboard
       const isCashier = user.roles?.includes('cashier');
       navigate(isCashier ? '/pos' : '/');
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Login failed');
+      if (!err.response) {
+        toast.error('Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.');
+      } else {
+        toast.error(err.response?.data?.message || 'Incorrect username or password.');
+      }
     }
   };
 
@@ -46,6 +51,19 @@ export default function LoginPage() {
       </div>
 
       <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md p-8">
+        {/* Server offline banner */}
+        {!isServerUp && (
+          <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 rounded-md px-4 py-3">
+            <WifiOff size={18} className="text-red-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-red-700">Server not running</p>
+              <p className="text-xs text-red-600 mt-0.5">
+                Double-click the <strong>Core</strong> shortcut on your Desktop to start it, then refresh this page.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
@@ -91,11 +109,11 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isServerUp}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-blue-200 mt-2"
           >
             {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-            {isSubmitting ? 'Signing in...' : 'Sign In'}
+            {!isServerUp ? 'Server offline' : isSubmitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 

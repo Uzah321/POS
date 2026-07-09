@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { branchesApi } from '../api';
+import { offlineMutate } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { TrendingUp, Check, Calendar } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -30,9 +31,12 @@ export default function CommissionsPage() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: (ids: number[]) => api.post('/commissions/mark-paid', { ids }),
-    onSuccess: () => { toast.success('Commissions marked as paid!'); qc.invalidateQueries({ queryKey: ['commissions'] }); qc.invalidateQueries({ queryKey: ['commissions-report'] }); setSelected(new Set()); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (ids: number[]) => offlineMutate(() => api.post('/commissions/mark-paid', { ids }), 'commissions', 'mark_paid', { _url: '/commissions/mark-paid', _method: 'POST', ids }),
+    onSuccess: (result) => {
+      if (result.offline) { toast.success('Marked as paid offline — will sync when server is back'); }
+      else { toast.success('Commissions marked as paid!'); qc.invalidateQueries({ queryKey: ['commissions'] }); qc.invalidateQueries({ queryKey: ['commissions-report'] }); }
+      setSelected(new Set());
+    },
   });
 
   const commissions: any[] = data?.data ?? (Array.isArray(data) ? data : []);

@@ -15,12 +15,15 @@ export default function DashboardPage() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
-    staleTime: 60000,
   });
 
   const changeMutation = useMutation({
     mutationFn: (type: BizType) => settingsApi.update({ business_type: type }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+    onSuccess: (_, type) => {
+      // Instantly update nav without waiting for a round-trip refetch
+      qc.setQueryData(['settings'], (old: any) => old ? { ...old, business_type: type } : { business_type: type });
+      qc.invalidateQueries({ queryKey: ['settings'] });
+    },
   });
 
   const businessType: BizType | null = (overrideType ?? settings?.business_type ?? null) as BizType | null;

@@ -6,6 +6,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, X, FileText, Send, Check, XCircle } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
+import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 
 const STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired'];
 const STATUS_COLORS: Record<string, string> = {
@@ -46,20 +47,29 @@ export default function QuotationsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/quotations', data),
-    onSuccess: () => { toast.success('Quotation created!'); qc.invalidateQueries({ queryKey: ['quotations'] }); setShowNew(false); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (data: any) => offlineMutate(() => api.post('/quotations', data), 'quotations', 'create', data),
+    onSuccess: (result, data) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'quotations', 'create', data); toast.success('Quotation saved offline — will sync when server is back'); }
+      else { toast.success('Quotation created!'); qc.invalidateQueries({ queryKey: ['quotations'] }); }
+      setShowNew(false);
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }: any) => api.put(`/quotations/${id}`, { status }),
-    onSuccess: () => { toast.success('Updated'); qc.invalidateQueries({ queryKey: ['quotation', selected?.id] }); qc.invalidateQueries({ queryKey: ['quotations'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: ({ id, status }: any) => offlineMutate(() => api.put(`/quotations/${id}`, { status }), 'quotations', 'update', { status }, id),
+    onSuccess: (result, { id, status }) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'quotations', 'update', { status }, id); toast.success('Saved offline — will sync when server is back'); }
+      else { toast.success('Updated'); qc.invalidateQueries({ queryKey: ['quotation', selected?.id] }); qc.invalidateQueries({ queryKey: ['quotations'] }); }
+    },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/quotations/${id}`),
-    onSuccess: () => { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['quotations'] }); setSelected(null); },
+    mutationFn: (id: number) => offlineMutate(() => api.delete(`/quotations/${id}`), 'quotations', 'delete', {}, id),
+    onSuccess: (result, id) => {
+      if (result.offline) { handleOfflineSuccess(qc, result, 'quotations', 'delete', {}, id); toast.success('Deleted offline — will sync when server is back'); }
+      else { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['quotations'] }); }
+      setSelected(null);
+    },
   });
 
   const quotations: any[] = data?.data ?? (Array.isArray(data) ? data : []);

@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NexaPOS — Business Solutions Flyer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0f0f0f;
+    color: #111;
+  }
+
+  /* ── PAGE ── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+    padding: 48px 40px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(245,158,11,0.25) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; left: -60px;
+    width: 240px; height: 240px;
+    background: radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245,158,11,0.15);
+    border: 1px solid rgba(245,158,11,0.4);
+    color: #fbbf24;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 18px;
+  }
+
+  .hero-title {
+    font-size: 44px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.05;
+    letter-spacing: -1.5px;
+    margin-bottom: 4px;
+  }
+  .hero-title span { color: #f59e0b; }
+
+  .hero-sub {
+    font-size: 14px;
+    color: rgba(255,255,255,0.55);
+    font-weight: 400;
+    margin-bottom: 22px;
+    letter-spacing: 0.3px;
+  }
+
+  .hero-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hero-tag {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.75);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  /* ── MOCKUP STRIP ── */
+  .mockup-strip {
+    background: linear-gradient(180deg, #0f172a 0%, #1a2744 100%);
+    padding: 20px 40px 28px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .screen {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+    flex: 1;
+    font-size: 0;
+  }
+  .screen-bar {
+    background: #1e293b;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .dot-r { background: #ef4444; }
+  .dot-y { background: #f59e0b; }
+  .dot-g { background: #22c55e; }
+  .screen-title { color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 500; margin-left: 6px; letter-spacing: 0.5px; }
+
+  /* POS Screen mockup */
+  .pos-screen .screen-body {
+    background: #f8fafc;
+    padding: 0;
+    display: flex;
+    height: 120px;
+  }
+  .pos-left {
+    flex: 1;
+    padding: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    background: #f1f5f9;
+  }
+  .pos-product {
+    background: #fff;
+    border-radius: 4px;
+    padding: 5px 3px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+  }
+  .pos-product-name { font-size: 6px; font-weight: 600; color: #334155; line-height: 1.2; }
+  .pos-product-price { font-size: 7px; color: #f59e0b; font-weight: 700; margin-top: 1px; }
+  .pos-product-emoji { font-size: 14px; display: block; margin-bottom: 2px; }
+  .pos-right {
+    width: 70px;
+    background: #fff;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    border-left: 1px solid #e2e8f0;
+  }
+  .pos-cart-item { background: #f8fafc; border-radius: 3px; padding: 3px 4px; display: flex; justify-content: space-between; align-items: center; }
+  .pos-cart-text { font-size: 6px; color: #475569; font-weight: 500; }
+  .pos-cart-qty { font-size: 7px; color: #f59e0b; font-weight: 700; }
+  .pos-total { margin-top: auto; background: #f59e0b; border-radius: 3px; padding: 4px; text-align: center; }
+  .pos-total-label { font-size: 5px; color: rgba(0,0,0,0.5); font-weight: 600; text-transform: uppercase; }
+  .pos-total-amount { font-size: 9px; font-weight: 800; color: #000; }
+
+  /* Dashboard Screen mockup */
+  .dash-screen .screen-body {
+    background: #f8fafc;
+    padding: 8px;
+    height: 120px;
+  }
+  .dash-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 5px; }
+  .dash-stat {
+    background: #fff;
+    border-radius: 4px;
+    padding: 5px;
+    border: 1px solid #e2e8f0;
+  }
+  .dash-stat-label { font-size: 5.5px; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+  .dash-stat-value { font-size: 10px; font-weight: 800; color: #0f172a; margin-top: 1px; }
+  .dash-stat-change { font-size: 5px; color: #22c55e; font-weight: 600; margin-top: 1px; }
+  .dash-bar-wrap { background: #fff; border-radius: 4px; padding: 5px; border: 1px solid #e2e8f0; }
+  .dash-bar-title { font-size: 5.5px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+  .dash-bars { display: flex; gap: 3px; align-items: flex-end; height: 28px; }
+  .dash-bar { flex: 1; border-radius: 2px 2px 0 0; background: #f59e0b; opacity: 0.7; }
+  .dash-bar:nth-child(2) { opacity: 0.8; }
+  .dash-bar:nth-child(3) { opacity: 1; }
+  .dash-bar:nth-child(4) { opacity: 0.6; }
+  .dash-bar:nth-child(5) { opacity: 0.9; }
+  .dash-bar:nth-child(6) { opacity: 0.75; }
+  .dash-bar:nth-child(7) { opacity: 1; background: #3b82f6; }
+
+  /* Reports Screen mockup */
+  .rep-screen .screen-body {
+    background: #f8fafc;
+    padding: 7px;
+    height: 120px;
+  }
+  .rep-tabs { display: flex; gap: 3px; margin-bottom: 6px; }
+  .rep-tab { font-size: 5px; padding: 2px 6px; border-radius: 3px; font-weight: 600; color: #94a3b8; background: #fff; border: 1px solid #e2e8f0; }
+  .rep-tab.active { background: #f59e0b; color: #000; border-color: #f59e0b; }
+  .rep-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 5px; }
+  .rep-card { background: #fff; border-radius: 4px; padding: 4px; border: 1px solid #e2e8f0; }
+  .rep-card-label { font-size: 5px; color: #94a3b8; font-weight: 500; text-transform: uppercase; }
+  .rep-card-value { font-size: 8px; font-weight: 800; color: #0f172a; margin-top: 1px; }
+  .rep-line { background: #fff; border-radius: 4px; padding: 5px; border: 1px solid #e2e8f0; }
+  .rep-line-title { font-size: 5.5px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+  .rep-bars2 { display: flex; gap: 2px; align-items: flex-end; height: 22px; }
+  .rep-b { flex: 1; border-radius: 2px 2px 0 0; }
+
+  /* ── BODY ── */
+  .body { padding: 28px 40px 0; }
+
+  /* headline */
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .section-head-line {
+    width: 32px;
+    height: 3px;
+    background: linear-gradient(90deg, #f59e0b, #3b82f6);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .section-head h2 {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #0f172a;
+  }
+
+  /* modules grid */
+  .modules { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 26px; }
+  .module {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 12px;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+  }
+  .module::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .module.amber::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .module.blue::before  { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .module.green::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .module.purple::before{ background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+  .module.rose::before  { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+  .module.teal::before  { background: linear-gradient(90deg, #14b8a6, #2dd4bf); }
+
+  .module-icon {
+    font-size: 22px;
+    margin-bottom: 7px;
+    display: block;
+  }
+  .module-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+  }
+  .module-desc {
+    font-size: 9.5px;
+    color: #64748b;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+
+  /* features two-col */
+  .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 26px; }
+  .feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+  .feature-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+  .feature-text { font-size: 9.5px; color: #475569; font-weight: 500; line-height: 1.45; }
+  .feature-text strong { color: #0f172a; font-weight: 700; }
+
+  /* why strip */
+  .why-strip {
+    background: linear-gradient(135deg, #0f172a, #1e3a5f);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    text-align: center;
+  }
+  .why-item {}
+  .why-number {
+    font-size: 26px;
+    font-weight: 900;
+    color: #f59e0b;
+    line-height: 1;
+    margin-bottom: 3px;
+  }
+  .why-label {
+    font-size: 9px;
+    color: rgba(255,255,255,0.65);
+    font-weight: 500;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* systems offered */
+  .systems { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .system-card {
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid;
+  }
+  .system-card.nexapos { border-color: #fde68a; background: #fffbeb; }
+  .system-card.custom  { border-color: #bfdbfe; background: #eff6ff; }
+  .system-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .system-card-icon { font-size: 20px; }
+  .system-card-name { font-size: 13px; font-weight: 800; color: #0f172a; }
+  .system-card-tagline { font-size: 9px; color: #64748b; font-weight: 500; margin-top: 1px; }
+  .system-card-list { display: flex; flex-direction: column; gap: 3px; }
+  .system-card-item { font-size: 9.5px; color: #475569; display: flex; align-items: center; gap: 5px; }
+  .system-card-item::before { content: '✓'; font-size: 9px; font-weight: 700; color: #22c55e; }
+
+  /* CTA */
+  .cta {
+    background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+    margin: 0 -0px;
+    padding: 22px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .cta-left {}
+  .cta-headline {
+    font-size: 18px;
+    font-weight: 900;
+    color: #000;
+    margin-bottom: 3px;
+    letter-spacing: -0.5px;
+  }
+  .cta-sub {
+    font-size: 11px;
+    color: rgba(0,0,0,0.55);
+    font-weight: 500;
+  }
+  .cta-contacts {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    text-align: right;
+  }
+  .cta-contact {
+    font-size: 11px;
+    font-weight: 700;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .cta-contact-icon { font-size: 13px; }
+
+  /* footer */
+  .footer {
+    background: #0f172a;
+    padding: 12px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-brand { font-size: 12px; font-weight: 800; color: #f59e0b; letter-spacing: -0.3px; }
+  .footer-tagline { font-size: 9px; color: rgba(255,255,255,0.4); font-weight: 400; }
+  .footer-right { text-align: right; }
+  .footer-copy { font-size: 8.5px; color: rgba(255,255,255,0.3); }
+  .footer-url { font-size: 9px; color: #60a5fa; font-weight: 600; margin-top: 1px; }
+
+  @media print {
+    body { background: #fff; }
+    .page { margin: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── HERO ── -->
+  <div class="hero">
+    <div class="badge">★ CDNMS Business Solutions &nbsp;·&nbsp; 2026</div>
+    <div class="hero-title">Run Your Business<br>Smarter with <span>NexaPOS</span></div>
+    <div class="hero-sub">All-in-one Point of Sale &amp; Business Management — built for Zimbabwe</div>
+    <div class="hero-tags">
+      <span class="hero-tag">Multi-Branch</span>
+      <span class="hero-tag">Offline Mode</span>
+      <span class="hero-tag">EcoCash Integrated</span>
+      <span class="hero-tag">Real-Time Reports</span>
+      <span class="hero-tag">Staff Management</span>
+      <span class="hero-tag">Inventory Control</span>
+      <span class="hero-tag">Layby &amp; Quotations</span>
+    </div>
+  </div>
+
+  <!-- ── SCREEN MOCKUPS ── -->
+  <div class="mockup-strip">
+
+    <!-- POS Terminal -->
+    <div class="screen pos-screen">
+      <div class="screen-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="screen-title">POS REGISTER</span>
+      </div>
+      <div class="screen-body">
+        <div class="pos-left">
+          <div class="pos-product">
+            <span class="pos-product-emoji">🥃</span>
+            <div class="pos-product-name">Whisky 750ml</div>
+            <div class="pos-product-price">$18.50</div>
+          </div>
+          <div class="pos-product">
+            <span class="pos-product-emoji">🍺</span>
+            <div class="pos-product-name">Castle Lager</div>
+            <div class="pos-product-price">$1.80</div>
+          </div>
+          <div class="pos-product">
+            <span class="pos-product-emoji">🥤</span>
+            <div class="pos-product-name">Coke 500ml</div>
+            <div class="pos-product-price">$0.90</div>
+          </div>
+          <div class="pos-product">
+            <span class="pos-product-emoji">🍷</span>
+            <div class="pos-product-name">Red Wine</div>
+            <div class="pos-product-price">$12.00</div>
+          </div>
+          <div class="pos-product">
+            <span class="pos-product-emoji">💧</span>
+            <div class="pos-product-name">Water 1.5L</div>
+            <div class="pos-product-price">$0.50</div>
+          </div>
+          <div class="pos-product">
+            <span class="pos-product-emoji">🚬</span>
+            <div class="pos-product-name">Cigarettes</div>
+            <div class="pos-product-price">$2.20</div>
+          </div>
+        </div>
+        <div class="pos-right">
+          <div class="pos-cart-item"><span class="pos-cart-text">Whisky 750ml</span><span class="pos-cart-qty">×2</span></div>
+          <div class="pos-cart-item"><span class="pos-cart-text">Castle Lager</span><span class="pos-cart-qty">×4</span></div>
+          <div class="pos-cart-item"><span class="pos-cart-text">Coke 500ml</span><span class="pos-cart-qty">×1</span></div>
+          <div class="pos-total">
+            <div class="pos-total-label">TOTAL</div>
+            <div class="pos-total-amount">$40.90</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="screen dash-screen">
+      <div class="screen-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="screen-title">DASHBOARD</span>
+      </div>
+      <div class="screen-body">
+        <div class="dash-stats">
+          <div class="dash-stat">
+            <div class="dash-stat-label">Today's Sales</div>
+            <div class="dash-stat-value">$1,284</div>
+            <div class="dash-stat-change">↑ 12% vs yesterday</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-label">Transactions</div>
+            <div class="dash-stat-value">47</div>
+            <div class="dash-stat-change">↑ 8 more</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-label">Net Profit</div>
+            <div class="dash-stat-value" style="color:#22c55e">$386</div>
+            <div class="dash-stat-change">30.1% margin</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-label">Low Stock</div>
+            <div class="dash-stat-value" style="color:#ef4444">3</div>
+            <div class="dash-stat-change" style="color:#ef4444">⚠ Reorder</div>
+          </div>
+        </div>
+        <div class="dash-bar-wrap">
+          <div class="dash-bar-title">Weekly Revenue</div>
+          <div class="dash-bars">
+            <div class="dash-bar" style="height:55%"></div>
+            <div class="dash-bar" style="height:70%"></div>
+            <div class="dash-bar" style="height:45%"></div>
+            <div class="dash-bar" style="height:88%"></div>
+            <div class="dash-bar" style="height:62%"></div>
+            <div class="dash-bar" style="height:78%"></div>
+            <div class="dash-bar" style="height:100%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reports -->
+    <div class="screen rep-screen">
+      <div class="screen-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="screen-title">REPORTS</span>
+      </div>
+      <div class="screen-body">
+        <div class="rep-tabs">
+          <div class="rep-tab active">Sales</div>
+          <div class="rep-tab">P&amp;L</div>
+          <div class="rep-tab">Inventory</div>
+          <div class="rep-tab">Branches</div>
+        </div>
+        <div class="rep-cards">
+          <div class="rep-card">
+            <div class="rep-card-label">Revenue</div>
+            <div class="rep-card-value" style="color:#3b82f6">$8,420</div>
+          </div>
+          <div class="rep-card">
+            <div class="rep-card-label">Gross Profit</div>
+            <div class="rep-card-value" style="color:#22c55e">$2,610</div>
+          </div>
+          <div class="rep-card">
+            <div class="rep-card-label">Net Profit</div>
+            <div class="rep-card-value" style="color:#22c55e">$1,890</div>
+          </div>
+        </div>
+        <div class="rep-line">
+          <div class="rep-line-title">Daily Breakdown — Last 14 days</div>
+          <div class="rep-bars2">
+            <div class="rep-b" style="height:50%;background:#f59e0b;opacity:0.6"></div>
+            <div class="rep-b" style="height:65%;background:#f59e0b;opacity:0.7"></div>
+            <div class="rep-b" style="height:40%;background:#f59e0b;opacity:0.55"></div>
+            <div class="rep-b" style="height:80%;background:#f59e0b;opacity:0.85"></div>
+            <div class="rep-b" style="height:55%;background:#f59e0b;opacity:0.65"></div>
+            <div class="rep-b" style="height:70%;background:#3b82f6;opacity:0.7"></div>
+            <div class="rep-b" style="height:60%;background:#3b82f6;opacity:0.65"></div>
+            <div class="rep-b" style="height:85%;background:#3b82f6;opacity:0.85"></div>
+            <div class="rep-b" style="height:75%;background:#3b82f6;opacity:0.75"></div>
+            <div class="rep-b" style="height:90%;background:#f59e0b;opacity:0.9"></div>
+            <div class="rep-b" style="height:65%;background:#f59e0b;opacity:0.65"></div>
+            <div class="rep-b" style="height:78%;background:#f59e0b;opacity:0.78"></div>
+            <div class="rep-b" style="height:95%;background:#22c55e;opacity:0.9"></div>
+            <div class="rep-b" style="height:100%;background:#22c55e"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── BODY ── -->
+  <div class="body">
+
+    <!-- MODULES -->
+    <div class="section-head">
+      <div class="section-head-line"></div>
+      <h2>Everything Your Business Needs</h2>
+    </div>
+    <div class="modules">
+      <div class="module amber">
+        <span class="module-icon">🛒</span>
+        <div class="module-title">POS Register</div>
+        <div class="module-desc">Fast checkout with barcode scan, multiple payment methods, hold &amp; recall, receipt printing.</div>
+      </div>
+      <div class="module blue">
+        <span class="module-icon">📦</span>
+        <div class="module-title">Inventory &amp; Stock</div>
+        <div class="module-desc">Track stock levels, reorder alerts, batch numbers, expiry dates, and stock transfers.</div>
+      </div>
+      <div class="module green">
+        <span class="module-icon">📊</span>
+        <div class="module-title">Reports &amp; Analytics</div>
+        <div class="module-desc">P&amp;L, daily/monthly summaries, cashier performance, branch consolidation &amp; Excel export.</div>
+      </div>
+      <div class="module purple">
+        <span class="module-icon">📱</span>
+        <div class="module-title">EcoCash Integration</div>
+        <div class="module-desc">Record EcoCash deposits, withdrawals &amp; float top-ups directly linked to your cashflow ledger.</div>
+      </div>
+      <div class="module rose">
+        <span class="module-icon">👥</span>
+        <div class="module-title">Staff &amp; HR</div>
+        <div class="module-desc">User roles &amp; permissions, salaries, commissions, attendance tracking and PIN login.</div>
+      </div>
+      <div class="module teal">
+        <span class="module-icon">🏪</span>
+        <div class="module-title">Multi-Branch</div>
+        <div class="module-desc">Manage multiple locations from one account. Filter every report and transaction by branch.</div>
+      </div>
+    </div>
+
+    <!-- KEY FEATURES -->
+    <div class="section-head">
+      <div class="section-head-line"></div>
+      <h2>Key Features</h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Offline Mode</strong> — keeps selling even without internet. Sales sync automatically when reconnected.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Cashflow Ledger</strong> — track every inflow and outflow with a full financial audit trail.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Layby / Layaway</strong> — create customer layby agreements with deposit tracking and balance management.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Quotations</strong> — generate professional quotes that convert directly into sales with one click.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Purchase Orders</strong> — manage supplier POs, goods receipt, and auto stock-in on delivery.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Receipts &amp; Printer Support</strong> — 80mm thermal printers, A4 PDF receipts and digital receipt options.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Customer Accounts</strong> — customer database with purchase history, credit limits and loyalty tracking.</div></div>
+      <div class="feature"><div class="feature-dot"></div><div class="feature-text"><strong>Rentals &amp; Expenses</strong> — log recurring rentals and business expenses for complete P&amp;L accuracy.</div></div>
+    </div>
+
+    <!-- NUMBERS -->
+    <div class="why-strip">
+      <div class="why-item">
+        <div class="why-number">30+</div>
+        <div class="why-label">Modules &amp;<br>Features</div>
+      </div>
+      <div class="why-item">
+        <div class="why-number">100%</div>
+        <div class="why-label">Web-Based<br>No Install</div>
+      </div>
+      <div class="why-item">
+        <div class="why-number">∞</div>
+        <div class="why-label">Branches &amp;<br>Users</div>
+      </div>
+      <div class="why-item">
+        <div class="why-number">24/7</div>
+        <div class="why-label">Support &amp;<br>Updates</div>
+      </div>
+    </div>
+
+    <!-- SYSTEMS OFFERED -->
+    <div class="section-head">
+      <div class="section-head-line"></div>
+      <h2>Solutions We Offer</h2>
+    </div>
+    <div class="systems">
+      <div class="system-card nexapos">
+        <div class="system-card-header">
+          <span class="system-card-icon">🏬</span>
+          <div>
+            <div class="system-card-name">NexaPOS</div>
+            <div class="system-card-tagline">Point of Sale &amp; Business Management</div>
+          </div>
+        </div>
+        <div class="system-card-list">
+          <div class="system-card-item">Retail, Wholesale &amp; Hospitality</div>
+          <div class="system-card-item">Multi-branch &amp; multi-user support</div>
+          <div class="system-card-item">Full inventory, finance &amp; HR modules</div>
+          <div class="system-card-item">Works offline — no internet required at POS</div>
+          <div class="system-card-item">Runs in any browser — phone, tablet, PC</div>
+        </div>
+      </div>
+      <div class="system-card custom">
+        <div class="system-card-header">
+          <span class="system-card-icon">💻</span>
+          <div>
+            <div class="system-card-name">Custom Software</div>
+            <div class="system-card-tagline">Bespoke Business Systems</div>
+          </div>
+        </div>
+        <div class="system-card-list">
+          <div class="system-card-item">Tailored to your exact business workflow</div>
+          <div class="system-card-item">Web &amp; mobile application development</div>
+          <div class="system-card-item">Database design &amp; system integration</div>
+          <div class="system-card-item">EcoCash &amp; payment gateway integration</div>
+          <div class="system-card-item">Training, support &amp; ongoing maintenance</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── CTA ── -->
+  <div class="cta">
+    <div class="cta-left">
+      <div class="cta-headline">Ready to modernise your business?</div>
+      <div class="cta-sub">Get a free demo today — we'll set everything up for you.</div>
+    </div>
+    <div class="cta-contacts">
+      <div class="cta-contact"><span class="cta-contact-icon">📞</span> +263 78 680 9082</div>
+      <div class="cta-contact"><span class="cta-contact-icon">✉️</span> dingulwazi0108.zondo@gmail.com</div>
+      <div class="cta-contact"><span class="cta-contact-icon">🌐</span> www.cdnms.com</div>
+    </div>
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <div class="footer">
+    <div>
+      <div class="footer-brand">CDNMS</div>
+      <div class="footer-tagline">Technology solutions built for Zimbabwe businesses</div>
+    </div>
+    <div class="footer-right">
+      <div class="footer-url">www.cdnms.com</div>
+      <div class="footer-copy">© 2026 CDNMS. All rights reserved.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

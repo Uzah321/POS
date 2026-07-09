@@ -48,8 +48,8 @@ export default function BackupPage() {
       <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start gap-3">
         <HardDrive size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-semibold text-blue-800">PostgreSQL Database Backups</p>
-          <p className="text-xs text-blue-600 mt-0.5">Full pg_dump exports of the PostgreSQL database (.sql). Download and store them securely. To restore on any machine: <span className="font-mono bg-blue-100 px-1 rounded">psql -U Core Core &lt; backup.sql</span></p>
+          <p className="text-sm font-semibold text-blue-800">MariaDB Database Backups</p>
+          <p className="text-xs text-blue-600 mt-0.5">Full database exports (.sql). Download and store them securely. To restore on any machine: <span className="font-mono bg-blue-100 px-1 rounded">mysql -u core_pos -p core_pos &lt; backup.sql</span></p>
         </div>
       </div>
 

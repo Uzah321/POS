@@ -4,6 +4,7 @@ import api from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
 import { Clock, LogIn, LogOut, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 export default function AttendancePage() {
   const { user } = useAuthStore();
@@ -20,9 +21,15 @@ export default function AttendancePage() {
   });
 
   const clockMutation = useMutation({
-    mutationFn: (action: 'clock_in' | 'clock_out') => api.post(`/attendance/${action}`),
-    onSuccess: (_, action) => { toast.success(action === 'clock_in' ? 'Clocked in!' : 'Clocked out!'); qc.invalidateQueries({ queryKey: ['attendance'] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed'),
+    mutationFn: (action: 'clock_in' | 'clock_out') => offlineMutate(
+      () => api.post(`/attendance/${action}`),
+      'attendance', action,
+      { _url: `/attendance/${action}`, _method: 'POST' }
+    ),
+    onSuccess: (result, action) => {
+      if (result.offline) toast.success(action === 'clock_in' ? 'Clocked in!' : 'Clocked out!');
+      else { toast.success(action === 'clock_in' ? 'Clocked in!' : 'Clocked out!'); qc.invalidateQueries({ queryKey: ['attendance'] }); }
+    },
   });
 
   const pinLoginMutation = useMutation({

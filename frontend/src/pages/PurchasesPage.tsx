@@ -354,7 +354,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
         expiry_date: '',
       };
     });
-  const [lines, setLines] = useState(initialLines);
+  const [lines, setLines] = useState<any[]>(initialLines);
 
   const updateLine = (i: number, field: string, val: any) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [field]: val } : l)));

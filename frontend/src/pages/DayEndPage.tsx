@@ -517,6 +517,7 @@ export default function DayEndPage() {
                         date: h.report_date ?? h.date,
                         format,
                         summary: {
+                          date: h.report_date ?? h.date ?? '',
                           total_sales: h.total_sales ?? h.total_revenue ?? 0,
                           total_revenue: h.total_revenue ?? h.total_sales ?? 0,
                           total_transactions: h.total_transactions ?? 0,

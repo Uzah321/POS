@@ -6,6 +6,7 @@ use App\Models\EndOfDay;
 use App\Models\Sale;
 use App\Models\Expense;
 use App\Models\SaleItem;
+use App\Models\ShiftEnd;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +18,7 @@ class EndOfDayController extends BaseApiController
         $branchId = $request->branch_id ?? $request->user()->branch_id;
         $date     = $request->date ?? now()->toDateString();
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('completed_at', $date)
             ->with('payments')
@@ -35,24 +36,46 @@ class EndOfDayController extends BaseApiController
             }
         }
 
-        $expenses = Expense::where('status', 'approved')
+        // ->sum()/->value() bypass Eloquent's decimal casts (they don't hydrate a model), so
+        // Postgres returns these as numeric strings — cast explicitly or they'll render as $0.00.
+        $expenses = (float) Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('expense_date', $date)
             ->sum('amount');
 
+        $totalRefunds = (float) DB::table('refunds')
+            ->join('sales', 'sales.id', '=', 'refunds.sale_id')
+            ->where('refunds.status', 'completed')
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->whereDate('refunds.completed_at', $date)
+            ->sum('refunds.amount');
+
         $totalSales  = $sales->sum('total');
-        $cogs        = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-            ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
+        $cogs        = (float) (SaleItem::whereIn('sale_id', $sales->pluck('id'))
+            ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0);
         $grossProfit = $totalSales - $cogs;
         $netProfit   = $grossProfit - $expenses;
+        $netRevenue  = $totalSales - $totalRefunds - $expenses;
 
         // Per-cashier breakdown
-        $cashierBreakdown = Sale::where('status', 'completed')
+        $cashierBreakdown = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('completed_at', $date)
             ->with('cashier:id,name,username')
             ->groupBy('user_id')
             ->selectRaw('user_id, COUNT(*) as transactions, SUM(total) as revenue')
+            ->get()
+            ->map(function ($row) {
+                $row->transactions = (int) $row->transactions;
+                $row->revenue = (float) $row->revenue;
+                return $row;
+            });
+
+        // Shift-end reconciliations closed during this day, for this branch —
+        // lets the manager cross-check declared cash against each cashier's shift before closing the day.
+        $shiftEnds = ShiftEnd::with('user:id,name,username')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereDate('shift_end', $date)
             ->get();
 
         return $this->success([
@@ -65,10 +88,13 @@ class EndOfDayController extends BaseApiController
             'other_sales'        => $otherSales,
             'expected_cash'      => $cashSales,
             'total_expenses'     => $expenses,
+            'total_refunds'      => $totalRefunds,
             'cogs'               => $cogs,
             'gross_profit'       => $grossProfit,
             'net_profit'         => $netProfit,
+            'net_revenue'        => $netRevenue,
             'cashier_breakdown'  => $cashierBreakdown,
+            'shift_ends'         => $shiftEnds,
         ]);
     }
 
@@ -88,7 +114,7 @@ class EndOfDayController extends BaseApiController
             return $this->error('End of day report already submitted for this date.', 422);
         }
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->where('branch_id', $data['branch_id'])
             ->whereDate('completed_at', $data['report_date'])
             ->with('payments')->get();
@@ -105,8 +131,12 @@ class EndOfDayController extends BaseApiController
             }
         }
 
-        $totalRefunds = DB::table('refunds')->where('status', 'completed')
-            ->whereDate('created_at', $data['report_date'])->sum('amount');
+        $totalRefunds = DB::table('refunds')
+            ->join('sales', 'sales.id', '=', 'refunds.sale_id')
+            ->where('refunds.status', 'completed')
+            ->where('sales.branch_id', $data['branch_id'])
+            ->whereDate('refunds.completed_at', $data['report_date'])
+            ->sum('refunds.amount');
         $totalExpenses = Expense::where('status', 'approved')
             ->where('branch_id', $data['branch_id'])
             ->whereDate('expense_date', $data['report_date'])->sum('amount');
@@ -141,7 +171,10 @@ class EndOfDayController extends BaseApiController
     {
         $query = EndOfDay::with('user:id,name,username', 'branch:id,name')
             ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
-            ->when($request->month, fn($q) => $q->whereRaw('DATE_FORMAT(report_date, "%Y-%m") = ?', [$request->month]));
+            ->when($request->month, function ($q) use ($request) {
+                [$year, $month] = explode('-', $request->month);
+                $q->whereYear('report_date', $year)->whereMonth('report_date', $month);
+            });
 
         return $this->paginated($query->orderByDesc('report_date')->paginate($request->per_page ?? 31));
     }

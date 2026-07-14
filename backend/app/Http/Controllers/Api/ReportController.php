@@ -51,13 +51,21 @@ class ReportController extends BaseApiController
                 ->count();
 
             // Sales by day (last 30 days)
+            // Raw SUM()/COUNT() aggregates come back from the DB driver as strings (not
+            // covered by the model's decimal casts), so they must be cast explicitly here —
+            // otherwise the frontend's `typeof x === 'number'` currency check silently zeroes them.
             $salesTrend = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->where('completed_at', '>=', now()->subDays(30))
                 ->groupBy(DB::raw('DATE(completed_at)'))
                 ->selectRaw('DATE(completed_at) as date, SUM(total) as revenue, COUNT(*) as transactions')
                 ->orderBy('date')
-                ->get();
+                ->get()
+                ->map(fn($row) => [
+                    'date' => $row->date,
+                    'revenue' => (float) $row->revenue,
+                    'transactions' => (int) $row->transactions,
+                ]);
 
             // Top products (last 30 days)
             $topProducts = SaleItem::whereHas('sale', fn($q) =>
@@ -70,7 +78,12 @@ class ReportController extends BaseApiController
                 ->with('product:id,name,image,sku')
                 ->orderByDesc('total_revenue')
                 ->limit(5)
-                ->get();
+                ->get()
+                ->map(function ($row) {
+                    $row->total_qty = (float) $row->total_qty;
+                    $row->total_revenue = (float) $row->total_revenue;
+                    return $row;
+                });
 
             // Payment method breakdown today
             $paymentBreakdown = DB::table('sale_payments')
@@ -80,7 +93,11 @@ class ReportController extends BaseApiController
                 ->whereDate('sales.completed_at', $today)
                 ->groupBy('sale_payments.method')
                 ->selectRaw('sale_payments.method, SUM(sale_payments.amount) as total')
-                ->get();
+                ->get()
+                ->map(fn($row) => [
+                    'method' => $row->method,
+                    'total' => (float) $row->total,
+                ]);
 
             return [
                 'today' => [

@@ -131,7 +131,9 @@ ok "Frontend dependencies installed"
 
 info "Building frontend..."
 "${NPM_BIN}" run build
-[ -f "${FRONTEND_DIR}/dist/index.html" ] || error "Frontend build did not produce dist/index.html"
+# vite.config.ts sets outDir to ../backend/public (single-server layout) — build output
+# lands there, not in frontend/dist.
+[ -f "${BACKEND_DIR}/public/index.html" ] || error "Frontend build did not produce backend/public/index.html"
 ok "Frontend build complete"
 
 info "Installing update command alias..."

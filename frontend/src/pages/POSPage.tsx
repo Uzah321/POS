@@ -1,24 +1,27 @@
-﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, customersApi, salesApi, settingsApi } from '../api';
+import { productsApi, salesApi, settingsApi, customersApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
 import { useCartStore } from '../stores/cartStore';
+import { usePosUIStore } from '../stores/posUIStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
-import { useDBSync } from '../hooks/useDBSync';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import NumericKeypad from '../components/ui/NumericKeypad';
-import SearchModal from '../components/ui/SearchModal';
+import CashNotesPad from '../components/ui/CashNotesPad';
+import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import {
-  Search, Plus, Minus, Trash2, User, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, TableProperties, UtensilsCrossed, ShoppingBag, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw
+  Search, Plus, Minus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
+  X, ShoppingCart, UtensilsCrossed, ShoppingBag, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
+  User, Award,
+  ChevronLeft, ChevronRight, Truck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,85 +31,15 @@ const PAYMENT_METHODS = [
   { value: 'mobile_money', label: 'Mobile', icon: Smartphone },
 ];
 
-const TABLES = ['Walk-in', ...Array.from({ length: 20 }, (_, i) => `T-${i + 1}`)];
-
-const TILE_COLORS_BY_THEME: Record<string, readonly string[]> = {
-  rainbow: [
-    'bg-green-100  hover:bg-green-200  text-green-900  border border-green-200',
-    'bg-blue-100   hover:bg-blue-200   text-blue-900   border border-blue-200',
-    'bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-200',
-    'bg-orange-100 hover:bg-orange-200 text-orange-900 border border-orange-200',
-    'bg-teal-100   hover:bg-teal-200   text-teal-900   border border-teal-200',
-    'bg-pink-100   hover:bg-pink-200   text-pink-900   border border-pink-200',
-    'bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border border-yellow-200',
-    'bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-200',
-    'bg-red-100    hover:bg-red-200    text-red-900    border border-red-200',
-    'bg-cyan-100   hover:bg-cyan-200   text-cyan-900   border border-cyan-200',
-  ],
-  blue: [
-    'bg-blue-100   hover:bg-blue-200   text-blue-900   border border-blue-200',
-    'bg-sky-100    hover:bg-sky-200    text-sky-900    border border-sky-200',
-    'bg-cyan-100   hover:bg-cyan-200   text-cyan-900   border border-cyan-200',
-    'bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-200',
-    'bg-blue-200   hover:bg-blue-300   text-blue-900   border border-blue-300',
-    'bg-sky-200    hover:bg-sky-300    text-sky-900    border border-sky-300',
-    'bg-cyan-200   hover:bg-cyan-300   text-cyan-900   border border-cyan-300',
-    'bg-indigo-200 hover:bg-indigo-300 text-indigo-900 border border-indigo-300',
-    'bg-blue-50    hover:bg-blue-100   text-blue-800   border border-blue-100',
-    'bg-sky-50     hover:bg-sky-100    text-sky-800    border border-sky-100',
-  ],
-  green: [
-    'bg-green-100   hover:bg-green-200   text-green-900   border border-green-200',
-    'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-200',
-    'bg-teal-100    hover:bg-teal-200    text-teal-900    border border-teal-200',
-    'bg-green-200   hover:bg-green-300   text-green-900   border border-green-300',
-    'bg-emerald-200 hover:bg-emerald-300 text-emerald-900 border border-emerald-300',
-    'bg-teal-200    hover:bg-teal-300    text-teal-900    border border-teal-300',
-    'bg-green-50    hover:bg-green-100   text-green-800   border border-green-100',
-    'bg-emerald-50  hover:bg-emerald-100 text-emerald-800 border border-emerald-100',
-    'bg-teal-50     hover:bg-teal-100    text-teal-800    border border-teal-100',
-    'bg-lime-100    hover:bg-lime-200    text-lime-900    border border-lime-200',
-  ],
-  warm: [
-    'bg-orange-100 hover:bg-orange-200 text-orange-900 border border-orange-200',
-    'bg-amber-100  hover:bg-amber-200  text-amber-900  border border-amber-200',
-    'bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border border-yellow-200',
-    'bg-red-100    hover:bg-red-200    text-red-900    border border-red-200',
-    'bg-pink-100   hover:bg-pink-200   text-pink-900   border border-pink-200',
-    'bg-orange-200 hover:bg-orange-300 text-orange-900 border border-orange-300',
-    'bg-amber-200  hover:bg-amber-300  text-amber-900  border border-amber-300',
-    'bg-yellow-200 hover:bg-yellow-300 text-yellow-900 border border-yellow-300',
-    'bg-red-50     hover:bg-red-100    text-red-800    border border-red-100',
-    'bg-rose-100   hover:bg-rose-200   text-rose-900   border border-rose-200',
-  ],
-  monochrome: [
-    'bg-gray-100  hover:bg-gray-200  text-gray-800  border border-gray-200',
-    'bg-gray-50   hover:bg-gray-100  text-gray-700  border border-gray-200',
-    'bg-white     hover:bg-gray-50   text-gray-800  border border-gray-200',
-    'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200',
-    'bg-zinc-100  hover:bg-zinc-200  text-zinc-800  border border-zinc-200',
-    'bg-gray-200  hover:bg-gray-300  text-gray-800  border border-gray-300',
-    'bg-slate-50  hover:bg-slate-100 text-slate-700 border border-slate-200',
-    'bg-zinc-50   hover:bg-zinc-100  text-zinc-700  border border-zinc-200',
-    'bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-200',
-    'bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200',
-  ],
-  dark: [
-    'bg-gray-800  hover:bg-gray-700  text-white border border-gray-700',
-    'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700',
-    'bg-zinc-800  hover:bg-zinc-700  text-white border border-zinc-700',
-    'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700',
-    'bg-stone-800 hover:bg-stone-700 text-white border border-stone-700',
-    'bg-gray-700  hover:bg-gray-600  text-white border border-gray-600',
-    'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600',
-    'bg-zinc-700  hover:bg-zinc-600  text-white border border-zinc-600',
-    'bg-gray-900  hover:bg-gray-800  text-white border border-gray-800',
-    'bg-slate-900 hover:bg-slate-800 text-white border border-slate-800',
-  ],
-};
-
-// Default rainbow palette (kept for direct reference in the component)
-const TILE_COLORS = TILE_COLORS_BY_THEME.rainbow;
+// Per-product accent colour for cart line items — distinct, stable colour per product id
+const CART_LINE_ACCENTS = [
+  'border-l-emerald-400', 'border-l-blue-400', 'border-l-purple-400', 'border-l-orange-400',
+  'border-l-pink-400', 'border-l-teal-400', 'border-l-amber-400', 'border-l-red-400',
+  'border-l-indigo-400', 'border-l-cyan-400',
+];
+function cartLineAccent(productId: number): string {
+  return CART_LINE_ACCENTS[productId % CART_LINE_ACCENTS.length];
+}
 
 function CartRow({ item, format }: { item: CartItem; format: (v: number) => string }) {
   const { updateQty, removeItem } = useCartStore();
@@ -123,24 +56,23 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
   };
 
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
+    <div className={`flex items-center gap-2 py-2 pl-3 border-l-4 border-b border-gray-50 last:border-b-0 ${cartLineAccent(item.product_id)}`}>
       <div className="flex-1 min-w-0">
-        <p className="text-base font-medium text-gray-900 truncate">{item.name}</p>
-        <p className="text-sm text-gray-400">{format(item.price)} each</p>
+        <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 flex-shrink-0">
         <button
           type="button"
           onClick={() => updateQty(item.product_id, item.quantity - 1)}
-          className="w-10 h-10 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation"
+          className="w-8 h-8 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation"
         >
-          <Minus size={16} />
+          <Minus size={14} />
         </button>
         {/* Tap qty to open keypad */}
         <button
           type="button"
           onClick={openQtyEdit}
-          className="w-12 h-10 text-center text-base font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation"
+          className="w-9 h-8 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation"
           title="Tap to set quantity"
         >
           {item.quantity}
@@ -148,16 +80,19 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
         <button
           type="button"
           onClick={() => updateQty(item.product_id, item.quantity + 1)}
-          className="w-10 h-10 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation"
+          className="w-8 h-8 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation"
         >
-          <Plus size={16} />
+          <Plus size={14} />
         </button>
       </div>
-      <div className="w-20 text-right">
-        <p className="text-base font-bold text-gray-900">{format(lineTotal)}</p>
+      <div className="w-14 text-right flex-shrink-0">
+        <p className="text-xs text-gray-400 tabular-nums">{format(item.price)}</p>
       </div>
-      <button type="button" onClick={() => removeItem(item.product_id)} className="w-10 h-10 flex items-center justify-center rounded-lg text-red-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
-        <Trash2 size={16} />
+      <div className="w-16 text-right flex-shrink-0">
+        <p className="text-sm font-bold text-gray-900 tabular-nums">{format(lineTotal)}</p>
+      </div>
+      <button type="button" onClick={() => removeItem(item.product_id)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
+        <Trash2 size={14} />
       </button>
 
       {/* Qty keypad modal */}
@@ -181,28 +116,27 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
 export default function POSPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [tableNumber, setTableNumber] = useState('Walk-in');
-  const [orderType, setOrderType] = useState<'sit_in' | 'takeaway'>('sit_in');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [cashTendered, setCashTendered] = useState('');
-  const [isSplitPayment, setIsSplitPayment] = useState(false);
-  const [splitPayments, setSplitPayments] = useState<Array<{method: string; amount: string}>>([]);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [ticketNum, setTicketNum] = useState(() => `#${Math.floor(Math.random() * 9000) + 1000}`);
+  const [productPage, setProductPage] = useState(0);
   const [showHeldOrders, setShowHeldOrders] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const cart = useCartStore();
   const { user } = useAuthStore();
   const { format: formatCurrency } = useCurrencyStore();
+  const {
+    showCustomerPicker, setShowCustomerPicker,
+    showLoyaltyPanel, setShowLoyaltyPanel,
+    showCoversKeypad, setShowCoversKeypad,
+    coversInput, setCoversInput,
+  } = usePosUIStore();
+  const { paymentMethod, setPaymentMethod, cashTendered, setCashTendered, isSplitPayment, setIsSplitPayment, splitPayments, setSplitPayments } = cart;
 
   const branchId = user?.branch?.id ?? 1;
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
-
-  useDBSync();
 
   const { data: storeSettings } = useQuery({
     queryKey: ['settings'],
@@ -219,8 +153,6 @@ export default function POSPage() {
     staleTime: 5 * 60 * 1000,
   });
   const storeName = storeSettings?.company_name || 'Core';
-  // Active colour palette — driven by the pos_tile_theme setting
-  const activeTileColors = TILE_COLORS_BY_THEME[storeSettings?.pos_tile_theme ?? 'rainbow'] ?? TILE_COLORS;
 
   const { data: kdsRaw } = useQuery({
     queryKey: ['pos-kds-orders'],
@@ -285,10 +217,12 @@ export default function POSPage() {
   }, []);
 
   const { data: allProductsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['pos-products'],
+    queryKey: ['pos-products', user?.branch?.id],
     queryFn: async () => {
       try {
-        const data = await productsApi.list({ per_page: 500, is_active: 1 })
+        // Always this till's own branch — even an admin ringing up a sale here
+        // should only see what's actually on the shelf at this location.
+        const data = await productsApi.list({ per_page: 500, is_active: 1, branch_id: user?.branch?.id })
           .then(r => r.data?.data?.data ?? r.data?.data ?? []);
         // Keep IndexedDB current as a side-effect of the normal online fetch
         db.products.clear().then(() => db.products.bulkPut(data)).catch(() => {});
@@ -302,23 +236,10 @@ export default function POSPage() {
     staleTime: 60000,
   });
 
-  const { data: customerResults } = useQuery({
-    queryKey: ['customer-search', customerSearch],
-    queryFn: () => customersApi.list({ search: customerSearch, per_page: 5 }).then((r) => r.data?.data?.data || []),
-    enabled: customerSearch.length >= 2,
-  });
-
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
 
   // Derive categories
   const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
-
-  // Stable colour index per category name
-  const categoryColorIndex = useMemo(() => {
-    const map: Record<string, number> = {};
-    categories.filter(c => c !== 'All').forEach((c, i) => { map[c] = i; });
-    return map;
-  }, [categories]);
 
   // Filter products
   const filteredProducts = allProducts.filter((p: any) => {
@@ -326,6 +247,15 @@ export default function POSPage() {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
+
+  // Paginated instead of scrolled — the whole grid stays on screen
+  const PRODUCTS_PER_PAGE = 200;
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const clampedPage = Math.min(productPage, pageCount - 1);
+  const pagedProducts = filteredProducts.slice(clampedPage * PRODUCTS_PER_PAGE, (clampedPage + 1) * PRODUCTS_PER_PAGE);
+
+  // Reset to page 1 whenever the visible product set changes
+  useEffect(() => { setProductPage(0); }, [activeCategory, search]);
 
   // Auto-add when barcode scan yields exactly 1 match
   useEffect(() => {
@@ -358,10 +288,11 @@ export default function POSPage() {
     subtotal: number;
     tax: number;
     total: number;
+    totalDue: number;
     discount: number;
     paymentMethod: string;
     cashTendered: string;
-    orderType: 'sit_in' | 'takeaway';
+    orderType: 'sit_in' | 'takeaway' | 'delivery';
   };
   const saleSnapshotRef = useRef<CartSnapshot | null>(null);
 
@@ -376,7 +307,7 @@ export default function POSPage() {
       const now = new Date().toISOString();
       db.sales.put({
         id: sale?.id ?? -(Date.now()),
-        reference: sale?.reference ?? `ONLINE-${Date.now()}`,
+        reference: sale?.reference ?? `OFFLINE-${Date.now()}`,
         status: 'completed',
         total: snap?.total ?? 0,
         subtotal: snap?.subtotal ?? 0,
@@ -393,12 +324,12 @@ export default function POSPage() {
         is_offline: !!result.offline,
       }).catch(() => {});
 
-      if (result.offline) toast.success(`Sale ${sale?.reference} completed!`);
-      else toast.success(`Sale ${sale?.reference} completed!`);
+      if (result.offline) toast.success('Sale finalized — saved locally, will sync automatically', { duration: 4000 });
+      else toast.success('Sale finalized');
 
       const snapPayMethod = snap?.paymentMethod ?? 'cash';
       const snapTendered = snap?.cashTendered ?? '';
-      const snapTotal = snap?.total ?? 0;
+      const snapTotal = snap?.totalDue ?? snap?.total ?? 0;
 
       void printReceipt(
         buildReceiptDataFromSale(sale ?? null, {
@@ -469,18 +400,60 @@ export default function POSPage() {
     toast.success(`Added ${product.name}`, { duration: 800 });
   };
 
+  // Search-box Enter — look up an exact SKU/barcode match (or a single filtered
+  // result) and add it directly, so a cashier can key in a code without touching the grid
+  const handleSearchEnter = () => {
+    const code = search.trim();
+    if (!code) return;
+    const exact = allProducts.find((p: any) => (p.sku ?? '') === code || (p.barcode ?? '') === code);
+    if (exact) { handleAddProduct(exact); setSearch(''); return; }
+    if (filteredProducts.length === 1) { handleAddProduct(filteredProducts[0]); setSearch(''); return; }
+    toast.error(`No exact match for "${code}"`);
+  };
+
+  const { data: customerResults, isFetching: customerSearching } = useQuery({
+    queryKey: ['pos-customer-search', customerSearch],
+    queryFn: () => customersApi.list({ search: customerSearch, per_page: 8 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    enabled: showCustomerPicker && customerSearch.trim().length > 0,
+  });
+
+  const selectCustomer = (c: any) => {
+    cart.setCustomer(c.id, c.name);
+    setShowCustomerPicker(false);
+    setCustomerSearch('');
+  };
+
+  const { data: loyaltyData, isLoading: loyaltyLoading } = useQuery({
+    queryKey: ['pos-customer-loyalty', cart.customerId],
+    queryFn: () => customersApi.getLoyalty(cart.customerId as number).then(r => r.data?.data),
+    enabled: showLoyaltyPanel && !!cart.customerId,
+  });
+
+  const redeemLoyaltyMutation = useMutation({
+    mutationFn: (points: number) => customersApi.redeemLoyalty(cart.customerId as number, points),
+    onSuccess: () => {
+      toast.success('Loyalty points redeemed');
+      qc.invalidateQueries({ queryKey: ['pos-customer-loyalty'] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not redeem points'),
+  });
+
   const handleProcessSale = () => {
     if (cart.items.length === 0) return;
 
     let paymentsPayload: Array<{method: string; amount: number}>;
     if (isSplitPayment) {
       if (splitPayments.length === 0) { toast.error('Add at least one payment'); return; }
+      // Amounts here are typed by the cashier in the active currency (same as
+      // "Cash Tendered" and the note buttons) — compare against totalDue, and
+      // convert back to the base currency (USD) before sending, same as every
+      // other payment amount the backend receives.
       const splitTotal = splitPayments.reduce((s, p) => s + parseFloat(p.amount || '0'), 0);
-      if (Math.abs(splitTotal - total) > 0.01) { toast.error(`Split payments (${formatCurrency(splitTotal)}) must equal total (${formatCurrency(total)})`); return; }
-      paymentsPayload = splitPayments.map(p => ({ method: p.method, amount: parseFloat(p.amount) }));
+      if (Math.abs(splitTotal - totalDue) > 0.01) { toast.error(`Split payments (${fmtActive(splitTotal)}) must equal total (${fmtActive(totalDue)})`); return; }
+      paymentsPayload = splitPayments.map(p => ({ method: p.method, amount: parseFloat(p.amount) / exchangeRate }));
     } else {
-      if (paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0)) {
-        toast.error('Please enter the cash amount received before processing');
+      if (paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)) {
+        toast.error('Enter cash amount — must cover the total');
         return;
       }
       paymentsPayload = [{ method: paymentMethod, amount: cart.total() }];
@@ -492,10 +465,11 @@ export default function POSPage() {
       subtotal: cart.subtotal(),
       tax: cart.taxTotal(),
       total: cart.total(),
+      totalDue,
       discount: cart.discount,
       paymentMethod: isSplitPayment ? 'split' : paymentMethod,
       cashTendered,
-      orderType,
+      orderType: cart.orderType,
     };
     saleSnapshotRef.current = snap;
 
@@ -503,8 +477,8 @@ export default function POSPage() {
       branch_id: branchId,
       warehouse_id: 1,
       customer_id: cart.customerId,
-      table_number: tableNumber !== 'Walk-in' ? tableNumber : null,
-      order_type: orderType,
+      table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
+      order_type: cart.orderType,
       items: snap.items.map((i) => ({
         product_id: i.product_id,
         product_variant_id: i.variant_id,
@@ -519,11 +493,10 @@ export default function POSPage() {
     };
 
     // Clear UI immediately so cashier can start next sale without waiting for API
-    cart.clearCart();
+    cart.newTicket();
     setCashTendered('');
     setSplitPayments([]);
     setIsSplitPayment(false);
-    setTicketNum(`#${Math.floor(Math.random() * 9000) + 1000}`);
 
     saleMutation.mutate(salePayload);
   };
@@ -534,8 +507,8 @@ export default function POSPage() {
     const holdPayload = {
       branch_id: branchId,
       customer_id: cart.customerId,
-      table_number: tableNumber !== 'Walk-in' ? tableNumber : null,
-      order_type: orderType,
+      table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
+      order_type: cart.orderType,
       cart_data: {
         items: cart.items,
         subtotal: cart.subtotal(),
@@ -546,10 +519,10 @@ export default function POSPage() {
       note: cart.note,
     };
     cart.holdCurrentCart();
+    cart.newTicket();
     setCashTendered('');
     setSplitPayments([]);
     setIsSplitPayment(false);
-    setTicketNum(`#${Math.floor(Math.random() * 9000) + 1000}`);
     toast.success('Order held — start a new order or tap a held order to resume', { duration: 3000 });
     // Sync to server in background (non-blocking)
     holdMutation.mutate(holdPayload);
@@ -561,125 +534,149 @@ export default function POSPage() {
       cart.holdCurrentCart();
     }
     cart.restoreHeldOrder(heldId);
-    setTicketNum(`#${Math.floor(Math.random() * 9000) + 1000}`);
     setShowHeldOrders(false);
     toast.success('Order resumed');
   };
 
+  // cart.total() is always in the base currency (USD). Cash is tendered and
+  // compared in whatever currency the cashier has selected (the note buttons,
+  // "Exact", and split-payment amounts are all in that currency) — every
+  // comparison against the amount due must use the converted figure, not the
+  // raw USD total, or "Exact"/change/split-payment validation all break the
+  // moment a non-USD currency is active.
   const total = cart.total();
-  const change = paymentMethod === 'cash' && parseFloat(cashTendered) > total
-    ? parseFloat(cashTendered) - total : 0;
+  const exchangeRate = activeCurrency?.exchange_rate ?? 1;
+  const totalDue = total * exchangeRate;
+  const change = paymentMethod === 'cash' && parseFloat(cashTendered) > totalDue
+    ? parseFloat(cashTendered) - totalDue : 0;
+  const fmtActive = (n: number) => `${activeCurrency?.symbol ?? '$'}${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
 
   return (
     <>
-      <div className="flex flex-1 overflow-hidden">
-      {/* Left: product area */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      {/* Fixed height against the viewport (matching CashierPage's approach) rather than
+          relying on AppLayout's <main> to propagate a bounded height through flex-1 —
+          that element scrolls the whole page instead of just this page's own regions. */}
+      <div className="-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
-        {/* Search bar */}
-        <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex-shrink-0">
-          <div className="relative">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products by name or SKU... (F2)"
-              className="w-full pl-10 pr-20 py-2.5 border-2 border-blue-400 focus:border-blue-600 rounded-xl text-sm
-                bg-blue-50 focus:bg-white focus:outline-none transition-colors"
-            />
-            {search && (
-              <button type="button" onClick={() => setSearch('')}
-                className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={14} />
-              </button>
-            )}
-            {/* Touch keyboard button */}
-            <button
-              type="button"
-              onClick={() => setShowSearchModal(true)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-lg touch-manipulation"
-              title="Open on-screen keyboard"
-            >
-              <Keyboard size={15} />
-            </button>
-          </div>
-        </div>
+      {/* Main content — ticket + payment always visible alongside the product grid */}
+      <div className="flex-1 flex overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
 
-        {/* Category tabs */}
-        <div className="bg-white border-b border-gray-200 flex-shrink-0 overflow-x-auto">
-          <div className="flex min-w-max">
-            {categories.map((cat) => (
-              <button
-                type="button"
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-5 py-3 font-semibold text-sm border-b-2 transition-colors whitespace-nowrap
-                  ${activeCategory === cat
-                    ? 'border-blue-600 text-blue-600 bg-blue-50/60'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Touch-friendly product tile grid */}
-        <div className="flex-1 overflow-y-auto p-3">
-          {productsLoading ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 size={24} className="animate-spin text-blue-500" />
+        {/* Left: products + categories */}
+        <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
+          {/* Products card — search bar as its header, matching the theme of the
+              categories card and the ticket card on the right */}
+          <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+            <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+              <form onSubmit={(e) => { e.preventDefault(); handleSearchEnter(); }} className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search product"
+                  className="w-full pl-9 pr-9 py-2 border border-gray-200 focus:border-blue-400 rounded-lg text-sm bg-white focus:outline-none transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSearchModal(true)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-700 touch-manipulation"
+                  title="Open on-screen keyboard"
+                >
+                  <Keyboard size={14} />
+                </button>
+              </form>
             </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
-              <Search size={32} className="text-gray-200" />
-              <p className="text-sm">No products found</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
-              {filteredProducts.map((product: any) => {
-                const catName = product.category?.name ?? 'Other';
-                const idx     = categoryColorIndex[catName] ?? 0;
-                const color   = activeTileColors[idx % activeTileColors.length];
-                return (
+
+            <div className="flex-1 p-2 flex flex-col gap-2 min-h-0">
+              {productsLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 size={28} className="animate-spin text-blue-500" />
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
+                  <Search size={32} className="text-gray-200" />
+                  <p className="text-sm">No products found</p>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-wrap content-start gap-1 overflow-y-auto min-h-0">
+                  {pagedProducts.map((product: any) => (
+                    <button
+                      type="button"
+                      key={product.id}
+                      title={`${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
+                      onClick={() => handleAddProduct(product)}
+                      style={{ width: '1.7cm', height: '1.7cm' }}
+                      className="bg-white hover:border-blue-300 hover:shadow-sm border border-gray-200 rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden"
+                    >
+                      <span className="w-full text-[10px] font-semibold text-gray-800 text-center leading-none line-clamp-2">{product.name}</span>
+                      <span className="text-[11px] font-black text-blue-700 tabular-nums leading-none">{formatCurrency(parseFloat(product.selling_price))}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {pageCount > 1 && (
+                <div className="flex items-center justify-center gap-3 flex-shrink-0">
                   <button
                     type="button"
-                    key={product.id}
-                    onClick={() => handleAddProduct(product)}
-                    className={`${color} rounded-xl p-3 text-left transition-all active:scale-95 active:brightness-90
-                      flex flex-col justify-between shadow-sm min-h-[88px] touch-manipulation`}
+                    onClick={() => setProductPage((p) => Math.max(0, p - 1))}
+                    disabled={clampedPage === 0}
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
+                    title="Previous page"
                   >
-                    <span className="font-semibold text-sm leading-snug line-clamp-2 flex-1">
-                      {product.name}
-                    </span>
-                    <span className="mt-2 font-black text-sm tabular-nums font-mono">
-                      {formatCurrency(parseFloat(product.selling_price))}
-                    </span>
+                    <ChevronLeft size={16} />
                   </button>
-                );
-              })}
+                  <span className="text-xs font-semibold text-gray-500 tabular-nums">Page {clampedPage + 1} of {pageCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setProductPage((p) => Math.min(pageCount - 1, p + 1))}
+                    disabled={clampedPage >= pageCount - 1}
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
+                    title="Next page"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Right: Cart sidebar */}
-      <div className="w-[33.333%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[500px] max-w-[580px] bg-white border-l border-gray-100 flex flex-col overflow-hidden flex-shrink-0">
-        {/* Ticket header */}
-        <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center justify-between mb-3">
+          {/* Categories — under the products, 1.7cm square tiles */}
+          <div className="flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2">
+            <div className="flex flex-wrap gap-1">
+              {categories.map((cat) => (
+                <button
+                  type="button"
+                  key={cat}
+                  title={cat === 'All' ? 'All Products' : cat}
+                  onClick={() => setActiveCategory(cat)}
+                  style={{ width: '1.7cm', height: '1.7cm' }}
+                  className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[10px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation
+                    ${activeCategory === cat
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-700'}`}
+                >
+                  {cat === 'All' ? 'All Products' : cat}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right: ticket + payment (persistent, no separate screen) */}
+        <div className="w-[38%] min-w-[340px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+          {/* Header row */}
+          <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-gray-900">Ticket {ticketNum}</span>
-              {/* Held orders badge */}
+              <span className="text-sm font-bold text-gray-900">Current Sale</span>
               {cart.heldOrders.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowHeldOrders(true)}
-                  className="relative flex items-center gap-1 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-semibold transition-colors touch-manipulation"
+                  className="relative flex items-center gap-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-semibold transition-colors touch-manipulation"
                   title="View held orders"
                 >
-                  <PauseCircle size={13} />
+                  <PauseCircle size={12} />
                   {cart.heldOrders.length} held
                 </button>
               )}
@@ -688,240 +685,191 @@ export default function POSPage() {
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="min-h-[44px] text-sm text-gray-400 hover:text-blue-500 flex items-center gap-1 px-3 py-2 rounded-md transition-colors touch-manipulation"
+                className="text-gray-400 hover:text-blue-500 flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors touch-manipulation"
                 title="Refresh page if frozen"
               >
-                <RefreshCw size={15} />
+                <RefreshCw size={12} />
               </button>
               <button
                 type="button"
                 onClick={() => cart.clearCart()}
-                aria-label="Clear cart (F5)"
+                aria-label="Clear sale (F5)"
                 aria-keyshortcuts="F5"
-                className="min-h-[44px] text-sm text-gray-400 hover:text-red-500 flex items-center gap-1 px-3 py-2 rounded-md transition-colors touch-manipulation"
+                className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors touch-manipulation"
               >
-                <X size={16} /> Clear
+                <Trash2 size={12} /> Clear
               </button>
             </div>
           </div>
-          {/* Sit-in / Takeaway + Table in one row */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setOrderType('sit_in')}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-semibold border transition-colors touch-manipulation ${
-                orderType === 'sit_in'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <UtensilsCrossed size={16} /> Sit-in
-            </button>
-            <button
-              type="button"
-              onClick={() => setOrderType('takeaway')}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-semibold border transition-colors touch-manipulation ${
-                orderType === 'takeaway'
-                  ? 'bg-orange-500 text-white border-orange-500'
-                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <ShoppingBag size={16} /> Takeaway
-            </button>
-            <div className="flex items-center gap-2 flex-1">
-              <TableProperties size={16} className="text-gray-400 flex-shrink-0" />
-              <select
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-                className="flex-1 text-sm border border-gray-200 rounded-md px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-              >
-                {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+
+          {/* Order type — table selection now lives in the top nav */}
+          <div className="px-3 pt-1 flex-shrink-0">
+            <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+              {[
+                { value: 'sit_in' as const, label: 'Walk-in', icon: User },
+                { value: 'takeaway' as const, label: 'Takeaway', icon: ShoppingBag },
+                { value: 'delivery' as const, label: 'Delivery', icon: Truck },
+              ].map(({ value, label, icon: Icon }) => (
+                <button
+                  type="button"
+                  key={value}
+                  onClick={() => cart.setOrderType(value)}
+                  className={`min-h-[50px] flex items-center justify-center gap-1.5 px-2 py-1 rounded text-xs font-semibold border transition-colors touch-manipulation ${
+                    cart.orderType === value
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
+                  }`}
+                >
+                  <Icon size={13} /> {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center text-[10px] font-semibold text-gray-400 uppercase tracking-wide pb-1 border-b border-gray-100">
+              <span className="flex-1">Item</span>
+              <span className="w-[92px] text-center flex-shrink-0">Qty</span>
+              <span className="w-14 text-right flex-shrink-0">Price</span>
+              <span className="w-16 text-right flex-shrink-0">Total</span>
+              <span className="w-7 flex-shrink-0" />
             </div>
           </div>
-        </div>
 
-        {/* Customer selector */}
-        <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <User size={17} className="text-gray-400 flex-shrink-0" />
-            {cart.customerId ? (
-              <div className="flex-1 flex items-center justify-between">
-                <span className="text-base font-medium text-gray-700">{cart.customerName}</span>
-                <button onClick={() => cart.setCustomer(null, '')} type="button" className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 touch-manipulation"><X size={16} /></button>
+          {/* Item list — the only flexible region; shrinks first so the payment
+              controls below (Process Order in particular) never get pushed
+              past the fold on shorter screens. */}
+          <div className="flex-1 min-h-[36px] overflow-y-auto px-3">
+            {cart.items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-2">
+                <ShoppingCart size={32} />
+                <p className="text-xs">Add items to start</p>
               </div>
             ) : (
-              <div className="flex-1 relative">
-                <input
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
-                  placeholder="Walk-in customer (optional)"
-                  className="w-full text-base border-0 focus:outline-none text-gray-600 placeholder-gray-400 bg-transparent py-2"
-                />
-                {(customerResults as any[])?.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-xl z-10 mt-1 overflow-hidden">
-                    {(customerResults as any[]).map((c: any) => (
-                      <button
-                        type="button"
-                        key={c.id}
-                        onClick={() => { cart.setCustomer(c.id, c.name); setCustomerSearch(''); }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
-                      >
-                        <p className="font-medium text-gray-800">{c.name}</p>
-                        <p className="text-xs text-gray-400">{c.phone || c.email}</p>
+              cart.items.map((item) => <CartRow key={item.product_id} item={item} format={formatCurrency} />)
+            )}
+          </div>
+
+          {/* Totals */}
+          <div className="px-3 py-0.5 border-t border-gray-100 flex-shrink-0">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Subtotal {formatCurrency(cart.subtotal())} · Tax {formatCurrency(cart.taxTotal())}</span>
+              {cart.discount > 0 && <span className="text-emerald-600">-{formatCurrency(cart.discount)}</span>}
+            </div>
+            <div className="flex justify-between text-base font-bold text-gray-900">
+              <span>Total</span><span className="text-blue-600">{formatCurrency(total)}</span>
+            </div>
+          </div>
+
+          {/* Payment */}
+          <div className="px-3 pb-1 border-t border-gray-100 pt-0.5 flex-shrink-0">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</span>
+              <button
+                type="button"
+                onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
+                className={`min-h-[30px] text-xs px-3 py-1 rounded border font-medium transition-colors touch-manipulation ${isSplitPayment ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'}`}
+              >
+                Split
+              </button>
+            </div>
+
+            {isSplitPayment ? (
+              <div className="space-y-2 mb-2">
+                {splitPayments.map((sp, idx) => (
+                  <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-md px-3 py-2">
+                    <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-sm border-0 bg-transparent focus:outline-none text-gray-700 font-medium">
+                      {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-gray-800" placeholder="0.00" />
+                    <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 touch-manipulation"><X size={14} /></button>
+                  </div>
+                ))}
+                {(() => {
+                  const paid = splitPayments.reduce((s,p) => s + parseFloat(p.amount||'0'), 0);
+                  const remaining = totalDue - paid;
+                  return (
+                    <>
+                      {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${fmtActive(remaining)}` : `Over by: ${fmtActive(-remaining)}`}</div>}
+                      <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-[40px] py-2 border-2 border-dashed border-gray-200 rounded-md text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
+                        <Plus size={14} /> Add payment method
                       </button>
-                    ))}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-1.5 mb-1">
+                  {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => setPaymentMethod(value)}
+                      aria-label={`Pay by ${label} (${idx + 1})`}
+                      aria-pressed={paymentMethod === value}
+                      className={`min-h-[50px] flex flex-col items-center justify-center gap-0.5 py-1 rounded text-xs font-semibold border transition-all touch-manipulation ${
+                        paymentMethod === value
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
+                      }`}
+                    >
+                      <Icon size={14} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentMethod === 'cash' && (
+                  <div className="mb-1">
+                    <CashNotesPad
+                      value={cashTendered}
+                      onChange={setCashTendered}
+                      onConfirm={() => {
+                        if (cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue) handleProcessSale();
+                      }}
+                      label="Cash Tendered"
+                      currencyCode={activeCurrency?.code ?? 'USD'}
+                      totalDue={totalDue}
+                      confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process'}
+                      confirmCls={cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
+                      disabled={cart.items.length === 0 || saleMutation.isPending}
+                    />
                   </div>
                 )}
-              </div>
+              </>
             )}
-          </div>
-        </div>
 
-        {/* Cart items */}
-        <div className="flex-1 overflow-y-auto px-5 py-3">
-          {cart.items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-3">
-              <ShoppingCart size={40} />
-              <p className="text-sm">Add items to start</p>
-            </div>
-          ) : (
-            cart.items.map((item) => <CartRow key={item.product_id} item={item} format={formatCurrency} />)
-          )}
-        </div>
-
-        {/* Totals */}
-        <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 space-y-2">
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Subtotal</span><span>{formatCurrency(cart.subtotal())}</span>
-          </div>
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Tax</span><span>{formatCurrency(cart.taxTotal())}</span>
-          </div>
-          {cart.discount > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600">
-              <span>Discount</span><span>-{formatCurrency(cart.discount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-2xl font-bold text-gray-900 border-t border-gray-100 pt-3">
-            <span>Total</span><span className="text-blue-600">{formatCurrency(total)}</span>
-          </div>
-        </div>
-
-        {/* Payment methods */}
-        <div className="px-5 pb-4 flex-shrink-0">
-          {/* Split payment toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Payment</span>
+            {/* Process Order — the checkout action, always on this same screen */}
             <button
               type="button"
-              onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
-              className={`min-h-[44px] text-sm px-4 py-2 rounded-lg font-medium transition-colors touch-manipulation ${isSplitPayment ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              onClick={handleProcessSale}
+              disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
+              aria-label="Process sale (F9)"
+              aria-keyshortcuts="F9"
+              className={`w-full min-h-[58px] text-white font-bold py-2.5 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-1.5 bg-blue-600 hover:bg-blue-700 shadow-blue-100 touch-manipulation ${!isSplitPayment && paymentMethod === 'cash' ? 'hidden' : ''}`}
             >
-              Split
-            </button>
-          </div>
-
-          {isSplitPayment ? (
-            <div className="space-y-2.5 mb-3">
-              {splitPayments.map((sp, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-md px-3 py-3">
-                  <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-sm border-0 bg-transparent focus:outline-none text-gray-700 font-medium">
-                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                  <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-gray-800" placeholder="0.00" />
-                  <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-red-600 touch-manipulation"><X size={16} /></button>
-                </div>
-              ))}
-              {(() => {
-                const paid = splitPayments.reduce((s,p) => s + parseFloat(p.amount||'0'), 0);
-                const remaining = total - paid;
-                return (
-                  <>
-                    {remaining !== 0 && <div className={`text-sm text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${formatCurrency(remaining)}` : `Over by: ${formatCurrency(-remaining)}`}</div>}
-                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-[52px] py-3 border-2 border-dashed border-gray-200 rounded-md text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
-                      <Plus size={16} /> Add payment method
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2.5 mb-3">
-                {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => (
-                  <button
-                    type="button"
-                    key={value}
-                    onClick={() => setPaymentMethod(value)}
-                    aria-label={`Pay by ${label} (${idx + 1})`}
-                    aria-pressed={paymentMethod === value}
-                    className={`min-h-[56px] flex items-center justify-center gap-2 py-4 rounded-md text-sm font-semibold border-2 transition-all touch-manipulation ${
-                      paymentMethod === value
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-gray-200 text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                    }`}
-                  >
-                    <Icon size={18} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {paymentMethod === 'cash' && (
-                <div className="mb-3">
-                  {/* Inline numeric keypad — no external keyboard needed */}
-                  <NumericKeypad
-                    value={cashTendered}
-                    onChange={setCashTendered}
-                    onConfirm={() => {
-                      if (cart.items.length > 0 && cashTendered && parseFloat(cashTendered) > 0) handleProcessSale();
-                    }}
-                    label="Cash Tendered"
-                    confirmLabel={change > 0 ? `✓  Change: ${formatCurrency(change)}` : '✓ Process'}
-                    confirmCls={cart.items.length > 0 && cashTendered && parseFloat(cashTendered) > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
-                    disabled={cart.items.length === 0 || saleMutation.isPending}
-                  />
-                </div>
+              {saleMutation.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <CreditCard size={16} />
               )}
-            </>
-          )}
+              {saleMutation.isPending ? 'Processing...' : `Process Order  ${formatCurrency(total)}`}
+              {!saleMutation.isPending && <span className="ml-auto text-white/50 text-xs font-normal">F9</span>}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleProcessSale}
-            disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) <= 0))}
-            aria-label="Process sale (F9)"
-            aria-keyshortcuts="F9"
-            className={`w-full min-h-[64px] text-white font-bold py-4 rounded-md text-base transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-2 bg-blue-600 hover:bg-blue-700 shadow-blue-100 touch-manipulation ${!isSplitPayment && paymentMethod === 'cash' ? 'hidden' : ''}`}
-          >
-            {saleMutation.isPending ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <CreditCard size={18} />
-            )}
-            {saleMutation.isPending
-              ? 'Processing...'
-              : `Process Order  ${formatCurrency(total)}`}
-            {!saleMutation.isPending && <span className="ml-auto text-white/50 text-xs font-normal">F9</span>}
-          </button>
+            <button
+              type="button"
+              onClick={handleHoldOrder}
+              disabled={cart.items.length === 0 || holdMutation.isPending}
+              aria-label="Hold order (F8)"
+              aria-keyshortcuts="F8"
+              className="w-full min-h-[46px] bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-600 hover:text-blue-700 font-semibold py-1.5 rounded text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50 touch-manipulation"
+            >
+              {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />}
+              Hold Order
+              {!holdMutation.isPending && <span className="ml-auto text-gray-300 text-xs font-normal">F8</span>}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleHoldOrder}
-            disabled={cart.items.length === 0 || holdMutation.isPending}
-            aria-label="Hold order (F8)"
-            aria-keyshortcuts="F8"
-            className="w-full min-h-[56px] border border-gray-200 hover:border-amber-300 text-gray-600 hover:text-amber-700 font-semibold py-3.5 rounded-md text-base transition-colors flex items-center justify-center gap-2 disabled:opacity-50 touch-manipulation"
-          >
-            {holdMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />}
-            Hold Order
-            {!holdMutation.isPending && <span className="ml-auto text-gray-300 text-xs font-normal">F8</span>}
-          </button>
-
-          {/* Compact live kitchen status */}
-          <div className="mt-2 pt-2 border-t border-gray-100">
-            <div className="flex items-center justify-between">
+            {/* Compact live kitchen status */}
+            <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
                   <UtensilsCrossed size={11} /> Kitchen
@@ -939,16 +887,34 @@ export default function POSPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 text-xs">
-                <Link to="/kitchen" className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
-                  KDS
-                </Link>
-                <Link to="/queue" className="text-blue-500 hover:text-blue-700 flex items-center gap-0.5">
-                  Queue
-                </Link>
+                <Link to="/kitchen" className="text-blue-500 hover:text-blue-700">KDS</Link>
+                <span className="text-gray-200">·</span>
+                <Link to="/queue" className="text-blue-500 hover:text-blue-700">Queue</Link>
               </div>
+            </div>
+
+            {/* Note — lowest priority, sits below the checkout actions */}
+            <div className="mt-1.5 pt-1.5 border-t border-gray-100">
+              <input
+                value={cart.note}
+                onChange={(e) => cart.setNote(e.target.value)}
+                placeholder="Add note..."
+                className="w-full text-xs text-gray-600 placeholder-gray-300 border-0 focus:outline-none bg-transparent"
+              />
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Footer branding */}
+      <div className="bg-white border-t border-gray-100 px-4 py-1.5 flex items-center gap-2 flex-shrink-0">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+          <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb" />
+          <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
+          <circle cx="18" cy="18" r="4" fill="white" />
+        </svg>
+        <span className="font-bold text-blue-700 text-sm tracking-tight">Core</span>
+        <span className="font-bold text-slate-500 text-sm tracking-tight">POS</span>
       </div>
     </div>
 
@@ -1011,13 +977,118 @@ export default function POSPage() {
 
     {/* Touch keyboard search modal */}
     {showSearchModal && (
-      <SearchModal
+      <OnScreenKeyboard
         value={search}
         onChange={setSearch}
         onClose={() => { setShowSearchModal(false); searchRef.current?.focus(); }}
         placeholder="Search products by name or SKU..."
         label="Product Search"
       />
+    )}
+
+    {/* Change Covers keypad */}
+    {showCoversKeypad && (
+      <NumericKeypad
+        modal
+        value={coversInput}
+        onChange={setCoversInput}
+        onConfirm={() => {
+          const n = parseInt(coversInput, 10);
+          if (!isNaN(n) && n > 0) cart.setCovers(n);
+          setShowCoversKeypad(false);
+        }}
+        onClose={() => setShowCoversKeypad(false)}
+        label="Covers"
+        allowDecimal={false}
+        confirmLabel="✓ Set Covers"
+        confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+      />
+    )}
+
+    {/* Customer picker */}
+    {showCustomerPicker && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 className="font-bold text-gray-900 flex items-center gap-2"><User size={18} className="text-blue-600" /> Customer</h2>
+            <button type="button" onClick={() => { setShowCustomerPicker(false); setCustomerSearch(''); }} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"><X size={16} /></button>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                autoFocus
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                placeholder="Search customer by name or phone..."
+                className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 focus:border-blue-400 rounded-lg text-sm focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => { cart.setCustomer(null, ''); setShowCustomerPicker(false); setCustomerSearch(''); }}
+              className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600 transition-colors"
+            >
+              Clear — use Walk-in
+            </button>
+            <div className="max-h-64 overflow-y-auto space-y-1.5">
+              {customerSearching && <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-gray-400" /></div>}
+              {!customerSearching && customerSearch.trim() && (customerResults ?? []).length === 0 && (
+                <p className="text-center text-gray-400 text-sm py-4">No customer matches "{customerSearch}"</p>
+              )}
+              {(customerResults ?? []).map((c: any) => (
+                <button
+                  type="button"
+                  key={c.id}
+                  onClick={() => selectCustomer(c)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{c.name}</p>
+                    <p className="text-xs text-gray-400">{c.phone ?? c.email ?? ''}</p>
+                  </div>
+                  {c.loyalty_points != null && (
+                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{c.loyalty_points} pts</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Loyalty panel */}
+    {showLoyaltyPanel && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 className="font-bold text-gray-900 flex items-center gap-2"><Award size={18} className="text-amber-600" /> Loyalty — {cart.customerName}</h2>
+            <button type="button" onClick={() => setShowLoyaltyPanel(false)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"><X size={16} /></button>
+          </div>
+          <div className="p-5 space-y-4">
+            {loyaltyLoading ? (
+              <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
+            ) : (
+              <>
+                <div className="text-center py-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <p className="text-3xl font-black text-amber-700">{loyaltyData?.balance ?? 0}</p>
+                  <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide">Points Balance</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!loyaltyData?.balance || redeemLoyaltyMutation.isPending}
+                  onClick={() => redeemLoyaltyMutation.mutate(loyaltyData.balance)}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {redeemLoyaltyMutation.isPending && <Loader2 size={15} className="animate-spin" />}
+                  Redeem All Points
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

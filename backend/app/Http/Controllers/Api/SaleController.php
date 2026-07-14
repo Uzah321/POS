@@ -18,9 +18,10 @@ class SaleController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId = $this->effectiveBranchId($request);
         $query = Sale::with('customer', 'cashier', 'branch')
             ->withCount('items')
-            ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->cashier_id, fn($q) => $q->where('user_id', $request->cashier_id))
             ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
@@ -50,6 +51,7 @@ class SaleController extends BaseApiController
             'items.*.unit_price'         => 'required|numeric|min:0',
             'items.*.discount_type'      => 'nullable|in:fixed,percent',
             'items.*.discount_value'     => 'nullable|numeric|min:0',
+            'items.*.note'               => 'nullable|string',
             'payments'       => 'required|array|min:1',
             'payments.*.method'  => 'required|in:cash,card,mobile_money,bank_transfer,loyalty_points,credit,other',
             'payments.*.amount'  => 'required|numeric|min:0',
@@ -58,8 +60,18 @@ class SaleController extends BaseApiController
             'discount_value' => 'nullable|numeric|min:0',
             'coupon_code'    => 'nullable|string',
             'notes'          => 'nullable|string',
+            'table_number'   => 'nullable|string|max:20',
+            'order_type'     => 'nullable|string|max:20',
             'is_offline'     => 'boolean',
         ]);
+
+        // Each branch owns its own catalog — a cashier can only ring up
+        // products that actually belong to their own branch's catalog.
+        $productIds = collect($data['items'])->pluck('product_id')->unique();
+        $ownedCount = \App\Models\Product::whereIn('id', $productIds)->where('branch_id', $data['branch_id'])->count();
+        if ($ownedCount !== $productIds->count()) {
+            return $this->error('One or more items do not belong to this branch.', 422);
+        }
 
         return DB::transaction(function () use ($data, $request) {
             // Calculate totals
@@ -124,6 +136,8 @@ class SaleController extends BaseApiController
                 'discount_value'  => $data['discount_value'] ?? 0,
                 'coupon_code'     => $data['coupon_code'] ?? null,
                 'notes'           => $data['notes'] ?? null,
+                'table_number'    => $data['table_number'] ?? null,
+                'order_type'      => $data['order_type'] ?? null,
                 'is_offline'      => $data['is_offline'] ?? false,
                 'completed_at'    => now(),
                 'kds_status'      => 'new',
@@ -149,6 +163,7 @@ class SaleController extends BaseApiController
                     'total'              => $item['total'],
                     'discount_type'      => $item['discount_type'] ?? null,
                     'discount_value'     => $item['discount_value'] ?? 0,
+                    'note'               => $item['note'] ?? null,
                 ]);
 
                 // Deduct from stock

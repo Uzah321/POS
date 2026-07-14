@@ -14,7 +14,7 @@ class PurchaseOrderController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = PurchaseOrder::with('supplier', 'branch', 'creator')
+        $query = PurchaseOrder::with('supplier', 'branch', 'creator')->withCount('items')
             ->when($request->supplier_id, fn($q) => $q->where('supplier_id', $request->supplier_id))
             ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
@@ -39,6 +39,14 @@ class PurchaseOrderController extends BaseApiController
             'items.*.quantity'           => 'required|numeric|min:0.001',
             'items.*.unit_cost'          => 'required|numeric|min:0',
         ]);
+
+        // Each branch owns its own catalog — a PO can only order products that
+        // actually belong to the branch it's being placed for.
+        $productIds = collect($data['items'])->pluck('product_id')->unique();
+        $ownedCount = \App\Models\Product::whereIn('id', $productIds)->where('branch_id', $data['branch_id'])->count();
+        if ($ownedCount !== $productIds->count()) {
+            return $this->error('One or more items do not belong to this branch.', 422);
+        }
 
         return DB::transaction(function () use ($data, $request) {
             $subtotal = 0;
@@ -76,7 +84,7 @@ class PurchaseOrderController extends BaseApiController
 
     public function show(PurchaseOrder $purchaseOrder): \Illuminate\Http\JsonResponse
     {
-        return $this->success($purchaseOrder->load('items.product', 'items.variant', 'supplier', 'branch', 'creator', 'approver', 'goodsReceipts'));
+        return $this->success($purchaseOrder->load('items.product', 'items.variant', 'supplier', 'branch', 'creator', 'approver', 'goodsReceipts.items', 'goodsReceipts.receiver'));
     }
 
     public function approve(Request $request, PurchaseOrder $purchaseOrder): \Illuminate\Http\JsonResponse
@@ -97,8 +105,11 @@ class PurchaseOrderController extends BaseApiController
     public function receive(Request $request, PurchaseOrder $purchaseOrder): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
-            'received_date' => 'required|date',
-            'notes'         => 'nullable|string',
+            'received_date'   => 'required|date',
+            'notes'           => 'nullable|string',
+            'invoice_number'  => 'nullable|string|max:255',
+            'invoice_date'    => 'nullable|date',
+            'invoice_amount'  => 'nullable|numeric|min:0',
             'items'         => 'required|array|min:1',
             'items.*.purchase_order_item_id' => 'required|exists:purchase_order_items,id',
             'items.*.product_id'             => 'required|exists:products,id',
@@ -116,6 +127,9 @@ class PurchaseOrderController extends BaseApiController
                 'received_by'       => $request->user()->id,
                 'received_date'     => $data['received_date'],
                 'notes'             => $data['notes'] ?? null,
+                'invoice_number'    => $data['invoice_number'] ?? null,
+                'invoice_date'      => $data['invoice_date'] ?? null,
+                'invoice_amount'    => $data['invoice_amount'] ?? null,
             ]);
 
             foreach ($data['items'] as $item) {

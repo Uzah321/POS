@@ -1,6 +1,5 @@
 <?php
 namespace App\Http\Controllers\Api;
-use App\Http\Controllers\Controller;
 use App\Models\Stocktake;
 use App\Models\StocktakeItem;
 use App\Models\Stock;
@@ -8,7 +7,7 @@ use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class StocktakeController extends Controller {
+class StocktakeController extends BaseApiController {
     public function index(Request $request) {
         $q = Stocktake::with(['branch','user'])->latest();
         if ($request->status) $q->where('status',$request->status);
@@ -21,9 +20,9 @@ class StocktakeController extends Controller {
         $warehouseIds = Warehouse::where('branch_id', $branchId)->pluck('id');
         $stocks = Stock::whereIn('warehouse_id', $warehouseIds)->get();
         foreach($stocks as $stock) StocktakeItem::create(['stocktake_id'=>$stocktake->id,'product_id'=>$stock->product_id,'expected_qty'=>$stock->quantity]);
-        return response()->json($stocktake->load('items.product'), 201);
+        return $this->success($stocktake->load('items.product'), 'Stocktake created', 201);
     }
-    public function show(Stocktake $stocktake) { return response()->json($stocktake->load(['branch','user','items.product'])); }
+    public function show(Stocktake $stocktake) { return $this->success($stocktake->load(['branch','user','items.product'])); }
     public function update(Request $request, Stocktake $stocktake) {
         $data = $request->validate(['items'=>'required|array','items.*.id'=>'required|exists:stocktake_items,id','items.*.counted_qty'=>'required|numeric|min:0']);
         foreach($data['items'] as $item) {
@@ -31,10 +30,10 @@ class StocktakeController extends Controller {
             $si->update(['counted_qty'=>$item['counted_qty'],'variance'=>$item['counted_qty']-$si->expected_qty]);
         }
         $stocktake->update(['status'=>'in_progress']);
-        return response()->json($stocktake->load('items.product'));
+        return $this->success($stocktake->load('items.product'), 'Counts saved');
     }
     public function complete(Request $request, Stocktake $stocktake) {
-        if ($stocktake->status==='completed') return response()->json(['message'=>'Already completed'],422);
+        if ($stocktake->status==='completed') return $this->error('Already completed', 422);
         foreach($stocktake->items as $item) {
             if (!is_null($item->counted_qty)) {
                 $wIds = Warehouse::where('branch_id', $stocktake->branch_id)->pluck('id');
@@ -42,6 +41,6 @@ class StocktakeController extends Controller {
             }
         }
         $stocktake->update(['status'=>'completed']);
-        return response()->json($stocktake->fresh());
+        return $this->success($stocktake->fresh(), 'Stocktake completed — stock levels updated');
     }
 }

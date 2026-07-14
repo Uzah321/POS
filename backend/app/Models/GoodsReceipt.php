@@ -10,9 +10,10 @@ class GoodsReceipt extends Model
 {
     protected $fillable = [
         'reference', 'purchase_order_id', 'warehouse_id', 'received_by', 'received_date', 'notes',
+        'invoice_number', 'invoice_date', 'invoice_amount',
     ];
 
-    protected $casts = ['received_date' => 'date'];
+    protected $casts = ['received_date' => 'date', 'invoice_date' => 'date'];
 
     protected static function booted(): void
     {

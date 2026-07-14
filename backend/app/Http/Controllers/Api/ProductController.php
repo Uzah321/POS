@@ -7,13 +7,17 @@ use App\Models\Stock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ProductController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId = $this->effectiveBranchId($request);
+
         $query = Product::with('category', 'brand', 'unit', 'taxRate')
             ->withSum('stocks', 'quantity')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->where(function ($q) use ($s) {
@@ -27,8 +31,7 @@ class ProductController extends BaseApiController
             ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')))
             ->when($request->low_stock, fn($q) => $q->whereHas('stocks', function ($sq) {
                 $sq->whereRaw('quantity <= products.reorder_level');
-            }))
-            ->when($request->branch_id, fn($q) => $q->whereHas('stocks.warehouse', fn($wq) => $wq->where('branch_id', $request->branch_id)));
+            }));
 
         if ($request->with_stock) {
             $query->with(['stocks.warehouse']);
@@ -39,10 +42,17 @@ class ProductController extends BaseApiController
 
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
+        // Every product belongs to exactly one branch's own catalog. Only an
+        // admin may plant it in a branch other than their own.
+        $user = $request->user();
+        $branchId = ($user->hasRole('admin') && $request->filled('branch_id'))
+            ? (int) $request->branch_id
+            : $user->branch_id;
+
         $data = $request->validate([
             'name'            => 'required|string|max:255',
-            'sku'             => 'nullable|string|unique:products',
-            'barcode'         => 'nullable|string|unique:products',
+            'sku'             => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
+            'barcode'         => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
             'category_id'     => 'nullable|exists:categories,id',
             'brand_id'        => 'nullable|exists:brands,id',
             'tax_rate_id'     => 'nullable|exists:tax_rates,id',
@@ -65,12 +75,15 @@ class ProductController extends BaseApiController
 
         $data['reorder_level'] = 5;
         $data['slug'] = Str::slug($data['name']) . '-' . uniqid();
+        $data['branch_id'] = $branchId;
 
-        $product = DB::transaction(function () use ($data, $initialQty) {
+        $product = DB::transaction(function () use ($data, $initialQty, $branchId) {
             $product = Product::create($data);
 
             if ($initialQty > 0) {
-                $warehouse = \App\Models\Warehouse::where('is_default', true)->first()
+                // Initial stock lands in the same branch the product now belongs to.
+                $warehouse = \App\Models\Warehouse::where('branch_id', $branchId)->orderByDesc('is_default')->first()
+                          ?? \App\Models\Warehouse::where('is_default', true)->first()
                           ?? \App\Models\Warehouse::first();
                 if ($warehouse) {
                     Stock::updateOrCreate(
@@ -86,8 +99,19 @@ class ProductController extends BaseApiController
         return $this->success($product->load('category', 'brand', 'unit', 'taxRate')->loadSum('stocks', 'quantity'), 'Product created', 201);
     }
 
-    public function show(Product $product): \Illuminate\Http\JsonResponse
+    /** True once a branch-locked user tries to touch another branch's product. Admins are exempt. */
+    private function forbiddenCrossBranch(Request $request, Product $product): bool
     {
+        $user = $request->user();
+        return ! $user->hasRole('admin') && $product->branch_id !== $user->branch_id;
+    }
+
+    public function show(Request $request, Product $product): \Illuminate\Http\JsonResponse
+    {
+        if ($this->forbiddenCrossBranch($request, $product)) {
+            return $this->error('Product not found.', 404);
+        }
+
         return $this->success(
             $product->load('category', 'brand', 'unit', 'taxRate', 'variants', 'stocks.warehouse')
         );
@@ -95,10 +119,14 @@ class ProductController extends BaseApiController
 
     public function update(Request $request, Product $product): \Illuminate\Http\JsonResponse
     {
+        if ($this->forbiddenCrossBranch($request, $product)) {
+            return $this->error('Product not found.', 404);
+        }
+
         $data = $request->validate([
             'name'           => 'sometimes|string|max:255',
-            'sku'            => "nullable|string|unique:products,sku,{$product->id}",
-            'barcode'        => "nullable|string|unique:products,barcode,{$product->id}",
+            'sku'            => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
+            'barcode'        => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
             'category_id'    => 'nullable|exists:categories,id',
             'brand_id'       => 'nullable|exists:brands,id',
             'tax_rate_id'    => 'nullable|exists:tax_rates,id',
@@ -125,8 +153,12 @@ class ProductController extends BaseApiController
         return $this->success($product->load('category', 'brand', 'unit', 'taxRate'), 'Product updated');
     }
 
-    public function destroy(Product $product): \Illuminate\Http\JsonResponse
+    public function destroy(Request $request, Product $product): \Illuminate\Http\JsonResponse
     {
+        if ($this->forbiddenCrossBranch($request, $product)) {
+            return $this->error('Product not found.', 404);
+        }
+
         $product->delete();
         return $this->success(null, 'Product deleted');
     }
@@ -135,9 +167,11 @@ class ProductController extends BaseApiController
     {
         $term = $request->q ?? '';
         $warehouseId = $request->warehouse_id;
+        $branchId = $this->effectiveBranchId($request);
 
         $products = Product::with('category', 'taxRate', 'variants')
             ->where('is_active', true)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
                   ->orWhere('barcode', $term)

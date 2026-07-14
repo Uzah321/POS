@@ -8,12 +8,14 @@ import {
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
-  Factory, WifiOff, Tag
+  Factory, WifiOff, Tag, Undo2
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
+import { useCartStore, TABLES } from '../stores/cartStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useServerHealth } from '../hooks/useServerHealth';
+import { useDBSync } from '../hooks/useDBSync';
 import { authApi, currenciesApi, settingsApi } from '../api';
 import toast from 'react-hot-toast';
 
@@ -27,6 +29,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, clearAuth, hasPermission, hasRole } = useAuthStore();
   const { isServerUp } = useServerHealth();
   const isCashier = hasRole('cashier');
+  const cart = useCartStore();
+  // Mounted here (not per-page) so the offline mutation queue keeps replaying
+  // and the products/customers/users/suppliers/branches cache stays warm no
+  // matter which screen the user is on — a PO created from the Purchases page
+  // must sync just as reliably as a sale made from the till.
+  useDBSync();
 
   const { data: settings } = useQuery({
     queryKey: ['settings'],
@@ -65,6 +73,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       items: [
         ...(!isRestaurant ? [{ to: '/orders', label: 'Orders', icon: ClipboardList, perm: 'view_sales' }] : []),
         { to: '/sales',      label: 'Sales History', icon: Receipt,   perm: 'view_sales' },
+        { to: '/refunds',    label: 'Refunds',       icon: Undo2,     perm: 'process_refunds' },
         { to: '/laybys',     label: 'Layby',         icon: BookOpen,  perm: 'create_sales' },
         { to: '/quotations', label: 'Quotations',    icon: FileText,  perm: 'create_sales' },
         { to: '/customers',  label: 'Customers',     icon: Users,     perm: 'view_customers' },
@@ -127,9 +136,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       ],
     },
   ];
-  const { currencies, activeCurrency, setCurrencies, setActiveCurrency } = useCurrencyStore();
+  const { currencies, activeCurrency, setCurrencies, setActiveCurrency, format: formatCurrency } = useCurrencyStore();
   const location = useLocation();
   const navigate = useNavigate();
+  // The GAAP-style merged info bar is scoped to Advanced POS only —
+  // Cashier Register keeps its own simpler inline table selector.
+  const isPosPage = location.pathname === '/pos';
+
+  // Live clock for the POS info strip merged into the top nav
+  const [currentTime, setCurrentTime] = useState(new Date());
+  useEffect(() => {
+    if (!isPosPage) return;
+    const t = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [isPosPage]);
 
   // Auto-open the group containing the active route
   useEffect(() => {
@@ -321,19 +341,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell flex h-screen bg-slate-50 overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className={`hidden md:flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-56'} flex-shrink-0 relative`}>
-        <SidebarContent />
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-16 bg-white text-slate-600 rounded-md p-0.5 border border-slate-300 shadow-sm z-10 hover:text-blue-700"
-        >
-          {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-        </button>
-      </aside>
+      {/* Desktop sidebar — cashiers are kiosk-locked to their register, no sidebar at all */}
+      {!isCashier && (
+        <aside className={`hidden md:flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-56'} flex-shrink-0 relative`}>
+          <SidebarContent />
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="absolute -right-3 top-16 bg-white text-slate-600 rounded-md p-0.5 border border-slate-300 shadow-sm z-10 hover:text-blue-700"
+          >
+            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+          </button>
+        </aside>
+      )}
 
       {/* Mobile overlay */}
-      {mobileOpen && (
+      {!isCashier && mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
           <aside className="relative w-56 h-full z-50"><SidebarContent /></aside>
@@ -343,21 +365,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-5 gap-4 flex-shrink-0">
-          <button className="md:hidden text-gray-500 hover:text-gray-800" onClick={() => setMobileOpen(true)}>
-            <Menu size={20} />
-          </button>
-
           {!isCashier && (
-            <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
-              <span className="text-xs font-semibold text-blue-600">Offline POS</span>
-            </div>
+            <button className="md:hidden text-gray-500 hover:text-gray-800" onClick={() => setMobileOpen(true)}>
+              <Menu size={20} />
+            </button>
           )}
-          {isCashier && (
-            <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-300 rounded-md px-3 py-1.5 shadow-sm">
-              <ShoppingCart size={14} className="text-blue-600" />
-              <span className="text-sm font-semibold text-blue-700">Cashier Mode</span>
+
+          {isPosPage ? (
+            /* Table / customer / ticket info — merged into the top nav so the
+               page below doesn't need its own separate info-bar row. */
+            <div className="hidden sm:flex items-stretch bg-black text-white rounded-md overflow-x-auto text-xs max-w-[70vw]">
+              {[
+                { label: 'Table', value: cart.tableNumber },
+                { label: 'Customer', value: cart.customerName || 'Walk-in' },
+                { label: 'Cv', value: String(cart.covers) },
+                { label: 'TN', value: String(user?.branch?.id ?? 1) },
+                { label: 'Inv No', value: cart.ticketNum.replace('#', '') },
+                { label: 'Order', value: cart.orderType === 'delivery' ? 'Delivery' : cart.orderType === 'takeaway' ? 'Takeaway' : 'Walk-in' },
+              ].map((seg) => (
+                <div key={seg.label} className="px-2.5 py-1.5 flex flex-col justify-center whitespace-nowrap border-r border-slate-700 last:border-r-0">
+                  <span className="text-[9px] text-slate-400 uppercase tracking-wide leading-none">{seg.label}</span>
+                  <span className="font-bold text-xs leading-tight mt-0.5">{seg.value}</span>
+                </div>
+              ))}
+              <div className="px-2.5 py-1.5 flex flex-col justify-center whitespace-nowrap border-l border-slate-700">
+                <span className="text-[9px] text-slate-400 uppercase tracking-wide leading-none">{currentTime.toLocaleDateString('en-ZA')}</span>
+                <span className="font-bold text-xs leading-tight mt-0.5 tabular-nums">{currentTime.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              </div>
             </div>
+          ) : (
+            <>
+              {!isCashier && (
+                <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                  <span className="text-xs font-semibold text-blue-600">Offline POS</span>
+                </div>
+              )}
+              {isCashier && (
+                <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-300 rounded-md px-3 py-1.5 shadow-sm">
+                  <ShoppingCart size={14} className="text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-700">Cashier Mode</span>
+                </div>
+              )}
+            </>
           )}
 
           <div className="flex-1 sm:flex-none" />
@@ -370,6 +420,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <LogOut size={16} />
             <span className="hidden lg:inline">Logout</span>
           </button>
+
+          {isPosPage && (
+            <select
+              value={cart.tableNumber}
+              onChange={(e) => {
+                const t = e.target.value;
+                const held = cart.heldOrders.find((h) => h.tableNumber === t);
+                if (held) {
+                  if (cart.items.length > 0) cart.holdCurrentCart();
+                  cart.restoreHeldOrder(held.id);
+                  toast.success(`Order resumed — ${t}`);
+                } else {
+                  cart.setTableNumber(t);
+                }
+              }}
+              title="Select table"
+              className="border border-slate-300 bg-gray-50 text-slate-700 text-xs font-semibold px-3 py-2 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {TABLES.map((t) => {
+                const held = cart.heldOrders.find((h) => h.tableNumber === t);
+                const heldTotal = held ? held.items.reduce((s, i) => s + (i.price - i.discount) * i.quantity, 0) : 0;
+                return (
+                  <option key={t} value={t}>
+                    {t}{held ? ` • Held ${formatCurrency(heldTotal)}` : ''}
+                  </option>
+                );
+              })}
+            </select>
+          )}
 
           <select
             value={activeCurrency?.code ?? 'USD'}
@@ -407,7 +486,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="app-workspace flex-1 overflow-y-auto p-5 lg:p-6">
+        {/* flex flex-col here (not just flex-1) is required so pages like POSPage/CashierPage
+            that use `flex-1 overflow-hidden` to fill exactly the available height — instead of
+            page-level scrolling — actually get that height from their parent. Without it, this
+            <main> lets content grow to its natural size and scrolls the whole page instead of
+            the page's own internal scroll regions. */}
+        <main className="app-workspace flex-1 flex flex-col overflow-y-auto p-5 lg:p-6">
           {children}
         </main>
       </div>

@@ -72,7 +72,7 @@ export interface ReceiptData {
   posNumber?: string;
   currencyCode?: string;
   currencyRate?: number;
-  orderType?: 'sit_in' | 'takeaway';
+  orderType?: 'sit_in' | 'takeaway' | 'delivery';
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'none';
@@ -97,7 +97,13 @@ export interface BuildReceiptOptions {
   posNumber?: string;
   currencyCode?: string;
   currencyRate?: number;
-  orderType?: 'sit_in' | 'takeaway';
+  orderType?: 'sit_in' | 'takeaway' | 'delivery';
+}
+
+function orderTypeLabel(orderType: 'sit_in' | 'takeaway' | 'delivery'): string {
+  if (orderType === 'takeaway') return 'TAKEAWAY';
+  if (orderType === 'delivery') return 'DELIVERY';
+  return 'WALK-IN';
 }
 
 function money(value: unknown): number {
@@ -236,8 +242,7 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
   parts.push(line(pad(`Doc No ${d.reference}`, timeStr)));
   parts.push(ESC_ALIGN_CENTER, line(dateStr), line('All Prices VAT Inclusive'));
   if (d.orderType) {
-    const label = d.orderType === 'takeaway' ? '** TAKEAWAY **' : '** SIT-IN **';
-    parts.push(bytes(LF), ESC_BOLD_ON, line(label), ESC_BOLD_OFF);
+    parts.push(bytes(LF), ESC_BOLD_ON, line(`** ${orderTypeLabel(d.orderType)} **`), ESC_BOLD_OFF);
   }
   parts.push(ESC_ALIGN_LEFT);
   parts.push(divider());
@@ -416,7 +421,7 @@ ${d.storePhone ? `<div>CELL: ${d.storePhone}</div>` : ''}
 <div class="row"><span>Doc ${d.reference}</span><span>${timeStr}</span></div>
 <div class="center">${dateStr}</div>
 ${s.showVatNote ? '<div class="center">All Prices VAT Inclusive</div>' : ''}
-${s.showOrderType && d.orderType ? `<br><div class="center bold">${d.orderType === 'takeaway' ? '** TAKEAWAY **' : '** SIT-IN **'}</div>` : ''}
+${s.showOrderType && d.orderType ? `<br><div class="center bold">** ${orderTypeLabel(d.orderType)} **</div>` : ''}
 <div class="divider"></div>
 <div class="bold">DESCRIPTION</div>
 <div class="col-hdr"><span>QTY</span><span>PRICE &nbsp; TOTAL</span></div>
@@ -460,7 +465,7 @@ ${d.storePhone ? `<div class="center">${d.storePhone}</div>` : ''}
 <div class="divider"></div>
 <div class="row"><span>Ref</span><span class="v">${d.reference}</span></div>
 <div class="row"><span>Date</span><span class="v">${dateStr} ${timeStr}</span></div>
-${s.showOrderType && d.orderType ? `<div class="center bold">${d.orderType === 'takeaway' ? 'TAKEAWAY' : 'SIT-IN'}</div>` : ''}
+${s.showOrderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.orderType)}</div>` : ''}
 <div class="divider"></div>
 <div class="col-hdr"><span>Item</span><span>Total</span></div>
 ${itemRows}

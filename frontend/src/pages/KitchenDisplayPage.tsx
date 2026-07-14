@@ -1,18 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { loadKdsSettings, getKdsTheme } from '../lib/kdsSettings';
+import { useNetworkUrl } from '../hooks/useNetworkUrl';
 
 type KdsStatus = 'new' | 'preparing' | 'ready' | 'served';
 
-interface KdsItem  { name: string; qty: number; }
+interface KdsItem  { name: string; qty: number; variant?: string | null; description?: string | null; note?: string | null; }
 interface KdsOrder {
   id: number;
   ticket: string;
   reference: string;
   kds_status: KdsStatus;
+  table_number?: string | null;
+  order_type?: string | null;
+  customer?: string | null;
+  notes?: string | null;
   items: KdsItem[];
   placed_at: string;
 }
+
+const ORDER_TYPE_LABEL: Record<string, string> = {
+  sit_in: 'Sit-in',
+  takeaway: 'Takeaway',
+};
 
 const STATUS_NEXT: Record<KdsStatus, KdsStatus | null> = {
   new:       'preparing',
@@ -63,6 +73,7 @@ export default function KitchenDisplayPage() {
   const [error, setError]       = useState('');
   const prevIds                 = useRef<Set<number>>(new Set());
   const audio                   = useRef<AudioContext | null>(null);
+  const networkUrl              = useNetworkUrl();
   useElapsed();
 
   const beep = () => {
@@ -136,8 +147,8 @@ export default function KitchenDisplayPage() {
           <span className={`font-bold text-xl ${t.text} tracking-tight`}>{settings.kdsDisplayName}</span>
           {error
             ? <span className="text-red-400 text-sm">{error}</span>
-            : <span className={`${t.textMuted} text-xs font-mono hidden lg:inline`}>
-                {window.location.protocol}//{window.location.host}/kitchen
+            : <span className={`${t.textMuted} text-xs font-mono hidden lg:inline`} title="Open this address on another device to view this screen on the network">
+                {networkUrl}/kitchen
               </span>
           }
         </div>
@@ -181,28 +192,56 @@ export default function KitchenDisplayPage() {
                     ${urgent ? 'animate-pulse' : ''}`}>
 
                   {/* Card header */}
-                  <div className={`px-4 py-3 border-b ${t.divider} flex items-center justify-between`}>
-                    <span className={`font-black text-3xl ${t.text} tabular-nums`}>{order.ticket}</span>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${badge[order.kds_status]}`}>
-                        {order.kds_status}
-                      </span>
-                      <span className={`text-xs tabular-nums ${urgent ? 'text-red-400 font-bold' : t.textMuted}`}>
-                        {elapsed(order.placed_at)}
-                      </span>
+                  <div className={`px-4 py-3 border-b ${t.divider}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`font-black text-3xl ${t.text} tabular-nums`}>{order.ticket}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${badge[order.kds_status]}`}>
+                          {order.kds_status}
+                        </span>
+                        <span className={`text-xs tabular-nums ${urgent ? 'text-red-400 font-bold' : t.textMuted}`}>
+                          {elapsed(order.placed_at)}
+                        </span>
+                      </div>
                     </div>
+                    {/* Table / order type / customer context — so the kitchen knows who/where this is for */}
+                    {(order.table_number || order.order_type || order.customer) && (
+                      <div className={`flex items-center flex-wrap gap-2 mt-2 text-xs font-semibold ${t.textMuted}`}>
+                        {order.table_number && (
+                          <span className={`px-1.5 py-0.5 rounded ${t.badgeNew}`}>Table {order.table_number}</span>
+                        )}
+                        {order.order_type && (
+                          <span>{ORDER_TYPE_LABEL[order.order_type] ?? order.order_type}</span>
+                        )}
+                        {order.customer && <span>· {order.customer}</span>}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Items */}
-                  <div className="flex-1 px-4 py-3 space-y-1.5 min-h-0">
+                  {/* Items — full description so the chef knows exactly what to prepare */}
+                  <div className="flex-1 px-4 py-3 space-y-2.5 min-h-0">
                     {order.items.map((item, i) => (
-                      <div key={i} className="flex items-baseline gap-2">
-                        <span className={`${t.itemQty} font-bold text-lg tabular-nums w-6 text-right flex-shrink-0`}>
-                          {item.qty}×
-                        </span>
-                        <span className={`${t.text} text-base font-medium leading-tight`}>{item.name}</span>
+                      <div key={i}>
+                        <div className="flex items-baseline gap-2">
+                          <span className={`${t.itemQty} font-bold text-lg tabular-nums w-6 text-right flex-shrink-0`}>
+                            {item.qty}×
+                          </span>
+                          <span className={`${t.text} text-base font-medium leading-tight`}>
+                            {item.name}
+                            {item.variant && <span className={`${t.textMuted} font-normal`}> — {item.variant}</span>}
+                          </span>
+                        </div>
+                        {item.description && (
+                          <p className={`${t.textMuted} text-sm leading-snug pl-8`}>{item.description}</p>
+                        )}
+                        {item.note && (
+                          <p className={`${t.itemQty} text-sm font-semibold leading-snug pl-8`}>⚠ {item.note}</p>
+                        )}
                       </div>
                     ))}
+                    {order.notes && (
+                      <p className={`${t.text} text-sm italic border-t ${t.divider} pt-2 mt-2`}>Note: {order.notes}</p>
+                    )}
                   </div>
 
                   {/* Action button */}

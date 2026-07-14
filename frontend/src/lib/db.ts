@@ -48,6 +48,23 @@ export interface SyncMeta {
   synced_at: number;
 }
 
+export interface LocalSupplier {
+  id: number;
+  name: string;
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  balance?: number;
+  [key: string]: unknown;
+}
+
+export interface LocalBranch {
+  id: number;
+  name: string;
+  address?: string;
+  [key: string]: unknown;
+}
+
 export interface LocalSale {
   id: number;
   reference: string;
@@ -74,6 +91,8 @@ class PosDb extends Dexie {
   pendingMutations!: Table<PendingMutation, string>;
   syncMeta!: Table<SyncMeta, string>;
   sales!: Table<LocalSale, number>;
+  suppliers!: Table<LocalSupplier, number>;
+  branches!: Table<LocalBranch, number>;
 
   constructor() {
     super('Core-db');
@@ -96,6 +115,16 @@ class PosDb extends Dexie {
       pendingMutations: 'id, resource',
       syncMeta: 'key',
       sales: 'id, reference, cashier_id, created_at, status',
+    });
+    this.version(4).stores({
+      products: 'id, name, sku',
+      customers: 'id, name, phone, email',
+      users: 'id, name, username',
+      pendingMutations: 'id, resource',
+      syncMeta: 'key',
+      sales: 'id, reference, cashier_id, created_at, status',
+      suppliers: 'id, name',
+      branches: 'id, name',
     });
   }
 }

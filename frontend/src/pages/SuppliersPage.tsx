@@ -8,6 +8,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
 import { offlineMutate, handleOfflineSuccess } from "../lib/offlineMutation";
+import { useCurrencyStore } from "../stores/currencyStore";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -22,6 +23,7 @@ type FormData = z.infer<typeof schema>;
 
 function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => void }) {
   const qc = useQueryClient();
+  const { activeCurrency } = useCurrencyStore();
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: supplier || { credit_limit: 0, payment_terms: 30 },
@@ -52,7 +54,7 @@ function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => v
           </div>
           <div><label className="text-sm font-medium text-gray-700">Address</label><input {...register("address")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm font-medium text-gray-700">Credit Limit (R)</label><input type="number" step="0.01" {...register("credit_limit")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
+            <div><label className="text-sm font-medium text-gray-700">Credit Limit ({activeCurrency?.symbol ?? '$'})</label><input type="number" step="0.01" {...register("credit_limit")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
             <div><label className="text-sm font-medium text-gray-700">Payment Terms (days)</label><input type="number" {...register("payment_terms")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           </div>
           <div className="flex gap-3 pt-2">
@@ -72,6 +74,7 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; supplier?: any }>({ open: false });
   const qc = useQueryClient();
+  const { format: formatAmount } = useCurrencyStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ["suppliers", search, page],
@@ -110,7 +113,7 @@ export default function SuppliersPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{s.contact_person || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.email || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.phone || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">R {parseFloat(s.balance || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatAmount(parseFloat(s.balance || 0))}</td>
                       <td className="px-4 py-3"><div className="flex gap-2"><button type="button" onClick={() => setModal({ open: true, supplier: s })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button><button type="button" onClick={() => { if (confirm(`Delete ${s.name}?`)) deleteMutation.mutate(s.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button></div></td>
                     </tr>
                   ))}

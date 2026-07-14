@@ -8,6 +8,9 @@ import { db } from '../lib/db';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import NumericKeypad from '../components/ui/NumericKeypad';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Download } from 'lucide-react';
 
 interface SaleSummaryItem {
   id: number;
@@ -182,6 +185,109 @@ export default function ShiftEndPage() {
 
   const variance = summary ? effectiveDeclaredCash - summary.expected_cash : 0;
 
+  const downloadCashupPdf = () => {
+    if (!summary) return;
+    const now = new Date();
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 40;
+    let y = 40;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Cashup Report', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    y += 20;
+    doc.text(`Cashier: ${user?.name ?? ''}`, margin, y);
+    doc.text(`Generated: ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, pageWidth - margin, y, { align: 'right' });
+    y += 14;
+    doc.text(`Shift started: ${new Date(summary.shift_start).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`, margin, y);
+    y += 20;
+    doc.setDrawColor(225, 228, 232);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 20;
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [['Summary', 'Amount']],
+      body: [
+        ['Total Revenue', format(summary.total_sales ?? 0)],
+        ['Transactions', String(summary.total_transactions ?? 0)],
+        ['Cash Sales', format(summary.cash_sales ?? 0)],
+        ['Card Sales', format(summary.card_sales ?? 0)],
+        ['Mobile Money', format(summary.mobile_money_sales ?? 0)],
+        ['Other Payments', format(summary.other_sales ?? 0)],
+        ['Expected Cash in Drawer', format(summary.expected_cash ?? 0)],
+        ['Declared Cash', format(effectiveDeclaredCash)],
+        ['Variance', `${variance >= 0 ? '+' : ''}${format(variance)}`],
+      ],
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 10, cellPadding: 6 },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 24;
+
+    if (activeCurrencies.length > 1) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Declared Cash by Currency', margin, y);
+      y += 10;
+      autoTable(doc, {
+        startY: y,
+        margin: { left: margin, right: margin },
+        head: [['Currency', 'Counted', '≈ Base currency']],
+        body: activeCurrencies.map((cur) => {
+          const amt = parseFloat(currencyCash[cur.code] || '0') || 0;
+          return [`${cur.symbol} ${cur.code}`, amt.toFixed(2), format(cur.exchange_rate > 0 ? amt / cur.exchange_rate : amt)];
+        }),
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 5 },
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
+        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 24;
+    }
+
+    if (summary.sales && summary.sales.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Sales This Shift', margin, y);
+      y += 10;
+      autoTable(doc, {
+        startY: y,
+        margin: { left: margin, right: margin, bottom: 50 },
+        head: [['Ref', 'Time', 'Items', 'Payment', 'Total']],
+        body: summary.sales.map((s) => [
+          s.reference,
+          new Date(s.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          String(s.items_count),
+          s.payments.map((p) => METHOD_LABEL[p.method] ?? p.method).join(', '),
+          format(s.total),
+        ]),
+        theme: 'striped',
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 5 },
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
+        columnStyles: { 4: { halign: 'right' } },
+        didDrawPage: () => {
+          const pageHeight = doc.internal.pageSize.getHeight();
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(`Page ${doc.getCurrentPageInfo().pageNumber} of ${doc.getNumberOfPages()}`, pageWidth - margin, pageHeight - 20, { align: 'right' });
+        },
+      });
+    }
+
+    doc.save(`cashup-${(user?.name ?? 'shift').replace(/\s+/g, '-').toLowerCase()}-${now.toISOString().slice(0, 10)}.pdf`);
+    toast.success('Cashup report downloaded');
+  };
+
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
       pending:  'bg-yellow-100 text-yellow-800',
@@ -195,7 +301,7 @@ export default function ShiftEndPage() {
     );
   };
 
-  // â€â€â€ Success screen â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€
+  // --- Success screen ---â€â€â€â€â€â€
   if (isCashier && submitted) {
     return (
       <div className="p-6 max-w-lg mx-auto mt-20 text-center">
@@ -229,16 +335,25 @@ export default function ShiftEndPage() {
           </p>
         </div>
         {isCashier && summary && (
-          <button
-            onClick={() => refetchSummary()}
-            className="text-xs text-blue-600 hover:underline"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={downloadCashupPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+              title="Download this shift's cashup report as a PDF"
+            >
+              <Download size={13} /> Download PDF
+            </button>
+            <button
+              onClick={() => refetchSummary()}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Refresh
+            </button>
+          </div>
         )}
       </div>
 
-      {/* â€â€ CASHIER VIEW â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€ */}
+      {/* --- CASHIER VIEW --- */}
       {isCashier && (
         <>
           {/* Top stat cards */}
@@ -498,7 +613,7 @@ export default function ShiftEndPage() {
         </>
       )}
 
-      {/* â€â€ MANAGER VIEW â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€â€ */}
+      {/* --- MANAGER VIEW --- */}
       {isManager && (
         <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">

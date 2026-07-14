@@ -13,7 +13,7 @@ class RefundController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = Refund::with('sale', 'user')
+        $query = Refund::with('sale', 'user', 'items')
             ->when($request->sale_id, fn($q) => $q->where('sale_id', $request->sale_id))
             ->when($request->status, fn($q) => $q->where('status', $request->status));
 
@@ -34,6 +34,7 @@ class RefundController extends BaseApiController
         return DB::transaction(function () use ($data, $request) {
             $sale         = Sale::with('items')->findOrFail($data['sale_id']);
             $totalRefund  = 0;
+            $refundedAny  = false;
 
             $refund = Refund::create([
                 'sale_id' => $sale->id,
@@ -48,7 +49,14 @@ class RefundController extends BaseApiController
                 $saleItem = $sale->items->where('id', $item['sale_item_id'])->first();
                 if (! $saleItem) continue;
 
-                $refundQty = min($item['quantity'], $saleItem->quantity);
+                // Cap at what's actually still refundable — previous refunds on this
+                // line item count against the original quantity, so the same units
+                // can't be refunded twice.
+                $alreadyRefunded = RefundItem::where('sale_item_id', $saleItem->id)->sum('quantity');
+                $refundable = max(0, $saleItem->quantity - $alreadyRefunded);
+                $refundQty = min($item['quantity'], $refundable);
+                if ($refundQty <= 0) continue;
+
                 $refundAmt = ($saleItem->total / $saleItem->quantity) * $refundQty;
 
                 RefundItem::create([
@@ -60,20 +68,35 @@ class RefundController extends BaseApiController
                 ]);
 
                 $totalRefund += $refundAmt;
+                $refundedAny = true;
 
                 // Restock if requested
                 if ($item['restock'] ?? true) {
-                    Stock::updateOrCreate(
+                    $stock = Stock::firstOrCreate(
                         ['product_id' => $saleItem->product_id, 'product_variant_id' => $saleItem->product_variant_id, 'warehouse_id' => $sale->warehouse_id],
-                        ['quantity'   => DB::raw("quantity + {$refundQty}")]
+                        ['quantity' => 0]
                     );
+                    $stock->increment('quantity', $refundQty);
                 }
+            }
+
+            if (! $refundedAny) {
+                abort(422, 'Nothing left to refund on the selected line items.');
             }
 
             $refund->update(['amount' => $totalRefund]);
 
-            // Update sale status
-            $sale->update(['status' => 'refunded', 'amount_paid' => $sale->amount_paid - $totalRefund]);
+            // Full vs partial refund — compare total refunded (including this one)
+            // against each line item's original quantity across the whole sale.
+            $fullyRefunded = $sale->items->every(function ($saleItem) {
+                $refunded = RefundItem::where('sale_item_id', $saleItem->id)->sum('quantity');
+                return $refunded >= $saleItem->quantity;
+            });
+
+            $sale->update([
+                'status' => $fullyRefunded ? 'refunded' : 'partially_refunded',
+                'amount_paid' => $sale->amount_paid - $totalRefund,
+            ]);
 
             return $this->success($refund->load('items'), 'Refund processed', 201);
         });

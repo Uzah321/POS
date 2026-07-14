@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customersApi } from '../api';
-import { Plus, Search, Edit, Trash2, Users, Loader2, X, WifiOff } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, Loader2, X, WifiOff, Gift, Minus } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { db, type LocalCustomer } from '../lib/db';
 import { useOfflineStore } from '../stores/offlineStore';
+import { useCurrencyStore } from '../stores/currencyStore';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -123,11 +124,113 @@ function CustomerModal({ customer, onClose }: { customer?: any; onClose: () => v
   );
 }
 
+const LOYALTY_TYPE_STYLE: Record<string, string> = {
+  earned: 'bg-emerald-50 text-emerald-700',
+  redeemed: 'bg-amber-50 text-amber-700',
+  adjusted: 'bg-blue-50 text-blue-700',
+  expired: 'bg-gray-100 text-gray-500',
+};
+
+function LoyaltyModal({ customer, onClose }: { customer: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [redeemPoints, setRedeemPoints] = useState('');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['customer-loyalty', customer.id],
+    queryFn: () => customersApi.getLoyalty(customer.id).then(r => r.data?.data),
+  });
+
+  const balance = data?.balance ?? customer.loyalty_points ?? 0;
+  const transactions: any[] = data?.transactions ?? [];
+
+  const redeemMutation = useMutation({
+    mutationFn: (points: number) => customersApi.redeemLoyalty(customer.id, points),
+    onSuccess: () => {
+      toast.success('Points redeemed');
+      setRedeemPoints('');
+      qc.invalidateQueries({ queryKey: ['customer-loyalty', customer.id] });
+      qc.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'Failed to redeem points — check the local server is reachable'),
+  });
+
+  const handleRedeem = () => {
+    const n = parseInt(redeemPoints, 10);
+    if (!n || n <= 0) { toast.error('Enter a number of points to redeem'); return; }
+    if (n > balance) { toast.error('Not enough points'); return; }
+    redeemMutation.mutate(n);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2"><Gift size={18} className="text-amber-500" /> Loyalty — {customer.name}</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Current balance: <span className="font-semibold text-amber-600">{balance} pts</span></p>
+          </div>
+          <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+
+        <div className="p-6 border-b flex-shrink-0 space-y-3">
+          <label className="text-sm font-medium text-gray-700">Redeem points</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={balance}
+              value={redeemPoints}
+              onChange={(e) => setRedeemPoints(e.target.value)}
+              placeholder="Points to redeem"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <button
+              type="button"
+              onClick={handleRedeem}
+              disabled={redeemMutation.isPending || balance === 0}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2 rounded-md text-sm disabled:opacity-50"
+            >
+              {redeemMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Minus size={14} />}
+              Redeem
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">History</p>
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-amber-500" /></div>
+          ) : transactions.length === 0 ? (
+            <p className="text-sm text-gray-300 text-center py-8">No loyalty activity yet</p>
+          ) : (
+            <div className="space-y-2">
+              {transactions.map((t) => (
+                <div key={t.id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2">
+                  <div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${LOYALTY_TYPE_STYLE[t.type] ?? 'bg-gray-100 text-gray-500'}`}>{t.type}</span>
+                    {t.note && <span className="text-xs text-gray-400 ml-2">{t.note}</span>}
+                    <p className="text-xs text-gray-400 mt-0.5">{new Date(t.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                  </div>
+                  <span className={`font-semibold ${t.type === 'earned' ? 'text-emerald-600' : t.type === 'redeemed' ? 'text-amber-600' : 'text-gray-600'}`}>
+                    {t.type === 'redeemed' ? '-' : '+'}{t.points} pts
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; customer?: any }>({ open: false });
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState<any>(null);
   const qc = useQueryClient();
+  const { format: formatAmount } = useCurrencyStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', search, page],
@@ -231,8 +334,17 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{c.email || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{c.phone || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-amber-600 font-medium">{c.loyalty_points || 0} pts</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">R {parseFloat(c.balance || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => setLoyaltyCustomer(c)}
+                        className="flex items-center gap-1 text-amber-600 font-medium hover:text-amber-700 hover:underline"
+                        title="View loyalty history / redeem points"
+                      >
+                        <Gift size={12} /> {c.loyalty_points || 0} pts
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{formatAmount(parseFloat(c.balance || 0))}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button type="button" onClick={() => setModal({ open: true, customer: c })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button>
@@ -249,6 +361,7 @@ export default function CustomersPage() {
       </div>
 
       {modal.open && <CustomerModal customer={modal.customer} onClose={() => setModal({ open: false })} />}
+      {loyaltyCustomer && <LoyaltyModal customer={loyaltyCustomer} onClose={() => setLoyaltyCustomer(null)} />}
     </div>
   );
 }

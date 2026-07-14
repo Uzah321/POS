@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { useCurrencyStore } from '../stores/currencyStore';
+import { useAuthStore } from '../stores/authStore';
 import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
@@ -93,6 +94,8 @@ export default function ReportsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [branchId, setBranchId] = useState('');
   const { format: fmt } = useCurrencyStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.roles?.includes('admin');
 
   const { data: categories = [] } = useQuery({
     queryKey: ['report-categories'],
@@ -104,6 +107,7 @@ export default function ReportsPage() {
     queryKey: ['branches'],
     queryFn: () => branchesApi.list().then(r => r.data?.data || []),
     staleTime: 120000,
+    enabled: !!isAdmin, // reports auto-scope to your own branch — only an admin needs to switch
   });
 
   const rangeParams = { date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}) };
@@ -161,9 +165,9 @@ export default function ReportsPage() {
       );
     } else if (tab === 'Cashier Performance' && Array.isArray(cpData)) {
       exportToExcel(
-        [['Cashier', 'Transactions', 'Total Revenue', 'Avg Sale'],
-         ...cpData.map((c: any) => [c.name, c.transactions, c.revenue, c.avg_sale])],
-        `cashier-performance-${from}-${to}`
+        [['Cashier', 'Transactions', 'Total Revenue', 'Avg Sale', 'Voids', 'Refunds', 'Refund Amount', 'Shifts Closed', 'Shifts Pending Approval'],
+         ...cpData.map((c: any) => [c.name, c.transactions, c.revenue, c.avg_sale, c.voids, c.refund_count, c.refund_amount, c.shifts_closed, c.shifts_pending_approval])],
+        `cashier-activity-${from}-${to}`
       );
     } else if (tab === 'Daily Summary' && dailyData) {
       exportToExcel(
@@ -242,7 +246,7 @@ export default function ReportsPage() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </>
         )}
-        {tab !== 'Branch Consolidation' && (branchData as any[]).length > 1 && (
+        {isAdmin && tab !== 'Branch Consolidation' && (branchData as any[]).length > 1 && (
           <select
             value={branchId}
             onChange={(e) => setBranchId(e.target.value)}
@@ -363,14 +367,14 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* Cashier Performance */}
+      {/* Cashier Performance / Activity */}
       {tab === 'Cashier Performance' && cpData && (
         <div className="bg-white rounded-md p-5 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-800 mb-4">Cashier Performance</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">Cashier Activity</h3>
           {cpData.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50"><tr>{['Cashier','Sales Count','Total Revenue','Avg Sale'].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+                <thead className="bg-gray-50"><tr>{['Cashier','Sales Count','Total Revenue','Avg Sale','Voids','Refunds','Refund Amount','Shifts Closed'].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {cpData.map((c: any) => (
                     <tr key={c.user_id} className="hover:bg-gray-50">
@@ -378,6 +382,19 @@ export default function ReportsPage() {
                       <td className="px-4 py-3">{c.transactions}</td>
                       <td className="px-4 py-3 font-semibold text-amber-600">{fmt(c.revenue)}</td>
                       <td className="px-4 py-3">{fmt(c.avg_sale)}</td>
+                      <td className="px-4 py-3">
+                        {c.voids > 0 ? <span className="text-red-600 font-semibold">{c.voids}</span> : <span className="text-gray-300">0</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.refund_count > 0 ? <span className="text-purple-600 font-semibold">{c.refund_count}</span> : <span className="text-gray-300">0</span>}
+                      </td>
+                      <td className="px-4 py-3 text-purple-600">{c.refund_amount > 0 ? fmt(c.refund_amount) : '-'}</td>
+                      <td className="px-4 py-3">
+                        {c.shifts_closed}
+                        {c.shifts_pending_approval > 0 && (
+                          <span className="ml-1.5 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">{c.shifts_pending_approval} pending</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

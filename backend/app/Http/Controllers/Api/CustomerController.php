@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Customer;
+use App\Models\LoyaltyTransaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CustomerController extends BaseApiController
 {
@@ -74,5 +76,42 @@ class CustomerController extends BaseApiController
             ->latest()->paginate(20);
 
         return $this->paginated($sales);
+    }
+
+    public function loyalty(Customer $customer): \Illuminate\Http\JsonResponse
+    {
+        return $this->success([
+            'balance' => $customer->loyalty_points,
+            'transactions' => $customer->loyaltyTransactions()->latest()->limit(100)->get(),
+        ]);
+    }
+
+    public function redeemLoyalty(Request $request, Customer $customer): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'points' => 'required|integer|min:1|max:' . max(1, $customer->loyalty_points),
+            'note'   => 'nullable|string|max:255',
+        ]);
+
+        if ($data['points'] > $customer->loyalty_points) {
+            return response()->json(['message' => 'Not enough loyalty points'], 422);
+        }
+
+        $transaction = DB::transaction(function () use ($customer, $data) {
+            $customer->decrement('loyalty_points', $data['points']);
+            return LoyaltyTransaction::create([
+                'customer_id'   => $customer->id,
+                'sale_id'       => null,
+                'type'          => 'redeemed',
+                'points'        => $data['points'],
+                'balance_after' => $customer->fresh()->loyalty_points,
+                'note'          => $data['note'] ?? null,
+            ]);
+        });
+
+        return $this->success([
+            'balance' => $customer->fresh()->loyalty_points,
+            'transaction' => $transaction,
+        ], 'Points redeemed');
     }
 }

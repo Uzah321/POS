@@ -12,7 +12,12 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('overscroll-history-navigation', '0');
 
 const APP_URL = 'http://127.0.0.1:8080';
-const HEALTH_URL = `${APP_URL}/api/currencies`;
+// Deliberately DB-independent (Laravel's stock health route, bootstrap/app.php).
+// On a Workstation sharing a remote database, the local PHP process can be up
+// with the shared DB temporarily unreachable — we still want the app window to
+// open so the SPA's own offline-queue/banner logic can take over, rather than
+// Electron blocking here on a query that depends on the network.
+const HEALTH_URL = `${APP_URL}/up`;
 const MARIA_SERVICE = 'CoreMariaDB';
 let serverProcess = null;
 let mainWindow = null;
@@ -151,7 +156,9 @@ async function ensureServerStarted() {
 
   serverProcess = spawn(
     phpExe,
-    [...phpRuntimeArgs(installRoot), artisan, 'serve', '--host=127.0.0.1', '--port=8080'],
+    // Bind 0.0.0.0 (not just 127.0.0.1) so the Kitchen Display and Queue Display
+    // screens can be opened from other devices on the same LAN.
+    [...phpRuntimeArgs(installRoot), artisan, 'serve', '--host=0.0.0.0', '--port=8080'],
     {
       cwd: backendDir,
       detached: true,

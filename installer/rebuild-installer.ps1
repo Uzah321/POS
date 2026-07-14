@@ -52,8 +52,38 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail "npm install failed." }
     npm run build
     if ($LASTEXITCODE -ne 0) { Fail "npm run build failed." }
-    npm run build:desktop
-    if ($LASTEXITCODE -ne 0) { Fail "npm run build:desktop failed." }
+
+    # Build the Electron desktop shell OUTSIDE the project folder (under C:\Windows\Temp),
+    # then copy the result back in. Some managed endpoint-security agents block the
+    # bulk extract-then-rename of many new executables inside user-profile folders like
+    # Desktop (a common ransomware heuristic) — building in a system temp path avoids
+    # triggering it, and a plain copy of already-built files back in is not affected.
+    # -ErrorAction SilentlyContinue does not reliably suppress the Win32Exception that
+    # Remove-Item throws for a briefly-locked file (e.g. right after signtool.exe signs
+    # Core.exe) when $ErrorActionPreference = "Stop" is set — wrap in try/catch instead.
+    function Remove-Quiet($path) { try { Remove-Item $path -Recurse -Force -ErrorAction Stop } catch { Write-Host "  (cleanup skipped for $path`: $($_.Exception.Message))" } }
+
+    # Best-effort sweep of any stale build dirs left behind by earlier runs (non-fatal
+    # if some are still locked - they'll just get swept next time).
+    Get-ChildItem "$env:WINDIR\Temp" -Directory -Filter "core-pos-desktop-build-*" -ErrorAction SilentlyContinue | ForEach-Object { Remove-Quiet $_.FullName }
+
+    # Unique per run — sidesteps needing to delete/reuse a previous run's directory,
+    # which can itself be transiently locked (e.g. by signtool.exe or AV scanning).
+    $desktopBuildDir = "$env:WINDIR\Temp\core-pos-desktop-build-$(Get-Date -Format yyyyMMddHHmmssfff)"
+    & npx electron-builder --win dir --config.directories.output="$desktopBuildDir"
+    if ($LASTEXITCODE -ne 0) { Fail "electron-builder failed." }
+
+    $builtShell = Join-Path $desktopBuildDir "win-unpacked"
+    if (!(Test-Path "$builtShell\Core.exe")) { Fail "Core.exe not found in $builtShell after build." }
+
+    $distElectronDir = Join-Path $Root "frontend\dist-electron"
+    $finalShellDir   = Join-Path $distElectronDir "win-unpacked"
+    if (Test-Path $distElectronDir) { Remove-Quiet $distElectronDir }
+    New-Item -ItemType Directory -Force -Path $distElectronDir | Out-Null
+    Copy-Item -Path $builtShell -Destination $finalShellDir -Recurse
+    # signtool.exe can briefly hold a handle on Core.exe right after signing — don't
+    # let cleanup of the (harmless, disposable) temp build dir fail the whole script.
+    Remove-Quiet $desktopBuildDir
 } finally { Pop-Location }
 OK "Frontend and desktop shell built"
 

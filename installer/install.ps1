@@ -2,9 +2,29 @@
 .SYNOPSIS
   Core POS post-install setup. Called by Inno Setup after extracting all files.
     Configures PHP, installs local MariaDB, runs migrations and seeds.
+
+.DESCRIPTION
+  Supports two roles for LAN deployments where several tills share one database:
+
+    Main Server  - installs MariaDB locally (as today), opens it up for LAN
+                   clients, and provisions the schema + seed data. Do this on
+                   exactly ONE machine, first.
+
+    Workstation  - skips installing MariaDB locally; instead points this
+                   machine's backend at the Main Server's shared database over
+                   the network. Run the Main Server install first, then run
+                   this on every other till, supplying its IP/hostname.
+
+  Pass -ServerMode to skip the interactive prompt (e.g. for scripted installs):
+    -ServerMode main
+    -ServerMode workstation -ServerHost 192.168.1.10 -ServerPort 3307
 #>
 param(
-    [string]$AppDir = "C:\POS"
+    [string]$AppDir = "C:\POS",
+    [ValidateSet("", "main", "workstation")]
+    [string]$ServerMode = "",
+    [string]$ServerHost = "",
+    [string]$ServerPort = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -70,6 +90,35 @@ Write-Host "  =================================" -ForegroundColor Cyan
 Write-Host "  Installing to: $AppDir" -ForegroundColor Gray
 Write-Host ""
 
+# STEP 0: Main Server vs Workstation
+# Lets several tills on the same LAN share one database. Main Server installs
+# MariaDB locally and opens it to the network; Workstation skips its own
+# database entirely and points at the Main Server's shared one instead.
+if ($ServerMode -eq "") {
+    Write-Host "  Is this machine the MAIN SERVER or a WORKSTATION?" -ForegroundColor Cyan
+    Write-Host "    [1] Main Server  - hosts the shared database (set this up on ONE machine first)" -ForegroundColor White
+    Write-Host "    [2] Workstation  - connects to an existing Main Server on this network" -ForegroundColor White
+    Write-Host ""
+    $choice = Read-Host "  Enter 1 or 2 (press Enter for 1 - Main Server)"
+    if ($choice.Trim() -eq "2") { $ServerMode = "workstation" } else { $ServerMode = "main" }
+    Write-Host ""
+}
+$isWorkstation = ($ServerMode -eq "workstation")
+
+if ($isWorkstation) {
+    if ($ServerHost -eq "") {
+        $ServerHost = Read-Host "  Enter the Main Server's IP address or hostname (e.g. 192.168.1.10)"
+    }
+    if ($ServerHost.Trim() -eq "") { ERR "A Main Server address is required for a Workstation install." }
+    $ServerHost = $ServerHost.Trim()
+    if ($ServerPort.Trim() -eq "") { $ServerPort = "3307" }
+    Write-Host ""
+    Write-Host "  Workstation mode: connecting to shared database at ${ServerHost}:${ServerPort}" -ForegroundColor Gray
+} else {
+    Write-Host "  Main Server mode: this machine will host the shared database" -ForegroundColor Gray
+}
+Write-Host ""
+
 $php         = "$AppDir\php\php.exe"
 $phpIni      = "$AppDir\php\php.ini"
 $artisan     = "$AppDir\backend\artisan"
@@ -80,8 +129,8 @@ $laravelLog  = "$AppDir\backend\storage\logs\laravel.log"
 $mariaInstallLog = "$AppDir\mariadb-install.log"
 $mariaUninstallLog = "$AppDir\mariadb-uninstall.log"
 
-$dbHost          = "127.0.0.1"
-$dbPort          = "3307"
+$dbHost          = if ($isWorkstation) { $ServerHost } else { "127.0.0.1" }
+$dbPort          = if ($isWorkstation) { $ServerPort } else { "3307" }
 $dbName          = "core_pos"
 $dbUser          = "core_pos"
 $dbPassword      = "CorePosDb@2026"
@@ -89,6 +138,7 @@ $mariaRootPass   = "CoreRoot@2026"
 $mariaService    = "CoreMariaDB"
 $mariaInstallDir = "$AppDir\MariaDB"
 $mariaDataDir    = "$AppDir\MariaDB\data"
+$dbLanAllowHost  = "%"
 
 $phpRuntimeArgs = @(
     "-n",
@@ -365,6 +415,114 @@ function Ensure-MariaDbService {
     ERR "MariaDB service was not found after installation.`n`n$(Get-MariaDbDiagnostics)"
 }
 
+function Test-RemoteDbReachable([string]$targetHost, [int]$port, [int]$attempts = 30) {
+    for ($attempt = 0; $attempt -lt $attempts; $attempt++) {
+        try {
+            $client = New-Object System.Net.Sockets.TcpClient
+            $iar = $client.BeginConnect($targetHost, $port, $null, $null)
+            if ($iar.AsyncWaitHandle.WaitOne(1500, $false)) {
+                $client.EndConnect($iar)
+                $client.Close()
+                return $true
+            }
+            $client.Close()
+        } catch {}
+        Start-Sleep -Seconds 1
+    }
+    return $false
+}
+
+function Find-MariaDbConfigFile {
+    $candidates = @(
+        "$mariaDataDir\my.ini",
+        "$mariaInstallDir\my.ini",
+        "$mariaInstallDir\data\my.ini"
+    )
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+
+    $matches = Get-ChildItem "C:\Program Files\MariaDB*\data\my.ini", "C:\Program Files\MariaDB*\my.ini" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending
+    if ($matches) { return $matches[0].FullName }
+
+    return $null
+}
+
+function Enable-MariaDbLanAccess {
+    # MariaDB's Windows packages often ship with an explicit loopback-only
+    # bind-address for security-by-default. Open it to all interfaces so
+    # Workstation installs on the LAN can reach it; Windows Firewall (below)
+    # and the DB user's own credentials remain the real access boundary.
+    $configFile = Find-MariaDbConfigFile
+    if (!$configFile) {
+        Log "(Could not locate MariaDB's my.ini - skipping bind-address change; LAN access may still work if this build already listens on all interfaces)"
+        return
+    }
+
+    $cfg = [System.IO.File]::ReadAllText($configFile)
+    if ($cfg -match '(?m)^\s*bind-address\s*=\s*0\.0\.0\.0\s*$') {
+        Log "(MariaDB already configured to listen on all interfaces)"
+        return
+    }
+
+    if ($cfg -match '(?m)^\s*bind-address\s*=.*$') {
+        $cfg = [Regex]::Replace($cfg, '(?m)^\s*bind-address\s*=.*$', 'bind-address=0.0.0.0')
+    } elseif ($cfg -match '(?m)^\[mysqld\]\s*$') {
+        $cfg = [Regex]::Replace($cfg, '(?m)^\[mysqld\]\s*$', "[mysqld]`r`nbind-address=0.0.0.0", 1)
+    } else {
+        $cfg += "`r`n[mysqld]`r`nbind-address=0.0.0.0`r`n"
+    }
+
+    [System.IO.File]::WriteAllText($configFile, $cfg, [System.Text.Encoding]::UTF8)
+
+    try {
+        Restart-Service -Name $mariaService -Force -ErrorAction Stop
+        if (!(Wait-ForMariaDb)) { ERR "MariaDB did not come back up after enabling LAN access.`n`n$(Get-MariaDbDiagnostics)" }
+        OK "MariaDB is now listening on all network interfaces"
+    } catch {
+        ERR "Could not restart MariaDB after enabling LAN access: $($_.Exception.Message)"
+    }
+}
+
+function Open-MariaDbFirewallPort {
+    try {
+        $fwRuleName = "Core POS Database (port $dbPort)"
+        if (-not (Get-NetFirewallRule -DisplayName $fwRuleName -ErrorAction SilentlyContinue)) {
+            New-NetFirewallRule `
+                -DisplayName $fwRuleName `
+                -Direction Inbound `
+                -Action Allow `
+                -Protocol TCP `
+                -LocalPort $dbPort `
+                -Profile Domain,Private | Out-Null
+            OK "Firewall rule added - Workstations on this network can reach the shared database"
+        } else {
+            OK "Database firewall rule already present"
+        }
+    } catch {
+        Log "(Firewall rule skipped: $($_.Exception.Message) - Workstations may need a manual firewall exception for port $dbPort)"
+    }
+}
+
+function Show-LanAddressForWorkstations {
+    try {
+        $ips = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.IPAddress -notlike '127.*' -and
+                $_.IPAddress -notlike '169.254.*' -and
+                $_.PrefixOrigin -ne 'WellKnown'
+            } |
+            Select-Object -ExpandProperty IPAddress
+        if ($ips) {
+            Write-Host ""
+            Write-Host "  This machine's network address(es) - use one of these when installing" -ForegroundColor Cyan
+            Write-Host "  Core as a Workstation on other tills:" -ForegroundColor Cyan
+            foreach ($ip in $ips) { Write-Host "    $ip" -ForegroundColor White }
+        }
+    } catch {}
+}
+
 # STEP 1: Verify PHP
 WAIT "Checking PHP runtime..."
 if (!(Test-Path $php)) { ERR "PHP not found at $php. The installer package may be incomplete." }
@@ -402,54 +560,74 @@ $ini = $ini -replace '(?m)^[; ]*opcache\.enable_cli\s*=.*$', "opcache.enable_cli
 [System.IO.File]::WriteAllText($phpIni, $ini, [System.Text.Encoding]::UTF8)
 OK "PHP configured for MariaDB"
 
-# STEP 3: Install and configure MariaDB local server
-WAIT "Installing local MariaDB database server..."
-$resolvedService = Ensure-MariaDbService
-$mariaService = $resolvedService
+# STEP 3: Database - install locally (Main Server) or connect to the shared one (Workstation)
+if ($isWorkstation) {
+    WAIT "Connecting to Main Server database at ${dbHost}:${dbPort}..."
+    if (!(Test-RemoteDbReachable -targetHost $dbHost -port ([int]$dbPort))) {
+        ERR ("Could not reach the Main Server's database at ${dbHost}:${dbPort}.`n`n" +
+             "Check that:`n" +
+             "  - The Main Server machine is turned on and Core is installed there as 'Main Server'`n" +
+             "  - Both machines are on the same network`n" +
+             "  - Windows Firewall on the Main Server allows port $dbPort (its installer opens this automatically)")
+    }
+    OK "Connected to shared database at ${dbHost}:${dbPort}"
+    $isUpdateInstall = $false
+} else {
+    WAIT "Installing local MariaDB database server..."
+    $resolvedService = Ensure-MariaDbService
+    $mariaService = $resolvedService
 
-try {
-    Set-Service -Name $mariaService -StartupType Automatic -ErrorAction Stop
-} catch {
-    Log "(MariaDB startup type was not changed: $($_.Exception.Message))"
-}
+    try {
+        Set-Service -Name $mariaService -StartupType Automatic -ErrorAction Stop
+    } catch {
+        Log "(MariaDB startup type was not changed: $($_.Exception.Message))"
+    }
 
-try {
-    Start-Service -Name $mariaService -ErrorAction Stop
-} catch {
-    Log "(MariaDB service start reported: $($_.Exception.Message))"
-}
+    try {
+        Start-Service -Name $mariaService -ErrorAction Stop
+    } catch {
+        Log "(MariaDB service start reported: $($_.Exception.Message))"
+    }
 
-if (!(Wait-ForMariaDb)) { ERR "MariaDB service did not start on ${dbHost}:${dbPort} or ${dbHost}:3306.`n`n$(Get-MariaDbDiagnostics)" }
-OK "MariaDB service is running locally on port $dbPort"
+    if (!(Wait-ForMariaDb)) { ERR "MariaDB service did not start on ${dbHost}:${dbPort} or ${dbHost}:3306.`n`n$(Get-MariaDbDiagnostics)" }
+    OK "MariaDB service is running locally on port $dbPort"
 
-$databaseExistedBeforeSetup = Test-CoreDatabaseExists
-$usersExistedBeforeSetup = $false
-if ($databaseExistedBeforeSetup -and (Test-CoreTableExists "users")) {
-    $usersExistedBeforeSetup = ((Get-CoreTableRowCount "users") -gt 0)
-}
-$isUpdateInstall = ($databaseExistedBeforeSetup -and $usersExistedBeforeSetup)
+    WAIT "Opening the database for other tills on this network..."
+    Enable-MariaDbLanAccess
+    Open-MariaDbFirewallPort
 
-WAIT "Preparing Core database and user..."
-$setupSql = @"
+    $databaseExistedBeforeSetup = Test-CoreDatabaseExists
+    $usersExistedBeforeSetup = $false
+    if ($databaseExistedBeforeSetup -and (Test-CoreTableExists "users")) {
+        $usersExistedBeforeSetup = ((Get-CoreTableRowCount "users") -gt 0)
+    }
+    $isUpdateInstall = ($databaseExistedBeforeSetup -and $usersExistedBeforeSetup)
+
+    WAIT "Preparing Core database and user..."
+    $setupSql = @"
 CREATE DATABASE IF NOT EXISTS $dbName CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$dbUser'@'127.0.0.1' IDENTIFIED BY '$dbPassword';
 CREATE USER IF NOT EXISTS '$dbUser'@'localhost' IDENTIFIED BY '$dbPassword';
+CREATE USER IF NOT EXISTS '$dbUser'@'$dbLanAllowHost' IDENTIFIED BY '$dbPassword';
 ALTER USER '$dbUser'@'127.0.0.1' IDENTIFIED BY '$dbPassword';
 ALTER USER '$dbUser'@'localhost' IDENTIFIED BY '$dbPassword';
+ALTER USER '$dbUser'@'$dbLanAllowHost' IDENTIFIED BY '$dbPassword';
 GRANT ALL PRIVILEGES ON $dbName.* TO '$dbUser'@'127.0.0.1';
 GRANT ALL PRIVILEGES ON $dbName.* TO '$dbUser'@'localhost';
+GRANT ALL PRIVILEGES ON $dbName.* TO '$dbUser'@'$dbLanAllowHost';
 FLUSH PRIVILEGES;
 "@
-Invoke-MySql $setupSql | Out-Null
-if ($databaseExistedBeforeSetup) {
-    OK "MariaDB database ready - existing data preserved"
-} else {
-    OK "MariaDB database ready"
-}
+    Invoke-MySql $setupSql | Out-Null
+    if ($databaseExistedBeforeSetup) {
+        OK "MariaDB database ready - existing data preserved"
+    } else {
+        OK "MariaDB database ready"
+    }
 
-if ($isUpdateInstall) {
-    WAIT "Backing up existing database before update..."
-    Backup-CoreDatabaseForUpdate
+    if ($isUpdateInstall) {
+        WAIT "Backing up existing database before update..."
+        Backup-CoreDatabaseForUpdate
+    }
 }
 
 # STEP 4: Write .env
@@ -479,7 +657,11 @@ $envText = Set-Or-AddEnvValue $envText "DB_USERNAME" $dbUser
 $envText = Set-Or-AddEnvValue $envText "DB_PASSWORD" $dbPassword
 $envText = Set-Or-AddEnvValue $envText "DB_CHARSET" "utf8mb4"
 $envText = Set-Or-AddEnvValue $envText "DB_COLLATION" "utf8mb4_unicode_ci"
-$envText = Set-Or-AddEnvValue $envText "DB_DUMP_PATH" "$mariaInstallDir\bin\mysqldump.exe"
+if (-not $isWorkstation) {
+    # Workstations have no local mysqldump.exe (no local MariaDB install) - backups
+    # of the shared database should be taken from the Main Server instead.
+    $envText = Set-Or-AddEnvValue $envText "DB_DUMP_PATH" "$mariaInstallDir\bin\mysqldump.exe"
+}
 $envText = Set-Or-AddEnvValue $envText "SESSION_DRIVER" "file"
 $envText = Set-Or-AddEnvValue $envText "QUEUE_CONNECTION" "sync"
 $envText = Set-Or-AddEnvValue $envText "CACHE_STORE" "file"
@@ -544,15 +726,19 @@ if ($envText -match '(?m)^APP_KEY=base64:') {
     OK "Application key set"
 }
 
-WAIT "Applying database migrations..."
-$out = artisan @("migrate", "--force")
-if ($LASTEXITCODE -ne 0 -and $out -notmatch "Nothing to migrate") { ERR "Migrations failed.`n$out" }
-OK "Database schema is up to date"
+if ($isWorkstation) {
+    Log "(Skipping migrations/seeding - this Workstation shares the Main Server's already-provisioned database)"
+} else {
+    WAIT "Applying database migrations..."
+    $out = artisan @("migrate", "--force")
+    if ($LASTEXITCODE -ne 0 -and $out -notmatch "Nothing to migrate") { ERR "Migrations failed.`n$out" }
+    OK "Database schema is up to date"
 
-WAIT "Applying default data (preserves existing records)..."
-$out = artisan @("db:seed", "--force")
-if ($LASTEXITCODE -ne 0) { ERR "Seeder failed.`n$out" }
-OK "Default data ready"
+    WAIT "Applying default data (preserves existing records)..."
+    $out = artisan @("db:seed", "--force")
+    if ($LASTEXITCODE -ne 0) { ERR "Seeder failed.`n$out" }
+    OK "Default data ready"
+}
 
 WAIT "Caching application..."
 $cfgOut = artisan @("config:cache")
@@ -590,7 +776,9 @@ try {
 WAIT "Registering auto-start service (runs at Windows login)..."
 try {
     $taskName   = "Core POS Server"
-    $phpArgs    = (Get-PhpRuntimeArgumentString) + " `"$AppDir\backend\artisan`" serve --host=127.0.0.1 --port=8080"
+    # Bind 0.0.0.0 (not just 127.0.0.1) so the Kitchen Display and Queue Display
+    # screens can be opened from other devices on the same LAN.
+    $phpArgs    = (Get-PhpRuntimeArgumentString) + " `"$AppDir\backend\artisan`" serve --host=0.0.0.0 --port=8080"
 
     $action   = New-ScheduledTaskAction `
                     -Execute "$AppDir\php\php.exe" `
@@ -626,6 +814,28 @@ try {
     }
 } catch {
     Log "(Auto-start skipped: $($_.Exception.Message))"
+}
+
+# STEP 7d: Open Windows Firewall for LAN access — Kitchen Display and Queue Display
+# screens are meant to be opened on other devices (tablets, second monitors) on the
+# same network, so port 8080 needs to accept inbound connections from the LAN.
+WAIT "Allowing Core POS through Windows Firewall (for Kitchen/Queue displays)..."
+try {
+    $fwRuleName = "Core POS Server (port 8080)"
+    if (-not (Get-NetFirewallRule -DisplayName $fwRuleName -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule `
+            -DisplayName $fwRuleName `
+            -Direction Inbound `
+            -Action Allow `
+            -Protocol TCP `
+            -LocalPort 8080 `
+            -Profile Domain,Private | Out-Null
+        OK "Firewall rule added - other devices on this network can reach Core POS"
+    } else {
+        OK "Firewall rule already present"
+    }
+} catch {
+    Log "(Firewall rule skipped: $($_.Exception.Message) - Kitchen/Queue displays on other devices may need a manual firewall exception for port 8080)"
 }
 
 # STEP 8: Run startup smoke test - tests PHP, MariaDB, AND actual admin login
@@ -804,6 +1014,17 @@ if ($isUpdateInstall) {
     Write-Host "    Username : admin" -ForegroundColor Cyan
     Write-Host "    Password : Admin@123" -ForegroundColor Cyan
 }
+
+if ($isWorkstation) {
+    Write-Host ""
+    Write-Host "  This Workstation is sharing the database at ${dbHost}:${dbPort}." -ForegroundColor White
+} else {
+    Show-LanAddressForWorkstations
+    Write-Host ""
+    Write-Host "  To add another till on this network, run the Core installer on it," -ForegroundColor White
+    Write-Host "  choose 'Workstation', and enter this machine's address above." -ForegroundColor White
+}
+
 Write-Host ""
 Write-Host "  Double-click 'Core' on the Desktop to launch." -ForegroundColor White
 Write-Host ""

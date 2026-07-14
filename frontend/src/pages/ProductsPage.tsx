@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 import { useOfflineStore } from '../stores/offlineStore';
+import { useAuthStore } from '../stores/authStore';
 
 function makeMutId() {
   return `mut-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -331,11 +332,14 @@ export default function ProductsPage() {
 
   const { format: formatCurrency } = useCurrencyStore();
   const qcMain = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.roles?.includes('admin');
 
   const { data: branchData } = useQuery({
     queryKey: ['branches'],
     queryFn: () => branchesApi.list().then(r => r.data?.data || []),
     staleTime: 120000,
+    enabled: !!isAdmin, // each branch now has its own catalog — only an admin needs to switch between them
   });
 
   const { data, isLoading, isError } = useQuery({
@@ -553,7 +557,7 @@ export default function ProductsPage() {
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
               />
             </div>
-            {(branchData as any[] || []).length > 1 && (
+            {isAdmin && (branchData as any[] || []).length > 1 && (
               <select
                 value={branchId}
                 onChange={(e) => { setBranchId(e.target.value); setPage(1); }}

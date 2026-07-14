@@ -19,31 +19,39 @@ class ReportController extends BaseApiController
 {
     public function dashboard(Request $request): \Illuminate\Http\JsonResponse
     {
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
         $cacheKey = 'dashboard:' . ($branchId ?: 'all');
 
         $payload = Cache::remember($cacheKey, now()->addSeconds(30), function () use ($branchId) {
             $today = now()->toDateString();
             $thisMonth = now()->startOfMonth()->toDateString();
 
-            $todaySales = Sale::where('status', 'completed')
+            $todaySales = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->whereDate('completed_at', $today)
                 ->get(['total']);
 
-            $monthSales = Sale::where('status', 'completed')
+            $monthSales = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->whereDate('completed_at', '>=', $thisMonth)
                 ->get(['total']);
 
+            $monthCustomers = Sale::revenueCounted()
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->whereDate('completed_at', '>=', $thisMonth)
+                ->whereNotNull('customer_id')
+                ->distinct('customer_id')
+                ->count('customer_id');
+
             $lowStockCount = Stock::query()
                 ->join('products', 'products.id', '=', 'stocks.product_id')
                 ->where('products.is_active', true)
+                ->when($branchId, fn($q) => $q->where('products.branch_id', $branchId))
                 ->whereColumn('stocks.quantity', '<=', 'products.reorder_level')
                 ->count();
 
             // Sales by day (last 30 days)
-            $salesTrend = Sale::where('status', 'completed')
+            $salesTrend = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->where('completed_at', '>=', now()->subDays(30))
                 ->groupBy(DB::raw('DATE(completed_at)'))
@@ -53,7 +61,7 @@ class ReportController extends BaseApiController
 
             // Top products (last 30 days)
             $topProducts = SaleItem::whereHas('sale', fn($q) =>
-                    $q->where('status', 'completed')
+                    $q->whereIn('status', Sale::REVENUE_STATUSES)
                       ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
                       ->where('completed_at', '>=', now()->subDays(30))
                 )
@@ -67,7 +75,7 @@ class ReportController extends BaseApiController
             // Payment method breakdown today
             $paymentBreakdown = DB::table('sale_payments')
                 ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
-                ->where('sales.status', 'completed')
+                ->whereIn('sales.status', Sale::REVENUE_STATUSES)
                 ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
                 ->whereDate('sales.completed_at', $today)
                 ->groupBy('sale_payments.method')
@@ -83,9 +91,10 @@ class ReportController extends BaseApiController
                 'month' => [
                     'revenue' => $monthSales->sum('total'),
                     'transactions' => $monthSales->count(),
+                    'customers' => $monthCustomers,
                 ],
                 'low_stock_count'  => $lowStockCount,
-                'total_products'   => Product::count(),
+                'total_products'   => Product::when($branchId, fn($q) => $q->where('branch_id', $branchId))->count(),
                 'total_customers'  => Customer::count(),
                 'sales_trend' => $salesTrend,
                 'top_products' => $topProducts,
@@ -103,9 +112,10 @@ class ReportController extends BaseApiController
             'date_to'   => 'required|date|after_or_equal:date_from',
         ]);
 
+        $branchId = $this->effectiveBranchId($request);
         $query = Sale::with('cashier:id,name', 'branch:id,name', 'customer:id,name')
-            ->where('status', 'completed')
-            ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
+            ->revenueCounted()
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->cashier_id, fn($q) => $q->where('user_id', $request->cashier_id))
             ->whereDate('completed_at', '>=', $request->date_from)
             ->whereDate('completed_at', '<=', $request->date_to);
@@ -127,8 +137,10 @@ class ReportController extends BaseApiController
 
     public function inventoryReport(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId = $this->effectiveBranchId($request);
         $products = Product::with('category', 'brand', 'stocks.warehouse')
             ->where('is_active', true)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->category_id, fn($q) => $q->where('category_id', $request->category_id))
             ->when($request->warehouse_id, fn($q) => $q->whereHas('stocks', fn($s) => $s->where('warehouse_id', $request->warehouse_id)))
             ->get()
@@ -169,15 +181,16 @@ class ReportController extends BaseApiController
             'date_to'   => 'required|date',
         ]);
 
-        $revenue = Sale::where('status', 'completed')
-            ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
+        $branchId = $this->effectiveBranchId($request);
+        $revenue = Sale::revenueCounted()
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('completed_at', '>=', $request->date_from)
             ->whereDate('completed_at', '<=', $request->date_to)
             ->sum('total');
 
         $cogs = SaleItem::whereHas('sale', fn($q) =>
-                $q->where('status', 'completed')
-                  ->when($request->branch_id, fn($sq) => $sq->where('branch_id', $request->branch_id))
+                $q->whereIn('status', Sale::REVENUE_STATUSES)
+                  ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
                   ->whereDate('completed_at', '>=', $request->date_from)
                   ->whereDate('completed_at', '<=', $request->date_to)
             )
@@ -185,7 +198,7 @@ class ReportController extends BaseApiController
             ->value('total') ?? 0;
 
         $expenses = Expense::where('status', 'approved')
-            ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('expense_date', '>=', $request->date_from)
             ->whereDate('expense_date', '<=', $request->date_to)
             ->sum('amount');
@@ -208,9 +221,9 @@ class ReportController extends BaseApiController
     public function dailyReport(Request $request): \Illuminate\Http\JsonResponse
     {
         $date     = $request->date ?? now()->toDateString();
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('completed_at', $date)
             ->with('payments', 'cashier:id,name,username', 'items')
@@ -278,12 +291,12 @@ class ReportController extends BaseApiController
     public function monthlyReport(Request $request): \Illuminate\Http\JsonResponse
     {
         $month    = $request->month ?? now()->format('Y-m');
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
         [$year, $mon] = explode('-', $month);
         $from = "{$year}-{$mon}-01";
         $to   = date('Y-m-t', strtotime($from));
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->with('payments', 'cashier:id,name,username')
@@ -341,7 +354,7 @@ class ReportController extends BaseApiController
     {
         $warehouseId = $request->warehouse_id;
         $categoryId = $request->category_id;
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
         $from = $request->date_from ?? $request->from ?? now()->subDays(30)->toDateString();
         $to   = $request->date_to ?? $request->to ?? now()->toDateString();
 
@@ -350,6 +363,7 @@ class ReportController extends BaseApiController
                 'stocks' => fn($q) => $q->when($warehouseId, fn($s) => $s->where('warehouse_id', $warehouseId)),
             ])
             ->where('is_active', true)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($categoryId, fn($q) => $q->where('category_id', $categoryId))
             ->get();
 
@@ -413,28 +427,95 @@ class ReportController extends BaseApiController
         return $pdf->download("monthly-report-{$month}.pdf");
     }
 
+    /**
+     * Cashier Activity report: completed-sale revenue plus refunds, voids, and
+     * shift-end closures per cashier for a date range — so admins can see the
+     * full picture, not just revenue.
+     */
     public function cashierPerformance(Request $request): \Illuminate\Http\JsonResponse
     {
         $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
+        $branchId = $this->effectiveBranchId($request);
 
-        $data = DB::table('sales')
+        $sales = DB::table('sales')
             ->join('users', 'users.id', '=', 'sales.user_id')
-            ->where('sales.status', 'completed')
-            ->when($request->branch_id, fn($q) => $q->where('sales.branch_id', $request->branch_id))
+            ->whereIn('sales.status', Sale::REVENUE_STATUSES)
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
             ->whereDate('sales.completed_at', '>=', $request->date_from)
             ->whereDate('sales.completed_at', '<=', $request->date_to)
             ->groupBy('sales.user_id', 'users.name')
             ->selectRaw('sales.user_id, users.name, COUNT(*) as transactions, SUM(sales.total) as revenue, AVG(sales.total) as avg_sale')
-            ->orderByDesc('revenue')
-            ->get();
+            ->get()
+            ->keyBy('user_id');
+
+        $voids = DB::table('sales')
+            ->where('status', 'voided')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereDate('updated_at', '>=', $request->date_from)
+            ->whereDate('updated_at', '<=', $request->date_to)
+            ->groupBy('user_id')
+            ->selectRaw('user_id, COUNT(*) as void_count')
+            ->pluck('void_count', 'user_id');
+
+        $refunds = DB::table('refunds')
+            ->join('sales', 'sales.id', '=', 'refunds.sale_id')
+            ->where('refunds.status', 'completed')
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->whereDate('refunds.created_at', '>=', $request->date_from)
+            ->whereDate('refunds.created_at', '<=', $request->date_to)
+            ->groupBy('refunds.user_id')
+            ->selectRaw('refunds.user_id, COUNT(*) as refund_count, SUM(refunds.amount) as refund_amount')
+            ->get()
+            ->keyBy('user_id');
+
+        $shiftEnds = DB::table('shift_ends')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->whereDate('shift_end', '>=', $request->date_from)
+            ->whereDate('shift_end', '<=', $request->date_to)
+            ->groupBy('user_id')
+            ->selectRaw("user_id, COUNT(*) as shifts_closed, SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as shifts_pending_approval")
+            ->get()
+            ->keyBy('user_id');
+
+        // Union of every user_id that appears anywhere, so a cashier with only
+        // refunds/voids/shift-ends (no completed sales) still shows up.
+        $userIds = collect()
+            ->merge($sales->keys())
+            ->merge($voids->keys())
+            ->merge($refunds->keys())
+            ->merge($shiftEnds->keys())
+            ->unique()
+            ->values();
+
+        $userNames = DB::table('users')->whereIn('id', $userIds)->pluck('name', 'id');
+
+        $data = $userIds->map(function ($userId) use ($sales, $voids, $refunds, $shiftEnds, $userNames) {
+            $s  = $sales->get($userId);
+            $r  = $refunds->get($userId);
+            $se = $shiftEnds->get($userId);
+            return [
+                'user_id'                 => $userId,
+                'name'                    => $s->name ?? $userNames->get($userId),
+                'transactions'            => (int) ($s->transactions ?? 0),
+                'revenue'                 => (float) ($s->revenue ?? 0),
+                'avg_sale'                => (float) ($s->avg_sale ?? 0),
+                'voids'                   => (int) ($voids->get($userId) ?? 0),
+                'refund_count'            => (int) ($r->refund_count ?? 0),
+                'refund_amount'           => (float) ($r->refund_amount ?? 0),
+                'shifts_closed'           => (int) ($se->shifts_closed ?? 0),
+                'shifts_pending_approval' => (int) ($se->shifts_pending_approval ?? 0),
+            ];
+        })->sortByDesc('revenue')->values();
 
         return $this->success($data);
     }
 
     public function lowStock(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId = $this->effectiveBranchId($request);
         $products = \App\Models\Product::with('stocks')
             ->where('is_active', true)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->get()
             ->filter(function ($p) {
                 $qty       = $p->stocks->sum('quantity');
@@ -462,10 +543,10 @@ class ReportController extends BaseApiController
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to   = $request->to   ?? now()->toDateString();
 
-        $sales = \App\Models\Sale::whereBetween(\DB::raw('DATE(created_at)'), [$from, $to])
-            ->where('status', 'completed')
-            ->selectRaw('DATE(created_at) as date, SUM(tax_amount) as vat_collected, SUM(total) as gross_total, COUNT(*) as sale_count')
-            ->groupByRaw('DATE(created_at)')
+        $sales = Sale::revenueCounted()
+            ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
+            ->selectRaw('DATE(completed_at) as date, SUM(tax_amount) as vat_collected, SUM(total) as gross_total, COUNT(*) as sale_count')
+            ->groupByRaw('DATE(completed_at)')
             ->orderBy('date')
             ->get();
 
@@ -487,7 +568,7 @@ class ReportController extends BaseApiController
     public function financialSummary(Request $request): \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\StreamedResponse
     {
         $period   = $request->period ?? 'daily';
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
 
         if ($period === 'monthly') {
             $month = $request->month ?? now()->format('Y-m');
@@ -499,7 +580,7 @@ class ReportController extends BaseApiController
             $to   = $request->date_to   ?? $request->date ?? now()->toDateString();
         }
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->get(['id', 'total', 'discount_amount', 'tax_amount', 'user_id', 'completed_at']);
@@ -527,7 +608,7 @@ class ReportController extends BaseApiController
         // Payment breakdown
         $paymentBreakdown = DB::table('sale_payments')
             ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
-            ->where('sales.status', 'completed')
+            ->whereIn('sales.status', Sale::REVENUE_STATUSES)
             ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
             ->whereBetween(DB::raw('DATE(sales.completed_at)'), [$from, $to])
             ->groupBy('sale_payments.method')
@@ -571,9 +652,9 @@ class ReportController extends BaseApiController
     public function dailyCsv(Request $request)
     {
         $date     = $request->date ?? now()->toDateString();
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('completed_at', $date)
             ->with('cashier:id,name', 'items')
@@ -629,12 +710,12 @@ class ReportController extends BaseApiController
     public function monthlyCsv(Request $request)
     {
         $month    = $request->month ?? now()->format('Y-m');
-        $branchId = $request->branch_id;
+        $branchId = $this->effectiveBranchId($request);
         [$year, $mon] = explode('-', $month);
         $from = "{$year}-{$mon}-01";
         $to   = date('Y-m-t', strtotime($from));
 
-        $sales = Sale::where('status', 'completed')
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->with('cashier:id,name')
@@ -687,7 +768,7 @@ class ReportController extends BaseApiController
         $result   = [];
 
         foreach ($branches as $branch) {
-            $sales = Sale::where('status', 'completed')
+            $sales = Sale::revenueCounted()
                 ->where('branch_id', $branch->id)
                 ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
                 ->get(['id', 'total']);

@@ -33,7 +33,7 @@ export default function StockTransferPage() {
   });
 
   const { data: branches } = useQuery({
-    queryKey: ['branches-list'],
+    queryKey: ['branches'],
     queryFn: () => api.get('/branches').then(r => r.data?.data?.data ?? r.data?.data ?? []),
   });
 

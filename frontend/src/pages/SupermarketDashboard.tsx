@@ -86,7 +86,11 @@ export default function SupermarketDashboard() {
 
         return {
           data: {
-            today: { revenue: todayRevenue, sales_count: todaySales.length },
+            today: {
+              revenue: todayRevenue,
+              transactions: todaySales.length,
+              avg_sale: todaySales.length > 0 ? todayRevenue / todaySales.length : 0,
+            },
             total_products: totalProducts,
             low_stock_count: 0,
             sales_trend: salesTrend,
@@ -136,9 +140,9 @@ export default function SupermarketDashboard() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${d.today?.sales_count ?? 0} transactions`} icon={DollarSign}    iconBg="bg-blue-50"   trend="+12%" />
-        <StatCard label="Transactions" value={d.today?.sales_count ?? 0}               sub="Today"               icon={ShoppingCart}  iconBg="bg-blue-50"   trend="+8%" />
-        <StatCard label="Avg Basket"   value={formatCurrency(d.today?.sales_count > 0 ? (d.today?.revenue ?? 0) / d.today.sales_count : 0)} sub="Per transaction" icon={TrendingUp} iconBg="bg-blue-50" />
+        <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${d.today?.transactions ?? 0} transactions`} icon={DollarSign}    iconBg="bg-blue-50"   trend="+12%" />
+        <StatCard label="Transactions" value={d.today?.transactions ?? 0}              sub="Today"               icon={ShoppingCart}  iconBg="bg-blue-50"   trend="+8%" />
+        <StatCard label="Avg Basket"   value={formatCurrency(d.today?.avg_sale ?? 0)}  sub="Per transaction" icon={TrendingUp} iconBg="bg-blue-50" />
         <StatCard label="Low Stock"    value={d.low_stock_count ?? 0}                  sub="Items need reorder"  icon={AlertTriangle}  iconBg={d.low_stock_count > 0 ? 'bg-orange-50' : 'bg-blue-50'} />
       </div>
 
@@ -177,10 +181,10 @@ export default function SupermarketDashboard() {
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
-                    <p className="text-xs text-gray-400">{p.quantity} units sold</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">{p.product?.name ?? 'Unknown item'}</p>
+                    <p className="text-xs text-gray-400">{p.total_qty} units sold</p>
                   </div>
-                  <span className="text-sm font-semibold text-gray-700">{formatCurrency(p.revenue ?? 0)}</span>
+                  <span className="text-sm font-semibold text-gray-700">{formatCurrency(p.total_revenue ?? 0)}</span>
                 </div>
               ))}
             </div>
@@ -248,9 +252,9 @@ export default function SupermarketDashboard() {
       {/* Month summary */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Month Revenue',   value: formatCurrency(d.month?.revenue ?? 0), icon: TrendingUp },
-          { label: 'Month Sales',     value: `${d.month?.sales_count ?? 0} sales`,  icon: ShoppingCart },
-          { label: 'Month Customers', value: d.month?.customers ?? 0,               icon: Users },
+          { label: 'Month Revenue',   value: formatCurrency(d.month?.revenue ?? 0),      icon: TrendingUp },
+          { label: 'Month Sales',     value: `${d.month?.transactions ?? 0} sales`,      icon: ShoppingCart },
+          { label: 'Month Customers', value: d.month?.customers ?? 0,                    icon: Users },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 flex items-center gap-4">
             <div className="w-10 h-10 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0">

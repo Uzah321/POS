@@ -107,8 +107,9 @@ export default function BarcodeLabelsPage() {
 
   const { data: searchResults, isFetching } = useQuery({
     queryKey: ['products-barcode-search', search],
-    queryFn: () => productsApi.list({ search, per_page: 20 }).then(r => r.data?.data ?? []),
-    enabled: search.length >= 1,
+    // No search term → show the product list (newest first) so newly-added products
+    // are immediately available to assign barcodes to, without typing anything.
+    queryFn: () => productsApi.list({ search, per_page: search ? 20 : 50 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
   });
 
   const addProduct = (product: any) => {
@@ -244,10 +245,12 @@ export default function BarcodeLabelsPage() {
                   className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              {search.length >= 1 && (
-                <div className="border border-gray-100 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+              {!search && (
+                <p className="text-xs text-gray-400">Showing all products — search to narrow down</p>
+              )}
+              <div className="border border-gray-100 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
                   {isFetching ? (
-                    <div className="py-6 text-center text-xs text-gray-400">Searching…</div>
+                    <div className="py-6 text-center text-xs text-gray-400">{search ? 'Searching…' : 'Loading products…'}</div>
                   ) : !searchResults?.length ? (
                     <div className="py-6 text-center text-xs text-gray-400">No products found</div>
                   ) : (
@@ -266,8 +269,7 @@ export default function BarcodeLabelsPage() {
                       </button>
                     ))
                   )}
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Print queue */}

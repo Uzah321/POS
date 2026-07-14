@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { loadKdsSettings, getQueueTheme, TICKET_SIZE } from '../lib/kdsSettings';
+import { useNetworkUrl } from '../hooks/useNetworkUrl';
 
 interface KdsOrder {
   id: number;
@@ -16,6 +17,7 @@ export default function QueueDisplayPage() {
   const [orders, setOrders] = useState<KdsOrder[]>([]);
   const [time, setTime]     = useState(new Date());
   const [error, setError]   = useState('');
+  const networkUrl          = useNetworkUrl();
 
   useEffect(() => {
     const fetch = async () => {
@@ -48,8 +50,8 @@ export default function QueueDisplayPage() {
           <span className={`font-bold text-xl tracking-tight ${th.titleText}`}>{settings.queueStoreName}</span>
           {error
             ? <span className={`${th.errorText} text-sm ml-4`}>{error}</span>
-            : <span className={`${th.clockText} text-xs font-mono ml-4 hidden lg:inline`}>
-                {window.location.protocol}//{window.location.host}/queue
+            : <span className={`${th.clockText} text-xs font-mono ml-4 hidden lg:inline`} title="Open this address on another device to view this screen on the network">
+                {networkUrl}/queue
               </span>
           }
         </div>

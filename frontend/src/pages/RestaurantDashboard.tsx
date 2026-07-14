@@ -90,7 +90,11 @@ export default function RestaurantDashboard() {
 
         return {
           data: {
-            today: { revenue: todayRevenue, sales_count: todaySales.length },
+            today: {
+              revenue: todayRevenue,
+              transactions: todaySales.length,
+              avg_sale: todaySales.length > 0 ? todayRevenue / todaySales.length : 0,
+            },
             sales_trend: salesTrend,
             top_products: [],
           },
@@ -153,9 +157,9 @@ export default function RestaurantDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="blue"   sub={`${d.today?.sales_count ?? 0} orders`} />
-        <StatCard label="Orders Today"   value={d.today?.sales_count ?? 0}                   icon={ShoppingCart}  color="orange" sub="Completed" />
-        <StatCard label="Avg Order"      value={formatCurrency(d.today?.sales_count > 0 ? (d.today?.revenue ?? 0) / d.today.sales_count : 0)} icon={TrendingUp} color="green" sub="Per cover" />
+        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="blue"   sub={`${d.today?.transactions ?? 0} orders`} />
+        <StatCard label="Orders Today"   value={d.today?.transactions ?? 0}                  icon={ShoppingCart}  color="orange" sub="Completed" />
+        <StatCard label="Avg Order"      value={formatCurrency(d.today?.avg_sale ?? 0)}      icon={TrendingUp} color="green" sub="Per cover" />
         <StatCard label="Active Kitchen" value={totalActive}                                  icon={Clock}         color="amber"  sub="In progress" />
       </div>
 
@@ -197,12 +201,12 @@ export default function RestaurantDashboard() {
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">{p.product?.name ?? 'Unknown item'}</p>
                     <div className="mt-0.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div className="h-full bg-orange-400 rounded-full" style={{ width: `${Math.min(100, (p.quantity / (topProducts[0]?.quantity || 1)) * 100)}%` }} />
+                      <div className="h-full bg-orange-400 rounded-full" style={{ width: `${Math.min(100, (p.total_qty / (topProducts[0]?.total_qty || 1)) * 100)}%` }} />
                     </div>
                   </div>
-                  <span className="text-xs font-semibold text-gray-500 flex-shrink-0">{p.quantity}x</span>
+                  <span className="text-xs font-semibold text-gray-500 flex-shrink-0">{p.total_qty}x</span>
                 </div>
               ))}
             </div>

@@ -2,12 +2,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute, GuestRoute, StaffOnlyRoute } from './components/auth/RouteGuards';
+import RequirePermission from './components/auth/PermissionRoute';
 import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import POSPage from './pages/POSPage';
 import CashierPage from './pages/CashierPage';
 import SalesPage from './pages/SalesPage';
+import RefundsPage from './pages/RefundsPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
 import PurchasesPage from './pages/PurchasesPage';
@@ -80,44 +82,45 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/pos" element={<LayoutWrapper><POSPage /></LayoutWrapper>} />
             <Route path="/cashier" element={<LayoutWrapper><CashierPage /></LayoutWrapper>} />
-            <Route path="/my-sales" element={<LayoutWrapper><MySalesPage /></LayoutWrapper>} />
-            <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
             <Route element={<StaffOnlyRoute />}>
-              <Route path="/" element={<LayoutWrapper><DashboardPage /></LayoutWrapper>} />
-              <Route path="/orders" element={<LayoutWrapper><OrdersPage /></LayoutWrapper>} />
-              <Route path="/sales" element={<LayoutWrapper><SalesPage /></LayoutWrapper>} />
-              <Route path="/products" element={<LayoutWrapper><ProductsPage /></LayoutWrapper>} />
-              <Route path="/inventory" element={<LayoutWrapper><InventoryPage /></LayoutWrapper>} />
-              <Route path="/purchases" element={<LayoutWrapper><PurchasesPage /></LayoutWrapper>} />
-              <Route path="/suppliers" element={<LayoutWrapper><SuppliersPage /></LayoutWrapper>} />
-              <Route path="/customers" element={<LayoutWrapper><CustomersPage /></LayoutWrapper>} />
-              <Route path="/expenses" element={<LayoutWrapper><ExpensesPage /></LayoutWrapper>} />
-              <Route path="/reports" element={<LayoutWrapper><ReportsPage /></LayoutWrapper>} />
-              <Route path="/users" element={<LayoutWrapper><UsersPage /></LayoutWrapper>} />
-              <Route path="/settings" element={<LayoutWrapper><SettingsPage /></LayoutWrapper>} />
-              <Route path="/currencies" element={<LayoutWrapper><CurrenciesPage /></LayoutWrapper>} />
-              <Route path="/hardware" element={<LayoutWrapper><HardwarePage /></LayoutWrapper>} />
-              <Route path="/day-end" element={<LayoutWrapper><DayEndPage /></LayoutWrapper>} />
-              <Route path="/laybys" element={<LayoutWrapper><LaybyPage /></LayoutWrapper>} />
-              <Route path="/quotations" element={<LayoutWrapper><QuotationsPage /></LayoutWrapper>} />
-              <Route path="/stocktake" element={<LayoutWrapper><StocktakePage /></LayoutWrapper>} />
-              <Route path="/stock-transfers" element={<LayoutWrapper><StockTransferPage /></LayoutWrapper>} />
-              <Route path="/attendance" element={<LayoutWrapper><AttendancePage /></LayoutWrapper>} />
-              <Route path="/commissions" element={<LayoutWrapper><CommissionsPage /></LayoutWrapper>} />
-              <Route path="/audit-logs" element={<LayoutWrapper><AuditLogPage /></LayoutWrapper>} />
-              <Route path="/roles-permissions" element={<LayoutWrapper><RolePermissionPage /></LayoutWrapper>} />
-              <Route path="/webhooks" element={<LayoutWrapper><WebhooksPage /></LayoutWrapper>} />
-              <Route path="/backups" element={<LayoutWrapper><BackupPage /></LayoutWrapper>} />
-              <Route path="/cashflow" element={<LayoutWrapper><CashflowPage /></LayoutWrapper>} />
-              <Route path="/financial-report" element={<LayoutWrapper><FinancialReportPage /></LayoutWrapper>} />
-              <Route path="/salaries" element={<LayoutWrapper><SalariesPage /></LayoutWrapper>} />
-              <Route path="/rentals" element={<LayoutWrapper><RentalsPage /></LayoutWrapper>} />
-              <Route path="/stock-reconciliation" element={<LayoutWrapper><StockReconciliationPage /></LayoutWrapper>} />
-              <Route path="/stock-production" element={<LayoutWrapper><StockProductionPage /></LayoutWrapper>} />
-              <Route path="/barcode-labels" element={<LayoutWrapper><BarcodeLabelsPage /></LayoutWrapper>} />
-              <Route path="/branches" element={<LayoutWrapper><BranchesPage /></LayoutWrapper>} />
+              <Route path="/my-sales" element={<LayoutWrapper><MySalesPage /></LayoutWrapper>} />
+              <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
+              <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
+              <Route path="/" element={<RequirePermission perm="view_dashboard"><LayoutWrapper><DashboardPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/orders" element={<RequirePermission perm="view_sales"><LayoutWrapper><OrdersPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/sales" element={<RequirePermission perm="view_sales"><LayoutWrapper><SalesPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/refunds" element={<RequirePermission perm="process_refunds"><LayoutWrapper><RefundsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/products" element={<RequirePermission perm="view_products"><LayoutWrapper><ProductsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/inventory" element={<RequirePermission perm="view_inventory"><LayoutWrapper><InventoryPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/purchases" element={<RequirePermission perm="view_purchase_orders"><LayoutWrapper><PurchasesPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/suppliers" element={<RequirePermission perm="view_suppliers"><LayoutWrapper><SuppliersPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/customers" element={<RequirePermission perm="view_customers"><LayoutWrapper><CustomersPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/expenses" element={<RequirePermission perm="view_expenses"><LayoutWrapper><ExpensesPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/reports" element={<RequirePermission perm="view_reports"><LayoutWrapper><ReportsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/users" element={<RequirePermission perm="manage_users"><LayoutWrapper><UsersPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/settings" element={<RequirePermission perm="manage_settings"><LayoutWrapper><SettingsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/currencies" element={<RequirePermission perm="manage_settings"><LayoutWrapper><CurrenciesPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/hardware" element={<RequirePermission perm="manage_settings"><LayoutWrapper><HardwarePage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/day-end" element={<RequirePermission perm="view_reports"><LayoutWrapper><DayEndPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/laybys" element={<RequirePermission perm="create_sales"><LayoutWrapper><LaybyPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/quotations" element={<RequirePermission perm="create_sales"><LayoutWrapper><QuotationsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/stocktake" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StocktakePage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/stock-transfers" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockTransferPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/attendance" element={<RequirePermission perm="view_reports"><LayoutWrapper><AttendancePage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/commissions" element={<RequirePermission perm="view_reports"><LayoutWrapper><CommissionsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/audit-logs" element={<RequirePermission perm="manage_settings"><LayoutWrapper><AuditLogPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/roles-permissions" element={<RequirePermission perm="manage_settings"><LayoutWrapper><RolePermissionPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/webhooks" element={<RequirePermission perm="manage_settings"><LayoutWrapper><WebhooksPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/backups" element={<RequirePermission perm="manage_settings"><LayoutWrapper><BackupPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/cashflow" element={<RequirePermission perm="view_reports"><LayoutWrapper><CashflowPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/financial-report" element={<RequirePermission perm="view_reports"><LayoutWrapper><FinancialReportPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/salaries" element={<RequirePermission perm="view_reports"><LayoutWrapper><SalariesPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/rentals" element={<RequirePermission perm="view_reports"><LayoutWrapper><RentalsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/stock-reconciliation" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockReconciliationPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/stock-production" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockProductionPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/barcode-labels" element={<RequirePermission perm="view_products"><LayoutWrapper><BarcodeLabelsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/branches" element={<RequirePermission perm="manage_settings"><LayoutWrapper><BranchesPage /></LayoutWrapper></RequirePermission>} />
             </Route>
-            <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
           </Route>
         </Routes>
       </BrowserRouter>

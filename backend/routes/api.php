@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\CashflowController;
 use App\Http\Controllers\Api\SalaryController;
 use App\Http\Controllers\Api\RentalController;
 use App\Http\Controllers\Api\StockReconciliationController;
+use App\Http\Controllers\Api\ProductIngredientController;
 
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
@@ -35,6 +36,7 @@ Route::get('/currencies', [CurrencyController::class, 'index']); // public — n
 // KDS — public so kitchen/queue screens don't need to log in
 Route::get('/kds/orders', [\App\Http\Controllers\Api\KdsController::class, 'orders']);
 Route::patch('/kds/orders/{sale}/status', [\App\Http\Controllers\Api\KdsController::class, 'updateStatus']);
+Route::get('/network-info', [\App\Http\Controllers\Api\KdsController::class, 'networkInfo']);
 
 // Protected routes
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -53,6 +55,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Products
     Route::get('/products/search', [ProductController::class, 'search']);
+    Route::get('/products/{product}/ingredients', [ProductIngredientController::class, 'index']);
+    Route::put('/products/{product}/ingredients', [ProductIngredientController::class, 'sync']);
     Route::apiResource('products', ProductController::class);
 
     // Sales
@@ -65,10 +69,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('sales', SaleController::class)->only(['index', 'store', 'show']);
 
     // Refunds
-    Route::apiResource('refunds', RefundController::class)->only(['index', 'store', 'show']);
+    Route::middleware('permission:process_refunds')->group(function () {
+        Route::apiResource('refunds', RefundController::class)->only(['store']);
+    });
+    Route::apiResource('refunds', RefundController::class)->only(['index', 'show']);
 
     // Customers
     Route::get('/customers/{customer}/purchase-history', [CustomerController::class, 'purchaseHistory']);
+    Route::get('/customers/{customer}/loyalty', [CustomerController::class, 'loyalty']);
+    Route::post('/customers/{customer}/loyalty/redeem', [CustomerController::class, 'redeemLoyalty']);
     Route::apiResource('customers', CustomerController::class);
 
     // Suppliers

@@ -88,127 +88,48 @@ class TestDataSeeder extends Seeder
         $kgUnit  = $units['kg'] ?? $units['pc'];
         $pcUnit  = $units['pc'] ?? $units['btl'];
 
-        // All prices in USD
+        // All prices in USD — trimmed to 2 products per category (20 total) to
+        // keep the POS grid easy to test with
         $productsData = [
             // ── Spirits ──────────────────────────────────────────────────────
             ['name' => "Jack Daniel's Old No.7 750ml",  'sku' => 'JD-750',    'barcode' => '5000140204014', 'category' => 'Spirits',              'brand' => 'Jack Daniels',    'cost' => 14.50, 'price' => 22.99,  'wholesale' => 20.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 12],
-            ['name' => "Jack Daniel's Old No.7 1L",     'sku' => 'JD-1L',     'barcode' => '5000140204021', 'category' => 'Spirits',              'brand' => 'Jack Daniels',    'cost' => 18.00, 'price' => 29.99,  'wholesale' => 27.00, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 6],
-            ['name' => 'Jameson Irish Whiskey 750ml',   'sku' => 'JMN-750',   'barcode' => '5011007003234', 'category' => 'Spirits',              'brand' => 'Jameson',         'cost' => 13.00, 'price' => 21.99,  'wholesale' => 19.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 12],
-            ['name' => 'Johnnie Walker Black 750ml',    'sku' => 'JWB-750',   'barcode' => '5000267024691', 'category' => 'Spirits',              'brand' => 'Johnnie Walker',  'cost' => 16.00, 'price' => 26.99,  'wholesale' => 24.00, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 12],
-            ['name' => 'Johnnie Walker Red Label 750ml','sku' => 'JWR-750',   'barcode' => '5000267023588', 'category' => 'Spirits',              'brand' => 'Johnnie Walker',  'cost' => 10.00, 'price' => 17.99,  'wholesale' => 15.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 24],
-            ['name' => 'Smirnoff Vodka 1L',             'sku' => 'SMR-1L',    'barcode' => '5000281010212', 'category' => 'Spirits',              'brand' => 'Smirnoff',        'cost' => 9.50,  'price' => 16.99,  'wholesale' => 14.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 24],
-            ['name' => "Gordon's Gin 750ml",            'sku' => 'GRD-750',   'barcode' => '5000289905022', 'category' => 'Spirits',              'brand' => 'Smirnoff',        'cost' => 8.00,  'price' => 14.99,  'wholesale' => 12.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 12],
             ['name' => 'Amarula Cream 750ml',           'sku' => 'AMR-750',   'barcode' => '6001253001026', 'category' => 'Spirits',              'brand' => 'Amarula',         'cost' => 7.50,  'price' => 13.99,  'wholesale' => 12.00, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 12],
-            ['name' => "J&B Rare Whisky 750ml",         'sku' => 'JNB-750',   'barcode' => '5000267023717', 'category' => 'Spirits',              'brand' => 'J&B',             'cost' => 9.00,  'price' => 15.99,  'wholesale' => 14.00, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 12],
 
             // ── Wine ─────────────────────────────────────────────────────────
-            ['name' => 'Durbanville Hills Sauvignon Blanc 750ml', 'sku' => 'DHB-SB-750', 'barcode' => '6001148001017', 'category' => 'Wine', 'brand' => 'Smirnoff', 'cost' => 4.50, 'price' => 8.99,  'wholesale' => 7.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 24],
             ['name' => 'Boschendal Shiraz 750ml',               'sku' => 'BSH-SHZ-750', 'barcode' => '6001148002014', 'category' => 'Wine', 'brand' => 'Smirnoff', 'cost' => 5.00, 'price' => 9.99,  'wholesale' => 8.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 24],
-            ['name' => 'Two Oceans Cabernet 750ml',             'sku' => 'TOC-CAB-750', 'barcode' => '6001148003011', 'category' => 'Wine', 'brand' => 'Smirnoff', 'cost' => 3.50, 'price' => 6.99,  'wholesale' => 5.50, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 36],
             ['name' => 'Nederburg Stein 750ml',                 'sku' => 'NDB-STN-750', 'barcode' => '6001148004018', 'category' => 'Wine', 'brand' => 'Smirnoff', 'cost' => 3.00, 'price' => 5.99,  'wholesale' => 4.75, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 36],
 
             // ── Beer & Cider ──────────────────────────────────────────────────
-            ['name' => 'Heineken 330ml (6-Pack)',    'sku' => 'HNK-6PK',  'barcode' => '8712000046582', 'category' => 'Beer & Cider', 'brand' => 'Heineken',       'cost' => 5.50, 'price' => 9.99,  'wholesale' => 8.50, 'unit' => $pkUnit,  'tax' => $vatRate, 'reorder' => 48],
             ['name' => 'Heineken 500ml Can',         'sku' => 'HNK-500C', 'barcode' => '8712000034503', 'category' => 'Beer & Cider', 'brand' => 'Heineken',       'cost' => 1.00, 'price' => 1.99,  'wholesale' => 1.65, 'unit' => $canUnit, 'tax' => $vatRate, 'reorder' => 120],
-            ['name' => 'Castle Lager 340ml (6-Pack)','sku' => 'CSL-6PK',  'barcode' => '6001007000013', 'category' => 'Beer & Cider', 'brand' => 'Castle Lager',   'cost' => 4.50, 'price' => 7.99,  'wholesale' => 6.75, 'unit' => $pkUnit,  'tax' => $vatRate, 'reorder' => 48],
             ['name' => 'Castle Lager 330ml Can',     'sku' => 'CSL-330C', 'barcode' => '6001007000020', 'category' => 'Beer & Cider', 'brand' => 'Castle Lager',   'cost' => 0.75, 'price' => 1.49,  'wholesale' => 1.25, 'unit' => $canUnit, 'tax' => $vatRate, 'reorder' => 240],
-            ['name' => 'Savanna Dry 330ml (6-Pack)', 'sku' => 'SVD-6PK',  'barcode' => '6001007001010', 'category' => 'Beer & Cider', 'brand' => 'Savanna',        'cost' => 5.00, 'price' => 8.99,  'wholesale' => 7.50, 'unit' => $pkUnit,  'tax' => $vatRate, 'reorder' => 36],
-            ['name' => 'Brutal Fruit Ruby Apple Can','sku' => 'BRF-RA',   'barcode' => '6001007002017', 'category' => 'RTD (Ready to Drink)', 'brand' => 'Brutal Fruit', 'cost' => 0.90, 'price' => 1.79, 'wholesale' => 1.49, 'unit' => $canUnit, 'tax' => $vatRate, 'reorder' => 120],
 
             // ── Mixers & Soft Drinks ──────────────────────────────────────────
-            ['name' => 'Schweppes Tonic Water 500ml', 'sku' => 'SWP-TWR-500', 'barcode' => '5000112659223', 'category' => 'Mixers & Soft Drinks', 'brand' => 'Heineken', 'cost' => 0.45, 'price' => 0.99,  'wholesale' => 0.79, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 48],
             ['name' => 'Coca-Cola 2L',                'sku' => 'CCA-2L',      'barcode' => '5449000000996', 'category' => 'Mixers & Soft Drinks', 'brand' => 'Heineken', 'cost' => 0.60, 'price' => 1.29,  'wholesale' => 1.05, 'unit' => $btlUnit, 'tax' => $vatRate, 'reorder' => 48],
             ['name' => 'Red Bull Energy 250ml',       'sku' => 'RBL-250',     'barcode' => '9002490100070', 'category' => 'Mixers & Soft Drinks', 'brand' => 'Heineken', 'cost' => 0.90, 'price' => 1.89,  'wholesale' => 1.55, 'unit' => $canUnit, 'tax' => $vatRate, 'reorder' => 48],
 
-            // ── Water ─────────────────────────────────────────────────────────
-            ['name' => 'Aquelle Still Water 500ml (6-Pack)', 'sku' => 'AQL-6PK', 'barcode' => '6009880001011', 'category' => 'Water', 'brand' => 'Heineken', 'cost' => 1.20, 'price' => 2.49, 'wholesale' => 1.99, 'unit' => $pkUnit, 'tax' => $zeroRate, 'reorder' => 60],
-
-            // ── Tobacco / Accessories ─────────────────────────────────────────
-            ['name' => 'Marlboro Red 20s',  'sku' => 'MRL-R20', 'barcode' => '4038634002510', 'category' => 'Tobacco', 'brand' => 'Jack Daniels', 'cost' => 2.80, 'price' => 4.99, 'wholesale' => 4.50, 'unit' => $pkUnit, 'tax' => $vatRate, 'reorder' => 60],
-            ['name' => 'Camel Filter 20s',  'sku' => 'CML-F20', 'barcode' => '4038634002527', 'category' => 'Tobacco', 'brand' => 'Jack Daniels', 'cost' => 2.60, 'price' => 4.75, 'wholesale' => 4.25, 'unit' => $pkUnit, 'tax' => $vatRate, 'reorder' => 60],
-            ['name' => 'Corkscrew Wine Opener', 'sku' => 'ACC-CRK', 'barcode' => '0012345678905', 'category' => 'Accessories', 'brand' => 'Jack Daniels', 'cost' => 1.50, 'price' => 3.99, 'wholesale' => 2.99, 'unit' => $units['pc'] ?? $btlUnit, 'tax' => $vatRate, 'reorder' => 10],
-
             // ── Fresh Meat (Butcher) ──────────────────────────────────────────
             ['name' => 'Beef Mince 500g',           'sku' => 'BF-MNC-500',  'barcode' => '6009001001001', 'category' => 'Fresh Meat',         'brand' => 'Pick n Pay',   'cost' => 2.50,  'price' => 4.99,  'wholesale' => 4.25, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Beef Rump Steak 500g',      'sku' => 'BF-RST-500',  'barcode' => '6009001001002', 'category' => 'Fresh Meat',         'brand' => 'Woolworths',   'cost' => 5.00,  'price' => 8.99,  'wholesale' => 7.50, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 15],
-            ['name' => 'T-Bone Steak 350g',         'sku' => 'BF-TBN-350',  'barcode' => '6009001001003', 'category' => 'Fresh Meat',         'brand' => 'Woolworths',   'cost' => 6.50,  'price' => 11.99, 'wholesale' => 10.00,'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 10],
-            ['name' => 'Lamb Chops 500g',           'sku' => 'LMB-CHP-500', 'barcode' => '6009001001004', 'category' => 'Fresh Meat',         'brand' => 'Pick n Pay',   'cost' => 5.50,  'price' => 9.99,  'wholesale' => 8.50, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 10],
             ['name' => 'Boerewors 500g',            'sku' => 'BW-500',      'barcode' => '6009001001005', 'category' => 'Fresh Meat',         'brand' => 'Pick n Pay',   'cost' => 3.00,  'price' => 5.49,  'wholesale' => 4.75, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Pork Ribs 1kg',             'sku' => 'PRK-RBS-1KG', 'barcode' => '6009001001006', 'category' => 'Fresh Meat',         'brand' => 'Checkers',     'cost' => 5.00,  'price' => 8.49,  'wholesale' => 7.25, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 10],
-
-            // ── Poultry ───────────────────────────────────────────────────────
-            ['name' => 'Whole Chicken 1.8kg',       'sku' => 'CHK-WHL-18',  'barcode' => '6009001002001', 'category' => 'Poultry',            'brand' => 'Tiger Brands', 'cost' => 4.50,  'price' => 7.99,  'wholesale' => 6.75, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Chicken Braai Pack 1.5kg',  'sku' => 'CHK-BRP-15',  'barcode' => '6009001002002', 'category' => 'Poultry',            'brand' => 'Tiger Brands', 'cost' => 3.50,  'price' => 6.49,  'wholesale' => 5.50, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Chicken Breast Fillets 1kg','sku' => 'CHK-BRF-1KG', 'barcode' => '6009001002003', 'category' => 'Poultry',            'brand' => 'Woolworths',   'cost' => 4.00,  'price' => 7.49,  'wholesale' => 6.25, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 15],
-
-            // ── Deli & Cold Cuts ──────────────────────────────────────────────
-            ['name' => 'Sliced Salami 150g',        'sku' => 'SLM-150',     'barcode' => '6009001003001', 'category' => 'Deli & Cold Cuts',   'brand' => 'Woolworths',   'cost' => 2.00,  'price' => 3.49,  'wholesale' => 2.99, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 12],
-            ['name' => 'Smoked Pork Neck 500g',     'sku' => 'PKN-SMK-500', 'barcode' => '6009001003002', 'category' => 'Deli & Cold Cuts',   'brand' => 'Pick n Pay',   'cost' => 3.50,  'price' => 5.99,  'wholesale' => 5.00, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 10],
-            ['name' => 'Gammon Slices 200g',        'sku' => 'GMN-200',     'barcode' => '6009001003003', 'category' => 'Deli & Cold Cuts',   'brand' => 'Woolworths',   'cost' => 2.50,  'price' => 4.49,  'wholesale' => 3.75, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 12],
-
-            // ── Seafood ───────────────────────────────────────────────────────
-            ['name' => 'Fresh Hake Fillet 500g',    'sku' => 'SEA-HAK-500', 'barcode' => '6009001004001', 'category' => 'Seafood',            'brand' => 'Pick n Pay',   'cost' => 3.50,  'price' => 6.49,  'wholesale' => 5.50, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 10],
-            ['name' => 'Tiger Prawns 500g',         'sku' => 'SEA-PRW-500', 'barcode' => '6009001004002', 'category' => 'Seafood',            'brand' => 'Woolworths',   'cost' => 6.00,  'price' => 10.99, 'wholesale' => 9.25, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 8],
 
             // ── Dairy & Eggs ──────────────────────────────────────────────────
             ['name' => 'Full Cream Milk 2L',        'sku' => 'MLK-FC-2L',   'barcode' => '6009001005001', 'category' => 'Dairy & Eggs',       'brand' => 'Clover',       'cost' => 1.20,  'price' => 2.19,  'wholesale' => 1.89, 'unit' => $lUnit,  'tax' => $zeroRate, 'reorder' => 50],
             ['name' => 'Cheddar Cheese 400g',       'sku' => 'CHS-CHD-400', 'barcode' => '6009001005002', 'category' => 'Dairy & Eggs',       'brand' => 'Clover',       'cost' => 2.50,  'price' => 4.49,  'wholesale' => 3.75, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Butter 500g',               'sku' => 'BTR-500',     'barcode' => '6009001005003', 'category' => 'Dairy & Eggs',       'brand' => 'Parmalat',     'cost' => 2.00,  'price' => 3.49,  'wholesale' => 2.99, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Free Range Eggs 12-pack',   'sku' => 'EGG-12PK',    'barcode' => '6009001005004', 'category' => 'Dairy & Eggs',       'brand' => 'Woolworths',   'cost' => 1.80,  'price' => 3.29,  'wholesale' => 2.75, 'unit' => $pkUnit, 'tax' => $zeroRate, 'reorder' => 30],
 
             // ── Bread & Bakery ────────────────────────────────────────────────
             ['name' => 'White Bread 700g',          'sku' => 'BRD-WHT-700', 'barcode' => '6009001006001', 'category' => 'Bread & Bakery',     'brand' => 'Sasko',        'cost' => 0.70,  'price' => 1.29,  'wholesale' => 1.05, 'unit' => $pcUnit, 'tax' => $zeroRate, 'reorder' => 40],
             ['name' => 'Brown Bread 700g',          'sku' => 'BRD-BRN-700', 'barcode' => '6009001006002', 'category' => 'Bread & Bakery',     'brand' => 'Sasko',        'cost' => 0.75,  'price' => 1.39,  'wholesale' => 1.15, 'unit' => $pcUnit, 'tax' => $zeroRate, 'reorder' => 40],
-            ['name' => 'Sliced Bread Rolls 6-pack', 'sku' => 'BRD-RLS-6PK', 'barcode' => '6009001006003', 'category' => 'Bread & Bakery',    'brand' => 'Shoprite',     'cost' => 0.60,  'price' => 1.09,  'wholesale' => 0.89, 'unit' => $pkUnit, 'tax' => $zeroRate, 'reorder' => 30],
 
             // ── Fruit & Vegetables ────────────────────────────────────────────
             ['name' => 'Tomatoes 1kg',              'sku' => 'VEG-TOM-1KG', 'barcode' => '6009001007001', 'category' => 'Fruit & Vegetables', 'brand' => 'Pick n Pay',   'cost' => 0.60,  'price' => 1.19,  'wholesale' => 0.99, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 30],
-            ['name' => 'Potatoes 2kg',              'sku' => 'VEG-POT-2KG', 'barcode' => '6009001007002', 'category' => 'Fruit & Vegetables', 'brand' => 'Pick n Pay',   'cost' => 0.80,  'price' => 1.49,  'wholesale' => 1.25, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 30],
             ['name' => 'Apples 1.5kg',              'sku' => 'FRT-APL-15',  'barcode' => '6009001007003', 'category' => 'Fruit & Vegetables', 'brand' => 'Woolworths',   'cost' => 1.00,  'price' => 1.99,  'wholesale' => 1.69, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 20],
-            ['name' => 'Onions 1kg',                'sku' => 'VEG-ONI-1KG', 'barcode' => '6009001007004', 'category' => 'Fruit & Vegetables', 'brand' => 'Pick n Pay',   'cost' => 0.40,  'price' => 0.79,  'wholesale' => 0.65, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 30],
-
-            // ── Canned Goods ──────────────────────────────────────────────────
-            ['name' => 'Baked Beans in Sauce 410g', 'sku' => 'CAN-BBN-410', 'barcode' => '6009001008001', 'category' => 'Canned Goods',       'brand' => 'Koo',          'cost' => 0.55,  'price' => 0.99,  'wholesale' => 0.85, 'unit' => $canUnit,'tax' => $zeroRate, 'reorder' => 48],
-            ['name' => 'Chopped Tomatoes 400g',     'sku' => 'CAN-TOM-400', 'barcode' => '6009001008002', 'category' => 'Canned Goods',       'brand' => 'Koo',          'cost' => 0.45,  'price' => 0.89,  'wholesale' => 0.75, 'unit' => $canUnit,'tax' => $zeroRate, 'reorder' => 48],
-            ['name' => 'Tuna in Brine 170g',        'sku' => 'CAN-TNA-170', 'barcode' => '6009001008003', 'category' => 'Canned Goods',       'brand' => 'Lucky Star',   'cost' => 0.80,  'price' => 1.49,  'wholesale' => 1.25, 'unit' => $canUnit,'tax' => $zeroRate, 'reorder' => 36],
-
-            // ── Dry Goods & Cereals ───────────────────────────────────────────
-            ['name' => 'White Rice 2kg',            'sku' => 'DRY-RCE-2KG', 'barcode' => '6009001009001', 'category' => 'Dry Goods & Cereals','brand' => 'Tastic',       'cost' => 1.50,  'price' => 2.79,  'wholesale' => 2.35, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 40],
-            ['name' => 'Pasta 500g',                'sku' => 'DRY-PST-500', 'barcode' => '6009001009002', 'category' => 'Dry Goods & Cereals','brand' => 'Pick n Pay',   'cost' => 0.60,  'price' => 1.09,  'wholesale' => 0.89, 'unit' => $pkUnit, 'tax' => $zeroRate, 'reorder' => 36],
-            ['name' => 'Maize Meal 5kg',            'sku' => 'DRY-MZM-5KG', 'barcode' => '6009001009003', 'category' => 'Dry Goods & Cereals','brand' => 'Tiger Brands', 'cost' => 2.00,  'price' => 3.49,  'wholesale' => 2.99, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 24],
-
-            // ── Condiments & Sauces ───────────────────────────────────────────
-            ['name' => 'Sunflower Oil 2L',          'sku' => 'OIL-SFW-2L',  'barcode' => '6009001010001', 'category' => 'Condiments & Sauces','brand' => 'Pick n Pay',   'cost' => 2.50,  'price' => 4.49,  'wholesale' => 3.75, 'unit' => $lUnit,  'tax' => $zeroRate, 'reorder' => 24],
-            ['name' => 'Tomato Sauce 700ml',        'sku' => 'SOS-TOM-700', 'barcode' => '6009001010002', 'category' => 'Condiments & Sauces','brand' => 'Koo',          'cost' => 0.90,  'price' => 1.69,  'wholesale' => 1.39, 'unit' => $btlUnit,'tax' => $vatRate,  'reorder' => 24],
-            ['name' => 'Mayonnaise 750ml',          'sku' => 'SOS-MAY-750', 'barcode' => '6009001010003', 'category' => 'Condiments & Sauces','brand' => 'Pick n Pay',   'cost' => 1.20,  'price' => 2.19,  'wholesale' => 1.89, 'unit' => $btlUnit,'tax' => $vatRate,  'reorder' => 20],
 
             // ── Cleaning & Household ──────────────────────────────────────────
-            ['name' => 'Washing Powder 2kg',        'sku' => 'CLN-WSP-2KG', 'barcode' => '6009001011001', 'category' => 'Cleaning & Household','brand' => 'Omo',         'cost' => 3.00,  'price' => 5.49,  'wholesale' => 4.75, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 20],
             ['name' => 'Liquid Dish Soap 750ml',    'sku' => 'CLN-DSP-750', 'barcode' => '6009001011002', 'category' => 'Cleaning & Household','brand' => 'Sunlight',    'cost' => 1.00,  'price' => 1.79,  'wholesale' => 1.49, 'unit' => $btlUnit,'tax' => $vatRate,  'reorder' => 24],
             ['name' => 'Bleach 750ml',              'sku' => 'CLN-BLC-750', 'barcode' => '6009001011003', 'category' => 'Cleaning & Household','brand' => 'Shoprite',    'cost' => 0.70,  'price' => 1.29,  'wholesale' => 1.05, 'unit' => $btlUnit,'tax' => $vatRate,  'reorder' => 20],
-
-            // ── Personal Care ─────────────────────────────────────────────────
-            ['name' => 'Shampoo 400ml',             'sku' => 'CRE-SHP-400', 'barcode' => '6009001012001', 'category' => 'Personal Care',      'brand' => 'Pick n Pay',   'cost' => 1.80,  'price' => 3.29,  'wholesale' => 2.75, 'unit' => $btlUnit,'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Toothpaste 100ml',          'sku' => 'CRE-TPT-100', 'barcode' => '6009001012002', 'category' => 'Personal Care',      'brand' => 'Pick n Pay',   'cost' => 0.90,  'price' => 1.59,  'wholesale' => 1.35, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 24],
-            ['name' => 'Hand Soap Bar 3-pack',      'sku' => 'CRE-SBR-3PK', 'barcode' => '6009001012003', 'category' => 'Personal Care',      'brand' => 'Shoprite',     'cost' => 0.80,  'price' => 1.49,  'wholesale' => 1.25, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 30],
 
             // ── Confectionery ─────────────────────────────────────────────────
             ['name' => 'Milk Chocolate 200g',       'sku' => 'CNF-CHC-200', 'barcode' => '6009001013001', 'category' => 'Confectionery',      'brand' => 'Cadbury',      'cost' => 1.20,  'price' => 2.19,  'wholesale' => 1.89, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 30],
             ['name' => 'Wine Gums 250g',            'sku' => 'CNF-WGM-250', 'barcode' => '6009001013002', 'category' => 'Confectionery',      'brand' => 'Pick n Pay',   'cost' => 0.80,  'price' => 1.49,  'wholesale' => 1.25, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 30],
-            ['name' => 'Lollipops 12-pack',         'sku' => 'CNF-LLP-12',  'barcode' => '6009001013003', 'category' => 'Confectionery',      'brand' => 'Pick n Pay',   'cost' => 0.50,  'price' => 0.99,  'wholesale' => 0.79, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 24],
-
-            // ── Frozen Foods ──────────────────────────────────────────────────
-            ['name' => 'Chicken Nuggets 1kg',       'sku' => 'FRZ-CNG-1KG', 'barcode' => '6009001014001', 'category' => 'Frozen Foods',       'brand' => 'Tiger Brands', 'cost' => 3.00,  'price' => 5.49,  'wholesale' => 4.75, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 20],
-            ['name' => 'Vanilla Ice Cream 2L',      'sku' => 'FRZ-ICE-2L',  'barcode' => '6009001014002', 'category' => 'Frozen Foods',       'brand' => 'Parmalat',     'cost' => 2.50,  'price' => 4.49,  'wholesale' => 3.75, 'unit' => $lUnit,  'tax' => $vatRate,  'reorder' => 12],
-            ['name' => 'Frozen Mixed Vegetables 1kg','sku' => 'FRZ-MVG-1KG','barcode' => '6009001014003', 'category' => 'Frozen Foods',       'brand' => 'Pick n Pay',   'cost' => 1.50,  'price' => 2.79,  'wholesale' => 2.35, 'unit' => $kgUnit, 'tax' => $zeroRate, 'reorder' => 20],
-
-            // ── Baby Products ─────────────────────────────────────────────────
-            ['name' => 'Baby Formula 400g',         'sku' => 'BBY-FML-400', 'barcode' => '6009001015001', 'category' => 'Baby Products',      'brand' => 'Parmalat',     'cost' => 5.00,  'price' => 8.99,  'wholesale' => 7.50, 'unit' => $pkUnit, 'tax' => $zeroRate, 'reorder' => 10],
-            ['name' => 'Baby Wipes 80-pack',        'sku' => 'BBY-WPS-80',  'barcode' => '6009001015002', 'category' => 'Baby Products',      'brand' => 'Pick n Pay',   'cost' => 1.50,  'price' => 2.79,  'wholesale' => 2.35, 'unit' => $pkUnit, 'tax' => $vatRate,  'reorder' => 15],
-
-            // ── Pet Food ──────────────────────────────────────────────────────
-            ['name' => 'Dog Food 1.5kg',            'sku' => 'PET-DGF-15',  'barcode' => '6009001016001', 'category' => 'Pet Food',           'brand' => 'Pedigree',     'cost' => 3.50,  'price' => 5.99,  'wholesale' => 5.00, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 15],
-            ['name' => 'Cat Food 1kg',              'sku' => 'PET-CTF-1KG', 'barcode' => '6009001016002', 'category' => 'Pet Food',           'brand' => 'Pick n Pay',   'cost' => 2.50,  'price' => 4.49,  'wholesale' => 3.75, 'unit' => $kgUnit, 'tax' => $vatRate,  'reorder' => 10],
         ];
 
         $products = [];
@@ -245,8 +166,8 @@ class TestDataSeeder extends Seeder
     // ─────────────────────────────────────────────────────────────────────────
     private function seedStock(array $products, Warehouse $warehouse): void
     {
-        // Starting stock quantities (realistic bottle-store levels)
-        $quantities = [120, 60, 96, 84, 120, 144, 96, 72, 96, 180, 120, 240, 180, 240, 480, 360, 720, 216, 360, 240, 480, 240, 480, 120, 240, 240, 240, 48];
+        // Starting stock quantities (realistic bottle-store levels), one per product
+        $quantities = [120, 96, 84, 96, 240, 480, 240, 240, 96, 120, 180, 96, 360, 240, 240, 180, 144, 168, 240, 240];
 
         foreach ($products as $i => $product) {
             $qty = $quantities[$i] ?? 100;
@@ -288,51 +209,51 @@ class TestDataSeeder extends Seeder
         if (Sale::count() > 0) return;
         $salesScenarios = [
             // [customer_index_or_null, payment_method, [product_index => qty, ...], days_ago]
-            [0, 'cash',         [14 => 2, 22 => 1],         1],
-            [1, 'card',         [0 => 1, 18 => 1, 20 => 1], 1],
+            [0, 'cash',         [14 => 2, 6 => 1],          1],
+            [1, 'card',         [0 => 1, 18 => 1, 4 => 1],  1],
             [null, 'cash',      [14 => 3, 15 => 6],         1],
             [2, 'mobile_money', [3 => 1, 1 => 1],           1],
-            [null, 'cash',      [9 => 2, 22 => 2],          2],
-            [3, 'card',         [6 => 1, 19 => 1, 20 => 1], 2],
+            [null, 'cash',      [9 => 2, 6 => 2],           2],
+            [3, 'card',         [6 => 1, 19 => 1, 4 => 1],  2],
             [4, 'card',         [0 => 2, 2 => 1],           2],
-            [null, 'cash',      [14 => 4, 21 => 2],         3],
+            [null, 'cash',      [14 => 4, 5 => 2],          3],
             [5, 'mobile_money', [16 => 1, 17 => 4],         3],
-            [0, 'card',         [3 => 1, 22 => 1, 23 => 1], 3],
+            [0, 'card',         [3 => 1, 6 => 1, 7 => 1],   3],
             [null, 'cash',      [15 => 12, 16 => 6],        4],
             [6, 'card',         [1 => 1, 9 => 1],           4],
-            [null, 'cash',      [14 => 2, 20 => 1, 22 => 2],5],
+            [null, 'cash',      [14 => 2, 4 => 1, 6 => 2],  5],
             [1, 'mobile_money', [5 => 1, 19 => 1],          5],
             [7, 'cash',         [10 => 2, 11 => 1],         5],
             [null, 'card',      [0 => 1, 2 => 1],           6],
             [2, 'cash',         [14 => 6, 15 => 3],         6],
-            [null, 'cash',      [17 => 4, 21 => 1, 22 => 1],7],
+            [null, 'cash',      [17 => 4, 5 => 1, 6 => 1],  7],
             [3, 'card',         [4 => 1, 7 => 1],           7],
             [4, 'mobile_money', [1 => 1, 5 => 1],           8],
             [null, 'cash',      [14 => 4, 16 => 2],         8],
             [5, 'card',         [0 => 1, 9 => 2, 10 => 1],  9],
-            [null, 'cash',      [15 => 6, 22 => 2],         9],
-            [6, 'cash',         [3 => 2, 19 => 1, 20 => 1], 10],
+            [null, 'cash',      [15 => 6, 6 => 2],          9],
+            [6, 'cash',         [3 => 2, 19 => 1, 4 => 1],  10],
             [null, 'card',      [14 => 2, 17 => 2],         10],
             [0, 'mobile_money', [2 => 1, 7 => 1],           11],
             [7, 'card',         [11 => 2, 18 => 1],         12],
-            [null, 'cash',      [14 => 5, 15 => 4, 22 => 2],12],
-            [1, 'card',         [0 => 1, 5 => 1, 21 => 1],  13],
+            [null, 'cash',      [14 => 5, 15 => 4, 6 => 2], 12],
+            [1, 'card',         [0 => 1, 5 => 1, 8 => 1],   13],
             [null, 'cash',      [16 => 2, 17 => 3],         14],
             [2, 'mobile_money', [3 => 1, 9 => 1],           14],
-            [3, 'cash',         [6 => 1, 13 => 2, 22 => 1], 15],
-            [null, 'card',      [14 => 4, 20 => 2],         15],
+            [3, 'cash',         [6 => 1, 13 => 2, 12 => 1], 15],
+            [null, 'card',      [14 => 4, 4 => 2],          15],
             [4, 'cash',         [1 => 1, 4 => 1],           16],
             [5, 'card',         [10 => 1, 11 => 1, 19 => 1],17],
             [null, 'cash',      [15 => 6, 16 => 4],         18],
             [6, 'mobile_money', [0 => 1, 2 => 1],           19],
-            [null, 'cash',      [14 => 3, 22 => 1],         20],
+            [null, 'cash',      [14 => 3, 6 => 1],          20],
             [7, 'card',         [3 => 1, 5 => 1, 7 => 1],   21],
             [0, 'cash',         [9 => 2, 12 => 1],          22],
             [null, 'card',      [14 => 4, 15 => 2, 17 => 1],23],
-            [1, 'mobile_money', [1 => 1, 19 => 1, 21 => 1], 24],
-            [null, 'cash',      [16 => 3, 20 => 2],         25],
+            [1, 'mobile_money', [1 => 1, 19 => 1, 4 => 1],  24],
+            [null, 'cash',      [16 => 3, 4 => 2],          25],
             [2, 'card',         [4 => 1, 6 => 1],           26],
-            [3, 'cash',         [14 => 2, 22 => 3],         27],
+            [3, 'cash',         [14 => 2, 6 => 3],          27],
             [null, 'card',      [0 => 1, 2 => 1, 9 => 1],   28],
             [4, 'cash',         [15 => 4, 16 => 2],         29],
             [5, 'mobile_money', [3 => 1, 11 => 1, 13 => 1], 30],

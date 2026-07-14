@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { salesApi, settingsApi, branchesApi } from '../api';
-import { Search, Eye, Loader2, Printer, Receipt } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { salesApi, settingsApi, branchesApi, refundsApi } from '../api';
+import { Search, Eye, Loader2, Printer, Receipt, Undo2, X } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
+import { useAuthStore } from '../stores/authStore';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -17,11 +18,125 @@ const STATUS_COLORS: Record<string, string> = {
   partially_refunded: 'bg-purple-100 text-purple-700',
 };
 
+function RefundModal({ sale, onClose, formatAmount }: { sale: any; onClose: () => void; formatAmount: (v: number) => string }) {
+  const qc = useQueryClient();
+  const [qtys, setQtys] = useState<Record<number, string>>({});
+  const [restock, setRestock] = useState(true);
+  const [reason, setReason] = useState('');
+
+  const { data: priorRefunds = [] } = useQuery({
+    queryKey: ['refunds', sale.id],
+    queryFn: () => refundsApi.list({ sale_id: sale.id }).then((r) => r.data?.data?.data ?? r.data?.data ?? []),
+  });
+
+  const items: any[] = sale.items ?? [];
+  const alreadyRefundedBySaleItem: Record<number, number> = {};
+  for (const refund of priorRefunds as any[]) {
+    for (const ri of refund.items ?? []) {
+      alreadyRefundedBySaleItem[ri.sale_item_id] = (alreadyRefundedBySaleItem[ri.sale_item_id] ?? 0) + parseFloat(ri.quantity);
+    }
+  }
+  const refundableFor = (item: any) => Math.max(0, parseFloat(item.quantity) - (alreadyRefundedBySaleItem[item.id] ?? 0));
+
+  const refundMutation = useMutation({
+    mutationFn: () => {
+      const selected = items
+        .map((item) => ({ sale_item_id: item.id, quantity: parseFloat(qtys[item.id] || '0'), restock }))
+        .filter((i) => i.quantity > 0);
+      return refundsApi.create({ sale_id: sale.id, reason: reason || undefined, items: selected });
+    },
+    onSuccess: () => {
+      toast.success('Refund processed');
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sale', sale.id] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'Refund failed — check the local server is reachable'),
+  });
+
+  const totalRefund = items.reduce((s, item) => {
+    const q = parseFloat(qtys[item.id] || '0');
+    return s + (q > 0 ? (parseFloat(item.total) / parseFloat(item.quantity)) * q : 0);
+  }, 0);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+          <h2 className="text-lg font-bold flex items-center gap-2"><Undo2 size={18} className="text-red-500" /> Refund — {sale.reference}</h2>
+          <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50"><tr>
+                <th className="px-3 py-2 text-left text-xs text-gray-500">Product</th>
+                <th className="px-3 py-2 text-right text-xs text-gray-500">Sold</th>
+                <th className="px-3 py-2 text-right text-xs text-gray-500">Refundable</th>
+                <th className="px-3 py-2 text-right text-xs text-gray-500 w-24">Refund Qty</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {items.map((item) => {
+                  const max = refundableFor(item);
+                  return (
+                    <tr key={item.id} className={max === 0 ? 'opacity-40' : ''}>
+                      <td className="px-3 py-2">{item.product?.name}</td>
+                      <td className="px-3 py-2 text-right text-gray-500">{item.quantity}</td>
+                      <td className="px-3 py-2 text-right text-gray-500">{max}</td>
+                      <td className="px-3 py-2 text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          max={max}
+                          step="0.001"
+                          disabled={max === 0}
+                          value={qtys[item.id] ?? ''}
+                          onChange={(e) => setQtys((q) => ({ ...q, [item.id]: e.target.value }))}
+                          className="w-20 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 disabled:bg-gray-50"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="w-4 h-4 accent-red-600" />
+            <span className="text-sm text-gray-700">Return items to stock</span>
+          </label>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Reason (optional)</label>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none" />
+          </div>
+          <div className="flex justify-between text-base font-bold border-t pt-3">
+            <span>Refund Total</span><span className="text-red-600">{formatAmount(totalRefund)}</span>
+          </div>
+        </div>
+        <div className="p-6 border-t flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => refundMutation.mutate()}
+            disabled={refundMutation.isPending || totalRefund <= 0}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg text-sm disabled:opacity-50"
+          >
+            {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Undo2 size={16} />}
+            Process Refund
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SalesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [branchId, setBranchId] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [refundSale, setRefundSale] = useState<any>(null);
+  const { hasPermission, hasRole } = useAuthStore();
+  const canRefund = hasPermission('process_refunds') || hasRole('admin');
   const hw = useHardwareStore();
   const { activeCurrency, format: formatAmount } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
@@ -195,7 +310,7 @@ export default function SalesPage() {
                     <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatAmount(parseFloat(saleDetail.tax_total))}</span></div>
                     <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span className="text-amber-600">{formatAmount(parseFloat(saleDetail.total))}</span></div>
                   </div>
-                  <div className="pt-2">
+                  <div className="pt-2 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => reprintMutation.mutate(selectedSale.id)}
@@ -205,6 +320,16 @@ export default function SalesPage() {
                       {reprintMutation.isPending && reprintMutation.variables === selectedSale.id ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
                       Reprint Bill
                     </button>
+                    {canRefund && ['completed', 'partially_refunded'].includes(saleDetail.status) && (
+                      <button
+                        type="button"
+                        onClick={() => setRefundSale(saleDetail)}
+                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-red-200 text-red-600 text-sm rounded-lg hover:bg-red-50"
+                      >
+                        <Undo2 size={14} />
+                        Refund
+                      </button>
+                    )}
                   </div>
                 </>
               ) : (
@@ -213,6 +338,10 @@ export default function SalesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {refundSale && (
+        <RefundModal sale={refundSale} onClose={() => setRefundSale(null)} formatAmount={formatAmount} />
       )}
     </div>
   );

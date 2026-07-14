@@ -47,7 +47,7 @@ class DatabaseSeeder extends Seeder
 
         Role::findByName('admin')->syncPermissions(Permission::all());
         Role::findByName('manager')->syncPermissions(['view_dashboard','view_sales','create_sales','void_sales','process_refunds','view_products','manage_products','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_suppliers','view_purchase_orders','manage_purchase_orders','approve_purchase_orders','receive_goods','view_customers','manage_customers','view_expenses','manage_expenses','view_reports','view_financial_reports']);
-        Role::findByName('cashier')->syncPermissions(['create_sales']);
+        Role::findByName('cashier')->syncPermissions(['create_sales', 'void_sales']);
         Role::findByName('storekeeper')->syncPermissions(['view_dashboard','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_products','manage_products','view_purchase_orders','receive_goods']);
         Role::findByName('accountant')->syncPermissions(['view_dashboard','view_sales','view_reports','view_financial_reports','view_expenses','manage_expenses','approve_expenses']);
 
@@ -72,18 +72,11 @@ class DatabaseSeeder extends Seeder
         TaxRate::firstOrCreate(['name'=>'Standard VAT (15%)'],['rate'=>15,'is_default'=>true,'is_active'=>true]);
         TaxRate::firstOrCreate(['name'=>'Zero Rated (0%)'],['rate'=>0,'is_default'=>false,'is_active'=>true]);
 
-        // Currencies (USD as default)
+        // Currencies (USD as default) — trimmed to the three this store actually trades in
         $currencies = [
-            ['code'=>'USD','name'=>'US Dollar',          'symbol'=>'$',   'exchange_rate'=>1.000000, 'is_default'=>true],
-            ['code'=>'ZAR','name'=>'South African Rand', 'symbol'=>'R',   'exchange_rate'=>18.450000],
-            ['code'=>'EUR','name'=>'Euro',                'symbol'=>'€',   'exchange_rate'=>0.920000],
-            ['code'=>'GBP','name'=>'British Pound',       'symbol'=>'£',   'exchange_rate'=>0.790000],
-            ['code'=>'BWP','name'=>'Botswana Pula',       'symbol'=>'P',   'exchange_rate'=>13.650000],
-            ['code'=>'ZMW','name'=>'Zambian Kwacha',      'symbol'=>'ZK',  'exchange_rate'=>27.500000],
-            ['code'=>'NAD','name'=>'Namibian Dollar',     'symbol'=>'N$',  'exchange_rate'=>18.450000],
-            ['code'=>'MWK','name'=>'Malawian Kwacha',     'symbol'=>'MK',  'exchange_rate'=>1730.000000],
-            ['code'=>'KES','name'=>'Kenyan Shilling',     'symbol'=>'KSh', 'exchange_rate'=>128.500000],
-            ['code'=>'NGN','name'=>'Nigerian Naira',      'symbol'=>'₦',   'exchange_rate'=>1620.000000],
+            ['code'=>'USD','name'=>'US Dollar',           'symbol'=>'$',   'exchange_rate'=>1.000000, 'is_default'=>true],
+            ['code'=>'ZAR','name'=>'South African Rand',  'symbol'=>'R',   'exchange_rate'=>18.450000],
+            ['code'=>'ZWG','name'=>'Zimbabwe Gold',       'symbol'=>'ZiG', 'exchange_rate'=>26.800000],
         ];
         foreach ($currencies as $c) {
             Currency::firstOrCreate(['code' => $c['code']], array_merge(['is_default'=>false,'is_active'=>true], $c));
@@ -94,26 +87,22 @@ class DatabaseSeeder extends Seeder
             Unit::firstOrCreate(['abbreviation'=>$abbr],['name'=>$name,'abbreviation'=>$abbr]);
         }
 
-        // Categories
+        // Categories — a lean set covering bottle store, butcher, and supermarket
+        // (kept small on purpose so the POS grid stays easy to test with)
         $categories = [
-            // Bottle store
-            'Spirits', 'Wine', 'Beer & Cider', 'Mixers & Soft Drinks', 'Water', 'RTD (Ready to Drink)', 'Non-Alcoholic', 'Snacks & Food', 'Accessories', 'Tobacco',
-            // Butcher
-            'Fresh Meat', 'Poultry', 'Seafood', 'Deli & Cold Cuts', 'Frozen Meat',
-            // Supermarket
-            'Dairy & Eggs', 'Bread & Bakery', 'Fruit & Vegetables', 'Canned Goods', 'Dry Goods & Cereals',
-            'Condiments & Sauces', 'Cleaning & Household', 'Personal Care', 'Confectionery', 'Frozen Foods',
-            'Baby Products', 'Pet Food',
+            'Spirits', 'Wine', 'Beer & Cider', 'Mixers & Soft Drinks',
+            'Fresh Meat', 'Dairy & Eggs', 'Bread & Bakery', 'Fruit & Vegetables',
+            'Cleaning & Household', 'Confectionery',
         ];
         foreach ($categories as $name) {
             Category::firstOrCreate(['slug'=>\Illuminate\Support\Str::slug($name)],['name'=>$name,'slug'=>\Illuminate\Support\Str::slug($name),'is_active'=>true]);
         }
 
-        // Brands
+        // Brands — trimmed to only what the reduced product list references
         $brands = [
-            'Heineken', 'Castle Lager', 'Jack Daniels', 'Jameson', 'Johnnie Walker', 'Savanna', 'Brutal Fruit', 'Amarula', 'J&B', 'Smirnoff',
-            'Clover', 'Parmalat', 'Tiger Brands', 'Koo', 'Lucky Star', 'Sasko', 'Tastic', 'Omo', 'Sunlight', 'Cadbury', 'Pedigree',
-            'Pick n Pay', 'Woolworths', 'Checkers', 'Shoprite',
+            'Heineken', 'Castle Lager', 'Jack Daniels', 'Amarula', 'Smirnoff',
+            'Clover', 'Sasko', 'Sunlight', 'Cadbury',
+            'Pick n Pay', 'Woolworths', 'Shoprite',
         ];
         foreach ($brands as $name) {
             Brand::firstOrCreate(['slug'=>\Illuminate\Support\Str::slug($name)],['name'=>$name,'slug'=>\Illuminate\Support\Str::slug($name),'is_active'=>true]);
@@ -138,6 +127,7 @@ class DatabaseSeeder extends Seeder
             ['receipt_footer','Thank you for shopping with us!','pos'],
             ['low_stock_threshold','5','inventory'],
             ['multi_currency_enabled','true','pos'],
+            ['business_type','restaurant','company'],
         ] as [$key,$value,$group]) {
             Setting::firstOrCreate(['key'=>$key],['key'=>$key,'value'=>$value,'group'=>$group]);
         }

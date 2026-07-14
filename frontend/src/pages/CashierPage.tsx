@@ -10,13 +10,12 @@ import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
-import { useDBSync } from '../hooks/useDBSync';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { useServerHealth } from '../hooks/useServerHealth';
-import NumericKeypad from '../components/ui/NumericKeypad';
-import SearchModal from '../components/ui/SearchModal';
-import { Loader2, Plus, Minus, Trash2, RefreshCw, Keyboard } from 'lucide-react';
+import CashNotesPad from '../components/ui/CashNotesPad';
+import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
+import { Loader2, Plus, Minus, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -27,6 +26,8 @@ const PAY_METHODS = [
 
 type PayMethod = typeof PAY_METHODS[number]['value'];
 
+const TABLES = ['Walk-in', ...Array.from({ length: 20 }, (_, i) => `T-${i + 1}`)];
+
 export default function CashierPage() {
   const [codeInput, setCodeInput]             = useState('');
   const [matchedProducts, setMatchedProducts] = useState<any[]>([]);
@@ -34,6 +35,9 @@ export default function CashierPage() {
   const [cashTendered, setCashTendered]       = useState('');
   const [currentTime, setCurrentTime]         = useState(new Date());
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showOpenTables, setShowOpenTables]   = useState(false);
+  const [showVoidModal, setShowVoidModal]     = useState(false);
+  const [voidSearch, setVoidSearch]           = useState('');
 
   const codeRef     = useRef<HTMLInputElement>(null);
   const tenderedRef = useRef<HTMLInputElement>(null);
@@ -47,7 +51,6 @@ export default function CashierPage() {
   const currency     = activeCurrency?.symbol ?? '$';
   const branchId     = user?.branch?.id ?? 1;
 
-  useDBSync();
   const { isServerUp: isOnline } = useServerHealth();
 
   // Clock
@@ -91,10 +94,12 @@ export default function CashierPage() {
 
   // Products (IndexedDB fallback when offline)
   const { data: allProductsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['pos-products'],
+    queryKey: ['pos-products', user?.branch?.id],
     queryFn: async () => {
       try {
-        const data = await productsApi.list({ per_page: 500, is_active: 1 })
+        // Always this till's own branch — even an admin ringing up a sale here
+        // should only see what's actually on the shelf at this location.
+        const data = await productsApi.list({ per_page: 500, is_active: 1, branch_id: user?.branch?.id })
           .then(r => r.data?.data?.data ?? r.data?.data ?? []);
         db.products.clear().then(() => db.products.bulkPut(data)).catch(() => {});
         return data;
@@ -189,7 +194,7 @@ export default function CashierPage() {
       const now = new Date().toISOString();
       db.sales.put({
         id: sale?.id ?? -(Date.now()),
-        reference: sale?.reference ?? `ONLINE-${Date.now()}`,
+        reference: sale?.reference ?? `OFFLINE-${Date.now()}`,
         status: 'completed',
         total: cart.total(),
         subtotal: cart.subtotal(),
@@ -206,15 +211,16 @@ export default function CashierPage() {
         is_offline: !!result.offline,
       }).catch(() => {});
 
-      toast.success(`Sale ${sale?.reference ?? ''} complete!`);
+      if (result.offline) toast.success('Sale finalized — saved locally, will sync automatically', { duration: 4000 });
+      else toast.success('Sale finalized');
 
       void printReceipt(
         buildReceiptDataFromSale(sale ?? null, {
           storeName, storeAddress, storePhone,
           cashier: user?.name ?? '', currency,
           paymentMethod: payMethod,
-          amountTendered: payMethod === 'cash' ? parseFloat(cashTendered) || cart.total() : undefined,
-          change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - cart.total()) : undefined,
+          amountTendered: payMethod === 'cash' ? parseFloat(cashTendered) || totalDue : undefined,
+          change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - totalDue) : undefined,
           itemsFallback: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
           vatNumber: storeSettings?.company_vat_number,
           currencyCode: activeCurrency?.code ?? 'USD',
@@ -232,22 +238,72 @@ export default function CashierPage() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setTimeout(() => codeRef.current?.focus(), 80);
     },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? 'Sale failed. Please try again.');
+    },
   });
 
   // ── Hold mutation ────────────────────────────────────────────────────────────
   const holdMutation = useMutation({
     mutationFn: (payload: object) => offlineMutate(() => salesApi.hold(payload), 'sales', 'hold', payload as Record<string, unknown>),
     onSuccess: (_result) => {
-      toast.success('Order held!');
+      toast.success(cart.tableNumber !== 'Walk-in' ? `Order held for ${cart.tableNumber}` : 'Order held!');
       cart.clearCart();
+      cart.setTableNumber('Walk-in');
+      qc.invalidateQueries({ queryKey: ['open-tables'] });
       setTimeout(() => codeRef.current?.focus(), 80);
     },
+  });
+
+  // ── Open Tables (held orders) ────────────────────────────────────────────────
+  const { data: heldOrdersData } = useQuery({
+    queryKey: ['open-tables', branchId],
+    queryFn: () => salesApi.listHeld({ branch_id: branchId }).then(r => r.data?.data ?? []),
+    refetchInterval: 15000,
+  });
+  const heldOrders: any[] = Array.isArray(heldOrdersData) ? heldOrdersData : [];
+
+  const deleteHeldMutation = useMutation({
+    mutationFn: (id: number) => salesApi.deleteHeld(id),
+    onSuccess: () => { toast.success('Table cleared'); qc.invalidateQueries({ queryKey: ['open-tables'] }); },
+  });
+
+  const resumeHeldOrder = (held: any) => {
+    if (cart.items.length > 0 && !confirm('This will replace the current order. Continue?')) return;
+    cart.clearCart();
+    const data = held.cart_data ?? {};
+    (data.items ?? []).forEach((it: any) => {
+      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0 });
+      cart.updateQty(it.product_id, it.quantity);
+    });
+    cart.setTableNumber(held.table_number || 'Walk-in');
+    deleteHeldMutation.mutate(held.id);
+    setShowOpenTables(false);
+  };
+
+  // ── Void sale ─────────────────────────────────────────────────────────────────
+  const { data: voidResultsData, isFetching: voidSearching } = useQuery({
+    queryKey: ['void-search', voidSearch, branchId],
+    queryFn: () => salesApi.list({ search: voidSearch, branch_id: branchId, per_page: 8 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    enabled: showVoidModal && voidSearch.trim().length > 0,
+  });
+  const voidResults: any[] = (Array.isArray(voidResultsData) ? voidResultsData : []).filter((s: any) => s.status === 'completed');
+
+  const voidMutation = useMutation({
+    mutationFn: (id: number) => salesApi.cancel(id),
+    onSuccess: () => {
+      toast.success('Sale voided');
+      qc.invalidateQueries({ queryKey: ['void-search'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not void this sale'),
   });
 
   const buildSalePayload = () => ({
     branch_id:      branchId,
     warehouse_id:   1,
     customer_id:    null,
+    table_number:   cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
     items: cart.items.map(i => ({
       product_id:         i.product_id,
       product_variant_id: i.variant_id,
@@ -262,17 +318,16 @@ export default function CashierPage() {
 
   const handleProcessSale = () => {
     if (cart.items.length === 0) return;
-    if (payMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < cart.total())) {
+    if (payMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)) {
       toast.error('Enter cash amount — must cover the total');
       tenderedRef.current?.focus();
       return;
     }
 
-    if (!isOnline) {
-      toast.error('Local server is starting up — wait a moment and try again');
-      return;
-    }
-
+    // Don't block the sale if the local server's health-check poll hasn't
+    // answered recently — offlineMutate() queues it locally and syncs
+    // automatically once the server responds, so the cashier should never
+    // be stopped from completing a transaction.
     saleMutation.mutate(buildSalePayload());
   };
 
@@ -280,6 +335,7 @@ export default function CashierPage() {
     if (cart.items.length === 0) return;
     holdMutation.mutate({
       branch_id: branchId,
+      table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
       cart_data: { items: cart.items, subtotal: cart.subtotal(), tax: cart.taxTotal(), total: cart.total(), discount: 0 },
     });
   };
@@ -309,11 +365,20 @@ export default function CashierPage() {
   }, []);
 
   // ── Derived values ───────────────────────────────────────────────────────────
+  // cart.total() is always in the base currency (USD). Cash is tendered and
+  // compared in whatever currency the cashier has selected (the note buttons,
+  // "Exact", and everything the cashier types are all in that currency) — so
+  // every comparison against the amount due must use the converted figure,
+  // not the raw USD total, or "Exact"/change/the process-sale gate all break
+  // the moment a non-USD currency is active.
   const total      = cart.total();
+  const exchangeRate = activeCurrency?.exchange_rate ?? 1;
+  const totalDue   = total * exchangeRate;
   const tendered   = parseFloat(cashTendered) || 0;
-  const change     = payMethod === 'cash' && tendered > total ? tendered - total : 0;
+  const change     = payMethod === 'cash' && tendered > totalDue ? tendered - totalDue : 0;
   const canProcess = cart.items.length > 0 && !saleMutation.isPending &&
-    (payMethod !== 'cash' || tendered >= total);
+    (payMethod !== 'cash' || tendered >= totalDue);
+  const fmtActive  = (n: number) => `${activeCurrency?.symbol ?? '$'}${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
 
   const fmtTime = (d: Date) => d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const fmtDate = (d: Date) => d.toLocaleDateString('en-ZA');
@@ -325,11 +390,38 @@ export default function CashierPage() {
     <div className="-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
       {/* ── Header card ────────────────────────────────────────────────────── */}
-      <div className="mx-4 mt-4 mb-3 flex-shrink-0">
-        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-5 py-3 flex items-center justify-between">
+      <div className="mx-4 mt-2 mb-2 flex-shrink-0">
+        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-5">
             <span className="text-blue-600 font-bold text-base">{storeName}</span>
             <span className="text-gray-400 text-sm">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
+            <div className="flex items-center gap-1.5">
+              <TableProperties size={14} className="text-gray-400 flex-shrink-0" />
+              <select
+                value={cart.tableNumber}
+                onChange={(e) => cart.setTableNumber(e.target.value)}
+                className="text-sm border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+              >
+                {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowOpenTables(true)}
+              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
+            >
+              <LayoutGrid size={13} /> Open Tables
+              {heldOrders.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowVoidModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors touch-manipulation"
+            >
+              <Ban size={13} /> Void
+            </button>
           </div>
           <div className="flex items-center gap-4 text-sm">
             {!isOnline ? (
@@ -348,8 +440,8 @@ export default function CashierPage() {
       </div>
 
       {/* ── Scan / PLU card ────────────────────────────────────────────────── */}
-      <div className="mx-4 mb-3 flex-shrink-0">
-        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-5 py-3">
+      <div className="mx-4 mb-2 flex-shrink-0">
+        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-4 py-2">
           <form onSubmit={handleCodeSubmit} className="flex items-center gap-3">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">
               Scan / PLU
@@ -475,23 +567,23 @@ export default function CashierPage() {
           </div>
         </div>
 
-        {/* Right: payment column */}
-        <div className="w-[33.333%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[500px] max-w-[580px] flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
+        {/* Right: payment column — 40% width, stretches to fill the full height with generous touch-sized buttons */}
+        <div className="w-[40%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[560px] max-w-[640px] flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
 
           {/* Total box */}
-          <div className="bg-blue-600 rounded-lg shadow-lg shadow-blue-200 px-6 py-5 flex items-center justify-between flex-shrink-0">
+          <div className="bg-blue-600 rounded-lg shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
             <span className="text-white/70 font-semibold text-base tracking-wide">TOTAL</span>
-            <span className="text-white font-bold text-3xl tabular-nums font-mono">{formatCurrency(total)}</span>
+            <span className="text-white font-bold text-4xl tabular-nums font-mono">{formatCurrency(total)}</span>
           </div>
 
           {/* Payment method card */}
-          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 flex-shrink-0">
-            <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Payment Method</p>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-shrink-0">
+            <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Payment Method</p>
+            <div className="grid grid-cols-3 gap-2">
               {PAY_METHODS.map(({ value, label, key, activeClass }) => (
                 <button key={value} type="button"
                   onClick={() => setPayMethod(value)}
-                  className={`flex flex-col items-center py-5 rounded-md border-2 font-bold text-sm transition-all touch-manipulation
+                  className={`flex flex-col items-center py-3 rounded-md border-2 font-bold text-base transition-all touch-manipulation
                     ${payMethod === value
                       ? activeClass
                       : 'border-gray-200 text-gray-500 bg-white hover:border-blue-200 hover:bg-blue-50'
@@ -504,36 +596,45 @@ export default function CashierPage() {
             </div>
 
             {payMethod === 'cash' && (
-              <div className="mt-5 space-y-3">
-                <NumericKeypad
+              <div className="mt-3">
+                <CashNotesPad
                   value={cashTendered}
                   onChange={setCashTendered}
                   onConfirm={handleProcessSale}
                   label="Cash Tendered"
-                  confirmLabel={change > 0 ? `✓  Change: ${formatCurrency(change)}` : '✓ Process Sale'}
+                  currencyCode={activeCurrency?.code ?? 'USD'}
+                  totalDue={totalDue}
+                  size="large"
+                  confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process Sale'}
                   confirmCls={canProcess ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
-                  disabled={!canProcess && cart.items.length === 0}
+                  disabled={cart.items.length === 0}
                 />
               </div>
             )}
           </div>
 
           {/* Action buttons card */}
-          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-3 flex-shrink-0">
-            <button type="button"
-              onClick={handleProcessSale}
-              disabled={!canProcess}
-              className="w-full py-5 rounded-md font-bold text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 touch-manipulation"
-            >
-              {saleMutation.isPending
-                ? <span className="flex items-center justify-center gap-2">
-                    <Loader2 size={18} className="animate-spin" /> Processing...
-                  </span>
-                : <span>F9 — Process Order {formatCurrency(total)}</span>
-              }
-            </button>
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-2 flex-shrink-0">
+            {/* For cash, CashNotesPad above already has its own confirm/process
+                button — showing a second "Process Order" button here just
+                duplicates it and pushes the column past the viewport, forcing
+                a scroll. Only show it for card/mobile, which have no pad. */}
+            {payMethod !== 'cash' && (
+              <button type="button"
+                onClick={handleProcessSale}
+                disabled={!canProcess}
+                className="w-full py-6 rounded-md font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 touch-manipulation"
+              >
+                {saleMutation.isPending
+                  ? <span className="flex items-center justify-center gap-2">
+                      <Loader2 size={20} className="animate-spin" /> Processing...
+                    </span>
+                  : <span>F9 — Process Order {formatCurrency(total)}</span>
+                }
+              </button>
+            )}
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-3">
               <button type="button"
                 onClick={() => { cart.clearCart(); setCashTendered(''); setTimeout(() => codeRef.current?.focus(), 40); }}
                 disabled={cart.items.length === 0}
@@ -548,17 +649,16 @@ export default function CashierPage() {
               </button>
               <button type="button"
                 onClick={() => window.location.reload()}
-                className="py-4 rounded-md border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1"
-                title="Refresh if frozen">
+                className="py-4 rounded-md border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
                 <RefreshCw size={14} /> Refresh
               </button>
             </div>
           </div>
 
-          {/* Restaurant: live orders panel */}
-          {isRestaurant && (
-            <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-shrink-0">
-              <div className="flex items-center justify-between mb-3">
+          {/* Restaurant: live orders panel — grows to fill any remaining height */}
+          {isRestaurant ? (
+            <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-1 flex flex-col min-h-[140px]">
+              <div className="flex items-center justify-between mb-2 flex-shrink-0">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   {kdsOrders.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block" />}
                   Live Orders
@@ -574,7 +674,7 @@ export default function CashierPage() {
               {kdsOrders.length === 0 ? (
                 <p className="text-xs text-gray-300 text-center py-3">No active kitchen orders</p>
               ) : (
-                <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                <div className="space-y-1.5 flex-1 overflow-y-auto">
                   {kdsOrders.map((o: any) => {
                     const style: Record<string, string> = {
                       new:       'bg-blue-50   border-blue-200   text-blue-700',
@@ -599,6 +699,11 @@ export default function CashierPage() {
                 </div>
               )}
             </div>
+          ) : (
+            // No Live Orders panel for a supermarket till — an empty flex-1 filler
+            // keeps the column stretched to the full height instead of leaving a
+            // dead gap under the action buttons.
+            <div className="flex-1" />
           )}
 
         </div>
@@ -607,7 +712,7 @@ export default function CashierPage() {
 
     {/* Touch keyboard search modal */}
     {showSearchModal && (
-      <SearchModal
+      <OnScreenKeyboard
         value={codeInput}
         onChange={(v) => { setCodeInput(v); setMatchedProducts([]); }}
         onClose={() => {
@@ -625,6 +730,99 @@ export default function CashierPage() {
         placeholder="Scan barcode or type product name..."
         label="Product Search"
       />
+    )}
+
+    {/* Open Tables — currently held/parked orders */}
+    {showOpenTables && (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+        <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
+          <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
+            <h2 className="text-lg font-bold flex items-center gap-2"><LayoutGrid size={18} className="text-amber-600" /> Open Tables</h2>
+            <button type="button" onClick={() => setShowOpenTables(false)}><X size={20} className="text-gray-400" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-2">
+            {heldOrders.length === 0 ? (
+              <p className="text-center text-gray-400 py-10 text-sm">No open tables — held orders will show up here</p>
+            ) : (
+              heldOrders.map((held: any) => {
+                const itemsCount = (held.cart_data?.items ?? []).length;
+                const total = held.cart_data?.total ?? 0;
+                return (
+                  <div key={held.id} className="flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3">
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">{held.table_number || 'Walk-in'}</p>
+                      <p className="text-xs text-gray-400">{itemsCount} item{itemsCount !== 1 ? 's' : ''} · {formatCurrency(total)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => resumeHeldOrder(held)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md touch-manipulation"
+                      >
+                        <PlayCircle size={13} /> Resume
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { if (confirm('Clear this table? The held order will be removed.')) deleteHeldMutation.mutate(held.id); }}
+                        className="p-1.5 text-gray-300 hover:text-red-500 rounded-md"
+                        title="Clear table"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Void sale */}
+    {showVoidModal && (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+        <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
+          <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
+            <h2 className="text-lg font-bold flex items-center gap-2"><Ban size={18} className="text-red-500" /> Void a Sale</h2>
+            <button type="button" onClick={() => { setShowVoidModal(false); setVoidSearch(''); }}><X size={20} className="text-gray-400" /></button>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                autoFocus
+                value={voidSearch}
+                onChange={(e) => setVoidSearch(e.target.value)}
+                placeholder="Search by receipt reference..."
+                className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 focus:border-red-400 rounded-lg text-sm focus:outline-none"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto space-y-2">
+              {voidSearching && <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-gray-400" /></div>}
+              {!voidSearching && voidSearch.trim() && voidResults.length === 0 && (
+                <p className="text-center text-gray-400 text-sm py-4">No completed sale matches "{voidSearch}"</p>
+              )}
+              {voidResults.map((s: any) => (
+                <div key={s.id} className="flex items-center justify-between border border-gray-200 rounded-lg px-4 py-2.5">
+                  <div>
+                    <p className="font-mono text-sm font-semibold text-gray-900">{s.reference}</p>
+                    <p className="text-xs text-gray-400">{formatCurrency(parseFloat(s.total))} · {s.items_count ?? s.items?.length ?? 0} items</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { if (confirm(`Void sale ${s.reference}? Stock will be restored.`)) voidMutation.mutate(s.id); }}
+                    disabled={voidMutation.isPending}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-md disabled:opacity-50 touch-manipulation"
+                  >
+                    Void
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

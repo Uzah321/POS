@@ -25,6 +25,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // jsPDF (added for the stock-sheet export) pushed the main bundle past the
+        // default 2 MiB precache limit — raise it so the build doesn't fail.
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Remove caches from previous SW versions so old data does not serve stale responses
         cleanupOutdatedCaches: true,
         // Take control immediately without waiting for tabs to close

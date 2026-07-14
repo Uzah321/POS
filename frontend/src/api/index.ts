@@ -14,6 +14,9 @@ export const productsApi = {
   create: (data: object) => api.post('/products', data),
   update: (id: number, data: object) => api.put(`/products/${id}`, data),
   delete: (id: number) => api.delete(`/products/${id}`),
+  getIngredients: (id: number) => api.get(`/products/${id}/ingredients`),
+  syncIngredients: (id: number, ingredients: Array<{ ingredient_product_id: number; quantity: number }>) =>
+    api.put(`/products/${id}/ingredients`, { ingredients }),
 };
 
 export const salesApi = {
@@ -31,6 +34,7 @@ export const salesApi = {
 
 export const refundsApi = {
   list: (params?: object) => api.get('/refunds', { params }),
+  get: (id: number) => api.get(`/refunds/${id}`),
   create: (data: object) => api.post('/refunds', data),
 };
 
@@ -41,6 +45,8 @@ export const customersApi = {
   update: (id: number, data: object) => api.put(`/customers/${id}`, data),
   delete: (id: number) => api.delete(`/customers/${id}`),
   history: (id: number, params?: object) => api.get(`/customers/${id}/purchase-history`, { params }),
+  getLoyalty: (id: number) => api.get(`/customers/${id}/loyalty`),
+  redeemLoyalty: (id: number, points: number, note?: string) => api.post(`/customers/${id}/loyalty/redeem`, { points, note }),
 };
 
 export const suppliersApi = {

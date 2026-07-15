@@ -366,15 +366,20 @@ export default function ProductsPage() {
     queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
     staleTime: 120000,
   });
+  // No mutation in the app (stock adjustments, GRV, transfers, stocktakes, sales)
+  // invalidates these two keys, so they're kept fresh by polling instead — otherwise
+  // they'd silently drift out of sync with the (always-fresh) product table below.
   const { data: lowStockMeta } = useQuery({
     queryKey: ['inventory-low-count'],
     queryFn: () => inventoryApi.stockLevels({ filter: 'low', per_page: 1 }).then(r => r.data?.data),
-    staleTime: 60000,
+    staleTime: 0,
+    refetchInterval: 20000,
   });
   const { data: outStockMeta } = useQuery({
     queryKey: ['inventory-out-count'],
     queryFn: () => inventoryApi.stockLevels({ filter: 'out', per_page: 1 }).then(r => r.data?.data),
-    staleTime: 60000,
+    staleTime: 0,
+    refetchInterval: 20000,
   });
 
   const { data: brandsAll } = useQuery({
@@ -430,10 +435,11 @@ export default function ProductsPage() {
   // Summary stats " use server-side totals for accuracy across all pages
   const totalItems = meta?.total ?? products.length;
   const totalCategories = (categoriesAll as any[])?.length ?? new Set(products.map((p: any) => p.category?.name).filter(Boolean)).size;
-  const lowStock = lowStockMeta?.meta?.total ?? lowStockMeta?.total ?? products.filter((p: any) => (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_level ?? 5)).length;
-  const outOfStock = outStockMeta?.meta?.total ?? outStockMeta?.total ?? products.filter((p: any) => (p.total_stock ?? 0) <= 0).length;
+  const lowStock = lowStockMeta?.meta?.total ?? lowStockMeta?.total ?? products.filter((p: any) => p.track_stock !== false && (p.total_stock ?? 0) > 0 && (p.total_stock ?? 0) <= (p.reorder_level ?? 5)).length;
+  const outOfStock = outStockMeta?.meta?.total ?? outStockMeta?.total ?? products.filter((p: any) => p.track_stock !== false && (p.total_stock ?? 0) <= 0).length;
 
   const getStockStatus = (p: any) => {
+    if (p.track_stock === false) return { label: 'In Stock', cls: 'bg-emerald-100 text-emerald-700' };
     const s = p.total_stock ?? 0;
     if (s <= 0) return { label: 'Out of Stock', cls: 'bg-red-100 text-red-700' };
     if (s <= (p.reorder_level ?? 5)) return { label: 'Low Stock', cls: 'bg-orange-100 text-orange-700' };

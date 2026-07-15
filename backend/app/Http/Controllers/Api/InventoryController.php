@@ -38,10 +38,10 @@ class InventoryController extends BaseApiController
                       ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
                 });
             })
-            ->when($filter === 'low', fn($q) => $q->whereRaw(
+            ->when($filter === 'low', fn($q) => $q->where('track_stock', true)->whereRaw(
                 'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) > 0 AND COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= products.reorder_level'
             ))
-            ->when($filter === 'out', fn($q) => $q->whereRaw(
+            ->when($filter === 'out', fn($q) => $q->where('track_stock', true)->whereRaw(
                 'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= 0'
             ));
 

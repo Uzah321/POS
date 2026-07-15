@@ -12,6 +12,7 @@ import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from 
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
+import { effectiveTaxRate } from '../lib/taxSettings';
 import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
@@ -144,7 +145,7 @@ export default function CashierPage() {
     // Block sale if stock is zero/negative and setting is enabled
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNeg = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-    if (blockNeg && stock !== null && stock <= 0) {
+    if (blockNeg && product.track_stock !== false && stock !== null && stock <= 0) {
       toast.error(`${product.name} is out of stock`);
       return;
     }
@@ -154,7 +155,7 @@ export default function CashierPage() {
       sku:        product.sku,
       price:      parseFloat(product.selling_price),
       cost:       parseFloat(product.cost_price || 0),
-      tax_rate:   product.tax_rate?.rate || 0,
+      tax_rate:   effectiveTaxRate(product, storeSettings),
     });
     setCodeInput('');
     setMatchedProducts([]);
@@ -223,9 +224,15 @@ export default function CashierPage() {
           change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - totalDue) : undefined,
           itemsFallback: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
           vatNumber: storeSettings?.company_vat_number,
+          tinNumber: storeSettings?.company_tin_number,
           currencyCode: activeCurrency?.code ?? 'USD',
           currencyRate: activeCurrency?.exchange_rate ?? 1,
           posNumber: String(user?.branch?.id ?? 1),
+          branchName: user?.branch?.name,
+          deviceId: storeSettings?.fiscal_device_id || undefined,
+          fiscalDay: storeSettings?.fiscal_day || undefined,
+          recGn: storeSettings?.fiscal_rec_gn || undefined,
+          rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode)
       ).catch((err: any) => toast.error(err?.message ?? 'Receipt printing failed'));

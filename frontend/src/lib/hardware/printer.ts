@@ -73,6 +73,17 @@ export interface ReceiptData {
   currencyCode?: string;
   currencyRate?: number;
   orderType?: 'sit_in' | 'takeaway' | 'delivery';
+  // Order-info block (mirrors a fiscal till slip's header rows)
+  branchName?: string;
+  orderNum?: string;
+  customerName?: string;
+  covers?: number;
+  tableNumber?: string;
+  // Fiscal device identifiers — printed as-is from Settings, never generated here
+  deviceId?: string;
+  fiscalDay?: string;
+  recGn?: string;
+  rec68?: string;
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'none';
@@ -98,6 +109,15 @@ export interface BuildReceiptOptions {
   currencyCode?: string;
   currencyRate?: number;
   orderType?: 'sit_in' | 'takeaway' | 'delivery';
+  branchName?: string;
+  orderNum?: string;
+  customerName?: string;
+  covers?: number;
+  tableNumber?: string;
+  deviceId?: string;
+  fiscalDay?: string;
+  recGn?: string;
+  rec68?: string;
 }
 
 function orderTypeLabel(orderType: 'sit_in' | 'takeaway' | 'delivery'): string {
@@ -143,7 +163,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
   const discount = money(sale?.discount_total ?? sale?.discount_amount ?? sale?.discount_value);
 
   return {
-    storeName: options.storeName ?? sale?.branch?.name ?? 'Core',
+    storeName: options.storeName ?? 'Core',
     storeAddress: sale?.branch?.address ?? options.storeAddress,
     storePhone: sale?.branch?.phone ?? options.storePhone,
     reference: sale?.reference ?? `#${sale?.id ?? 'SALE'}`,
@@ -167,6 +187,15 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     currencyCode: options.currencyCode,
     currencyRate: options.currencyRate ?? 1,
     orderType: options.orderType,
+    branchName: options.branchName ?? sale?.branch?.name,
+    orderNum: options.orderNum ?? (sale?.id != null ? String(sale.id) : undefined),
+    customerName: options.customerName ?? sale?.customer?.name,
+    covers: options.covers,
+    tableNumber: options.tableNumber ?? sale?.table_number ?? undefined,
+    deviceId: options.deviceId,
+    fiscalDay: options.fiscalDay,
+    recGn: options.recGn,
+    rec68: options.rec68,
   };
 }
 
@@ -222,6 +251,9 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
     ESC_DWIDTH_ON, line(cut(d.storeName, 16)), ESC_DWIDTH_OFF,
   ];
 
+  if (d.branchName && d.branchName !== d.storeName) {
+    parts.push(ESC_BOLD_ON, line(cut(d.branchName, W)), ESC_BOLD_OFF);
+  }
   if (d.tradingName && d.tradingName !== d.storeName) {
     parts.push(line('T/A'), ESC_BOLD_ON, line(cut(d.tradingName, W)), ESC_BOLD_OFF);
   }
@@ -230,17 +262,18 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
       parts.push(line(cut(seg, W)));
     }
   }
-
-  parts.push(ESC_ALIGN_LEFT);
-  if (d.tinNumber)  parts.push(line(`TIN ${d.tinNumber}`));
-  if (d.vatNumber)  parts.push(line(`VAT No ${d.vatNumber}`));
-  if (d.storePhone) parts.push(line(`CELL: ${d.storePhone}`));
-  parts.push(line(`Currency ${currCode || d.currency}`));
   parts.push(divider());
 
-  parts.push(ESC_BOLD_ON, line(pad(`ORDER NUMBER: ${d.reference}`, `POS ${d.posNumber ?? '1'}`)), ESC_BOLD_OFF);
-  parts.push(line(pad(`Doc No ${d.reference}`, timeStr)));
-  parts.push(ESC_ALIGN_CENTER, line(dateStr), line('All Prices VAT Inclusive'));
+  // Order-info block
+  parts.push(ESC_ALIGN_LEFT);
+  if (d.orderNum) parts.push(line(`Order Num : ${d.orderNum}`));
+  parts.push(line(`Tax Inv No : ${d.reference}`));
+  if (d.customerName) parts.push(line(`Customer : ${d.customerName}`));
+  if (d.covers) parts.push(line(`Covers : ${d.covers}`));
+  parts.push(line(`Cashier : ${d.cashier}`));
+  if (d.tableNumber) parts.push(line(`Table : ${d.tableNumber}`));
+
+  parts.push(ESC_ALIGN_CENTER, line(pad(dateStr, timeStr)), line('All Prices VAT Inclusive'));
   if (d.orderType) {
     parts.push(bytes(LF), ESC_BOLD_ON, line(`** ${orderTypeLabel(d.orderType)} **`), ESC_BOLD_OFF);
   }
@@ -260,9 +293,9 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
   parts.push(divider());
 
   parts.push(
-    line(pad('Net Amount', fmt2(net))),
-    line(pad(`VAT (VT ${pct}%)`, fmt2(vat))),
-    ESC_BOLD_ON, line(pad('Gross Amount (VT)', fmt2(gross))), ESC_BOLD_OFF,
+    line(pad('Total Excl', fmt2(net))),
+    line(pad(`Output Tax (${pct}%)`, fmt2(vat))),
+    ESC_BOLD_ON, line(pad('Total Incl', fmt2(gross))), ESC_BOLD_OFF,
     divider(),
     ESC_BOLD_ON, line(pad('TOTAL', fmt2(gross))), ESC_BOLD_OFF,
   );
@@ -275,7 +308,16 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
   if (d.amountTendered !== undefined) {
     parts.push(line(`${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}`));
   }
-  parts.push(line(`CASHIER: ${d.cashier}`));
+
+  // Fiscal footer — business registration details
+  parts.push(divider());
+  if (d.storePhone) parts.push(line(`Tel : ${d.storePhone}`));
+  if (d.vatNumber)  parts.push(line(`VAT No : ${d.vatNumber}`));
+  if (d.tinNumber)  parts.push(line(`TIN No : ${d.tinNumber}`));
+  if (d.deviceId)   parts.push(line(`Device Id : ${d.deviceId}`));
+  if (d.recGn)      parts.push(line(`REC GN : ${d.recGn}`));
+  if (d.rec68)      parts.push(line(`REC 68 : ${d.rec68}`));
+  if (d.fiscalDay)  parts.push(line(`Fiscal Day : ${d.fiscalDay}`));
 
   parts.push(
     bytes(LF),
@@ -410,16 +452,17 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
 <div class="center bold">${s.headerTitle || '***FISCAL TAX INVOICE***'}</div>
 <br>
 <div class="center large">${d.storeName}</div>
+${d.branchName && d.branchName !== d.storeName ? `<div class="center bold">${d.branchName}</div>` : ''}
 ${d.tradingName && d.tradingName !== d.storeName ? `<div class="center">T/A</div><div class="center bold">${d.tradingName}</div>` : ''}
 ${addrLines}
-${d.tinNumber ? `<div>TIN ${d.tinNumber}</div>` : ''}
-${d.vatNumber ? `<div>VAT No ${d.vatNumber}</div>` : ''}
-${d.storePhone ? `<div>CELL: ${d.storePhone}</div>` : ''}
-<div>Currency ${currCode || d.currency}</div>
 <div class="divider"></div>
-<div class="row"><span class="bold">ORDER: ${d.reference}</span><span>POS ${d.posNumber ?? '1'}</span></div>
-<div class="row"><span>Doc ${d.reference}</span><span>${timeStr}</span></div>
-<div class="center">${dateStr}</div>
+${d.orderNum ? `<div>Order Num : ${d.orderNum}</div>` : ''}
+<div>Tax Inv No : ${d.reference}</div>
+${d.customerName ? `<div>Customer : ${d.customerName}</div>` : ''}
+${d.covers ? `<div>Covers : ${d.covers}</div>` : ''}
+${s.showCashierName ? `<div>Cashier : ${d.cashier}</div>` : ''}
+${d.tableNumber ? `<div>Table : ${d.tableNumber}</div>` : ''}
+<div class="row"><span>${dateStr}</span><span>${timeStr}</span></div>
 ${s.showVatNote ? '<div class="center">All Prices VAT Inclusive</div>' : ''}
 ${s.showOrderType && d.orderType ? `<br><div class="center bold">** ${orderTypeLabel(d.orderType)} **</div>` : ''}
 <div class="divider"></div>
@@ -428,9 +471,9 @@ ${s.showOrderType && d.orderType ? `<br><div class="center bold">** ${orderTypeL
 ${itemRows}
 <div class="divider"></div>
 ${s.showVatBreakdown ? `
-<div class="row"><span>Net Amount</span><span class="v">${fmt2(net)}</span></div>
-<div class="row"><span>VAT (${pct}%)</span><span class="v">${fmt2(vat)}</span></div>
-<div class="row bold"><span>Gross (VT)</span><span class="v">${fmt2(gross)}</span></div>
+<div class="row"><span>Total Excl</span><span class="v">${fmt2(net)}</span></div>
+<div class="row"><span>Output Tax (${pct}%)</span><span class="v">${fmt2(vat)}</span></div>
+<div class="row bold"><span>Total Incl</span><span class="v">${fmt2(gross)}</span></div>
 <div class="divider"></div>` : ''}
 <div class="row bold"><span>TOTAL</span><span class="v">${fmt2(gross)}</span></div>
 ${d.amountTendered !== undefined ? `<div class="row"><span>TENDERED</span><span class="v">${fmt2(d.amountTendered)}</span></div>` : ''}
@@ -440,7 +483,14 @@ ${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>CHANGE</span
 <div class="divider"></div>
 <div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()} ${currCode}</div>
 ${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}</div>` : ''}
-${s.showCashierName ? `<div>CASHIER: ${d.cashier}</div>` : ''}
+<div class="divider"></div>
+${d.storePhone ? `<div>Tel : ${d.storePhone}</div>` : ''}
+${d.vatNumber ? `<div>VAT No : ${d.vatNumber}</div>` : ''}
+${d.tinNumber ? `<div>TIN No : ${d.tinNumber}</div>` : ''}
+${d.deviceId ? `<div>Device Id : ${d.deviceId}</div>` : ''}
+${d.recGn ? `<div>REC GN : ${d.recGn}</div>` : ''}
+${d.rec68 ? `<div>REC 68 : ${d.rec68}</div>` : ''}
+${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}
 <br>
 <div class="center bold">FISCAL TAX INVOICE</div>
 <div class="solid"></div>

@@ -74,6 +74,16 @@ class SaleController extends BaseApiController
         }
 
         return DB::transaction(function () use ($data, $request) {
+            // Products keyed by id, with each one's tax rate preloaded — used both for
+            // per-item tax calculation below and cost price lookup further down.
+            $productIds  = collect($data['items'])->pluck('product_id')->unique();
+            $productsById = \App\Models\Product::with('taxRate')->whereIn('id', $productIds)->get()->keyBy('id');
+
+            // A product's own tax rate (if assigned) overrides the store-wide rate;
+            // otherwise fall back to the global Settings tax rate, when tax is enabled.
+            $taxEnabled    = filter_var(\App\Models\Setting::get('tax_enabled', false), FILTER_VALIDATE_BOOLEAN);
+            $globalTaxRate = (float) \App\Models\Setting::get('tax_rate', 0);
+
             // Calculate totals
             $subtotal       = 0;
             $totalDiscount  = 0;
@@ -92,8 +102,10 @@ class SaleController extends BaseApiController
                         : min((float) $item['discount_value'], $lineSubtotal);
                 }
 
-                $taxable  = $lineSubtotal - $discAmt;
-                $taxAmt   = 0; // Tax applied at cart level or per product via tax_rate
+                $taxable = $lineSubtotal - $discAmt;
+                $product = $productsById->get($item['product_id']);
+                $rate    = $taxEnabled ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
+                $taxAmt  = round($taxable * ($rate / 100), 2);
 
                 $lineItems[] = array_merge($item, [
                     'subtotal'        => $lineSubtotal,
@@ -143,10 +155,7 @@ class SaleController extends BaseApiController
                 'kds_status'      => 'new',
             ]);
 
-            // Pre-load cost prices for all products in this sale
-            $productIds  = collect($data['items'])->pluck('product_id')->unique();
-            $costPrices  = \App\Models\Product::whereIn('id', $productIds)
-                ->pluck('cost_price', 'id');
+            $costPrices = $productsById->pluck('cost_price', 'id');
 
             // Create line items & deduct stock
             foreach ($lineItems as $item) {
@@ -196,7 +205,7 @@ class SaleController extends BaseApiController
                 }
             }
 
-            return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier'), 'Sale completed', 201);
+            return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier', 'branch'), 'Sale completed', 201);
         });
     }
 

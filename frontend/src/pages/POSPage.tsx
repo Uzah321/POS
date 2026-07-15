@@ -14,6 +14,7 @@ import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from 
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
+import { effectiveTaxRate } from '../lib/taxSettings';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
@@ -293,6 +294,9 @@ export default function POSPage() {
     paymentMethod: string;
     cashTendered: string;
     orderType: 'sit_in' | 'takeaway' | 'delivery';
+    customerName: string;
+    tableNumber: string;
+    covers: number;
   };
   const saleSnapshotRef = useRef<CartSnapshot | null>(null);
 
@@ -348,10 +352,19 @@ export default function POSPage() {
             total: item.price * item.quantity,
           })),
           vatNumber: storeSettings?.company_vat_number,
+          tinNumber: storeSettings?.company_tin_number,
           currencyCode: activeCurrency?.code ?? 'USD',
           currencyRate: activeCurrency?.exchange_rate ?? 1,
           posNumber: String(user?.branch?.id ?? 1),
           orderType: snap?.orderType ?? 'sit_in',
+          branchName: user?.branch?.name,
+          customerName: snap?.customerName || undefined,
+          tableNumber: snap?.tableNumber || undefined,
+          covers: snap?.covers,
+          deviceId: storeSettings?.fiscal_device_id || undefined,
+          fiscalDay: storeSettings?.fiscal_day || undefined,
+          recGn: storeSettings?.fiscal_rec_gn || undefined,
+          rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode)
       ).catch((error: any) => {
@@ -385,7 +398,7 @@ export default function POSPage() {
     // Block sale if stock is zero/negative and setting is enabled
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-    if (blockNegStock && stock !== null && stock <= 0) {
+    if (blockNegStock && product.track_stock !== false && stock !== null && stock <= 0) {
       toast.error(`${product.name} is out of stock`, { duration: 3000 });
       return;
     }
@@ -395,7 +408,7 @@ export default function POSPage() {
       sku: product.sku,
       price: parseFloat(product.selling_price),
       cost: parseFloat(product.cost_price || 0),
-      tax_rate: product.tax_rate?.rate || 0,
+      tax_rate: effectiveTaxRate(product, storeSettings),
     });
     toast.success(`Added ${product.name}`, { duration: 800 });
   };
@@ -470,6 +483,9 @@ export default function POSPage() {
       paymentMethod: isSplitPayment ? 'split' : paymentMethod,
       cashTendered,
       orderType: cart.orderType,
+      customerName: cart.customerName,
+      tableNumber: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : '',
+      covers: cart.covers,
     };
     saleSnapshotRef.current = snap;
 

@@ -175,6 +175,12 @@ export default function SalesPage() {
           storeName: storeSettings?.company_name,
           storeAddress: storeSettings?.company_address,
           storePhone: storeSettings?.company_phone,
+          vatNumber: storeSettings?.company_vat_number,
+          tinNumber: storeSettings?.company_tin_number,
+          deviceId: storeSettings?.fiscal_device_id || undefined,
+          fiscalDay: storeSettings?.fiscal_day || undefined,
+          recGn: storeSettings?.fiscal_rec_gn || undefined,
+          rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode)
       );

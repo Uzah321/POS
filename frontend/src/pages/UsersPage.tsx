@@ -338,15 +338,17 @@ function DepartmentsModal({ departments, onClose }: { departments: any[]; onClos
               <p className="text-sm font-medium">No departments yet</p>
             </div>
           ) : (
-            departments.map(dep => (
+            departments.map(dep => {
+              const current = editing && editing.id === dep.id ? editing : null;
+              return (
               <div key={dep.id} className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-gray-50">
-                {editing?.id === dep.id ? (
+                {current ? (
                   <input
                     autoFocus
-                    value={editing.name}
-                    onChange={e => setEditing({ ...editing, name: e.target.value })}
+                    value={current.name}
+                    onChange={e => setEditing({ ...current, name: e.target.value })}
                     onKeyDown={e => {
-                      if (e.key === 'Enter' && editing.name.trim()) updateMut.mutate({ id: dep.id, name: editing.name.trim() });
+                      if (e.key === 'Enter' && current.name.trim()) updateMut.mutate({ id: dep.id, name: current.name.trim() });
                       if (e.key === 'Escape') setEditing(null);
                     }}
                     className="flex-1 border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -357,9 +359,9 @@ function DepartmentsModal({ departments, onClose }: { departments: any[]; onClos
                   </span>
                 )}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {editing?.id === dep.id ? (
+                  {current ? (
                     <>
-                      <button type="button" disabled={!editing.name.trim() || updateMut.isPending} onClick={() => updateMut.mutate({ id: dep.id, name: editing.name.trim() })} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                      <button type="button" disabled={!current.name.trim() || updateMut.isPending} onClick={() => updateMut.mutate({ id: dep.id, name: current.name.trim() })} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
                         {updateMut.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
                       </button>
                       <button type="button" onClick={() => setEditing(null)} className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50"><X size={12} /></button>
@@ -372,7 +374,8 @@ function DepartmentsModal({ departments, onClose }: { departments: any[]; onClos
                   )}
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
 

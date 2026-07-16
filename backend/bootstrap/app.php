@@ -38,11 +38,15 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
             }
         });
-        // Catch-all: any unhandled exception on an API route returns JSON, never an HTML 500 page
+        // Catch-all: any unhandled exception on an API route returns JSON, never an HTML 500 page.
+        // 4xx statuses come from deliberate abort(4xx, '...') calls elsewhere in the app (business
+        // rule messages like "Nothing left to refund") — those are safe and meant to reach the
+        // user, so always show them. Only genuine 5xx failures get the generic message hidden
+        // behind APP_DEBUG, since those can leak internals (SQL, file paths, stack traces).
         $exceptions->render(function (\Throwable $e, $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 $status  = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
-                $message = config('app.debug') ? $e->getMessage() : 'Server error.';
+                $message = ($status < 500 || config('app.debug')) ? $e->getMessage() : 'Server error.';
                 return response()->json(['success' => false, 'message' => $message], $status);
             }
         });

@@ -237,6 +237,27 @@ class SaleController extends BaseApiController
                 }
             }
 
+            // Reverse any loyalty points this sale earned — otherwise a voided sale
+            // permanently leaves the customer with points for a purchase that never happened.
+            if ($sale->customer_id) {
+                $earned = LoyaltyTransaction::where('sale_id', $sale->id)->where('type', 'earned')->sum('points');
+                if ($earned > 0) {
+                    $customer = Customer::find($sale->customer_id);
+                    $reversal = min($earned, $customer->loyalty_points);
+                    if ($reversal > 0) {
+                        $customer->decrement('loyalty_points', $reversal);
+                        LoyaltyTransaction::create([
+                            'customer_id'   => $customer->id,
+                            'sale_id'       => $sale->id,
+                            'type'          => 'adjusted',
+                            'points'        => $reversal,
+                            'balance_after' => $customer->fresh()->loyalty_points,
+                            'note'          => 'Reversed — sale voided',
+                        ]);
+                    }
+                }
+            }
+
             $sale->update(['status' => 'voided']);
 
             return $this->success($sale->fresh(), 'Sale cancelled successfully');

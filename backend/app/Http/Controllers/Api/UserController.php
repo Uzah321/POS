@@ -10,7 +10,7 @@ class UserController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = User::with('roles', 'branch')
+        $query = User::with('roles', 'branch', 'department')
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->whereRaw('LOWER(name) LIKE ?', [$s])
@@ -30,8 +30,9 @@ class UserController extends BaseApiController
             'username'  => 'required|string|max:50|unique:users|alpha_dash',
             'email'     => 'nullable|email|unique:users',
             'phone'     => 'nullable|string|max:20',
-            'password'  => 'required|string|min:4',
-            'branch_id' => 'nullable|exists:branches,id',
+            'password'      => 'required|string|min:4',
+            'branch_id'     => 'nullable|exists:branches,id',
+            'department_id' => 'nullable|exists:departments,id',
             'roles'     => 'required|array',
             'roles.*'   => 'exists:roles,name',
         ]);
@@ -43,22 +44,23 @@ class UserController extends BaseApiController
 
         $user->syncRoles($data['roles']);
 
-        return $this->success($user->load('roles', 'branch'), 'User created successfully', 201);
+        return $this->success($user->load('roles', 'branch', 'department'), 'User created successfully', 201);
     }
 
     public function show(User $user): \Illuminate\Http\JsonResponse
     {
-        return $this->success($user->load('roles', 'branch'));
+        return $this->success($user->load('roles', 'branch', 'department'));
     }
 
     public function update(Request $request, User $user): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
-            'name'      => 'sometimes|string|max:255',
-            'username'  => "sometimes|string|max:50|alpha_dash|unique:users,username,{$user->id}",
-            'email'     => "sometimes|nullable|email|unique:users,email,{$user->id}",
-            'phone'     => 'nullable|string|max:20',
-            'branch_id' => 'nullable|exists:branches,id',
+            'name'          => 'sometimes|string|max:255',
+            'username'      => "sometimes|string|max:50|alpha_dash|unique:users,username,{$user->id}",
+            'email'         => "sometimes|nullable|email|unique:users,email,{$user->id}",
+            'phone'         => 'nullable|string|max:20',
+            'branch_id'     => 'nullable|exists:branches,id',
+            'department_id' => 'nullable|exists:departments,id',
             'is_active' => 'sometimes|boolean',
             'roles'     => 'sometimes|array',
             'roles.*'   => 'exists:roles,name',
@@ -75,7 +77,7 @@ class UserController extends BaseApiController
             $user->syncRoles($data['roles']);
         }
 
-        return $this->success($user->load('roles', 'branch'), 'User updated successfully');
+        return $this->success($user->load('roles', 'branch', 'department'), 'User updated successfully');
     }
 
     public function destroy(User $user): \Illuminate\Http\JsonResponse

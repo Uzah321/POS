@@ -39,9 +39,15 @@ class StockReconciliationController extends BaseApiController
             ->selectRaw('goods_receipt_items.product_id, SUM(goods_receipt_items.quantity) as received_qty')
             ->get()->keyBy('product_id');
 
-        // Current system stock
+        // Current system stock — stocks has no branch_id column, only warehouse_id,
+        // so a branch filter has to go through the branch's warehouses. Grouped/summed
+        // by product since a product can have more than one stock row (multiple
+        // warehouses or batches) — keying raw rows by product_id would silently drop
+        // all but the last row instead of totaling them.
         $stockMap = Stock::when($warehouseId, fn($q) => $q->where('warehouse_id', $warehouseId))
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn($q) => $q->whereIn('warehouse_id', \App\Models\Warehouse::where('branch_id', $branchId)->pluck('id')))
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(quantity) as quantity')
             ->get()->keyBy('product_id');
 
         // Last completed stocktake BEFORE period (for opening stock reference)

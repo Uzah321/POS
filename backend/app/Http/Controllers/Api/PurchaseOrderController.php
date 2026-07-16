@@ -31,7 +31,7 @@ class PurchaseOrderController extends BaseApiController
             'branch_id'      => 'required|exists:branches,id',
             'warehouse_id'   => 'required|exists:warehouses,id',
             'order_date'     => 'required|date',
-            'expected_date'  => 'nullable|date|after:order_date',
+            'expected_date'  => 'nullable|date|after_or_equal:order_date',
             'notes'          => 'nullable|string',
             'items'          => 'required|array|min:1',
             'items.*.product_id'         => 'required|exists:products,id',

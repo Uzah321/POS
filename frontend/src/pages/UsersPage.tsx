@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usersApi, branchesApi } from '../api';
-import { Plus, Search, Edit, Trash2, Loader2, X, Users, WifiOff } from 'lucide-react';
+import { usersApi, branchesApi, departmentsApi } from '../api';
+import { Plus, Search, Edit, Trash2, Loader2, X, Users, WifiOff, Building2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -34,6 +34,7 @@ const schema = z.object({
   password: z.string().min(4).optional().or(z.literal('')),
   role: z.string().min(1),
   branch_id: z.preprocess(v => (v === '' || v === '0' || v === 0) ? undefined : Number(v), z.number().optional()),
+  department_id: z.preprocess(v => (v === '' || v === '0' || v === 0) ? undefined : Number(v), z.number().optional()),
   is_active: z.boolean().default(true),
 });
 type FormData = z.infer<typeof schema>;
@@ -42,13 +43,13 @@ function makeMutId() {
   return `mut-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; onClose: () => void }) {
+function UserModal({ user, branches, departments, onClose }: { user?: any; branches: any[]; departments: any[]; onClose: () => void }) {
   const qc = useQueryClient();
   const isOnline = useOfflineStore((s) => s.isOnline);
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: user
-      ? { ...user, role: user.roles?.[0]?.name ?? user.roles?.[0], password: '', branch_id: user.branch?.id }
+      ? { ...user, role: user.roles?.[0]?.name ?? user.roles?.[0], password: '', branch_id: user.branch?.id, department_id: user.department?.id }
       : { is_active: true },
   });
 
@@ -92,6 +93,7 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
             email: d.email || undefined,
             roles: [{ name: d.role }],
             branch_id: d.branch_id ?? null,
+            department_id: d.department_id ?? null,
             is_active: d.is_active,
           };
           await db.users.put(tempUser);
@@ -176,6 +178,13 @@ function UserModal({ user, branches, onClose }: { user?: any; branches: any[]; o
               </select>
             </div>
           </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Department</label>
+            <select {...register('department_id')} className={field}>
+              <option value="">Select department...</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" id="is_active" {...register('is_active')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
             <span className="text-sm font-medium text-gray-700">Active</span>
@@ -233,6 +242,9 @@ function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; 
         {user.branch?.name && (
           <span className="text-xs text-gray-400">{user.branch.name}</span>
         )}
+        {user.department?.name && (
+          <span className="text-xs text-gray-400">· {user.department.name}</span>
+        )}
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-400 pt-3 border-t border-gray-50">
@@ -250,10 +262,137 @@ function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; 
   );
 }
 
+function DepartmentsModal({ departments, onClose }: { departments: any[]; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: (name: string) => departmentsApi.create({ name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['departments'] });
+      setAdding(false);
+      setNameInput('');
+      toast.success('Department created');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create department'),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) => departmentsApi.update(id, { name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['departments'] });
+      setEditing(null);
+      toast.success('Department updated');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update department'),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => departmentsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['departments'] });
+      toast.success('Department deleted');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot delete — department may be in use'),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900">Departments</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1"><X size={18} /></button>
+        </div>
+
+        <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
+          {adding && (
+            <div className="flex items-center gap-2 p-2 border border-blue-100 bg-blue-50 rounded-md">
+              <input
+                autoFocus
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && nameInput.trim()) createMut.mutate(nameInput.trim());
+                  if (e.key === 'Escape') { setAdding(false); setNameInput(''); }
+                }}
+                placeholder="Department name..."
+                className="flex-1 border border-blue-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+              <button
+                type="button"
+                disabled={!nameInput.trim() || createMut.isPending}
+                onClick={() => createMut.mutate(nameInput.trim())}
+                className="px-3 py-2 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {createMut.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
+              </button>
+              <button type="button" onClick={() => { setAdding(false); setNameInput(''); }} className="p-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
+                <X size={12} />
+              </button>
+            </div>
+          )}
+
+          {!departments.length && !adding ? (
+            <div className="text-center py-10 text-gray-400">
+              <Building2 size={32} className="mx-auto mb-2 text-gray-200" />
+              <p className="text-sm font-medium">No departments yet</p>
+            </div>
+          ) : (
+            departments.map(dep => (
+              <div key={dep.id} className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-gray-50">
+                {editing?.id === dep.id ? (
+                  <input
+                    autoFocus
+                    value={editing.name}
+                    onChange={e => setEditing({ ...editing, name: e.target.value })}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && editing.name.trim()) updateMut.mutate({ id: dep.id, name: editing.name.trim() });
+                      if (e.key === 'Escape') setEditing(null);
+                    }}
+                    className="flex-1 border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <span className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                    <Building2 size={13} className="text-blue-500" /> {dep.name}
+                  </span>
+                )}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {editing?.id === dep.id ? (
+                    <>
+                      <button type="button" disabled={!editing.name.trim() || updateMut.isPending} onClick={() => updateMut.mutate({ id: dep.id, name: editing.name.trim() })} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                        {updateMut.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
+                      </button>
+                      <button type="button" onClick={() => setEditing(null)} className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50"><X size={12} /></button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" onClick={() => setEditing({ id: dep.id, name: dep.name })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={13} /></button>
+                      <button type="button" onClick={() => { if (confirm(`Delete "${dep.name}"?`)) deleteMut.mutate(dep.id); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {!adding && (
+          <div className="p-4 border-t border-gray-100">
+            <button type="button" onClick={() => setAdding(true)} className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-600 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50">
+              <Plus size={14} /> Add Department
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; user?: any }>({ open: false });
+  const [showDepartments, setShowDepartments] = useState(false);
   const qc = useQueryClient();
   const isOnline = useOfflineStore((s) => s.isOnline);
 
@@ -314,6 +453,19 @@ export default function UsersPage() {
     retry: false,
   });
 
+  const { data: departmentsData } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      try {
+        const r = await departmentsApi.list();
+        return r.data?.data || [];
+      } catch {
+        return [];
+      }
+    },
+    retry: false,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       try {
@@ -357,6 +509,7 @@ export default function UsersPage() {
   const users: any[] = data?.data || [];
   const meta = data?.meta;
   const branches: any[] = Array.isArray(branchesData) ? branchesData : [];
+  const departments: any[] = Array.isArray(departmentsData) ? departmentsData : [];
   const activeCount = users.filter(u => u.is_active).length;
 
   return (
@@ -374,13 +527,22 @@ export default function UsersPage() {
             )}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setModal({ open: true })}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors"
-        >
-          <Plus size={16} /> Add Employee
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowDepartments(true)}
+            className="flex items-center gap-2 border border-gray-200 text-gray-600 font-semibold px-4 py-2.5 rounded-md text-sm hover:bg-gray-50 transition-colors"
+          >
+            <Building2 size={16} /> Departments
+          </button>
+          <button
+            type="button"
+            onClick={() => setModal({ open: true })}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors"
+          >
+            <Plus size={16} /> Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -420,7 +582,8 @@ export default function UsersPage() {
 
       <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
 
-      {modal.open && <UserModal user={modal.user} branches={branches} onClose={() => setModal({ open: false })} />}
+      {modal.open && <UserModal user={modal.user} branches={branches} departments={departments} onClose={() => setModal({ open: false })} />}
+      {showDepartments && <DepartmentsModal departments={departments} onClose={() => setShowDepartments(false)} />}
     </div>
   );
 }

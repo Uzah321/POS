@@ -243,6 +243,7 @@ export default function CashierPage() {
       cart.clearCart();
       setCashTendered('');
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
       setTimeout(() => codeRef.current?.focus(), 80);
     },
     onError: (error: any) => {

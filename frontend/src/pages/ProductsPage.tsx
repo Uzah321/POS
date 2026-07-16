@@ -74,7 +74,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const payload = { ...data, reorder_level: 5 } as Record<string, unknown>;
+      const payload = { ...data } as Record<string, unknown>;
       const saveOffline = async () => {
         if (product) {
           await db.products.put({
@@ -296,6 +296,11 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                 <p className="text-xs text-gray-400 mt-1">Stock added to the default warehouse</p>
               </div>
             )}
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Reorder Level</label>
+              <input type="number" step="1" min="0" {...register('reorder_level')} className={field} placeholder="5" />
+              <p className="text-xs text-gray-400 mt-1">Flag as low stock at or below this quantity</p>
+            </div>
             <div className="col-span-2">
               <label className="text-sm font-semibold text-gray-700">Description</label>
               <textarea {...register('description')} rows={2} className={`${field} resize-none`} />

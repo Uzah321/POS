@@ -313,7 +313,7 @@ export default function SalesPage() {
                   </div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatAmount(parseFloat(saleDetail.subtotal))}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatAmount(parseFloat(saleDetail.tax_total))}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatAmount(parseFloat(saleDetail.tax_amount))}</span></div>
                     <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span className="text-amber-600">{formatAmount(parseFloat(saleDetail.total))}</span></div>
                   </div>
                   <div className="pt-2 flex items-center gap-2">

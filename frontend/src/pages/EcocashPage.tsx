@@ -194,7 +194,7 @@ export default function EcocashPage() {
     mutationFn: (id: number) => offlineMutate(() => ecocashApi.reverse(id), 'ecocash', 'reverse', {}, id),
     onSuccess: (result, id) => {
       if (result.offline) { handleOfflineSuccess(qc, result, 'ecocash', 'update', { status: 'reversed' }, id); toast.success('Reversal queued offline — will sync when server is back'); }
-      else { toast.success('Reversed'); qc.invalidateQueries({ queryKey: ['ecocash'] }); }
+      else { toast.success('Reversed'); qc.invalidateQueries({ queryKey: ['ecocash'] }); qc.invalidateQueries({ queryKey: ['ecocash-summary'] }); }
     },
   });
 

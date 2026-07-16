@@ -19,7 +19,7 @@ class ShiftEndController extends BaseApiController
         $shiftStart = $lastShift ? $lastShift->shift_end : now()->startOfDay();
 
         $sales = Sale::where('user_id', $user->id)
-            ->where('status', 'completed')
+            ->revenueCounted()
             ->where('completed_at', '>=', $shiftStart)
             ->with('payments')
             ->get();
@@ -80,7 +80,7 @@ class ShiftEndController extends BaseApiController
         $shiftStart = $lastShift ? $lastShift->shift_end : now()->startOfDay();
 
         $sales = Sale::where('user_id', $user->id)
-            ->where('status', 'completed')
+            ->revenueCounted()
             ->where('completed_at', '>=', $shiftStart)
             ->with('payments')
             ->get();

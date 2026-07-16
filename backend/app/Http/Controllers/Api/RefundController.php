@@ -32,7 +32,14 @@ class RefundController extends BaseApiController
         ]);
 
         return DB::transaction(function () use ($data, $request) {
-            $sale         = Sale::with('items')->findOrFail($data['sale_id']);
+            $sale = Sale::with('items')->findOrFail($data['sale_id']);
+
+            // A voided sale already had its stock restored by SaleController::cancel() —
+            // refunding it too would restore the same units a second time.
+            if ($sale->status === 'voided') {
+                abort(422, 'This sale has been voided and cannot be refunded.');
+            }
+
             $totalRefund  = 0;
             $refundedAny  = false;
 

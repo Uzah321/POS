@@ -311,7 +311,7 @@ export default function ReportsPage() {
       {tab === 'Sales' && salesData && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[['Total Revenue', `${fmt(salesData.total_revenue || 0)}`], ['Total Sales', salesData.total_sales], ['Avg Order Value', `${fmt(salesData.avg_order_value || 0)}`]].map(([label, val]) => (
+            {[['Total Revenue', `${fmt(salesData.summary?.total_revenue || 0)}`], ['Total Sales', salesData.summary?.total_transactions || 0], ['Avg Order Value', `${fmt(salesData.summary?.total_transactions ? salesData.summary.total_revenue / salesData.summary.total_transactions : 0)}`]].map(([label, val]) => (
               <div key={label} className="bg-white rounded-md p-5 shadow-sm border border-gray-100"><p className="text-sm text-gray-500">{label}</p><p className="text-2xl font-bold text-gray-900 mt-1">{val}</p></div>
             ))}
           </div>

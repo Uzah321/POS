@@ -376,6 +376,7 @@ export default function POSPage() {
       saleSnapshotRef.current = null;
 
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
     },
     onError: () => {
       // Restore cart from snapshot if the sale failed

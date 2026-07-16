@@ -51,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Users
     Route::middleware('permission:manage_users')->group(function () {
         Route::apiResource('users', UserController::class);
+        Route::apiResource('departments', \App\Http\Controllers\Api\DepartmentController::class);
     });
 
     // Products
@@ -101,17 +102,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/expense-categories', [ExpenseController::class, 'categories']);
     Route::apiResource('expenses', ExpenseController::class)->except(['show']);
 
-    // Reports & Dashboard
-    Route::get('/reports/dashboard', [ReportController::class, 'dashboard']);
-    Route::get('/reports/sales', [ReportController::class, 'salesReport']);
-    Route::get('/reports/inventory', [ReportController::class, 'inventoryReport']);
-    Route::get('/reports/profit-loss', [ReportController::class, 'profitLoss']);
-    Route::get('/reports/cashier-performance', [ReportController::class, 'cashierPerformance']);
-    Route::get('/reports/daily', [ReportController::class, 'dailyReport']);
-    Route::get('/reports/monthly', [ReportController::class, 'monthlyReport']);
-    Route::get('/reports/stock-variances', [ReportController::class, 'stockVariances']);
-    Route::get('/reports/daily/pdf', [ReportController::class, 'dailyPdf']);
-    Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
+    // Reports & Dashboard — dashboard uses its own permission (matches the "/" frontend
+    // route's view_dashboard gate; storekeeper has view_dashboard but not view_reports,
+    // so it must stay separate or their dashboard breaks). Everything else under
+    // view_reports, matching every other /reports/* frontend route's gate.
+    Route::middleware('permission:view_dashboard')->group(function () {
+        Route::get('/reports/dashboard', [ReportController::class, 'dashboard']);
+    });
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('/reports/sales', [ReportController::class, 'salesReport']);
+        Route::get('/reports/inventory', [ReportController::class, 'inventoryReport']);
+        Route::get('/reports/profit-loss', [ReportController::class, 'profitLoss']);
+        Route::get('/reports/cashier-performance', [ReportController::class, 'cashierPerformance']);
+        Route::get('/reports/daily', [ReportController::class, 'dailyReport']);
+        Route::get('/reports/monthly', [ReportController::class, 'monthlyReport']);
+        Route::get('/reports/stock-variances', [ReportController::class, 'stockVariances']);
+        Route::get('/reports/daily/pdf', [ReportController::class, 'dailyPdf']);
+        Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
+    });
 
     // Shift End
     Route::get('/shift-end/summary', [\App\Http\Controllers\Api\ShiftEndController::class, 'summary']);
@@ -119,31 +127,42 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shift-end', [\App\Http\Controllers\Api\ShiftEndController::class, 'store']);
     Route::patch('/shift-end/{shiftEnd}/approve', [\App\Http\Controllers\Api\ShiftEndController::class, 'approve']);
 
-    // End of Day
-    Route::get('/end-of-day/summary', [\App\Http\Controllers\Api\EndOfDayController::class, 'summary']);
-    Route::get('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'index']);
-    Route::post('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'store']);
+    // End of Day — matches /day-end frontend route's view_reports gate
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('/end-of-day/summary', [\App\Http\Controllers\Api\EndOfDayController::class, 'summary']);
+        Route::get('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'index']);
+        Route::post('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'store']);
+    });
 
-    // Branches (simple CRUD via model binding)
-    Route::apiResource('branches', \App\Http\Controllers\Api\BranchController::class);
+    // Branches — matches /branches frontend route's manage_settings gate
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::apiResource('branches', \App\Http\Controllers\Api\BranchController::class);
+    });
 
     // Categories, Brands, etc.
     Route::apiResource('categories', \App\Http\Controllers\Api\CategoryController::class);
     Route::apiResource('brands', \App\Http\Controllers\Api\BrandController::class);
     Route::apiResource('warehouses', \App\Http\Controllers\Api\WarehouseController::class);
 
-    // Settings
-    Route::get('/settings', [\App\Http\Controllers\Api\SettingController::class, 'index']);
-    Route::post('/settings', [\App\Http\Controllers\Api\SettingController::class, 'update']);
+    // Settings — matches /settings frontend route's manage_settings gate
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::get('/settings', [\App\Http\Controllers\Api\SettingController::class, 'index']);
+        Route::post('/settings', [\App\Http\Controllers\Api\SettingController::class, 'update']);
+    });
 
-    // Audit log
-    Route::get('/audit-logs', [\App\Http\Controllers\Api\AuditLogController::class, 'index']);
+    // Audit log — matches /audit-logs frontend route's manage_settings gate
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::get('/audit-logs', [\App\Http\Controllers\Api\AuditLogController::class, 'index']);
+    });
 
-    // Currencies
+    // Currencies — read stays open (needed broadly, e.g. POS currency selector);
+    // mutations match /currencies frontend route's manage_settings gate
     Route::get('/currencies/all', [CurrencyController::class, 'all']);
-    Route::post('/currencies', [CurrencyController::class, 'store']);
-    Route::put('/currencies/{currency}', [CurrencyController::class, 'update']);
-    Route::delete('/currencies/{currency}', [CurrencyController::class, 'destroy']);
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::post('/currencies', [CurrencyController::class, 'store']);
+        Route::put('/currencies/{currency}', [CurrencyController::class, 'update']);
+        Route::delete('/currencies/{currency}', [CurrencyController::class, 'destroy']);
+    });
 
     // Notifications
     Route::get('/notifications', fn() => response()->json(auth()->user()->notifications()->paginate(20)));
@@ -170,53 +189,69 @@ Route::middleware('auth:sanctum')->group(function () {
     // Product Batches / Expiry tracking
     Route::apiResource('product-batches', ProductBatchController::class);
 
-    // Commissions
-    Route::get('/commissions/report', [CommissionController::class, 'report']);
-    Route::post('/commissions/mark-paid', [CommissionController::class, 'markPaid']);
-    Route::get('/commissions', [CommissionController::class, 'index']);
+    // Commissions — matches /commissions frontend route's view_reports gate
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('/commissions/report', [CommissionController::class, 'report']);
+        Route::post('/commissions/mark-paid', [CommissionController::class, 'markPaid']);
+        Route::get('/commissions', [CommissionController::class, 'index']);
+    });
 
-    // Webhooks
-    Route::post('/webhooks/{webhook}/test', [WebhookController::class, 'test']);
-    Route::apiResource('webhooks', WebhookController::class);
+    // Webhooks — matches /webhooks frontend route's manage_settings gate
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::post('/webhooks/{webhook}/test', [WebhookController::class, 'test']);
+        Route::apiResource('webhooks', WebhookController::class);
+    });
 
-    // Role & Permissions
-    Route::get('/roles', [RolePermissionController::class, 'index']);
-    Route::put('/roles/{role}', [RolePermissionController::class, 'updateRole']);
+    // Role & Permissions — matches /roles-permissions frontend route's manage_settings
+    // gate. This previously had NO gate at all: any authenticated user (e.g. a cashier)
+    // could grant any role — including their own — arbitrary permissions via
+    // PUT /roles/{role}. That's a live privilege-escalation hole, not just a UX gap.
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::get('/roles', [RolePermissionController::class, 'index']);
+        Route::put('/roles/{role}', [RolePermissionController::class, 'updateRole']);
+    });
 
-    // Backup
-    Route::get('/backups', [BackupController::class, 'index']);
-    Route::post('/backups', [BackupController::class, 'create']);
-    Route::get('/backups/{file}/download', [BackupController::class, 'download']);
+    // Backup — matches /backups frontend route's manage_settings gate
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::get('/backups', [BackupController::class, 'index']);
+        Route::post('/backups', [BackupController::class, 'create']);
+        Route::get('/backups/{file}/download', [BackupController::class, 'download']);
+    });
 
-    // Scheduled Reports
-    Route::apiResource('scheduled-reports', ScheduledReportController::class);
+    // Scheduled Reports — no frontend consumer yet; gated the same as other
+    // backend-admin config resources so it isn't left open by default.
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::apiResource('scheduled-reports', ScheduledReportController::class);
+    });
 
     // Low-stock alerts
-    Route::get('/reports/low-stock', [ReportController::class, 'lowStock']);
-    Route::get('/reports/vat', [ReportController::class, 'vatReport']);
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('/reports/low-stock', [ReportController::class, 'lowStock']);
+        Route::get('/reports/vat', [ReportController::class, 'vatReport']);
 
-    // Financial summary, consolidation & CSV exports
-    Route::get('/reports/financial-summary', [ReportController::class, 'financialSummary']);
-    Route::get('/reports/branch-consolidation', [ReportController::class, 'branchConsolidation']);
-    Route::get('/reports/daily/csv', [ReportController::class, 'dailyCsv']);
-    Route::get('/reports/monthly/csv', [ReportController::class, 'monthlyCsv']);
+        // Financial summary, consolidation & CSV exports
+        Route::get('/reports/financial-summary', [ReportController::class, 'financialSummary']);
+        Route::get('/reports/branch-consolidation', [ReportController::class, 'branchConsolidation']);
+        Route::get('/reports/daily/csv', [ReportController::class, 'dailyCsv']);
+        Route::get('/reports/monthly/csv', [ReportController::class, 'monthlyCsv']);
+    });
 
     // EcoCash agent banking
     Route::get('/ecocash/summary', [EcocashController::class, 'summary']);
     Route::post('/ecocash/{ecocashTransaction}/reverse', [EcocashController::class, 'reverse']);
     Route::apiResource('ecocash', EcocashController::class)->only(['index', 'store']);
 
-    // Cashflow
-    Route::apiResource('cashflow', CashflowController::class)->only(['index', 'store', 'update', 'destroy']);
+    // Cashflow, Salaries, Rentals — all match their frontend routes' view_reports gate
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::apiResource('cashflow', CashflowController::class)->only(['index', 'store', 'update', 'destroy']);
 
-    // Salaries
-    Route::post('/salaries/{salary}/mark-paid', [SalaryController::class, 'markPaid']);
-    Route::apiResource('salaries', SalaryController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('/salaries/{salary}/mark-paid', [SalaryController::class, 'markPaid']);
+        Route::apiResource('salaries', SalaryController::class)->only(['index', 'store', 'update', 'destroy']);
 
-    // Rentals
-    Route::get('/rentals/{rental}/payments', [RentalController::class, 'payments']);
-    Route::post('/rentals/{rental}/payments', [RentalController::class, 'addPayment']);
-    Route::apiResource('rentals', RentalController::class);
+        Route::get('/rentals/{rental}/payments', [RentalController::class, 'payments']);
+        Route::post('/rentals/{rental}/payments', [RentalController::class, 'addPayment']);
+        Route::apiResource('rentals', RentalController::class);
+    });
 
     // Stock Reconciliation
     Route::get('/stock-reconciliation', [StockReconciliationController::class, 'reconcile']);

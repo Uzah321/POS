@@ -16,7 +16,7 @@ class BackupController extends Controller {
             ];
         }
         usort($result, fn($a, $b) => $b['created_at'] - $a['created_at']);
-        return response()->json(['data' => $result]);
+        return response()->json(['data' => $result, 'db_connection' => env('DB_CONNECTION', 'mariadb')]);
     }
 
     public function create() {

@@ -17,7 +17,7 @@ class User extends Authenticatable
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
     protected $fillable = [
-        'name', 'username', 'email', 'phone', 'password', 'branch_id', 'is_active', 'avatar',
+        'name', 'username', 'email', 'phone', 'password', 'branch_id', 'department_id', 'is_active', 'avatar',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -34,6 +34,11 @@ class User extends Authenticatable
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     public function sales(): HasMany

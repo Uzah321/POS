@@ -98,7 +98,7 @@ export default function FinancialReportPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Financial Report</h1>
-          <p className="text-gray-500 text-sm">P&amp;L " Sales, Gross Profit, Deductions, Profit B/d</p>
+          <p className="text-gray-500 text-sm">P&amp;L — Sales, Gross Profit, Deductions, Profit B/d</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button type="button" onClick={handleExportCsv} className="flex items-center gap-2 border border-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
@@ -174,7 +174,7 @@ export default function FinancialReportPage() {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <BarChart2 size={18} className="text-blue-500" />
               <h2 className="font-bold text-gray-900">Profit &amp; Loss Statement</h2>
-              <span className="ml-auto text-xs text-gray-400 font-mono">{report.from} â†' {report.to}</span>
+              <span className="ml-auto text-xs text-gray-400 font-mono">{report.from} → {report.to}</span>
             </div>
 
             <div className="divide-y divide-gray-50">

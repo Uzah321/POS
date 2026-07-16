@@ -73,7 +73,6 @@ class ProductController extends BaseApiController
         $initialQty = (float) ($data['initial_quantity'] ?? 0);
         unset($data['initial_quantity']);
 
-        $data['reorder_level'] = 5;
         $data['slug'] = Str::slug($data['name']) . '-' . uniqid();
         $data['branch_id'] = $branchId;
 

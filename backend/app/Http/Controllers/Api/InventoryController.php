@@ -22,11 +22,13 @@ class InventoryController extends BaseApiController
     // Stock levels — returns ALL products with their aggregated stock quantity
     public function stockLevels(Request $request): \Illuminate\Http\JsonResponse
     {
-        $search = $request->search ? mb_strtolower($request->search) : null;
-        $filter = $request->filter;
+        $search   = $request->search ? mb_strtolower($request->search) : null;
+        $filter   = $request->filter;
+        $branchId = $this->effectiveBranchId($request);
 
         $query = Product::with('category')
             ->withSum('stocks', 'quantity')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->warehouse_id, fn($q) => $q->whereHas('stocks', fn($s) =>
                 $s->where('warehouse_id', $request->warehouse_id)
             ))

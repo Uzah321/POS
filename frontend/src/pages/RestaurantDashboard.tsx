@@ -268,7 +268,7 @@ export default function RestaurantDashboard() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0) },
-          { label: 'Month Orders',   value: `${d.month?.sales_count ?? 0} orders` },
+          { label: 'Month Orders',   value: `${d.month?.transactions ?? 0} orders` },
           { label: 'Month Customers', value: d.month?.customers ?? 0 },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">

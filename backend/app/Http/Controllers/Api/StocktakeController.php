@@ -19,7 +19,13 @@ class StocktakeController extends BaseApiController {
         $stocktake = Stocktake::create(['branch_id'=>$branchId,'user_id'=>$request->user()->id,'reference'=>'STK-'.strtoupper(Str::random(8)),'status'=>'draft','notes'=>$data['notes']??null]);
         $warehouseIds = Warehouse::where('branch_id', $branchId)->pluck('id');
         $stocks = Stock::whereIn('warehouse_id', $warehouseIds)->get();
-        foreach($stocks as $stock) StocktakeItem::create(['stocktake_id'=>$stocktake->id,'product_id'=>$stock->product_id,'expected_qty'=>$stock->quantity]);
+        foreach($stocks as $stock) StocktakeItem::create([
+            'stocktake_id'       => $stocktake->id,
+            'product_id'         => $stock->product_id,
+            'product_variant_id' => $stock->product_variant_id,
+            'stock_id'           => $stock->id,
+            'expected_qty'       => $stock->quantity,
+        ]);
         return $this->success($stocktake->load('items.product'), 'Stocktake created', 201);
     }
     public function show(Stocktake $stocktake) { return $this->success($stocktake->load(['branch','user','items.product'])); }
@@ -35,7 +41,15 @@ class StocktakeController extends BaseApiController {
     public function complete(Request $request, Stocktake $stocktake) {
         if ($stocktake->status==='completed') return $this->error('Already completed', 422);
         foreach($stocktake->items as $item) {
-            if (!is_null($item->counted_qty)) {
+            if (is_null($item->counted_qty)) continue;
+
+            if ($item->stock_id) {
+                // Update exactly the stock row this line was counted from — a product
+                // with more than one warehouse/batch row gets one line per row, and
+                // each must only touch its own row, not every row sharing product_id.
+                Stock::where('id', $item->stock_id)->update(['quantity' => $item->counted_qty]);
+            } else {
+                // Legacy stocktake items created before stock_id existed.
                 $wIds = Warehouse::where('branch_id', $stocktake->branch_id)->pluck('id');
                 Stock::where('product_id', $item->product_id)->whereIn('warehouse_id', $wIds)->update(['quantity' => $item->counted_qty]);
             }

@@ -149,7 +149,18 @@ class ReportController extends BaseApiController
                 ->sum('amount'),
         ];
 
-        return $this->success(compact('sales', 'summary'));
+        $dailyBreakdown = (clone $query)
+            ->reorder()
+            ->selectRaw('DATE(completed_at) as date, COUNT(*) as transactions, SUM(total) as revenue')
+            ->groupBy(DB::raw('DATE(completed_at)'))
+            ->orderBy('date')
+            ->get();
+
+        return $this->success([
+            'sales' => $sales,
+            'summary' => $summary,
+            'daily_breakdown' => $dailyBreakdown,
+        ]);
     }
 
     public function inventoryReport(Request $request): \Illuminate\Http\JsonResponse
@@ -535,21 +546,21 @@ class ReportController extends BaseApiController
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->get()
             ->filter(function ($p) {
+                // reorder_point/alert_threshold are unused, always-default columns —
+                // reorder_level is the one every other report/page in the app actually
+                // reads and lets the user customize per product.
                 $qty       = $p->stocks->sum('quantity');
-                $reorder   = (float) ($p->reorder_point   ?? $p->reorder_level   ?? 0);
-                $alert     = (float) ($p->alert_threshold ?? $p->min_stock_level ?? 0);
-                $threshold = max($reorder, $alert, 1);
+                $threshold = max((float) ($p->reorder_level ?? 0), 1);
                 return $qty <= $threshold;
             })
             ->values()
             ->map(function ($p) {
                 return [
-                    'id'              => $p->id,
-                    'name'            => $p->name,
-                    'sku'             => $p->sku,
-                    'stock'           => (float) $p->stocks->sum('quantity'),
-                    'reorder_point'   => $p->reorder_point   ?? 0,
-                    'alert_threshold' => $p->alert_threshold ?? 0,
+                    'id'            => $p->id,
+                    'name'          => $p->name,
+                    'sku'           => $p->sku,
+                    'stock'         => (float) $p->stocks->sum('quantity'),
+                    'reorder_level' => $p->reorder_level ?? 0,
                 ];
             });
         return $this->success($products);

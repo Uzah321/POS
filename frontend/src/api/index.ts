@@ -125,6 +125,13 @@ export const branchesApi = {
   delete: (id: number) => api.delete(`/branches/${id}`),
 };
 
+export const departmentsApi = {
+  list: () => api.get('/departments'),
+  create: (data: object) => api.post('/departments', data),
+  update: (id: number, data: object) => api.put(`/departments/${id}`, data),
+  delete: (id: number) => api.delete(`/departments/${id}`),
+};
+
 export const auditLogsApi = {
   list: (params?: object) => api.get('/audit-logs', { params }),
 };

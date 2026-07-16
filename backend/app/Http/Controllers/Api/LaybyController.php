@@ -29,6 +29,9 @@ class LaybyController extends Controller {
     public function addPayment(Request $request, Layby $layby) {
         if (in_array($layby->status,['complete','cancelled'])) return response()->json(['message'=>'Layby is '.$layby->status],422);
         $data = $request->validate(['amount'=>'required|numeric|min:0.01','method'=>'nullable|string','notes'=>'nullable|string']);
+        if ($data['amount'] > $layby->balance) {
+            abort(422, "Payment of {$data['amount']} exceeds the remaining balance of {$layby->balance}.");
+        }
         $data['layby_id']=$layby->id; $data['user_id']=$request->user()->id;
         LaybyPayment::create($data);
         $nb = $layby->balance - $data['amount'];

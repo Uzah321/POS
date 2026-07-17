@@ -396,15 +396,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ) : (
             <>
               {!isCashier && (
-                <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
-                  <span className="text-xs font-semibold text-blue-600">Offline POS</span>
+                <div className={`hidden sm:flex items-center gap-2 rounded-md px-3 py-1.5 border ${
+                  isServerUp ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full inline-block ${isServerUp ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                  <span className={`text-xs font-semibold ${isServerUp ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {isServerUp ? 'Online' : 'Offline'}
+                  </span>
                 </div>
               )}
               {isCashier && (
-                <div className="hidden sm:flex items-center gap-2 bg-blue-50 border border-blue-300 rounded-md px-3 py-1.5 shadow-sm">
-                  <ShoppingCart size={14} className="text-blue-600" />
-                  <span className="text-sm font-semibold text-blue-700">Cashier Mode</span>
+                <div className={`hidden sm:flex items-center gap-2 rounded-md px-3 py-1.5 shadow-sm border ${
+                  isServerUp ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300'
+                }`}>
+                  <ShoppingCart size={14} className={isServerUp ? 'text-emerald-600' : 'text-amber-600'} />
+                  <span className={`text-sm font-semibold ${isServerUp ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    Cashier Mode {isServerUp ? '· Online' : '· Offline'}
+                  </span>
                 </div>
               )}
             </>

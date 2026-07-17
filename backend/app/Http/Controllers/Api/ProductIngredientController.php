@@ -9,14 +9,27 @@ use Illuminate\Support\Facades\DB;
 
 class ProductIngredientController extends BaseApiController
 {
-    public function index(Product $product): \Illuminate\Http\JsonResponse
+    /** True once a branch-locked user tries to touch another branch's product. Admins are exempt. */
+    private function forbiddenCrossBranch(Request $request, Product $product): bool
     {
+        $user = $request->user();
+        return ! $user->hasRole('admin') && $product->branch_id !== $user->branch_id;
+    }
+
+    public function index(Request $request, Product $product): \Illuminate\Http\JsonResponse
+    {
+        if ($this->forbiddenCrossBranch($request, $product)) {
+            return response()->json(['message' => 'Product not found.'], 404);
+        }
+
         $ingredients = $product->ingredients()
             ->with('ingredient:id,name,sku,cost_price,unit_id')
             ->get();
 
         return response()->json([
             'data' => $ingredients,
+            'description' => $product->description,
+            'image' => $product->image,
             'cost_price' => $product->cost_price,
             'selling_price' => $product->selling_price,
             'profit' => $product->profit,
@@ -29,6 +42,10 @@ class ProductIngredientController extends BaseApiController
      */
     public function sync(Request $request, Product $product): \Illuminate\Http\JsonResponse
     {
+        if ($this->forbiddenCrossBranch($request, $product)) {
+            return response()->json(['message' => 'Product not found.'], 404);
+        }
+
         $data = $request->validate([
             'ingredients' => 'present|array',
             'ingredients.*.ingredient_product_id' => 'required|exists:products,id',
@@ -58,6 +75,8 @@ class ProductIngredientController extends BaseApiController
 
         return response()->json([
             'data' => $ingredients,
+            'description' => $product->description,
+            'image' => $product->image,
             'cost_price' => $product->cost_price,
             'selling_price' => $product->selling_price,
             'profit' => $product->profit,

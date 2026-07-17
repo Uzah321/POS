@@ -1,9 +1,10 @@
 ﻿import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { productsApi, categoriesApi, brandsApi, inventoryApi, branchesApi } from '../api';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers } from 'lucide-react';
+import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -320,6 +321,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
 }
 
 export default function ProductsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [branchId, setBranchId] = useState('');
@@ -643,13 +645,24 @@ export default function ProductsPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <button
-                          type="button"
-                          onClick={() => setModal({ open: true, product: p })}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <Edit size={14} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setModal({ open: true, product: p })}
+                            title="Edit"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/stock-production?tab=recipes&product=${p.id}`)}
+                            title="Recipe"
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          >
+                            <BookOpen size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

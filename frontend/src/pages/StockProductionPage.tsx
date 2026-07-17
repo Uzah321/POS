@@ -1,10 +1,43 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi, productsApi, warehousesApi } from '../api';
-import { Loader2, Factory, Search, X, ChevronRight, BookOpen, TrendingUp, PackageOpen, Save } from 'lucide-react';
+import {
+  Loader2, Factory, Search, X, ChevronRight, BookOpen, TrendingUp, PackageOpen, Save,
+  Printer, Copy, Image as ImageIcon,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../lib/db';
+import { offlineMutate } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
+
+/** Resizes/compresses an image file client-side before it's stored as a base64
+ * data URL — keeps the offline product cache (up to 500 products refreshed
+ * every sync) from ballooning in size. */
+async function fileToCompressedDataUrl(file: File, maxDim = 220, quality = 0.72): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = objectUrl;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', quality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 interface ProductionItem {
   product_id: number;
@@ -75,11 +108,16 @@ interface RecipeRow {
   quantity: number;
 }
 
-function RecipesPanel() {
+function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
   const qc = useQueryClient();
   const { format } = useCurrencyStore();
   const [product, setProduct] = useState<any>(null);
   const [rows, setRows] = useState<RecipeRow[]>([]);
+  const [description, setDescription] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+  const [copyPickerOpen, setCopyPickerOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const consumedInitialId = useRef(false);
 
   const { isFetching } = useQuery({
     queryKey: ['product-ingredients', product?.id],
@@ -93,14 +131,30 @@ function RecipesPanel() {
         cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
         quantity: parseFloat(r.quantity),
       })));
+      setDescription(res.data?.description ?? '');
+      setImage(res.data?.image ?? null);
       return res.data;
     },
     enabled: !!product?.id,
   });
 
+  // Deep-link from the Products page ("Recipe" button on a row) — load that
+  // product straight into the panel instead of making the user search again.
+  useEffect(() => {
+    if (!initialProductId || consumedInitialId.current) return;
+    consumedInitialId.current = true;
+    productsApi.get(initialProductId).then(res => {
+      const p = res.data?.data ?? res.data;
+      if (p?.id) selectProduct(p);
+    }).catch(() => { /* product may no longer exist — ignore, user can search manually */ });
+  }, [initialProductId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const selectProduct = (p: any) => {
     setProduct(p);
     setRows([]);
+    setDescription('');
+    setImage(null);
+    setCopyPickerOpen(false);
   };
 
   const addIngredient = (p: any) => {
@@ -122,28 +176,134 @@ function RecipesPanel() {
 
   const removeRow = (id: number) => setRows(prev => prev.filter(r => r.ingredient_product_id !== id));
 
+  const copyFrom = async (src: any) => {
+    if (product && src.id === product.id) { toast.error('Cannot copy a recipe from itself'); return; }
+    try {
+      const res = await productsApi.getIngredients(src.id);
+      const list = res.data?.data ?? [];
+      setRows(list.map((r: any) => ({
+        ingredient_product_id: r.ingredient_product_id,
+        name: r.ingredient?.name ?? '',
+        sku: r.ingredient?.sku ?? '',
+        cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
+        quantity: parseFloat(r.quantity),
+      })));
+      setDescription(res.data?.description ?? '');
+      setImage(res.data?.image ?? null);
+      setCopyPickerOpen(false);
+      toast.success(`Copied recipe from "${src.name}" — remember to save`);
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to copy recipe');
+    }
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setImage(await fileToCompressedDataUrl(file));
+    } catch {
+      toast.error('Failed to load image');
+    }
+  };
+
   const calculatedCost = rows.reduce((s, r) => s + r.quantity * r.cost_price, 0);
   const sellingPrice = parseFloat(product?.selling_price || 0);
   const profit = sellingPrice - calculatedCost;
   const margin = sellingPrice > 0 ? (profit / sellingPrice) * 100 : 0;
 
   const saveMutation = useMutation({
-    mutationFn: () => productsApi.syncIngredients(product.id, rows.map(r => ({
-      ingredient_product_id: r.ingredient_product_id,
-      quantity: r.quantity,
-    }))),
-    onSuccess: (res) => {
-      toast.success('Ingredients saved — cost price recalculated');
-      setProduct((p: any) => p ? { ...p, cost_price: res.data?.cost_price ?? p.cost_price } : p);
+    mutationFn: async () => {
+      const ingredientsPayload = rows.map(r => ({ ingredient_product_id: r.ingredient_product_id, quantity: r.quantity }));
+      const [ingredients, details] = await Promise.all([
+        offlineMutate(
+          () => productsApi.syncIngredients(product.id, ingredientsPayload),
+          'product_ingredients', 'sync', { ingredients: ingredientsPayload }, product.id,
+        ),
+        offlineMutate(
+          () => productsApi.update(product.id, { description, image }),
+          'products', 'update', { description, image }, product.id,
+        ),
+      ]);
+      return { ingredients, details };
+    },
+    onSuccess: ({ ingredients, details }) => {
+      const offline = ingredients.offline || details.offline;
+      toast.success(offline ? 'Recipe saved offline — will sync when server is back' : 'Recipe saved — cost price recalculated');
+      const newCost = (ingredients.data as any)?.cost_price;
+      if (newCost != null) setProduct((p: any) => p ? { ...p, cost_price: newCost } : p);
       qc.invalidateQueries({ queryKey: ['product-ingredients', product?.id] });
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to save ingredients'),
+    onError: (e: any) => toast.error(e.response?.data?.message || e.message || 'Failed to save recipe'),
   });
+
+  // Inject print styles once and render the printable recipe into a portal —
+  // same house pattern as BarcodeLabelsPage's window.print() flow.
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'recipe-print-style';
+    style.textContent = `
+      @media print {
+        body > * { visibility: hidden !important; }
+        #recipe-print-portal { visibility: visible !important; position: fixed !important; inset: 0 !important; padding: 10mm !important; background: white !important; z-index: 99999 !important; }
+        #recipe-print-portal * { visibility: visible !important; }
+      }
+    `;
+    if (!document.getElementById('recipe-print-style')) {
+      document.head.appendChild(style);
+    }
+    return () => { document.getElementById('recipe-print-style')?.remove(); };
+  }, []);
+
+  const printPortal = createPortal(
+    <div id="recipe-print-portal" style={{ display: 'none' }}>
+      {product && (
+        <div style={{ fontFamily: 'sans-serif', color: '#111' }}>
+          <div style={{ display: 'flex', gap: '6mm', alignItems: 'flex-start', borderBottom: '0.5mm solid #333', paddingBottom: '4mm', marginBottom: '4mm' }}>
+            {image && <img src={image} alt={product.name} style={{ width: '30mm', height: '30mm', objectFit: 'cover', border: '0.3mm solid #ccc' }} />}
+            <div>
+              <h1 style={{ fontSize: '16pt', margin: 0 }}>{product.name}</h1>
+              <p style={{ fontSize: '9pt', color: '#666', margin: '1mm 0 0' }}>SKU: {product.sku}</p>
+              {description && <p style={{ fontSize: '9pt', marginTop: '2mm', whiteSpace: 'pre-wrap' }}>{description}</p>}
+            </div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+            <thead>
+              <tr>
+                {['Ingredient', 'Cost/unit', 'Qty used', 'Line cost'].map(h => (
+                  <th key={h} style={{ textAlign: h === 'Ingredient' ? 'left' : 'right', borderBottom: '0.3mm solid #333', padding: '1.5mm' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.ingredient_product_id}>
+                  <td style={{ padding: '1.5mm', borderBottom: '0.2mm solid #ddd' }}>{r.name} <span style={{ color: '#999' }}>({r.sku})</span></td>
+                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.cost_price)}</td>
+                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{r.quantity}</td>
+                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.quantity * r.cost_price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', gap: '8mm', marginTop: '5mm', fontSize: '10pt' }}>
+            <p><strong>Recipe Cost:</strong> {format(calculatedCost)}</p>
+            <p><strong>Selling Price:</strong> {format(sellingPrice)}</p>
+            <p><strong>GP %:</strong> {margin.toFixed(1)}%</p>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body
+  );
 
   return (
     <div className="space-y-6">
+      {printPortal}
+
       {/* Product picker */}
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-4">
         <h2 className="font-semibold text-gray-700 text-sm">Product</h2>
@@ -153,6 +313,22 @@ function RecipesPanel() {
               <p className="font-semibold text-gray-900 text-sm">{product.name}</p>
               <p className="text-xs text-gray-400 font-mono">{product.sku}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              title="Print Recipe"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50"
+            >
+              <Printer size={13} /> Print Recipe
+            </button>
+            <button
+              type="button"
+              onClick={() => setCopyPickerOpen(o => !o)}
+              title="Copy Recipe From..."
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50"
+            >
+              <Copy size={13} /> Copy Recipe
+            </button>
             <button type="button" onClick={() => selectProduct(null)} className="text-gray-300 hover:text-red-500">
               <X size={14} />
             </button>
@@ -162,6 +338,13 @@ function RecipesPanel() {
             label="Search product to define ingredients for"
             placeholder="Product name, SKU or barcode..."
             onSelect={selectProduct}
+          />
+        )}
+        {product && copyPickerOpen && (
+          <ProductSearch
+            label="Search the product whose recipe you want to copy from"
+            placeholder="Product name, SKU or barcode..."
+            onSelect={copyFrom}
           />
         )}
       </div>
@@ -227,6 +410,56 @@ function RecipesPanel() {
             )}
           </div>
 
+          {/* Item Description */}
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-700 text-sm">Item Description</h2>
+              {description && (
+                <button type="button" onClick={() => setDescription('')} className="text-xs text-gray-400 hover:text-red-500">
+                  Clear
+                </button>
+              )}
+            </div>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={4}
+              placeholder="Notes shown on the printed recipe..."
+              className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          {/* Item Image */}
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-3">
+            <h2 className="font-semibold text-gray-700 text-sm">Item Image</h2>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-24 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                {image
+                  ? <img src={image} alt={product.name} className="w-full h-full object-cover" />
+                  : <ImageIcon size={28} className="text-gray-300" />}
+              </div>
+              <div className="flex flex-col gap-2">
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-semibold px-3 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50"
+                >
+                  Load Picture
+                </button>
+                {image && (
+                  <button
+                    type="button"
+                    onClick={() => setImage(null)}
+                    className="text-xs font-semibold px-3 py-1.5 border border-red-200 text-red-600 rounded-md hover:bg-red-50"
+                  >
+                    Delete Picture
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Profit summary */}
           <div className="bg-white rounded-lg border border-emerald-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-700 text-sm mb-3 flex items-center gap-2">
@@ -234,7 +467,7 @@ function RecipesPanel() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs text-gray-400">Calculated Cost</p>
+                <p className="text-xs text-gray-400">Recipe Cost</p>
                 <p className="text-base font-bold text-gray-800">{format(calculatedCost)}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
@@ -246,7 +479,7 @@ function RecipesPanel() {
                 <p className={`text-base font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{format(profit)}</p>
               </div>
               <div className={`rounded-lg p-3 ${profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                <p className="text-xs text-gray-400">Margin</p>
+                <p className="text-xs text-gray-400">GP %</p>
                 <p className={`text-base font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{margin.toFixed(1)}%</p>
               </div>
             </div>
@@ -261,7 +494,7 @@ function RecipesPanel() {
             >
               {saveMutation.isPending
                 ? <><Loader2 size={16} className="animate-spin" /> Saving...</>
-                : <><BookOpen size={16} /> Save Ingredients & Recalculate Cost</>
+                : <><BookOpen size={16} /> Save Recipe & Recalculate Cost</>
               }
             </button>
           </div>
@@ -468,7 +701,12 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
 
 export default function StockProductionPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'production' | 'recipes' | 'breaking'>('production');
+  const [searchParams] = useSearchParams();
+  // Deep-link from the Products page's "Recipe" row button: ?tab=recipes&product=<id>
+  const deepLinkProductId = searchParams.get('product');
+  const [tab, setTab] = useState<'production' | 'recipes' | 'breaking'>(
+    searchParams.get('tab') === 'recipes' ? 'recipes' : 'production'
+  );
 
   const [warehouseId, setWarehouseId] = useState<number | ''>('');
   const [notes, setNotes] = useState('');
@@ -634,7 +872,7 @@ export default function StockProductionPage() {
         </button>
       </div>
 
-      {tab === 'recipes' ? <RecipesPanel /> : tab === 'breaking' ? (
+      {tab === 'recipes' ? <RecipesPanel initialProductId={deepLinkProductId ? Number(deepLinkProductId) : undefined} /> : tab === 'breaking' ? (
       <>
         {/* Warehouse */}
         <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-3">

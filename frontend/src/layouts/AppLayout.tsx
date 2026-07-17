@@ -2,7 +2,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
-  BarChart2, Receipt, Settings, LogOut, ChevronLeft, ChevronRight,
+  BarChart2, Receipt, Settings, LogOut,
   Bell, Store, CreditCard, Menu, DollarSign, ClipboardList, UserCog,
   History, CalendarCheck, Cpu, BookOpen, FileText,
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
@@ -23,8 +23,7 @@ type NavItem = { to: string; label: string; icon: React.ElementType; perm: strin
 type NavGroup = { id: string; label: string; icon: React.ElementType; items: NavItem[] };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const { user, clearAuth, hasPermission, hasRole } = useAuthStore();
   const { isServerUp } = useServerHealth();
@@ -208,27 +207,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }) => {
     const active = !external && (location.pathname === to || (to !== '/' && location.pathname.startsWith(to)));
     const cls = `flex items-center gap-3 rounded-md transition-all text-sm font-medium
-      ${indent && !collapsed ? 'pl-9 pr-3 py-1.5' : 'px-3 py-2'}
+      ${indent ? 'pl-9 pr-3 py-1.5' : 'px-3 py-2'}
       ${active
         ? 'bg-blue-600 text-white shadow-sm shadow-blue-300'
         : 'text-slate-600 hover:bg-blue-50 hover:text-blue-800'}`;
-    const content = (
-      <>
-        <Icon size={15} className="flex-shrink-0" />
-        {!collapsed && <span className="truncate">{label}</span>}
-        {!collapsed && external && <span className="ml-auto text-gray-300 text-[10px]">Open</span>}
-      </>
-    );
-    if (external) {
-      return (
-        <Link to={to} onClick={() => setMobileOpen(false)} title={collapsed ? label : undefined} className={cls}>
-          {content}
-        </Link>
-      );
-    }
     return (
-      <Link to={to} onClick={() => setMobileOpen(false)} title={collapsed ? label : undefined} className={cls}>
-        {content}
+      <Link to={to} onClick={() => setSidebarOpen(false)} className={cls}>
+        <Icon size={15} className="flex-shrink-0" />
+        <span className="truncate">{label}</span>
+        {external && <span className="ml-auto text-gray-300 text-[10px]">Open</span>}
       </Link>
     );
   };
@@ -236,7 +223,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const SidebarContent = () => (
     <div className="app-sidebar flex flex-col h-full bg-white border-r border-gray-100 shadow-sm">
       {/* Logo */}
-      <div className={`app-titlebar flex items-center gap-3 px-4 h-16 border-b border-gray-100 flex-shrink-0 ${collapsed ? 'justify-center' : ''}`}>
+      <div className="app-titlebar flex items-center gap-3 px-4 h-16 border-b border-gray-100 flex-shrink-0">
         <div className="w-9 h-9 flex-shrink-0">
           <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
             <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
@@ -244,12 +231,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <circle cx="18" cy="18" r="4" fill="white"/>
           </svg>
         </div>
-        {!collapsed && (
-          <div>
-            <span className="font-bold text-slate-950 text-base leading-tight block">Core</span>
-            <span className="text-xs text-slate-500 truncate block">{user?.branch?.name ?? 'Main Branch'}</span>
-          </div>
-        )}
+        <div>
+          <span className="font-bold text-slate-950 text-base leading-tight block">Core</span>
+          <span className="text-xs text-slate-500 truncate block">{user?.branch?.name ?? 'Main Branch'}</span>
+        </div>
       </div>
 
       {/* Nav */}
@@ -279,35 +264,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div key={group.id}>
                   {/* Group trigger button */}
                   <button
-                    onClick={() => !collapsed && toggleGroup(group.id)}
-                    title={collapsed ? group.label : undefined}
-                    className={`w-full flex items-center rounded-md text-sm font-semibold transition-all px-3 py-2
+                    onClick={() => toggleGroup(group.id)}
+                    className={`w-full flex items-center justify-between rounded-md text-sm font-semibold transition-all px-3 py-2
                       ${groupActive && !isOpen ? 'bg-blue-50 text-blue-800 shadow-sm'
                         : isOpen ? 'bg-slate-200 text-slate-900 shadow-inner'
-                        : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'}
-                      ${collapsed ? 'justify-center' : 'justify-between'}`}
+                        : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'}`}
                   >
-                    <span className={`flex items-center ${collapsed ? '' : 'gap-3'}`}>
+                    <span className="flex items-center gap-3">
                       <GroupIcon size={16} className="flex-shrink-0" />
-                      {!collapsed && <span>{group.label}</span>}
+                      <span>{group.label}</span>
                     </span>
-                    {!collapsed && (
-                      <ChevronDown
-                        size={14}
-                        className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                      />
-                    )}
+                    <ChevronDown
+                      size={14}
+                      className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                    />
                   </button>
 
                   {/* Expanded items */}
-                  {!collapsed && isOpen && (
+                  {isOpen && (
                     <div className="mt-0.5 mb-1 space-y-0.5">
                       {visibleItems.map(item => <NavLink key={item.to} {...item} indent external={item.external} />)}
                     </div>
                   )}
-
-                  {/* Collapsed sidebar: show all icons stacked under group icon */}
-                  {collapsed && visibleItems.map(item => <NavLink key={item.to} {...item} external={item.external} />)}
                 </div>
               );
             })}
@@ -317,47 +295,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* User */}
       <div className="border-t border-slate-300 p-3 flex-shrink-0 bg-slate-100/65">
-        {!collapsed ? (
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-md bg-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-inner">
-              {userInitials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-950 truncate">{user?.name}</p>
-              <p className="text-xs text-slate-500 capitalize truncate">{user?.roles?.[0] ?? 'user'}</p>
-            </div>
-            <button type="button" onClick={handleLogout} title="Logout" className="text-gray-400 hover:text-red-500 transition-colors">
-              <LogOut size={16} />
-            </button>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-md bg-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-inner">
+            {userInitials}
           </div>
-        ) : (
-          <button type="button" onClick={handleLogout} className="w-full flex justify-center text-gray-400 hover:text-red-500">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-950 truncate">{user?.name}</p>
+            <p className="text-xs text-slate-500 capitalize truncate">{user?.roles?.[0] ?? 'user'}</p>
+          </div>
+          <button type="button" onClick={handleLogout} title="Logout" className="text-gray-400 hover:text-red-500 transition-colors">
             <LogOut size={16} />
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
 
   return (
     <div className="app-shell flex h-screen bg-slate-50 overflow-hidden">
-      {/* Desktop sidebar — cashiers are kiosk-locked to their register, no sidebar at all */}
-      {!isCashier && (
-        <aside className={`hidden md:flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-56'} flex-shrink-0 relative`}>
-          <SidebarContent />
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="absolute -right-3 top-16 bg-white text-slate-600 rounded-md p-0.5 border border-slate-300 shadow-sm z-10 hover:text-blue-700"
-          >
-            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-          </button>
-        </aside>
-      )}
-
-      {/* Mobile overlay */}
-      {!isCashier && mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+      {/* Sidebar drawer — pops up over the page when the hamburger icon is clicked.
+          Cashiers are kiosk-locked to their register, no sidebar at all. */}
+      {!isCashier && sidebarOpen && (
+        <div className="fixed inset-0 z-40">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-56 h-full z-50"><SidebarContent /></aside>
         </div>
       )}
@@ -366,7 +326,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-5 gap-4 flex-shrink-0">
           {!isCashier && (
-            <button className="md:hidden text-gray-500 hover:text-gray-800" onClick={() => setMobileOpen(true)}>
+            <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
             </button>
           )}

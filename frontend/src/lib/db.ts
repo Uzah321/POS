@@ -8,6 +8,7 @@ export interface LocalProduct {
   cost_price: string;
   tax_rate?: { rate: number };
   category?: { id: number; name: string };
+  unit?: { id: number; name: string; abbreviation: string };
   total_stock?: number;
   is_active: number;
   [key: string]: unknown;

@@ -118,6 +118,13 @@ export const brandsApi = {
   delete: (id: number) => api.delete(`/brands/${id}`),
 };
 
+export const unitsApi = {
+  list: () => api.get('/units'),
+  create: (data: object) => api.post('/units', data),
+  update: (id: number, data: object) => api.put(`/units/${id}`, data),
+  delete: (id: number) => api.delete(`/units/${id}`),
+};
+
 export const branchesApi = {
   list: () => api.get('/branches'),
   create: (data: object) => api.post('/branches', data),

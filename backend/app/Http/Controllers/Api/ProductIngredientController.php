@@ -23,7 +23,7 @@ class ProductIngredientController extends BaseApiController
         }
 
         $ingredients = $product->ingredients()
-            ->with('ingredient:id,name,sku,cost_price,unit_id')
+            ->with(['ingredient:id,name,sku,cost_price,unit_id', 'ingredient.unit:id,name,abbreviation'])
             ->get();
 
         return response()->json([
@@ -71,7 +71,7 @@ class ProductIngredientController extends BaseApiController
         });
 
         $product->refresh();
-        $ingredients = $product->ingredients()->with('ingredient:id,name,sku,cost_price,unit_id')->get();
+        $ingredients = $product->ingredients()->with(['ingredient:id,name,sku,cost_price,unit_id', 'ingredient.unit:id,name,abbreviation'])->get();
 
         return response()->json([
             'data' => $ingredients,

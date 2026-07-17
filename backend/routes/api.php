@@ -139,9 +139,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('branches', \App\Http\Controllers\Api\BranchController::class);
     });
 
-    // Categories, Brands, etc.
+    // Categories, Brands, Units, etc.
     Route::apiResource('categories', \App\Http\Controllers\Api\CategoryController::class);
     Route::apiResource('brands', \App\Http\Controllers\Api\BrandController::class);
+    Route::apiResource('units', \App\Http\Controllers\Api\UnitController::class);
     Route::apiResource('warehouses', \App\Http\Controllers\Api\WarehouseController::class);
 
     // Settings — matches /settings frontend route's manage_settings gate

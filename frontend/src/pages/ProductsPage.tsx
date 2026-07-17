@@ -1,10 +1,10 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { productsApi, categoriesApi, brandsApi, inventoryApi, branchesApi } from '../api';
+import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi } from '../api';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen } from 'lucide-react';
+import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -40,6 +40,7 @@ const schema = z.object({
   cost_price: z.coerce.number().min(0),
   category_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
   brand_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
+  unit_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
   reorder_level: z.coerce.number().min(0).default(5),
   initial_quantity: z.coerce.number().min(0).default(0),
   description: z.string().optional(),
@@ -52,10 +53,13 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   const [addingCat, setAddingCat]       = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   const [addingBrand, setAddingBrand]   = useState(false);
+  const [newUnit, setNewUnit] = useState({ name: '', abbreviation: '' });
+  const [addingUnit, setAddingUnit] = useState(false);
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   const { data: cats }   = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.list().then(r => r.data?.data || []) });
   const { data: brands } = useQuery({ queryKey: ['brands'],    queryFn: () => brandsApi.list().then(r => r.data?.data || []) });
+  const { data: units }  = useQuery({ queryKey: ['units'],     queryFn: () => unitsApi.list().then(r => r.data?.data || []) });
 
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -158,6 +162,18 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       toast.success(`Brand "${created?.name}" created`);
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create brand'),
+  });
+
+  const createUnitMutation = useMutation({
+    mutationFn: () => unitsApi.create({ name: newUnit.name.trim(), abbreviation: newUnit.abbreviation.trim() }),
+    onSuccess: (res) => {
+      const created = res.data?.data;
+      qc.invalidateQueries({ queryKey: ['units'] });
+      if (created?.id) setValue('unit_id' as any, created.id);
+      setNewUnit({ name: '', abbreviation: '' }); setAddingUnit(false);
+      toast.success(`Unit "${created?.name}" created`);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create unit'),
   });
 
   const field = 'border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-1 bg-gray-50 focus:bg-white transition-colors';
@@ -290,6 +306,53 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                 </select>
               )}
             </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-gray-700">Unit of Measure</label>
+                {!addingUnit && (
+                  <button type="button" onClick={() => setAddingUnit(true)}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-0.5">
+                    <Plus size={12} /> New
+                  </button>
+                )}
+              </div>
+              {addingUnit ? (
+                <div className="flex gap-1.5 mt-1">
+                  <input
+                    autoFocus
+                    value={newUnit.name}
+                    onChange={e => setNewUnit(u => ({ ...u, name: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Escape') { setAddingUnit(false); setNewUnit({ name: '', abbreviation: '' }); } }}
+                    placeholder="Name (e.g. Gram)"
+                    className="border border-blue-400 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 bg-white min-w-0"
+                  />
+                  <input
+                    value={newUnit.abbreviation}
+                    onChange={e => setNewUnit(u => ({ ...u, abbreviation: e.target.value }))}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newUnit.name.trim() && newUnit.abbreviation.trim()) { e.preventDefault(); createUnitMutation.mutate(); }
+                      if (e.key === 'Escape') { setAddingUnit(false); setNewUnit({ name: '', abbreviation: '' }); }
+                    }}
+                    placeholder="g"
+                    className="border border-blue-400 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16 bg-white"
+                  />
+                  <button type="button" disabled={!newUnit.name.trim() || !newUnit.abbreviation.trim() || createUnitMutation.isPending}
+                    onClick={() => createUnitMutation.mutate()}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex-shrink-0">
+                    {createUnitMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Add'}
+                  </button>
+                  <button type="button" onClick={() => { setAddingUnit(false); setNewUnit({ name: '', abbreviation: '' }); }}
+                    className="px-2 py-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <select {...register('unit_id')} className={field}>
+                  <option value="">No unit</option>
+                  {(units as any[])?.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
+                </select>
+              )}
+            </div>
             {!product && (
               <div>
                 <label className="text-sm font-semibold text-gray-700">Opening Stock (units)</label>
@@ -327,7 +390,7 @@ export default function ProductsPage() {
   const [branchId, setBranchId] = useState('');
   const [modal, setModal] = useState<{ open: boolean; product?: any }>({ open: false });
   const [showImport, setShowImport] = useState(false);
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'brands'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'brands' | 'units'>('products');
   // Category management
   const [catAdd, setCatAdd] = useState('');
   const [addingCat, setAddingCat] = useState(false);
@@ -336,6 +399,10 @@ export default function ProductsPage() {
   const [brandAdd, setBrandAdd] = useState('');
   const [addingBrand, setAddingBrand] = useState(false);
   const [brandEdit, setBrandEdit] = useState<{ id: number; name: string } | null>(null);
+  // Unit management
+  const [unitAdd, setUnitAdd] = useState({ name: '', abbreviation: '' });
+  const [addingUnit, setAddingUnit] = useState(false);
+  const [unitEdit, setUnitEdit] = useState<{ id: number; name: string; abbreviation: string } | null>(null);
 
   const { format: formatCurrency } = useCurrencyStore();
   const qcMain = useQueryClient();
@@ -395,6 +462,12 @@ export default function ProductsPage() {
     staleTime: 120000,
   });
 
+  const { data: unitsAll } = useQuery({
+    queryKey: ['units'],
+    queryFn: () => unitsApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
+
   // Category CRUD mutations
   const createCatMut = useMutation({
     mutationFn: (name: string) => categoriesApi.create({ name }),
@@ -427,6 +500,23 @@ export default function ProductsPage() {
     mutationFn: (id: number) => brandsApi.delete(id),
     onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['brands'] }); toast.success('Brand deleted'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot delete — brand may be in use'),
+  });
+
+  // Unit CRUD mutations
+  const createUnitMut = useMutation({
+    mutationFn: (data: { name: string; abbreviation: string }) => unitsApi.create(data),
+    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['units'] }); setUnitAdd({ name: '', abbreviation: '' }); setAddingUnit(false); toast.success('Unit created'); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create unit'),
+  });
+  const updateUnitMut = useMutation({
+    mutationFn: ({ id, name, abbreviation }: { id: number; name: string; abbreviation: string }) => unitsApi.update(id, { name, abbreviation }),
+    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['units'] }); setUnitEdit(null); toast.success('Unit updated'); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update unit'),
+  });
+  const deleteUnitMut = useMutation({
+    mutationFn: (id: number) => unitsApi.delete(id),
+    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['units'] }); toast.success('Unit deleted'); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot delete — unit may be in use'),
   });
 
   const products: any[] = data?.data || [];
@@ -462,7 +552,8 @@ export default function ProductsPage() {
           <p className="text-gray-400 text-sm mt-0.5">
             {activeTab === 'products' ? 'Manage your product catalog and inventory'
               : activeTab === 'categories' ? 'Organise products into categories'
-              : 'Manage your product brands'}
+              : activeTab === 'brands' ? 'Manage your product brands'
+              : 'Manage measurement units — kg, litres, each, etc.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -502,6 +593,15 @@ export default function ProductsPage() {
               <Plus size={16} /> Add Brand
             </button>
           )}
+          {activeTab === 'units' && (
+            <button
+              type="button"
+              onClick={() => { setAddingUnit(true); setUnitEdit(null); }}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors"
+            >
+              <Plus size={16} /> Add Unit
+            </button>
+          )}
         </div>
       </div>
 
@@ -511,6 +611,7 @@ export default function ProductsPage() {
           { id: 'products',   label: 'Products',   icon: Package },
           { id: 'categories', label: 'Categories', icon: Tag },
           { id: 'brands',     label: 'Brands',     icon: Layers },
+          { id: 'units',      label: 'Units',       icon: Ruler },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -592,7 +693,7 @@ export default function ProductsPage() {
             <table className="w-full">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Item', 'SKU', 'Category', 'Price', 'Stock', 'Status', ''].map(h => (
+                  {['Item', 'SKU', 'Category', 'Unit', 'Price', 'Stock', 'Status', ''].map(h => (
                     <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -600,7 +701,7 @@ export default function ProductsPage() {
               <tbody className="divide-y divide-gray-50">
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-16 text-gray-400">
+                    <td colSpan={8} className="text-center py-16 text-gray-400">
                       <Package size={40} className="mx-auto mb-3 text-gray-200" />
                       <p className="font-medium">No products found</p>
                       <p className="text-sm mt-1">Add your first item to get started</p>
@@ -628,6 +729,13 @@ export default function ProductsPage() {
                         {p.category?.name ? (
                           <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
                             {p.category.name}
+                          </span>
+                        ) : <span className="text-gray-300">"</span>}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {p.unit?.abbreviation ? (
+                          <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md" title={p.unit.name}>
+                            {p.unit.abbreviation}
                           </span>
                         ) : <span className="text-gray-300">"</span>}
                       </td>
@@ -884,6 +992,140 @@ export default function ProductsPage() {
                         <button
                           type="button"
                           onClick={() => { if (window.confirm(`Delete brand "${b.name}"? Products with this brand will be unassigned.`)) deleteBrandMut.mutate(b.id); }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Units tab ────────────────────────────────────────────────────────── */}
+      {activeTab === 'units' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          {addingUnit && (
+            <div className="flex items-center gap-2 p-4 border-b border-blue-100 bg-blue-50">
+              <input
+                autoFocus
+                value={unitAdd.name}
+                onChange={e => setUnitAdd(u => ({ ...u, name: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Escape') { setAddingUnit(false); setUnitAdd({ name: '', abbreviation: '' }); } }}
+                placeholder="Unit name (e.g. Gram)..."
+                className="flex-1 border border-blue-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+              <input
+                value={unitAdd.abbreviation}
+                onChange={e => setUnitAdd(u => ({ ...u, abbreviation: e.target.value }))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && unitAdd.name.trim() && unitAdd.abbreviation.trim()) createUnitMut.mutate(unitAdd);
+                  if (e.key === 'Escape') { setAddingUnit(false); setUnitAdd({ name: '', abbreviation: '' }); }
+                }}
+                placeholder="Abbreviation (e.g. g)"
+                className="w-40 border border-blue-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+              <button
+                type="button"
+                disabled={!unitAdd.name.trim() || !unitAdd.abbreviation.trim() || createUnitMut.isPending}
+                onClick={() => createUnitMut.mutate(unitAdd)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {createUnitMut.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Save'}
+              </button>
+              <button type="button" onClick={() => { setAddingUnit(false); setUnitAdd({ name: '', abbreviation: '' }); }} className="p-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Name</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Abbreviation</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {!(unitsAll as any[])?.length ? (
+                <tr>
+                  <td colSpan={3} className="text-center py-16 text-gray-400">
+                    <Ruler size={36} className="mx-auto mb-3 text-gray-200" />
+                    <p className="font-medium">No units yet</p>
+                    <p className="text-sm mt-1">Click "Add Unit" to create your first one</p>
+                  </td>
+                </tr>
+              ) : (unitsAll as any[]).map((u: any) => (
+                <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-3.5">
+                    {unitEdit?.id === u.id ? (
+                      <input
+                        autoFocus
+                        value={unitEdit!.name}
+                        onChange={e => setUnitEdit({ ...unitEdit!, name: e.target.value })}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && unitEdit!.name.trim() && unitEdit!.abbreviation.trim()) updateUnitMut.mutate(unitEdit!);
+                          if (e.key === 'Escape') setUnitEdit(null);
+                        }}
+                        className="border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-7 h-7 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0">
+                          <Ruler size={13} className="text-blue-500" />
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">{u.name}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {unitEdit?.id === u.id ? (
+                      <input
+                        value={unitEdit!.abbreviation}
+                        onChange={e => setUnitEdit({ ...unitEdit!, abbreviation: e.target.value })}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && unitEdit!.name.trim() && unitEdit!.abbreviation.trim()) updateUnitMut.mutate(unitEdit!);
+                          if (e.key === 'Escape') setUnitEdit(null);
+                        }}
+                        className="border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
+                      />
+                    ) : (
+                      <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">{u.abbreviation}</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {unitEdit?.id === u.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={!unitEdit!.name.trim() || !unitEdit!.abbreviation.trim() || updateUnitMut.isPending}
+                          onClick={() => updateUnitMut.mutate(unitEdit!)}
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {updateUnitMut.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
+                        </button>
+                        <button type="button" onClick={() => setUnitEdit(null)} className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => { setUnitEdit({ id: u.id, name: u.name, abbreviation: u.abbreviation }); setAddingUnit(false); }}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { if (window.confirm(`Delete unit "${u.name}"? Products using this unit will be unassigned.`)) deleteUnitMut.mutate(u.id); }}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete"
                         >

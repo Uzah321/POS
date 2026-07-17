@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inventoryApi, productsApi, warehousesApi } from '../api';
+import { inventoryApi, productsApi, warehousesApi, unitsApi } from '../api';
 import {
   Loader2, Factory, Search, X, ChevronRight, BookOpen, TrendingUp, PackageOpen, Save,
   Printer, Copy, Image as ImageIcon, Plus,
@@ -70,6 +70,7 @@ function ProductSearch({
   const [newName, setNewName] = useState('');
   const [newCost, setNewCost] = useState('0');
   const [newPrice, setNewPrice] = useState('0');
+  const [newUnitId, setNewUnitId] = useState('');
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ['prod-search', q],
@@ -78,12 +79,20 @@ function ProductSearch({
     staleTime: 0,
   });
 
+  const { data: units = [] } = useQuery({
+    queryKey: ['units'],
+    queryFn: () => unitsApi.list().then(r => r.data?.data ?? []),
+    staleTime: 120000,
+    enabled: creating,
+  });
+
   const createMutation = useMutation({
     mutationFn: () => productsApi.create({
       name: newName.trim(),
       sku: generateSku(),
       cost_price: parseFloat(newCost) || 0,
       selling_price: parseFloat(newPrice) || 0,
+      unit_id: newUnitId || null,
     }),
     onSuccess: (res) => {
       const created = res.data?.data ?? res.data;
@@ -97,6 +106,7 @@ function ProductSearch({
       setNewName('');
       setNewCost('0');
       setNewPrice('0');
+      setNewUnitId('');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create product'),
   });
@@ -130,7 +140,14 @@ function ProductSearch({
                 onMouseDown={() => { onSelect(p); setQ(''); setOpen(false); }}
               >
                 <span className="font-medium text-gray-800">{p.name}</span>
-                <span className="text-xs text-gray-400 font-mono">{p.sku}</span>
+                <span className="flex items-center gap-1.5 flex-shrink-0">
+                  {p.unit?.abbreviation && (
+                    <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" title={p.unit.name}>
+                      {p.unit.abbreviation}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-400 font-mono">{p.sku}</span>
+                </span>
               </button>
             </li>
           ))}
@@ -177,6 +194,18 @@ function ProductSearch({
               />
             </div>
           </div>
+          <div>
+            <label className="text-[10px] text-gray-400 uppercase">Unit of measure</label>
+            <select
+              value={newUnitId}
+              onChange={e => setNewUnitId(e.target.value)}
+              onMouseDown={e => e.stopPropagation()}
+              className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            >
+              <option value="">No unit</option>
+              {(units as any[]).map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
+            </select>
+          </div>
           <div className="flex gap-2 pt-1">
             <button
               type="button"
@@ -206,6 +235,8 @@ interface RecipeRow {
   sku: string;
   cost_price: number;
   quantity: number;
+  unit_abbreviation?: string;
+  unit_name?: string;
 }
 
 function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
@@ -230,6 +261,8 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
         sku: r.ingredient?.sku ?? '',
         cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
         quantity: parseFloat(r.quantity),
+        unit_abbreviation: r.ingredient?.unit?.abbreviation,
+        unit_name: r.ingredient?.unit?.name,
       })));
       setDescription(res.data?.description ?? '');
       setImage(res.data?.image ?? null);
@@ -266,6 +299,8 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
       sku: p.sku,
       cost_price: parseFloat(p.cost_price || 0),
       quantity: 1,
+      unit_abbreviation: p.unit?.abbreviation,
+      unit_name: p.unit?.name,
     }]);
   };
 
@@ -287,6 +322,8 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
         sku: r.ingredient?.sku ?? '',
         cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
         quantity: parseFloat(r.quantity),
+        unit_abbreviation: r.ingredient?.unit?.abbreviation,
+        unit_name: r.ingredient?.unit?.name,
       })));
       setDescription(res.data?.description ?? '');
       setImage(res.data?.image ?? null);
@@ -383,7 +420,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                 <tr key={r.ingredient_product_id}>
                   <td style={{ padding: '1.5mm', borderBottom: '0.2mm solid #ddd' }}>{r.name} <span style={{ color: '#999' }}>({r.sku})</span></td>
                   <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.cost_price)}</td>
-                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{r.quantity}</td>
+                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{r.quantity}{r.unit_abbreviation ? ` ${r.unit_abbreviation}` : ''}</td>
                   <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.quantity * r.cost_price)}</td>
                 </tr>
               ))}
@@ -483,16 +520,24 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                           <p className="font-medium text-gray-800">{r.name}</p>
                           <p className="text-xs text-gray-400 font-mono">{r.sku}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-right text-gray-500">{format(r.cost_price)}</td>
+                        <td className="px-3 py-2.5 text-right text-gray-500">
+                          {format(r.cost_price)}
+                          {r.unit_abbreviation && <span className="text-gray-400">/{r.unit_abbreviation}</span>}
+                        </td>
                         <td className="px-3 py-2.5 text-right">
-                          <input
-                            type="number"
-                            min="0.001"
-                            step="0.001"
-                            value={r.quantity}
-                            onChange={e => updateQty(r.ingredient_product_id, e.target.value)}
-                            className="w-20 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            <input
+                              type="number"
+                              min="0.001"
+                              step="0.001"
+                              value={r.quantity}
+                              onChange={e => updateQty(r.ingredient_product_id, e.target.value)}
+                              className="w-20 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            {r.unit_abbreviation && (
+                              <span className="text-xs text-gray-400 font-semibold w-8 text-left" title={r.unit_name}>{r.unit_abbreviation}</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{format(r.quantity * r.cost_price)}</td>
                         <td className="px-2 py-2.5">

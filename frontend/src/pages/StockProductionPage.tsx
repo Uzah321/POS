@@ -5,12 +5,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi, productsApi, warehousesApi } from '../api';
 import {
   Loader2, Factory, Search, X, ChevronRight, BookOpen, TrendingUp, PackageOpen, Save,
-  Printer, Copy, Image as ImageIcon,
+  Printer, Copy, Image as ImageIcon, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
+
+function generateSku(): string {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const prefix = Array.from({ length: 3 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+  const digits = Math.floor(100000 + Math.random() * 900000);
+  return `${prefix}-${digits}`;
+}
 
 /** Resizes/compresses an image file client-side before it's stored as a base64
  * data URL — keeps the offline product cache (up to 500 products refreshed
@@ -56,15 +63,48 @@ function ProductSearch({
   placeholder: string;
   onSelect: (p: any) => void;
 }) {
+  const qc = useQueryClient();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newCost, setNewCost] = useState('0');
+  const [newPrice, setNewPrice] = useState('0');
 
-  const { data: results = [] } = useQuery({
+  const { data: results = [], isFetching } = useQuery({
     queryKey: ['prod-search', q],
     queryFn: () => productsApi.list({ search: q, per_page: 8, is_active: 1 }).then(r => r.data?.data?.data ?? []),
     enabled: q.length >= 1,
     staleTime: 0,
   });
+
+  const createMutation = useMutation({
+    mutationFn: () => productsApi.create({
+      name: newName.trim(),
+      sku: generateSku(),
+      cost_price: parseFloat(newCost) || 0,
+      selling_price: parseFloat(newPrice) || 0,
+    }),
+    onSuccess: (res) => {
+      const created = res.data?.data ?? res.data;
+      toast.success(`Product "${created.name}" created`);
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      onSelect(created);
+      setQ('');
+      setOpen(false);
+      setCreating(false);
+      setNewName('');
+      setNewCost('0');
+      setNewPrice('0');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create product'),
+  });
+
+  const startCreating = () => {
+    setNewName(q);
+    setCreating(true);
+  };
 
   return (
     <div className="relative">
@@ -77,10 +117,10 @@ function ProductSearch({
           value={q}
           onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onBlur={() => setTimeout(() => { setOpen(false); setCreating(false); }, 150)}
         />
       </div>
-      {open && q.length >= 1 && (results as any[]).length > 0 && (
+      {open && q.length >= 1 && !creating && (
         <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
           {(results as any[]).map((p: any) => (
             <li key={p.id}>
@@ -94,7 +134,67 @@ function ProductSearch({
               </button>
             </li>
           ))}
+          {!isFetching && (results as any[]).length === 0 && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); startCreating(); }}
+                className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 font-medium"
+              >
+                <Plus size={14} /> Add "{q}" as a new product
+              </button>
+            </li>
+          )}
         </ul>
+      )}
+      {open && creating && (
+        <div className="absolute z-30 mt-1 w-full bg-white border border-blue-200 rounded-md shadow-lg p-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-500">New product</p>
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onMouseDown={e => e.stopPropagation()}
+            placeholder="Product name"
+            className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] text-gray-400 uppercase">Cost price</label>
+              <input
+                type="number" min="0" step="0.01" value={newCost}
+                onChange={e => setNewCost(e.target.value)}
+                onMouseDown={e => e.stopPropagation()}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-gray-400 uppercase">Selling price</label>
+              <input
+                type="number" min="0" step="0.01" value={newPrice}
+                onChange={e => setNewPrice(e.target.value)}
+                onMouseDown={e => e.stopPropagation()}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); createMutation.mutate(); }}
+              disabled={!newName.trim() || createMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-1.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {createMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Create & Use
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); setCreating(false); }}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 rounded border border-gray-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

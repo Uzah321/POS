@@ -22,6 +22,9 @@ export interface CashNotesPadProps {
   size?: 'compact' | 'large';
   /** Hide the quick-tap note denomination row (1/5/10/20/50/100 etc). */
   hideNoteButtons?: boolean;
+  /** Hide the built-in confirm/process button — use when the caller has its
+   *  own Process action elsewhere on the page. */
+  hideConfirmButton?: boolean;
 }
 
 const NOTE_DENOMINATIONS: Record<string, number[]> = {
@@ -50,6 +53,7 @@ export default function CashNotesPad({
   totalDue,
   size = 'compact',
   hideNoteButtons = false,
+  hideConfirmButton = false,
 }: CashNotesPadProps) {
   const [history, setHistory] = useState<number[]>([]);
   const [showKeypad, setShowKeypad] = useState(false);
@@ -161,14 +165,16 @@ export default function CashNotesPad({
       </div>
 
       {/* Confirm */}
-      <button
-        type="button"
-        onPointerDown={(e) => { e.preventDefault(); if (!disabled && onConfirm) onConfirm(); }}
-        disabled={disabled}
-        className={`w-full ${BTN_BASE} ${large ? 'border-2' : 'border'} font-black ${large ? 'text-lg h-16' : 'text-sm h-12'} ${confirmCls}`}
-      >
-        {confirmLabel}
-      </button>
+      {!hideConfirmButton && (
+        <button
+          type="button"
+          onPointerDown={(e) => { e.preventDefault(); if (!disabled && onConfirm) onConfirm(); }}
+          disabled={disabled}
+          className={`w-full ${BTN_BASE} ${large ? 'border-2' : 'border'} font-black ${large ? 'text-lg h-16' : 'text-sm h-12'} ${confirmCls}`}
+        >
+          {confirmLabel}
+        </button>
+      )}
     </div>
   );
 }

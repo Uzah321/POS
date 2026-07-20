@@ -570,7 +570,7 @@ export default function POSPage() {
       <div className="flex-1 flex overflow-hidden gap-3 min-h-0">
 
         {/* Left: products only — categories now live in the full-width strip below */}
-        <div className="w-3/5 min-w-0 flex flex-col gap-2 min-h-0">
+        <div className="w-1/2 min-w-0 flex flex-col gap-2 min-h-0">
           {/* Products card — search bar as its header, matching the theme of the
               categories card and the ticket card on the right */}
           <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -651,7 +651,7 @@ export default function POSPage() {
         </div>
 
         {/* Right: ticket + payment (persistent, no separate screen) */}
-        <div className="w-2/5 min-w-[300px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+        <div className="w-1/2 min-w-[300px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
           <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -814,6 +814,7 @@ export default function POSPage() {
                       confirmCls={cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
                       disabled={cart.items.length === 0 || saleMutation.isPending}
                       hideNoteButtons
+                      hideConfirmButton
                     />
                   </div>
                 )}
@@ -828,7 +829,7 @@ export default function POSPage() {
           PLU/barcode entry, mirroring the reference layout — categories span
           under both the product grid and the ticket panel instead of being
           scoped to one column. */}
-      <div className="flex-shrink-0 flex gap-3" style={{ height: '172px' }}>
+      <div className="flex-shrink-0 flex gap-3" style={{ height: '200px' }}>
         <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 overflow-y-auto">
           <div className="flex flex-wrap gap-1.5">
             {categories.map((cat) => (
@@ -849,17 +850,18 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Compact numeric keypad — types straight into the Cash Tendered
-            field in the panel above (single source of truth for that value;
-            no separate label/input duplicated down here). */}
-        <div className="w-64 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 flex flex-col gap-1.5">
-          <div className="flex-1 grid grid-cols-3 gap-1.5 min-h-0">
+        {/* Numeric keypad — types straight into the Cash Tendered field in
+            the panel above (single source of truth for that value; no
+            separate label/input duplicated down here). Sized up for easier
+            touch targets since it's now the page's only Process trigger. */}
+        <div className="w-96 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 flex flex-col gap-2">
+          <div className="flex-1 grid grid-cols-3 gap-2 min-h-0">
             {['1','2','3','4','5','6','7','8','9'].map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => setCashTendered(cashTendered + d)}
-                className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-base touch-manipulation transition-colors"
+                className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-2xl touch-manipulation transition-colors"
               >
                 {d}
               </button>
@@ -867,14 +869,14 @@ export default function POSPage() {
             <button
               type="button"
               onClick={() => setCashTendered(cashTendered.slice(0, -1))}
-              className="bg-gray-100 hover:bg-red-50 hover:text-red-600 border border-gray-200 rounded-md font-bold text-gray-600 text-xs touch-manipulation transition-colors"
+              className="bg-gray-100 hover:bg-red-50 hover:text-red-600 border border-gray-200 rounded-md font-bold text-gray-600 text-base touch-manipulation transition-colors"
             >
               ⌫
             </button>
             <button
               type="button"
               onClick={() => setCashTendered(cashTendered + '0')}
-              className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-base touch-manipulation transition-colors"
+              className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-2xl touch-manipulation transition-colors"
             >
               0
             </button>
@@ -884,9 +886,9 @@ export default function POSPage() {
               disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
               aria-label="Process sale (F9)"
               aria-keyshortcuts="F9"
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-xs touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-base touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {saleMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Process'}
+              {saleMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : 'Process'}
             </button>
           </div>
         </div>

@@ -576,10 +576,12 @@ export default function POSPage() {
       <div className="-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
       {/* Main content — ticket + payment always visible alongside the product grid */}
-      <div className="flex-1 flex overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
+      <div className="flex-1 flex flex-col overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
 
-        {/* Left: products + categories */}
-        <div className="w-1/2 min-w-0 flex flex-col gap-2 min-h-0">
+      <div className="flex-1 flex overflow-hidden gap-3 min-h-0">
+
+        {/* Left: products only — categories now live in the full-width strip below */}
+        <div className="w-2/3 min-w-0 flex flex-col gap-2 min-h-0">
           {/* Products card — search bar as its header, matching the theme of the
               categories card and the ticket card on the right */}
           <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -657,31 +659,10 @@ export default function POSPage() {
               )}
             </div>
           </div>
-
-          {/* Categories — under the products, 1.7cm square tiles */}
-          <div className="flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2">
-            <div className="flex flex-wrap gap-1">
-              {categories.map((cat) => (
-                <button
-                  type="button"
-                  key={cat}
-                  title={cat === 'All' ? 'All Products' : cat}
-                  onClick={() => setActiveCategory(cat)}
-                  style={{ width: '1.7cm', height: '1.7cm' }}
-                  className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[10px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation
-                    ${activeCategory === cat
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-700'}`}
-                >
-                  {cat === 'All' ? 'All Products' : cat}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Right: ticket + payment (persistent, no separate screen) */}
-        <div className="w-1/2 min-w-0 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+        <div className="w-1/3 min-w-[300px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
           <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -921,6 +902,72 @@ export default function POSPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Bottom: full-width category strip + a compact numeric keypad for fast
+          PLU/barcode entry, mirroring the reference layout — categories span
+          under both the product grid and the ticket panel instead of being
+          scoped to one column. */}
+      <div className="flex-shrink-0 flex gap-3" style={{ height: '172px' }}>
+        <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 overflow-y-auto">
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map((cat) => (
+              <button
+                type="button"
+                key={cat}
+                title={cat === 'All' ? 'All Products' : cat}
+                onClick={() => setActiveCategory(cat)}
+                style={{ width: '1.9cm', height: '1.9cm' }}
+                className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[11px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation
+                  ${activeCategory === cat
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-700'}`}
+              >
+                {cat === 'All' ? 'All Products' : cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Compact numeric keypad — types straight into the same search/PLU
+            field above, for fast barcode entry without a physical scanner. */}
+        <div className="w-64 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 flex flex-col gap-1.5">
+          <div className="flex-1 grid grid-cols-3 gap-1.5 min-h-0">
+            {['1','2','3','4','5','6','7','8','9'].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setSearch((s) => s + d)}
+                className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-base touch-manipulation transition-colors"
+              >
+                {d}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSearch((s) => s.slice(0, -1))}
+              className="bg-gray-100 hover:bg-red-50 hover:text-red-600 border border-gray-200 rounded-md font-bold text-gray-600 text-xs touch-manipulation transition-colors"
+            >
+              ⌫
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearch((s) => s + '0')}
+              className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-base touch-manipulation transition-colors"
+            >
+              0
+            </button>
+            <button
+              type="button"
+              onClick={handleSearchEnter}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-xs touch-manipulation transition-colors"
+            >
+              Enter
+            </button>
+          </div>
+        </div>
+      </div>
+
       </div>
 
       {/* Footer branding */}

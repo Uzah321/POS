@@ -20,6 +20,8 @@ export interface CashNotesPadProps {
   /** 'compact' (default) fits a tight panel (Advanced POS, next to the orders list).
    *  'large' is for touchscreens with more room to spare (Cashier Register). */
   size?: 'compact' | 'large';
+  /** Hide the quick-tap note denomination row (1/5/10/20/50/100 etc). */
+  hideNoteButtons?: boolean;
 }
 
 const NOTE_DENOMINATIONS: Record<string, number[]> = {
@@ -47,6 +49,7 @@ export default function CashNotesPad({
   currencyCode = 'USD',
   totalDue,
   size = 'compact',
+  hideNoteButtons = false,
 }: CashNotesPadProps) {
   const [history, setHistory] = useState<number[]>([]);
   const [showKeypad, setShowKeypad] = useState(false);
@@ -113,19 +116,21 @@ export default function CashNotesPad({
       )}
 
       {/* Note buttons — single row (not a 3-col grid) so the pad takes half the vertical space */}
-      <div className={`grid gap-1 ${large ? 'mb-2' : 'mb-0.5'} ${notes.length >= 6 ? 'grid-cols-6' : 'grid-cols-5'}`}>
-        {notes.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onPointerDown={(e) => { e.preventDefault(); addNote(n); }}
-            disabled={disabled}
-            className={`${BTN_BASE} ${large ? 'bg-emerald-50 border-2 border-emerald-200 text-emerald-800 hover:bg-emerald-100' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-lg h-16' : 'text-sm h-9'}`}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
+      {!hideNoteButtons && (
+        <div className={`grid gap-1 ${large ? 'mb-2' : 'mb-0.5'} ${notes.length >= 6 ? 'grid-cols-6' : 'grid-cols-5'}`}>
+          {notes.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onPointerDown={(e) => { e.preventDefault(); addNote(n); }}
+              disabled={disabled}
+              className={`${BTN_BASE} ${large ? 'bg-emerald-50 border-2 border-emerald-200 text-emerald-800 hover:bg-emerald-100' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-lg h-16' : 'text-sm h-9'}`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Exact / Undo / Clear */}
       <div className={`grid grid-cols-3 gap-1 ${large ? 'mb-2' : 'mb-0.5'}`}>

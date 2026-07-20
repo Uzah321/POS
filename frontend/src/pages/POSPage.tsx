@@ -824,6 +824,7 @@ export default function POSPage() {
                       confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process'}
                       confirmCls={cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
                       disabled={cart.items.length === 0 || saleMutation.isPending}
+                      hideNoteButtons
                     />
                   </div>
                 )}

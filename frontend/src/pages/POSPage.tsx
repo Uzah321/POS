@@ -581,7 +581,7 @@ export default function POSPage() {
       <div className="flex-1 flex overflow-hidden gap-3 min-h-0">
 
         {/* Left: products only — categories now live in the full-width strip below */}
-        <div className="w-2/3 min-w-0 flex flex-col gap-2 min-h-0">
+        <div className="w-3/5 min-w-0 flex flex-col gap-2 min-h-0">
           {/* Products card — search bar as its header, matching the theme of the
               categories card and the ticket card on the right */}
           <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -662,11 +662,23 @@ export default function POSPage() {
         </div>
 
         {/* Right: ticket + payment (persistent, no separate screen) */}
-        <div className="w-1/3 min-w-[300px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+        <div className="w-2/5 min-w-[300px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
           <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-gray-900">Current Sale</span>
+              <button
+                type="button"
+                onClick={handleHoldOrder}
+                disabled={cart.items.length === 0 || holdMutation.isPending}
+                aria-label="Hold order (F8)"
+                aria-keyshortcuts="F8"
+                title="Hold order (F8)"
+                className="flex items-center gap-1 px-2 py-0.5 bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 touch-manipulation"
+              >
+                {holdMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <PauseCircle size={11} />}
+                Hold
+              </button>
               {cart.heldOrders.length > 0 && (
                 <button
                   type="button"
@@ -836,19 +848,6 @@ export default function POSPage() {
               {!saleMutation.isPending && <span className="ml-auto text-white/50 text-xs font-normal">F9</span>}
             </button>
 
-            <button
-              type="button"
-              onClick={handleHoldOrder}
-              disabled={cart.items.length === 0 || holdMutation.isPending}
-              aria-label="Hold order (F8)"
-              aria-keyshortcuts="F8"
-              className="w-full min-h-[46px] bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-600 hover:text-blue-700 font-semibold py-1.5 rounded text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50 touch-manipulation"
-            >
-              {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />}
-              Hold Order
-              {!holdMutation.isPending && <span className="ml-auto text-gray-300 text-xs font-normal">F8</span>}
-            </button>
-
             {/* Compact live kitchen status */}
             <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -872,16 +871,6 @@ export default function POSPage() {
                 <span className="text-gray-200">·</span>
                 <Link to="/queue" className="text-blue-500 hover:text-blue-700">Queue</Link>
               </div>
-            </div>
-
-            {/* Note — lowest priority, sits below the checkout actions */}
-            <div className="mt-1.5 pt-1.5 border-t border-gray-100">
-              <input
-                value={cart.note}
-                onChange={(e) => cart.setNote(e.target.value)}
-                placeholder="Add note..."
-                className="w-full text-xs text-gray-600 placeholder-gray-300 border-0 focus:outline-none bg-transparent"
-              />
             </div>
           </div>
         </div>

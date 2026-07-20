@@ -403,6 +403,8 @@ export default function ProductsPage() {
   const [unitAdd, setUnitAdd] = useState({ name: '', abbreviation: '' });
   const [addingUnit, setAddingUnit] = useState(false);
   const [unitEdit, setUnitEdit] = useState<{ id: number; name: string; abbreviation: string } | null>(null);
+  // Multi-select (bulk delete)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { format: formatCurrency } = useCurrencyStore();
   const qcMain = useQueryClient();
@@ -517,6 +519,20 @@ export default function ProductsPage() {
     mutationFn: (id: number) => unitsApi.delete(id),
     onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['units'] }); toast.success('Unit deleted'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Cannot delete — unit may be in use'),
+  });
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => productsApi.delete(id)));
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      return { failed, total: ids.length };
+    },
+    onSuccess: ({ failed, total }) => {
+      qcMain.invalidateQueries({ queryKey: ['products'] });
+      setSelectedIds(new Set());
+      if (failed === 0) toast.success(`${total} product${total !== 1 ? 's' : ''} deleted`);
+      else toast.error(`${failed} of ${total} could not be deleted`);
+    },
   });
 
   const products: any[] = data?.data || [];
@@ -684,6 +700,21 @@ export default function ProductsPage() {
               </select>
             )}
           </div>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete ${selectedIds.size} selected product${selectedIds.size !== 1 ? 's' : ''}?`)) {
+                  bulkDeleteMut.mutate(Array.from(selectedIds));
+                }
+              }}
+              disabled={bulkDeleteMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md text-sm font-medium disabled:opacity-50 flex-shrink-0"
+            >
+              {bulkDeleteMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              Delete ({selectedIds.size})
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -693,6 +724,20 @@ export default function ProductsPage() {
             <table className="w-full">
               <thead className="bg-slate-50">
                 <tr>
+                  <th className="px-5 py-3.5 text-left w-10">
+                    <input
+                      type="checkbox"
+                      checked={products.length > 0 && products.every((p: any) => selectedIds.has(p.id))}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          products.forEach((p: any) => { if (e.target.checked) next.add(p.id); else next.delete(p.id); });
+                          return next;
+                        });
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   {['Item', 'SKU', 'Category', 'Unit', 'Price', 'Stock', 'Status', ''].map(h => (
                     <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
@@ -701,7 +746,7 @@ export default function ProductsPage() {
               <tbody className="divide-y divide-gray-50">
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-16 text-gray-400">
+                    <td colSpan={9} className="text-center py-16 text-gray-400">
                       <Package size={40} className="mx-auto mb-3 text-gray-200" />
                       <p className="font-medium">No products found</p>
                       <p className="text-sm mt-1">Add your first item to get started</p>
@@ -711,6 +756,20 @@ export default function ProductsPage() {
                   const status = getStockStatus(p);
                   return (
                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(p.id)}
+                          onChange={(e) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(p.id); else next.delete(p.id);
+                              return next;
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-md bg-blue-50 flex items-center justify-center text-lg flex-shrink-0">

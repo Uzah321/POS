@@ -344,6 +344,7 @@ export default function IngredientsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; ingredient?: any }>({ open: false });
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -358,6 +359,20 @@ export default function IngredientsPage() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Could not delete ingredient'),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => ingredientsApi.delete(id)));
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      return { failed, total: ids.length };
+    },
+    onSuccess: ({ failed, total }) => {
+      qc.invalidateQueries({ queryKey: ['ingredients'] });
+      setSelectedIds(new Set());
+      if (failed === 0) toast.success(`${total} ingredient${total !== 1 ? 's' : ''} deleted`);
+      else toast.error(`${failed} of ${total} could not be deleted`);
+    },
+  });
+
   const rows: any[] = data?.data ?? [];
   const meta = data?.meta ?? (data?.last_page ? { current_page: data.current_page, last_page: data.last_page, from: data.from, to: data.to, total: data.total } : null);
 
@@ -365,13 +380,30 @@ export default function IngredientsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Wheat size={20} className="text-blue-600" /> Ingredients</h1>
-        <button
-          type="button"
-          onClick={() => setModal({ open: true })}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-semibold"
-        >
-          <Plus size={15} /> New
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Delete ${selectedIds.size} selected ingredient${selectedIds.size !== 1 ? 's' : ''}?`)) {
+                  bulkDeleteMutation.mutate(Array.from(selectedIds));
+                }
+              }}
+              disabled={bulkDeleteMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md text-sm font-medium disabled:opacity-50"
+            >
+              {bulkDeleteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              Delete ({selectedIds.size})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setModal({ open: true })}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-semibold"
+          >
+            <Plus size={15} /> New
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm">
@@ -395,6 +427,20 @@ export default function IngredientsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
               <tr>
+                <th className="text-left px-4 py-2.5 w-10">
+                  <input
+                    type="checkbox"
+                    checked={rows.length > 0 && rows.every((ing: any) => selectedIds.has(ing.id))}
+                    onChange={(e) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        rows.forEach((ing: any) => { if (e.target.checked) next.add(ing.id); else next.delete(ing.id); });
+                        return next;
+                      });
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
                 <th className="text-left px-4 py-2.5">Ingredient</th>
                 <th className="text-left px-4 py-2.5">Active</th>
                 <th className="text-left px-4 py-2.5">Cost</th>
@@ -406,6 +452,20 @@ export default function IngredientsPage() {
             <tbody>
               {rows.map((ing: any) => (
                 <tr key={ing.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                  <td className="px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(ing.id)}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(ing.id); else next.delete(ing.id);
+                          return next;
+                        });
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-4 py-2.5 font-medium text-gray-900">{ing.name}</td>
                   <td className="px-4 py-2.5">{ing.is_active ? <span className="text-emerald-600">✓</span> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-2.5 tabular-nums">${parseFloat(ing.cost_price || 0).toFixed(2)}</td>

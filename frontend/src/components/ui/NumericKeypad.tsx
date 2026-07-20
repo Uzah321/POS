@@ -88,15 +88,32 @@ export default function NumericKeypad({
     };
   }, [modal, onClose]);
 
+  // A modal keypad is the sole input surface on screen, so it should be
+  // usable from a physical/external keyboard, not just by tapping — focus
+  // it as soon as it opens so digit keys land here without a click first.
+  useEffect(() => {
+    if (modal) ref.current?.focus();
+  }, [modal]);
+
   const press = (key: string) => {
     if (disabled) return;
     onChange(applyKey(value, key, allowDecimal));
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    if (e.key >= '0' && e.key <= '9') { e.preventDefault(); press(e.key); return; }
+    if (e.key === '.') { e.preventDefault(); press('.'); return; }
+    if (e.key === 'Backspace') { e.preventDefault(); press('⌫'); return; }
+    if (e.key === 'Delete') { e.preventDefault(); press('C'); return; }
+    if (e.key === 'Enter') { e.preventDefault(); onConfirm?.(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); onClose?.(); return; }
+  };
+
   const digits = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']];
 
   const pad = (
-    <div ref={ref} className="select-none">
+    <div ref={ref} tabIndex={0} onKeyDown={handleKeyDown} className="select-none outline-none">
       {/* Value display */}
       <div className="flex items-center justify-between mb-2">
         {label && <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>}

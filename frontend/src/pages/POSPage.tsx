@@ -579,7 +579,7 @@ export default function POSPage() {
       <div className="flex-1 flex overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
 
         {/* Left: products + categories */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
+        <div className="w-1/2 min-w-0 flex flex-col gap-2 min-h-0">
           {/* Products card — search bar as its header, matching the theme of the
               categories card and the ticket card on the right */}
           <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -681,7 +681,7 @@ export default function POSPage() {
         </div>
 
         {/* Right: ticket + payment (persistent, no separate screen) */}
-        <div className="w-[38%] min-w-[340px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+        <div className="w-1/2 min-w-0 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
           <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">

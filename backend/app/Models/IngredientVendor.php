@@ -5,14 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ProductIngredient extends Model
+class IngredientVendor extends Model
 {
-    protected $fillable = ['product_id', 'ingredient_id', 'quantity'];
+    protected $fillable = ['ingredient_id', 'supplier_id', 'vendor_sku', 'vendor_cost'];
 
     protected $casts = [
-        'quantity' => 'decimal:3',
+        'vendor_cost' => 'decimal:2',
     ];
 
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
     public function ingredient(): BelongsTo { return $this->belongsTo(Ingredient::class); }
+    public function supplier(): BelongsTo { return $this->belongsTo(Supplier::class); }
 }

@@ -106,7 +106,7 @@ export default function CashNotesPad({
           value={value}
           onChange={onChange}
           onClose={() => setShowKeypad(false)}
-          onConfirm={() => setShowKeypad(false)}
+          onConfirm={() => { setShowKeypad(false); onConfirm?.(); }}
           label={label}
           confirmLabel="✓ Done"
         />

@@ -48,22 +48,16 @@ class ProductIngredientController extends BaseApiController
 
         $data = $request->validate([
             'ingredients' => 'present|array',
-            'ingredients.*.ingredient_product_id' => 'required|exists:products,id',
+            'ingredients.*.ingredient_id' => 'required|exists:ingredients,id',
             'ingredients.*.quantity' => 'required|numeric|min:0.001',
         ]);
-
-        foreach ($data['ingredients'] as $row) {
-            if ((int) $row['ingredient_product_id'] === $product->id) {
-                return response()->json(['message' => 'A product cannot be its own ingredient'], 422);
-            }
-        }
 
         DB::transaction(function () use ($product, $data) {
             $product->ingredients()->delete();
             foreach ($data['ingredients'] as $row) {
                 ProductIngredient::create([
                     'product_id' => $product->id,
-                    'ingredient_product_id' => $row['ingredient_product_id'],
+                    'ingredient_id' => $row['ingredient_id'],
                     'quantity' => $row['quantity'],
                 ]);
             }

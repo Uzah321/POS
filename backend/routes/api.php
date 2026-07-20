@@ -29,6 +29,8 @@ use App\Http\Controllers\Api\SalaryController;
 use App\Http\Controllers\Api\RentalController;
 use App\Http\Controllers\Api\StockReconciliationController;
 use App\Http\Controllers\Api\ProductIngredientController;
+use App\Http\Controllers\Api\IngredientController;
+use App\Http\Controllers\Api\ProductCaseUnitController;
 
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
@@ -58,7 +60,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/search', [ProductController::class, 'search']);
     Route::get('/products/{product}/ingredients', [ProductIngredientController::class, 'index']);
     Route::put('/products/{product}/ingredients', [ProductIngredientController::class, 'sync']);
+    Route::get('/products/{product}/case-unit', [ProductCaseUnitController::class, 'show']);
+    Route::put('/products/{product}/case-unit', [ProductCaseUnitController::class, 'set']);
     Route::apiResource('products', ProductController::class);
+
+    // Ingredients — raw materials consumed by recipes, a separate entity from Products
+    Route::get('/ingredients/{ingredient}/vendors', [IngredientController::class, 'vendors']);
+    Route::put('/ingredients/{ingredient}/vendors', [IngredientController::class, 'syncVendors']);
+    Route::get('/ingredients/{ingredient}/ordering', [IngredientController::class, 'ordering']);
+    Route::put('/ingredients/{ingredient}/ordering', [IngredientController::class, 'syncOrdering']);
+    Route::apiResource('ingredients', IngredientController::class);
 
     // Sales
     Route::get('/sales/held', [SaleController::class, 'heldSales']);

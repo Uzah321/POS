@@ -11,6 +11,7 @@ import CashierPage from './pages/CashierPage';
 import SalesPage from './pages/SalesPage';
 import RefundsPage from './pages/RefundsPage';
 import ProductsPage from './pages/ProductsPage';
+import IngredientsPage from './pages/IngredientsPage';
 import InventoryPage from './pages/InventoryPage';
 import PurchasesPage from './pages/PurchasesPage';
 import SuppliersPage from './pages/SuppliersPage';
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="/sales" element={<RequirePermission perm="view_sales"><LayoutWrapper><SalesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/refunds" element={<RequirePermission perm="process_refunds"><LayoutWrapper><RefundsPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/products" element={<RequirePermission perm="view_products"><LayoutWrapper><ProductsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/ingredients" element={<RequirePermission perm="view_inventory"><LayoutWrapper><IngredientsPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/inventory" element={<RequirePermission perm="view_inventory"><LayoutWrapper><InventoryPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/purchases" element={<RequirePermission perm="view_purchase_orders"><LayoutWrapper><PurchasesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/suppliers" element={<RequirePermission perm="view_suppliers"><LayoutWrapper><SuppliersPage /></LayoutWrapper></RequirePermission>} />

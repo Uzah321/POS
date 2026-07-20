@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
-  Factory, WifiOff, Tag, Undo2
+  Factory, WifiOff, Tag, Undo2, Wheat
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
@@ -84,6 +84,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Warehouse,
       items: [
         { to: '/products',            label: 'Products',       icon: Package,       perm: 'view_products' },
+        { to: '/ingredients',        label: 'Ingredients',    icon: Wheat,         perm: 'view_inventory' },
         { to: '/inventory',          label: 'Stock Levels',   icon: Warehouse,     perm: 'view_inventory' },
         { to: '/stock-production',   label: 'Production',     icon: Factory,       perm: 'view_inventory' },
         { to: '/stocktake',          label: 'Stocktake',      icon: ClipboardCheck,perm: 'view_inventory' },

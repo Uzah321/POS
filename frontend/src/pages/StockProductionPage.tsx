@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inventoryApi, productsApi, warehousesApi, unitsApi } from '../api';
+import { inventoryApi, productsApi, warehousesApi, unitsApi, ingredientsApi } from '../api';
 import {
   Loader2, Factory, Search, X, ChevronRight, BookOpen, TrendingUp, PackageOpen, Save,
   Printer, Copy, Image as ImageIcon, Plus,
@@ -229,8 +229,170 @@ function ProductSearch({
   );
 }
 
+/** Same shape as ProductSearch, but searches/creates against the separate
+ *  Ingredients entity (raw materials) instead of Products — used only for
+ *  picking recipe ingredients. */
+function IngredientSearch({
+  label,
+  placeholder,
+  onSelect,
+}: {
+  label: string;
+  placeholder: string;
+  onSelect: (i: any) => void;
+}) {
+  const qc = useQueryClient();
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newCost, setNewCost] = useState('0');
+  const [newUnitId, setNewUnitId] = useState('');
+
+  const { data: results = [], isFetching } = useQuery({
+    queryKey: ['ingredient-search', q],
+    queryFn: () => ingredientsApi.list({ search: q, per_page: 8, is_active: 1 }).then(r => r.data?.data?.data ?? []),
+    enabled: q.length >= 1,
+    staleTime: 0,
+  });
+
+  const { data: units = [] } = useQuery({
+    queryKey: ['units'],
+    queryFn: () => unitsApi.list().then(r => r.data?.data ?? []),
+    staleTime: 120000,
+    enabled: creating,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () => ingredientsApi.create({
+      name: newName.trim(),
+      cost_price: parseFloat(newCost) || 0,
+      unit_id: newUnitId || null,
+    }),
+    onSuccess: (res) => {
+      const created = res.data?.data ?? res.data;
+      toast.success(`Ingredient "${created.name}" created`);
+      qc.invalidateQueries({ queryKey: ['ingredients'] });
+      onSelect(created);
+      setQ('');
+      setOpen(false);
+      setCreating(false);
+      setNewName('');
+      setNewCost('0');
+      setNewUnitId('');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create ingredient'),
+  });
+
+  const startCreating = () => {
+    setNewName(q);
+    setCreating(true);
+  };
+
+  return (
+    <div className="relative">
+      <label className="text-xs font-semibold text-gray-600 mb-1 block">{label}</label>
+      <div className="flex items-center border border-gray-200 rounded-md bg-gray-50 px-3 py-2 gap-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white">
+        <Search size={14} className="text-gray-400 flex-shrink-0" />
+        <input
+          className="bg-transparent text-sm outline-none flex-1 placeholder-gray-400"
+          placeholder={placeholder}
+          value={q}
+          onChange={e => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => { setOpen(false); setCreating(false); }, 150)}
+        />
+      </div>
+      {open && q.length >= 1 && !creating && (
+        <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
+          {(results as any[]).map((i: any) => (
+            <li key={i.id}>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between"
+                onMouseDown={() => { onSelect(i); setQ(''); setOpen(false); }}
+              >
+                <span className="font-medium text-gray-800">{i.name}</span>
+                <span className="flex items-center gap-1.5 flex-shrink-0">
+                  {i.unit?.abbreviation && (
+                    <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" title={i.unit.name}>
+                      {i.unit.abbreviation}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-400 font-mono">{i.sku}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+          {!isFetching && (results as any[]).length === 0 && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); startCreating(); }}
+                className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 font-medium"
+              >
+                <Plus size={14} /> Add "{q}" as a new ingredient
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+      {open && creating && (
+        <div className="absolute z-30 mt-1 w-full bg-white border border-blue-200 rounded-md shadow-lg p-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-500">New ingredient</p>
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onMouseDown={e => e.stopPropagation()}
+            placeholder="Ingredient name"
+            className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <div>
+            <label className="text-[10px] text-gray-400 uppercase">Cost price</label>
+            <input
+              type="number" min="0" step="0.01" value={newCost}
+              onChange={e => setNewCost(e.target.value)}
+              onMouseDown={e => e.stopPropagation()}
+              className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-400 uppercase">Unit of measure</label>
+            <select
+              value={newUnitId}
+              onChange={e => setNewUnitId(e.target.value)}
+              onMouseDown={e => e.stopPropagation()}
+              className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            >
+              <option value="">No unit</option>
+              {(units as any[]).map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
+            </select>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); createMutation.mutate(); }}
+              disabled={!newName.trim() || createMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-1.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {createMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Create & Use
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); setCreating(false); }}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 rounded border border-gray-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface RecipeRow {
-  ingredient_product_id: number;
+  ingredient_id: number;
   name: string;
   sku: string;
   cost_price: number;
@@ -256,7 +418,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
       const res = await productsApi.getIngredients(product.id);
       const list = res.data?.data ?? [];
       setRows(list.map((r: any) => ({
-        ingredient_product_id: r.ingredient_product_id,
+        ingredient_id: r.ingredient_id,
         name: r.ingredient?.name ?? '',
         sku: r.ingredient?.sku ?? '',
         cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
@@ -290,26 +452,25 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
     setCopyPickerOpen(false);
   };
 
-  const addIngredient = (p: any) => {
-    if (product && p.id === product.id) { toast.error('A product cannot be its own ingredient'); return; }
-    if (rows.some(r => r.ingredient_product_id === p.id)) { toast.error('Already added'); return; }
+  const addIngredient = (i: any) => {
+    if (rows.some(r => r.ingredient_id === i.id)) { toast.error('Already added'); return; }
     setRows(prev => [...prev, {
-      ingredient_product_id: p.id,
-      name: p.name,
-      sku: p.sku,
-      cost_price: parseFloat(p.cost_price || 0),
+      ingredient_id: i.id,
+      name: i.name,
+      sku: i.sku,
+      cost_price: parseFloat(i.cost_price || 0),
       quantity: 1,
-      unit_abbreviation: p.unit?.abbreviation,
-      unit_name: p.unit?.name,
+      unit_abbreviation: i.unit?.abbreviation,
+      unit_name: i.unit?.name,
     }]);
   };
 
   const updateQty = (id: number, qty: string) => {
     const n = parseFloat(qty);
-    setRows(prev => prev.map(r => r.ingredient_product_id === id ? { ...r, quantity: isNaN(n) ? 0 : n } : r));
+    setRows(prev => prev.map(r => r.ingredient_id === id ? { ...r, quantity: isNaN(n) ? 0 : n } : r));
   };
 
-  const removeRow = (id: number) => setRows(prev => prev.filter(r => r.ingredient_product_id !== id));
+  const removeRow = (id: number) => setRows(prev => prev.filter(r => r.ingredient_id !== id));
 
   const copyFrom = async (src: any) => {
     if (product && src.id === product.id) { toast.error('Cannot copy a recipe from itself'); return; }
@@ -317,7 +478,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
       const res = await productsApi.getIngredients(src.id);
       const list = res.data?.data ?? [];
       setRows(list.map((r: any) => ({
-        ingredient_product_id: r.ingredient_product_id,
+        ingredient_id: r.ingredient_id,
         name: r.ingredient?.name ?? '',
         sku: r.ingredient?.sku ?? '',
         cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
@@ -352,7 +513,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const ingredientsPayload = rows.map(r => ({ ingredient_product_id: r.ingredient_product_id, quantity: r.quantity }));
+      const ingredientsPayload = rows.map(r => ({ ingredient_id: r.ingredient_id, quantity: r.quantity }));
       const [ingredients, details] = await Promise.all([
         offlineMutate(
           () => productsApi.syncIngredients(product.id, ingredientsPayload),
@@ -417,7 +578,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.ingredient_product_id}>
+                <tr key={r.ingredient_id}>
                   <td style={{ padding: '1.5mm', borderBottom: '0.2mm solid #ddd' }}>{r.name} <span style={{ color: '#999' }}>({r.sku})</span></td>
                   <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.cost_price)}</td>
                   <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{r.quantity}{r.unit_abbreviation ? ` ${r.unit_abbreviation}` : ''}</td>
@@ -495,9 +656,9 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
               {isFetching && <Loader2 size={14} className="animate-spin text-gray-400" />}
             </div>
 
-            <ProductSearch
+            <IngredientSearch
               label="Search & add ingredient"
-              placeholder="Product name, SKU or barcode..."
+              placeholder="Ingredient name or SKU..."
               onSelect={addIngredient}
             />
 
@@ -515,7 +676,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {rows.map(r => (
-                      <tr key={r.ingredient_product_id} className="hover:bg-gray-50">
+                      <tr key={r.ingredient_id} className="hover:bg-gray-50">
                         <td className="px-3 py-2.5">
                           <p className="font-medium text-gray-800">{r.name}</p>
                           <p className="text-xs text-gray-400 font-mono">{r.sku}</p>
@@ -531,7 +692,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                               min="0.001"
                               step="0.001"
                               value={r.quantity}
-                              onChange={e => updateQty(r.ingredient_product_id, e.target.value)}
+                              onChange={e => updateQty(r.ingredient_id, e.target.value)}
                               className="w-20 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                             {r.unit_abbreviation && (
@@ -541,7 +702,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{format(r.quantity * r.cost_price)}</td>
                         <td className="px-2 py-2.5">
-                          <button type="button" onClick={() => removeRow(r.ingredient_product_id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                          <button type="button" onClick={() => removeRow(r.ingredient_id)} className="text-gray-300 hover:text-red-500 transition-colors">
                             <X size={14} />
                           </button>
                         </td>
@@ -656,9 +817,9 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
   const [setupUnit, setSetupUnit] = useState<any>(null);
   const [setupQty, setSetupQty] = useState('');
 
-  const { data: ingredients = [], isFetching } = useQuery({
-    queryKey: ['product-ingredients', caseProduct?.id],
-    queryFn: () => productsApi.getIngredients(caseProduct.id).then(r => r.data?.data ?? []),
+  const { data: caseUnit, isFetching } = useQuery({
+    queryKey: ['product-case-unit', caseProduct?.id],
+    queryFn: () => productsApi.getCaseUnit(caseProduct.id).then(r => r.data?.data ?? null),
     enabled: !!caseProduct?.id,
   });
 
@@ -669,11 +830,11 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
     setSetupQty('');
   };
 
-  // The case's "contents" is stored as a single product_ingredients row: the
-  // case product's ingredient = the individual unit product, quantity = units
-  // per case. Same table the Ingredients & Cost tab writes to, reused here.
-  const unitDef = ingredients[0]
-    ? { product_id: ingredients[0].ingredient_product_id, name: ingredients[0].ingredient?.name ?? '', sku: ingredients[0].ingredient?.sku ?? '', unitsPerCase: parseFloat(ingredients[0].quantity) }
+  // The case's "contents" is stored in its own dedicated product_case_units
+  // row: the case product -> the individual unit product it unpacks into,
+  // plus how many units are in one case.
+  const unitDef = caseUnit
+    ? { product_id: caseUnit.unit_product_id, name: caseUnit.unit_product?.name ?? '', sku: caseUnit.unit_product?.sku ?? '', unitsPerCase: parseFloat(caseUnit.units_per_case) }
     : null;
 
   const saveDefinitionMutation = useMutation({
@@ -681,11 +842,11 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
       if (!setupUnit) throw new Error('Select the individual product this case breaks into');
       const qty = parseFloat(setupQty);
       if (!qty || qty <= 0) throw new Error('Enter how many units are in one case');
-      return productsApi.syncIngredients(caseProduct.id, [{ ingredient_product_id: setupUnit.id, quantity: qty }]);
+      return productsApi.setCaseUnit(caseProduct.id, { unit_product_id: setupUnit.id, units_per_case: qty });
     },
     onSuccess: () => {
       toast.success('Case definition saved');
-      qc.invalidateQueries({ queryKey: ['product-ingredients', caseProduct?.id] });
+      qc.invalidateQueries({ queryKey: ['product-case-unit', caseProduct?.id] });
       setSetupUnit(null);
       setSetupQty('');
     },
@@ -904,27 +1065,6 @@ export default function StockProductionPage() {
     setOutputQty('1');
   };
 
-  // Saved recipe (from the Ingredients & Cost tab) for the selected output product,
-  // so it can be loaded as the raw-material inputs instead of re-adding by hand.
-  const { data: outputRecipe = [] } = useQuery({
-    queryKey: ['product-ingredients', output?.product_id],
-    queryFn: () => productsApi.getIngredients(output!.product_id).then(r => r.data?.data ?? []),
-    enabled: !!output?.product_id,
-  });
-
-  const useRecipe = () => {
-    if (!output || outputRecipe.length === 0) return;
-    const qty = parseFloat(outputQty) || 1;
-    setInputs(outputRecipe.map((r: any) => ({
-      product_id: r.ingredient_product_id,
-      product_name: r.ingredient?.name ?? '',
-      product_sku: r.ingredient?.sku ?? '',
-      quantity: parseFloat(r.quantity) * qty,
-      cost_price: parseFloat(r.ingredient?.cost_price ?? 0),
-    })));
-    toast.success(`Loaded ${outputRecipe.length} ingredient${outputRecipe.length !== 1 ? 's' : ''} from recipe`);
-  };
-
   const productionMutation = useMutation({
     mutationFn: async (): Promise<{ offline: boolean }> => {
       if (!warehouseId) throw new Error('Select a warehouse');
@@ -1140,21 +1280,6 @@ export default function StockProductionPage() {
             placeholder="Product name, SKU or barcode..."
             onSelect={setOutputProduct}
           />
-        )}
-
-        {output && outputRecipe.length > 0 && (
-          <div className="flex items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-md">
-            <p className="text-xs text-emerald-800">
-              This product has a saved recipe with <strong>{outputRecipe.length}</strong> ingredient{outputRecipe.length !== 1 ? 's' : ''}.
-            </p>
-            <button
-              type="button"
-              onClick={useRecipe}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-semibold transition-colors"
-            >
-              <BookOpen size={13} /> Load Into Raw Materials
-            </button>
-          </div>
         )}
       </div>
 

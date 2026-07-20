@@ -403,26 +403,30 @@ export default function CashierPage() {
           <div className="flex items-center gap-5">
             <span className="text-blue-600 font-bold text-base">{storeName}</span>
             <span className="text-gray-400 text-sm">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
-            <div className="flex items-center gap-1.5">
-              <TableProperties size={14} className="text-gray-400 flex-shrink-0" />
-              <select
-                value={cart.tableNumber}
-                onChange={(e) => cart.setTableNumber(e.target.value)}
-                className="text-sm border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-              >
-                {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowOpenTables(true)}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
-            >
-              <LayoutGrid size={13} /> Open Tables
-              {heldOrders.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
-              )}
-            </button>
+            {isRestaurant && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <TableProperties size={14} className="text-gray-400 flex-shrink-0" />
+                  <select
+                    value={cart.tableNumber}
+                    onChange={(e) => cart.setTableNumber(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  >
+                    {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOpenTables(true)}
+                  className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
+                >
+                  <LayoutGrid size={13} /> Open Tables
+                  {heldOrders.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
+                  )}
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setShowVoidModal(true)}
@@ -740,8 +744,8 @@ export default function CashierPage() {
       />
     )}
 
-    {/* Open Tables — currently held/parked orders */}
-    {showOpenTables && (
+    {/* Open Tables — currently held/parked orders (restaurant mode only) */}
+    {isRestaurant && showOpenTables && (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
         <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between p-5 border-b flex-shrink-0">

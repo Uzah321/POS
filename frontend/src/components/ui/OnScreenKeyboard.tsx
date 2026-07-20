@@ -5,7 +5,7 @@
  * touchscreens without a reliable native OS keyboard can type without a
  * physical keyboard.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Delete, X, CornerDownLeft, ArrowBigUp } from 'lucide-react';
 
 interface OnScreenKeyboardProps {
@@ -51,14 +51,35 @@ export default function OnScreenKeyboard({
   label = 'Search',
 }: OnScreenKeyboardProps) {
   const [shift, setShift] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   const press = (ch: string) => onChange(value + (shift ? ch.toUpperCase() : ch));
   const backspace = () => onChange(value.slice(0, -1));
   const clear = () => onChange('');
   const space = () => onChange(value + ' ');
 
+  // This modal is the only input surface on screen while it's open, so it
+  // should accept typing from a physical/external keyboard too, not just
+  // taps — focus it on open and forward real keystrokes the same way the
+  // on-screen keys do.
+  useEffect(() => { ref.current?.focus(); }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Backspace') { e.preventDefault(); backspace(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); onClose(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
+    if (e.key === ' ') { e.preventDefault(); space(); return; }
+    if (e.key === 'Shift') { return; }
+    if (e.key.length === 1) { e.preventDefault(); onChange(value + e.key); }
+  };
+
   return (
-    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/60 p-4">
+    <div
+      ref={ref}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/60 p-4 outline-none"
+    >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">

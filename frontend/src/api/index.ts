@@ -15,8 +15,25 @@ export const productsApi = {
   update: (id: number, data: object) => api.put(`/products/${id}`, data),
   delete: (id: number) => api.delete(`/products/${id}`),
   getIngredients: (id: number) => api.get(`/products/${id}/ingredients`),
-  syncIngredients: (id: number, ingredients: Array<{ ingredient_product_id: number; quantity: number }>) =>
+  syncIngredients: (id: number, ingredients: Array<{ ingredient_id: number; quantity: number }>) =>
     api.put(`/products/${id}/ingredients`, { ingredients }),
+  getCaseUnit: (id: number) => api.get(`/products/${id}/case-unit`),
+  setCaseUnit: (id: number, data: { unit_product_id: number; units_per_case: number }) =>
+    api.put(`/products/${id}/case-unit`, data),
+};
+
+export const ingredientsApi = {
+  list: (params?: object) => api.get('/ingredients', { params }),
+  get: (id: number) => api.get(`/ingredients/${id}`),
+  create: (data: object) => api.post('/ingredients', data),
+  update: (id: number, data: object) => api.put(`/ingredients/${id}`, data),
+  delete: (id: number) => api.delete(`/ingredients/${id}`),
+  vendors: (id: number) => api.get(`/ingredients/${id}/vendors`),
+  syncVendors: (id: number, vendors: Array<{ supplier_id: number; vendor_sku?: string; vendor_cost?: number }>) =>
+    api.put(`/ingredients/${id}/vendors`, { vendors }),
+  ordering: (id: number) => api.get(`/ingredients/${id}/ordering`),
+  syncOrdering: (id: number, settings: Array<{ branch_id: number; recommended_quantity?: number; minimum_quantity?: number }>) =>
+    api.put(`/ingredients/${id}/ordering`, { settings }),
 };
 
 export const salesApi = {

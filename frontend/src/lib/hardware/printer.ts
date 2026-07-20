@@ -215,10 +215,17 @@ function parseReceiptDate(d: ReceiptData): { dateStr: string; timeStr: string } 
   return { dateStr: d.date, timeStr: '' };
 }
 
+// Sale amounts (items, subtotal, tax, total) are always recorded in the
+// store's base currency — only amountTendered/change are already in
+// whatever currency the cashier tendered in. Everything here needs the
+// exchange rate applied before it's printed, or a ZAR sale prints its USD
+// magnitudes with a ZAR/R symbol slapped on and the rate mentioned only as
+// a footnote instead of actually being applied.
 function vatInfo(d: ReceiptData): { net: number; vat: number; gross: number; pct: string } {
-  const gross = d.total;
-  const vat   = d.tax;
-  const net   = d.subtotal > 0 ? d.subtotal : gross - vat;
+  const rate  = Number(d.currencyRate ?? 1);
+  const gross = d.total * rate;
+  const vat   = d.tax * rate;
+  const net   = d.subtotal > 0 ? d.subtotal * rate : gross - vat;
   const pct   = d.vatRate != null
     ? d.vatRate.toFixed(1)
     : (net > 0 && vat > 0 ? ((vat / net) * 100).toFixed(1) : '0.0');
@@ -241,7 +248,8 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
   const { net, vat, gross, pct } = vatInfo(d);
   const itemCount = d.items.reduce((s, i) => s + i.qty, 0);
   const currCode = d.currencyCode ?? '';
-  const rate = Number(d.currencyRate ?? 1).toFixed(6);
+  const rateNum = Number(d.currencyRate ?? 1);
+  const rate = rateNum.toFixed(6);
 
   const parts: Uint8Array[] = [
     ESC_INIT,
@@ -288,7 +296,7 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
     const code = item.barcode ?? item.sku ?? '';
     if (code) parts.push(line(cut(code, W)));
     parts.push(line(cut(item.name, W)));
-    parts.push(line(pad(`  ${item.qty} X  ${fmt2(item.price)}`, fmt2(item.total))));
+    parts.push(line(pad(`  ${item.qty} X  ${fmt2(item.price * rateNum)}`, fmt2(item.total * rateNum))));
   }
   parts.push(divider());
 
@@ -410,7 +418,8 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   const fmt2 = (n: number) => Number(n).toFixed(2);
   const itemCount = d.items.reduce((sum, i) => sum + i.qty, 0);
   const currCode = d.currencyCode ?? '';
-  const rate = Number(d.currencyRate ?? 1).toFixed(6);
+  const rateNum = Number(d.currencyRate ?? 1);
+  const rate = rateNum.toFixed(6);
   const font = FONT_FAMILY_MAP[s.fontFamily] ?? FONT_FAMILY_MAP.courier;
   const pageSize = s.paperWidth === 'a4' ? 'A4' : `${s.paperWidth} auto`;
   const bodyWidth = s.paperWidth === 'a4' ? '190mm' : s.paperWidth;
@@ -443,7 +452,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
       const code = s.showItemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
 <div class="item-name">${i.name}</div>
-<div class="item-detail"><span>${i.qty} X &nbsp;${fmt2(i.price)}</span><span>${fmt2(i.total)}</span></div>`;
+<div class="item-detail"><span>${i.qty} X &nbsp;${fmt2(i.price * rateNum)}</span><span>${fmt2(i.total * rateNum)}</span></div>`;
     }).join('<div class="divider"></div>');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -503,7 +512,7 @@ ${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}
     const itemRows = d.items.map(i => {
       const code = s.showItemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
-<div class="row"><span>${i.name}</span><span class="v">${i.qty > 1 ? `${i.qty}x ` : ''}${fmt2(i.total)}</span></div>`;
+<div class="row"><span>${i.name}</span><span class="v">${i.qty > 1 ? `${i.qty}x ` : ''}${fmt2(i.total * rateNum)}</span></div>`;
     }).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -520,10 +529,10 @@ ${s.showOrderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.
 <div class="col-hdr"><span>Item</span><span>Total</span></div>
 ${itemRows}
 <div class="divider"></div>
-<div class="row"><span>Subtotal</span><span class="v">${fmt2(d.subtotal)}</span></div>
-${d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${fmt2(d.tax)}</span></div>` : ''}
-${d.discount > 0 ? `<div class="row"><span>Discount</span><span class="v">-${fmt2(d.discount)}</span></div>` : ''}
-<div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total)}</span></div>
+<div class="row"><span>Subtotal</span><span class="v">${fmt2(d.subtotal * rateNum)}</span></div>
+${d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${fmt2(d.tax * rateNum)}</span></div>` : ''}
+${d.discount > 0 ? `<div class="row"><span>Discount</span><span class="v">-${fmt2(d.discount * rateNum)}</span></div>` : ''}
+<div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total * rateNum)}</span></div>
 <div class="divider"></div>
 <div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()}</div>
 ${d.amountTendered !== undefined ? `<div class="row"><span>Cash</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
@@ -536,7 +545,7 @@ ${s.showCashierName ? `<div>Cashier: ${d.cashier}</div>` : ''}
 
   // ── Minimal layout ───────────────────────────────────────────────────────
   const itemRows = d.items.map(i =>
-    `<div class="row"><span>${i.qty > 1 ? `${i.qty}x ` : ''}${i.name}</span><span class="v">${fmt2(i.total)}</span></div>`
+    `<div class="row"><span>${i.qty > 1 ? `${i.qty}x ` : ''}${i.name}</span><span class="v">${fmt2(i.total * rateNum)}</span></div>`
   ).join('');
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -547,7 +556,7 @@ ${s.showCashierName ? `<div>Cashier: ${d.cashier}</div>` : ''}
 <div class="divider"></div>
 ${itemRows}
 <div class="divider"></div>
-<div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total)}</span></div>
+<div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total * rateNum)}</span></div>
 ${d.amountTendered !== undefined ? `<div class="row"><span>Paid</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
 ${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
 <div class="divider"></div>

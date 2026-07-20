@@ -20,9 +20,9 @@ import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import {
   Search, Plus, Minus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, UtensilsCrossed, ShoppingBag, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
+  X, ShoppingCart, UtensilsCrossed, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
   User, Award,
-  ChevronLeft, ChevronRight, Truck,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -700,28 +700,11 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Order type — table selection now lives in the top nav */}
+          {/* Order type selector removed to give the item list more vertical
+              room — orders default to 'sit_in' (Walk-in); cart.orderType is
+              still read by the receipt/KDS/printer, it just no longer has a
+              picker on this screen. */}
           <div className="px-3 pt-1 flex-shrink-0">
-            <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-              {[
-                { value: 'sit_in' as const, label: 'Walk-in', icon: User },
-                { value: 'takeaway' as const, label: 'Takeaway', icon: ShoppingBag },
-                { value: 'delivery' as const, label: 'Delivery', icon: Truck },
-              ].map(({ value, label, icon: Icon }) => (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => cart.setOrderType(value)}
-                  className={`min-h-[50px] flex items-center justify-center gap-1.5 px-2 py-1 rounded text-xs font-semibold border transition-colors touch-manipulation ${
-                    cart.orderType === value
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
-                  }`}
-                >
-                  <Icon size={13} /> {label}
-                </button>
-              ))}
-            </div>
             <div className="flex items-center text-[10px] font-semibold text-gray-400 uppercase tracking-wide pb-1 border-b border-gray-100">
               <span className="flex-1">Item</span>
               <span className="w-[92px] text-center flex-shrink-0">Qty</span>

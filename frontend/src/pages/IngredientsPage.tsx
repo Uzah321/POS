@@ -61,30 +61,30 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
           {errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">Barcode</label>
+          <label className="text-sm font-semibold text-gray-700">Barcode <span className="text-gray-400 font-medium">optional</span></label>
           <input {...register('barcode')} className={field} />
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">SKU</label>
+          <label className="text-sm font-semibold text-gray-700">SKU <span className="text-gray-400 font-medium">optional</span></label>
           <input {...register('sku')} className={field} />
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">UOM</label>
+          <label className="text-sm font-semibold text-gray-700">UOM <span className="text-gray-400 font-medium">optional</span></label>
           <select {...register('unit_id')} className={field}>
             <option value="">No unit</option>
             {(units as any[])?.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
           </select>
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">Conversion Number</label>
+          <label className="text-sm font-semibold text-gray-700">Conversion Number <span className="text-gray-400 font-medium">optional</span></label>
           <input type="number" step="0.001" min="0" {...register('conversion_number')} className={field} />
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">Stock Unit</label>
+          <label className="text-sm font-semibold text-gray-700">Stock Unit <span className="text-gray-400 font-medium">optional</span></label>
           <input {...register('stock_unit')} placeholder="eg: pack, box" className={field} />
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">Cost Price</label>
+          <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional</span></label>
           <input type="number" step="0.01" min="0" {...register('cost_price')} className={field} />
         </div>
         {!ingredient && (
@@ -291,6 +291,14 @@ function OrderingTab({ ingredientId }: { ingredientId: number }) {
   );
 }
 
+function UnsavedNotice() {
+  return (
+    <div className="p-6 text-center text-sm text-gray-400">
+      Save the ingredient's General details first — Vendors and Ordering need a saved ingredient to attach to.
+    </div>
+  );
+}
+
 function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: () => void }) {
   const [tab, setTab] = useState<'general' | 'vendors' | 'ordering'>('general');
   const [savedId, setSavedId] = useState<number | null>(ingredient?.id ?? null);
@@ -313,9 +321,8 @@ function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: (
             <button
               key={t.id}
               type="button"
-              disabled={t.id !== 'general' && !savedId}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
                 tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -326,8 +333,8 @@ function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: (
         {tab === 'general' && (
           <GeneralTab ingredient={ingredient ?? (savedId ? { id: savedId } : undefined)} onSaved={(saved) => { setSavedId(saved.id); if (!ingredient) setTab('vendors'); }} />
         )}
-        {tab === 'vendors' && savedId && <VendorsTab ingredientId={savedId} />}
-        {tab === 'ordering' && savedId && <OrderingTab ingredientId={savedId} />}
+        {tab === 'vendors' && (savedId ? <VendorsTab ingredientId={savedId} /> : <UnsavedNotice />)}
+        {tab === 'ordering' && (savedId ? <OrderingTab ingredientId={savedId} /> : <UnsavedNotice />)}
       </div>
     </div>
   );

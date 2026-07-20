@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, salesApi, settingsApi, customersApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
@@ -20,7 +18,7 @@ import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import {
   Search, Plus, Minus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, UtensilsCrossed, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
+  X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
   User, Award,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -155,15 +153,6 @@ export default function POSPage() {
   });
   const storeName = storeSettings?.company_name || 'Core';
 
-  const { data: kdsRaw } = useQuery({
-    queryKey: ['pos-kds-orders'],
-    queryFn: () => axios.get('/api/kds/orders').then(r => r.data?.data ?? []),
-    refetchInterval: 4000,
-  });
-  const kdsOrders: any[] = Array.isArray(kdsRaw) ? kdsRaw : [];
-  const kdsNew      = kdsOrders.filter((o: any) => o.kds_status === 'new').length;
-  const kdsPreparing = kdsOrders.filter((o: any) => o.kds_status === 'preparing').length;
-  const kdsReady    = kdsOrders.filter((o: any) => o.kds_status === 'ready').length;
   const storeAddress = user?.branch?.address || storeSettings?.company_address;
   const storePhone = user?.branch?.phone || storeSettings?.company_phone;
 
@@ -831,48 +820,6 @@ export default function POSPage() {
               </>
             )}
 
-            {/* Process Order — the checkout action, always on this same screen */}
-            <button
-              type="button"
-              onClick={handleProcessSale}
-              disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
-              aria-label="Process sale (F9)"
-              aria-keyshortcuts="F9"
-              className={`w-full min-h-[58px] text-white font-bold py-2.5 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md mb-1.5 bg-blue-600 hover:bg-blue-700 shadow-blue-100 touch-manipulation ${!isSplitPayment && paymentMethod === 'cash' ? 'hidden' : ''}`}
-            >
-              {saleMutation.isPending ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <CreditCard size={16} />
-              )}
-              {saleMutation.isPending ? 'Processing...' : `Process Order  ${formatCurrency(total)}`}
-              {!saleMutation.isPending && <span className="ml-auto text-white/50 text-xs font-normal">F9</span>}
-            </button>
-
-            {/* Compact live kitchen status */}
-            <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
-                  <UtensilsCrossed size={11} /> Kitchen
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">
-                    {kdsNew} <span className="font-normal text-blue-400">new</span>
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 rounded px-1.5 py-0.5">
-                    {kdsPreparing} <span className="font-normal text-amber-400">cooking</span>
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 rounded px-1.5 py-0.5">
-                    {kdsReady} <span className="font-normal text-green-400">ready</span>
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <Link to="/kitchen" className="text-blue-500 hover:text-blue-700">KDS</Link>
-                <span className="text-gray-200">·</span>
-                <Link to="/queue" className="text-blue-500 hover:text-blue-700">Queue</Link>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -933,10 +880,13 @@ export default function POSPage() {
             </button>
             <button
               type="button"
-              onClick={() => { if (cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue) handleProcessSale(); }}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-xs touch-manipulation transition-colors"
+              onClick={handleProcessSale}
+              disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
+              aria-label="Process sale (F9)"
+              aria-keyshortcuts="F9"
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-xs touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              Enter
+              {saleMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Process'}
             </button>
           </div>
         </div>

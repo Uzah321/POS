@@ -26,8 +26,10 @@ const field = 'border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outli
 function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved: any) => void }) {
   const qc = useQueryClient();
   const { data: units } = useQuery({ queryKey: ['units'], queryFn: () => unitsApi.list().then(r => r.data?.data || []) });
+  const [addingUnit, setAddingUnit] = useState(false);
+  const [newUnit, setNewUnit] = useState({ name: '', abbreviation: '' });
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: ingredient ? {
       ...ingredient,
@@ -52,6 +54,19 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
     onError: (e: any) => toast.error(e.response?.data?.message || 'Error saving ingredient'),
   });
 
+  const createUnitMutation = useMutation({
+    mutationFn: () => unitsApi.create({ name: newUnit.name.trim(), abbreviation: newUnit.abbreviation.trim() }),
+    onSuccess: (res) => {
+      const created = res.data?.data;
+      qc.invalidateQueries({ queryKey: ['units'] });
+      if (created?.id) setValue('unit_id' as any, created.id);
+      setNewUnit({ name: '', abbreviation: '' });
+      setAddingUnit(false);
+      toast.success(`Unit "${created?.name}" created`);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create unit'),
+  });
+
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="p-6 space-y-4">
       <div className="grid grid-cols-2 gap-4">
@@ -69,11 +84,51 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
           <input {...register('sku')} className={field} />
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">UOM <span className="text-gray-400 font-medium">optional</span></label>
-          <select {...register('unit_id')} className={field}>
-            <option value="">No unit</option>
-            {(units as any[])?.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
-          </select>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-semibold text-gray-700">UOM <span className="text-gray-400 font-medium">optional</span></label>
+            {!addingUnit && (
+              <button type="button" onClick={() => setAddingUnit(true)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-0.5">
+                <Plus size={12} /> New
+              </button>
+            )}
+          </div>
+          {addingUnit ? (
+            <div className="flex gap-1.5 mt-1">
+              <input
+                autoFocus
+                value={newUnit.name}
+                onChange={e => setNewUnit(u => ({ ...u, name: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Escape') { setAddingUnit(false); setNewUnit({ name: '', abbreviation: '' }); } }}
+                placeholder="Name (e.g. Gram)"
+                className="border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 bg-gray-50 focus:bg-white min-w-0"
+              />
+              <input
+                value={newUnit.abbreviation}
+                onChange={e => setNewUnit(u => ({ ...u, abbreviation: e.target.value }))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newUnit.name.trim() && newUnit.abbreviation.trim()) { e.preventDefault(); createUnitMutation.mutate(); }
+                  if (e.key === 'Escape') { setAddingUnit(false); setNewUnit({ name: '', abbreviation: '' }); }
+                }}
+                placeholder="g"
+                className="border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16 bg-gray-50 focus:bg-white"
+              />
+              <button type="button" disabled={!newUnit.name.trim() || !newUnit.abbreviation.trim() || createUnitMutation.isPending}
+                onClick={() => createUnitMutation.mutate()}
+                className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex-shrink-0">
+                {createUnitMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Add'}
+              </button>
+              <button type="button" onClick={() => { setAddingUnit(false); setNewUnit({ name: '', abbreviation: '' }); }}
+                className="px-2 py-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <select {...register('unit_id')} className={field}>
+              <option value="">No unit</option>
+              {(units as any[])?.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
+            </select>
+          )}
         </div>
         <div>
           <label className="text-sm font-semibold text-gray-700">Conversion Number <span className="text-gray-400 font-medium">optional</span></label>

@@ -79,6 +79,13 @@ function ProductSearch({
     staleTime: 0,
   });
 
+  // Plain dropdown alternative to typing a search — lists every active product.
+  const { data: allProducts = [] } = useQuery({
+    queryKey: ['all-products-dropdown'],
+    queryFn: () => productsApi.list({ per_page: 500, is_active: 1 }).then(r => r.data?.data?.data ?? []),
+    staleTime: 60000,
+  });
+
   const { data: units = [] } = useQuery({
     queryKey: ['units'],
     queryFn: () => unitsApi.list().then(r => r.data?.data ?? []),
@@ -130,6 +137,20 @@ function ProductSearch({
           onBlur={() => setTimeout(() => { setOpen(false); setCreating(false); }, 150)}
         />
       </div>
+      <select
+        value=""
+        onChange={e => {
+          const p = (allProducts as any[]).find((x: any) => String(x.id) === e.target.value);
+          if (p) onSelect(p);
+          e.target.value = '';
+        }}
+        className="mt-1.5 w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value="">Or pick from list...</option>
+        {(allProducts as any[]).map((p: any) => (
+          <option key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ''}</option>
+        ))}
+      </select>
       {open && q.length >= 1 && !creating && (
         <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
           {(results as any[]).map((p: any) => (
@@ -256,6 +277,13 @@ function IngredientSearch({
     staleTime: 0,
   });
 
+  // Plain dropdown alternative to typing a search — lists every active ingredient.
+  const { data: allIngredients = [] } = useQuery({
+    queryKey: ['all-ingredients-dropdown'],
+    queryFn: () => ingredientsApi.list({ per_page: 500, is_active: 1 }).then(r => r.data?.data?.data ?? []),
+    staleTime: 60000,
+  });
+
   const { data: units = [] } = useQuery({
     queryKey: ['units'],
     queryFn: () => unitsApi.list().then(r => r.data?.data ?? []),
@@ -303,6 +331,20 @@ function IngredientSearch({
           onBlur={() => setTimeout(() => { setOpen(false); setCreating(false); }, 150)}
         />
       </div>
+      <select
+        value=""
+        onChange={e => {
+          const i = (allIngredients as any[]).find((x: any) => String(x.id) === e.target.value);
+          if (i) onSelect(i);
+          e.target.value = '';
+        }}
+        className="mt-1.5 w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+      >
+        <option value="">Or pick from list...</option>
+        {(allIngredients as any[]).map((i: any) => (
+          <option key={i.id} value={i.id}>{i.name}{i.sku ? ` (${i.sku})` : ''}</option>
+        ))}
+      </select>
       {open && q.length >= 1 && !creating && (
         <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
           {(results as any[]).map((i: any) => (

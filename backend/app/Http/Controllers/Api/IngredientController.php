@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Models\IngredientStock;
+use App\Models\Product;
+use App\Models\ProductIngredient;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +95,16 @@ class IngredientController extends BaseApiController
 
     public function destroy(Ingredient $ingredient): \Illuminate\Http\JsonResponse
     {
+        $productNames = Product::whereIn('id', ProductIngredient::where('ingredient_id', $ingredient->id)->pluck('product_id'))
+            ->pluck('name');
+
+        if ($productNames->isNotEmpty()) {
+            return $this->error(
+                'Cannot delete — this ingredient is used in the recipe for: ' . $productNames->implode(', '),
+                422
+            );
+        }
+
         $ingredient->delete();
         return $this->success(null, 'Ingredient deleted');
     }

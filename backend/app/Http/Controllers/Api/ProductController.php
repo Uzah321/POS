@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Product;
+use App\Models\ProductCaseUnit;
 use App\Models\Stock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -158,6 +159,18 @@ class ProductController extends BaseApiController
     {
         if ($this->forbiddenCrossBranch($request, $product)) {
             return $this->error('Product not found.', 404);
+        }
+
+        $caseUnit = ProductCaseUnit::where('case_product_id', $product->id)
+            ->orWhere('unit_product_id', $product->id)
+            ->first();
+
+        if ($caseUnit) {
+            $other = Product::find($caseUnit->case_product_id === $product->id ? $caseUnit->unit_product_id : $caseUnit->case_product_id);
+            return $this->error(
+                'Cannot delete — this product is used in a case/bulk breakdown definition with "' . ($other->name ?? 'another product') . '"',
+                422
+            );
         }
 
         $product->delete();

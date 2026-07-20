@@ -901,15 +901,15 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Compact numeric keypad — types straight into the same search/PLU
-            field above, for fast barcode entry without a physical scanner. */}
+        {/* Compact numeric keypad — types straight into Cash Tendered, for
+            fast cash-amount entry without opening the tap-to-type modal. */}
         <div className="w-64 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 flex flex-col gap-1.5">
           <div className="flex-1 grid grid-cols-3 gap-1.5 min-h-0">
             {['1','2','3','4','5','6','7','8','9'].map((d) => (
               <button
                 key={d}
                 type="button"
-                onClick={() => setSearch((s) => s + d)}
+                onClick={() => setCashTendered(cashTendered + d)}
                 className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-base touch-manipulation transition-colors"
               >
                 {d}
@@ -917,21 +917,21 @@ export default function POSPage() {
             ))}
             <button
               type="button"
-              onClick={() => setSearch((s) => s.slice(0, -1))}
+              onClick={() => setCashTendered(cashTendered.slice(0, -1))}
               className="bg-gray-100 hover:bg-red-50 hover:text-red-600 border border-gray-200 rounded-md font-bold text-gray-600 text-xs touch-manipulation transition-colors"
             >
               ⌫
             </button>
             <button
               type="button"
-              onClick={() => setSearch((s) => s + '0')}
+              onClick={() => setCashTendered(cashTendered + '0')}
               className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-base touch-manipulation transition-colors"
             >
               0
             </button>
             <button
               type="button"
-              onClick={handleSearchEnter}
+              onClick={() => { if (cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue) handleProcessSale(); }}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-xs touch-manipulation transition-colors"
             >
               Enter

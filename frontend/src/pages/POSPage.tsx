@@ -902,8 +902,24 @@ export default function POSPage() {
         </div>
 
         {/* Compact numeric keypad — types straight into Cash Tendered, for
-            fast cash-amount entry without opening the tap-to-type modal. */}
+            fast cash-amount entry without opening the tap-to-type modal. The
+            input above the digit grid is a real <input> so a physical/
+            external keyboard can type the amount directly, not just touch. */}
         <div className="w-64 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 flex flex-col gap-1.5">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={cashTendered}
+            onChange={(e) => setCashTendered(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue) {
+                e.preventDefault();
+                handleProcessSale();
+              }
+            }}
+            placeholder="Cash tendered"
+            className="w-full text-right font-bold text-lg text-gray-900 border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+          />
           <div className="flex-1 grid grid-cols-3 gap-1.5 min-h-0">
             {['1','2','3','4','5','6','7','8','9'].map((d) => (
               <button

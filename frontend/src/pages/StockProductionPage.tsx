@@ -932,7 +932,10 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
       else {
         toast.success('Case broken — stock updated');
         qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
         qc.invalidateQueries({ queryKey: ['pos-products'] });
+        qc.invalidateQueries({ queryKey: ['products'] });
       }
       setCasesToBreak('1');
     },
@@ -1144,7 +1147,10 @@ export default function StockProductionPage() {
       else {
         toast.success('Production recorded - stock updated');
         qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
         qc.invalidateQueries({ queryKey: ['pos-products'] });
+        qc.invalidateQueries({ queryKey: ['products'] });
       }
       setInputs([]);
       setOutput(null);

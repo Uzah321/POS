@@ -389,7 +389,16 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
     },
     onSuccess: (result) => {
       if (result.offline) toast.success('Goods receipt saved offline - will sync when server is back');
-      else { toast.success('Goods received and stock updated'); qc.invalidateQueries({ queryKey: ['purchase-orders'] }); qc.invalidateQueries({ queryKey: ['purchase-order', po.id] }); }
+      else {
+        toast.success('Goods received and stock updated');
+        qc.invalidateQueries({ queryKey: ['purchase-orders'] });
+        qc.invalidateQueries({ queryKey: ['purchase-order', po.id] });
+        qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+        qc.invalidateQueries({ queryKey: ['pos-products'] });
+        qc.invalidateQueries({ queryKey: ['products'] });
+      }
       onClose();
     },
     onError: (err: any) => toast.error(`Could not record goods receipt: ${extractErrorMessage(err)}`),

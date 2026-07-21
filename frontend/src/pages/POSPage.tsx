@@ -366,6 +366,10 @@ export default function POSPage() {
 
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
     },
     onError: () => {
       // Restore cart from snapshot if the sale failed

@@ -67,6 +67,9 @@ export function useDBSync() {
         qc.invalidateQueries({ queryKey: ['sales'] });
         qc.invalidateQueries({ queryKey: ['my-sales'] });
         qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+        qc.invalidateQueries({ queryKey: ['pos-products'] });
         qc.invalidateQueries({ queryKey: ['stocktakes'] });
         qc.invalidateQueries({ queryKey: ['shift-history'] });
         qc.invalidateQueries({ queryKey: ['suppliers'] });

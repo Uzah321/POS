@@ -47,7 +47,14 @@ export default function InventoryPage() {
     mutationFn: (payload: object) => offlineMutate(() => inventoryApi.adjust(payload), 'inventory', 'adjust', payload as Record<string, unknown>),
     onSuccess: (result) => {
       if (result.offline) toast.success('Stock saved offline - will sync when server is back');
-      else { toast.success('Stock added successfully!'); qc.invalidateQueries({ queryKey: ['inventory'] }); qc.invalidateQueries({ queryKey: ['pos-products'] }); }
+      else {
+        toast.success('Stock added successfully!');
+        qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+        qc.invalidateQueries({ queryKey: ['pos-products'] });
+        qc.invalidateQueries({ queryKey: ['products'] });
+      }
       setShowAddStock(false);
       resetAddForm();
     },

@@ -552,7 +552,10 @@ export default function ProductsPage() {
   const outOfStock = outStockMeta?.meta?.total ?? outStockMeta?.total ?? products.filter((p: any) => p.track_stock !== false && (p.total_stock ?? 0) <= 0).length;
 
   const getStockStatus = (p: any) => {
-    if (p.track_stock === false) return { label: 'In Stock', cls: 'bg-emerald-100 text-emerald-700' };
+    // Untracked items (services, made-to-order) have no meaningful quantity —
+    // label them distinctly instead of claiming "In Stock", which read as a
+    // contradiction next to a "0" units column.
+    if (p.track_stock === false) return { label: 'Not Tracked', cls: 'bg-gray-100 text-gray-500' };
     const s = p.total_stock ?? 0;
     if (s <= 0) return { label: 'Out of Stock', cls: 'bg-red-100 text-red-700' };
     if (s <= (p.reorder_level ?? 5)) return { label: 'Low Stock', cls: 'bg-orange-100 text-orange-700' };
@@ -803,8 +806,14 @@ export default function ProductsPage() {
                         <p className="text-xs text-gray-400">Cost: {formatCurrency(parseFloat(p.cost_price || 0))}</p>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-sm font-bold text-gray-700">{p.total_stock ?? 0}</span>
-                        <p className="text-xs text-gray-400">units</p>
+                        {p.track_stock === false ? (
+                          <span className="text-sm text-gray-300">—</span>
+                        ) : (
+                          <>
+                            <span className="text-sm font-bold text-gray-700">{p.total_stock ?? 0}</span>
+                            <p className="text-xs text-gray-400">units</p>
+                          </>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${status.cls}`}>

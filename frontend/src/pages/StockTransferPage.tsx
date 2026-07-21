@@ -55,7 +55,18 @@ export default function StockTransferPage() {
     mutationFn: ({ id, action }: { id: number; action: string }) => offlineMutate(() => api.post(`/stock-transfers/${id}/${action}`), 'stock_transfers', action, { _url: `/stock-transfers/${id}/${action}`, _method: 'POST' }, id),
     onSuccess: (result, vars) => {
       if (result.offline) toast.success(`${vars.action} queued offline — will sync when server is back`);
-      else { toast.success(`Transfer ${vars.action === 'dispatch' ? 'dispatched' : vars.action === 'receive' ? 'received' : 'cancelled'}!`); qc.invalidateQueries({ queryKey: ['stock-transfer', selected?.id] }); qc.invalidateQueries({ queryKey: ['stock-transfers'] }); }
+      else {
+        toast.success(`Transfer ${vars.action === 'dispatch' ? 'dispatched' : vars.action === 'receive' ? 'received' : 'cancelled'}!`);
+        qc.invalidateQueries({ queryKey: ['stock-transfer', selected?.id] });
+        qc.invalidateQueries({ queryKey: ['stock-transfers'] });
+        // dispatch/receive move real stock between warehouses — refresh every
+        // view that shows a stock quantity, not just this transfer's own data.
+        qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+        qc.invalidateQueries({ queryKey: ['pos-products'] });
+        qc.invalidateQueries({ queryKey: ['products'] });
+      }
     },
   });
 

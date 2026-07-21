@@ -91,7 +91,18 @@ export default function StocktakePage() {
     mutationFn: (id: number) => offlineMutate(() => api.post(`/stocktakes/${id}/complete`), 'stocktakes', 'complete', { _url: `/stocktakes/${id}/complete`, _method: 'POST' }, id),
     onSuccess: (result) => {
       if (result.offline) toast.success('Completion queued offline — will sync when server is back');
-      else { toast.success('Stocktake completed - stock levels updated!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); }
+      else {
+        toast.success('Stocktake completed - stock levels updated!');
+        qc.invalidateQueries({ queryKey: ['stocktakes'] });
+        qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] });
+        // Completing a count overwrites real stock quantities — refresh every
+        // view that shows one, not just this stocktake's own record.
+        qc.invalidateQueries({ queryKey: ['inventory'] });
+        qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+        qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+        qc.invalidateQueries({ queryKey: ['pos-products'] });
+        qc.invalidateQueries({ queryKey: ['products'] });
+      }
     },
   });
 

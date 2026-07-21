@@ -244,6 +244,10 @@ export default function CashierPage() {
       setCashTendered('');
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
       setTimeout(() => codeRef.current?.focus(), 80);
     },
     onError: (error: any) => {
@@ -303,6 +307,11 @@ export default function CashierPage() {
       toast.success('Sale voided');
       qc.invalidateQueries({ queryKey: ['void-search'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
     },
     onError: (error: any) => toast.error(error?.response?.data?.message ?? 'Could not void this sale'),
   });

@@ -49,6 +49,13 @@ function RefundModal({ sale, onClose, formatAmount }: { sale: any; onClose: () =
       toast.success('Refund processed');
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['sale', sale.id] });
+      // A restocked refund puts stock back — refresh every view that shows a
+      // quantity, not just this sale's own record.
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'Refund failed — check the local server is reachable'),

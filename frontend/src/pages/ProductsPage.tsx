@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi } from '../api';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler } from 'lucide-react';
+import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -44,7 +44,149 @@ const schema = z.object({
   reorder_level: z.coerce.number().min(0).default(5),
   initial_quantity: z.coerce.number().min(0).default(0),
   description: z.string().optional(),
+  color: z.string().optional(),
+  image: z.string().optional(),
 });
+
+// Preset swatches shown for quick-pick — a small, print-friendly palette that
+// stays legible as a tile background and as text on a category chip.
+const COLOR_SWATCHES = [
+  '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#84CC16', '#22C55E',
+  '#10B981', '#14B8A6', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6',
+  '#A855F7', '#D946EF', '#EC4899', '#64748B',
+];
+
+// Compact swatch row for category color — used inline in table rows where
+// space doesn't allow the full ColorImagePicker used on the product form.
+function InlineColorPicker({ value, onChange }: { value?: string; onChange: (c: string | undefined) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span
+        className="w-6 h-6 rounded-full border border-gray-200 flex-shrink-0"
+        style={value ? { backgroundColor: value } : { background: 'repeating-conic-gradient(#e5e7eb 0% 25%, #fff 0% 50%) 0 0/8px 8px' }}
+        title={value || 'No color'}
+      />
+      <div className="flex flex-wrap gap-1 max-w-[180px]">
+        {COLOR_SWATCHES.slice(0, 8).map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            title={c}
+            style={{ backgroundColor: c }}
+            className={`w-4 h-4 rounded-full border transition-transform hover:scale-110 ${value === c ? 'border-gray-800' : 'border-white shadow-sm'}`}
+          />
+        ))}
+        <label title="Custom color" className="w-4 h-4 rounded-full border border-white shadow-sm cursor-pointer relative overflow-hidden bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]">
+          <input type="color" value={value || '#888888'} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+        </label>
+        {value && (
+          <button type="button" onClick={() => onChange(undefined)} title="Clear color" className="w-4 h-4 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-500">
+            <X size={10} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
+  color?: string; image?: string;
+  onColorChange: (c: string | undefined) => void;
+  onImageChange: (i: string | undefined) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      onImageChange(dataUrl);
+      onColorChange(undefined);
+    } catch {
+      toast.error('Could not read image file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="col-span-2">
+      <label className="text-sm font-semibold text-gray-700">Tile Color / Image</label>
+      <p className="text-xs text-gray-400 mt-0.5 mb-2">Shown on the POS button — pick a color or upload an image (image takes priority)</p>
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
+          <div
+            className="w-14 h-14 rounded-md border border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50"
+            style={!image && color ? { backgroundColor: color } : undefined}
+          >
+            {image ? (
+              <img src={image} alt="Product tile" className="w-full h-full object-cover" />
+            ) : !color ? (
+              <Package size={18} className="text-gray-300" />
+            ) : null}
+          </div>
+          {(image || color) && (
+            <button
+              type="button"
+              onClick={() => { onImageChange(undefined); onColorChange(undefined); }}
+              className="text-[11px] text-gray-400 hover:text-red-500"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {COLOR_SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { onColorChange(c); onImageChange(undefined); }}
+                title={c}
+                style={{ backgroundColor: c }}
+                className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${color === c && !image ? 'border-gray-800' : 'border-white shadow-sm'}`}
+              />
+            ))}
+            <label
+              title="Custom color"
+              className="w-6 h-6 rounded-full border-2 border-white shadow-sm cursor-pointer relative overflow-hidden bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]"
+            >
+              <input
+                type="color"
+                value={color && !image ? color : '#888888'}
+                onChange={(e) => { onColorChange(e.target.value); onImageChange(undefined); }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </label>
+          </div>
+          <div>
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 cursor-pointer">
+              {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
+              Upload image...
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 type FormData = z.infer<typeof schema>;
 
 function ProductModal({ product, onClose }: { product?: any; onClose: () => void }) {
@@ -61,7 +203,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   const { data: brands } = useQuery({ queryKey: ['brands'],    queryFn: () => brandsApi.list().then(r => r.data?.data || []) });
   const { data: units }  = useQuery({ queryKey: ['units'],     queryFn: () => unitsApi.list().then(r => r.data?.data || []) });
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: product ? {
       ...product,
@@ -69,6 +211,8 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       cost_price: parseFloat(product.cost_price || 0),
       reorder_level: product.reorder_level ?? 5,
       initial_quantity: 0,
+      color: product.color ?? undefined,
+      image: product.image ?? undefined,
     } : {
       sku: generateSku(),
       barcode: generateBarcode(),
@@ -76,6 +220,8 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       initial_quantity: 0,
     },
   });
+  const watchedColor = watch('color');
+  const watchedImage = watch('image');
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -365,6 +511,12 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               <input type="number" step="1" min="0" {...register('reorder_level')} className={field} placeholder="5" />
               <p className="text-xs text-gray-400 mt-1">Flag as low stock at or below this quantity</p>
             </div>
+            <ColorImagePicker
+              color={watchedColor}
+              image={watchedImage}
+              onColorChange={(c) => setValue('color' as any, c, { shouldDirty: true })}
+              onImageChange={(i) => setValue('image' as any, i, { shouldDirty: true })}
+            />
             <div className="col-span-2">
               <label className="text-sm font-semibold text-gray-700">Description</label>
               <textarea {...register('description')} rows={2} className={`${field} resize-none`} />
@@ -393,8 +545,9 @@ export default function ProductsPage() {
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'brands' | 'units'>('products');
   // Category management
   const [catAdd, setCatAdd] = useState('');
+  const [catAddColor, setCatAddColor] = useState<string | undefined>(undefined);
   const [addingCat, setAddingCat] = useState(false);
-  const [catEdit, setCatEdit] = useState<{ id: number; name: string } | null>(null);
+  const [catEdit, setCatEdit] = useState<{ id: number; name: string; color?: string } | null>(null);
   // Brand management
   const [brandAdd, setBrandAdd] = useState('');
   const [addingBrand, setAddingBrand] = useState(false);
@@ -472,12 +625,12 @@ export default function ProductsPage() {
 
   // Category CRUD mutations
   const createCatMut = useMutation({
-    mutationFn: (name: string) => categoriesApi.create({ name }),
-    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['categories'] }); setCatAdd(''); setAddingCat(false); toast.success('Category created'); },
+    mutationFn: ({ name, color }: { name: string; color?: string }) => categoriesApi.create({ name, color }),
+    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['categories'] }); setCatAdd(''); setCatAddColor(undefined); setAddingCat(false); toast.success('Category created'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create category'),
   });
   const updateCatMut = useMutation({
-    mutationFn: ({ id, name }: { id: number; name: string }) => categoriesApi.update(id, { name }),
+    mutationFn: ({ id, name, color }: { id: number; name: string; color?: string }) => categoriesApi.update(id, { name, color: color ?? null }),
     onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['categories'] }); setCatEdit(null); toast.success('Category updated'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update category'),
   });
@@ -775,8 +928,15 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-md bg-blue-50 flex items-center justify-center text-lg flex-shrink-0">
-                            <Package size={16} className="text-blue-400" />
+                          <div
+                            className={`w-9 h-9 rounded-md flex items-center justify-center text-lg flex-shrink-0 overflow-hidden ${!p.image && !p.color ? 'bg-blue-50' : ''}`}
+                            style={!p.image && p.color ? { backgroundColor: `${p.color}22` } : undefined}
+                          >
+                            {p.image ? (
+                              <img src={p.image} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Package size={16} style={p.color ? { color: p.color } : undefined} className={!p.color ? 'text-blue-400' : ''} />
+                            )}
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900">{p.name}</p>
@@ -863,21 +1023,22 @@ export default function ProductsPage() {
                 value={catAdd}
                 onChange={e => setCatAdd(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && catAdd.trim()) createCatMut.mutate(catAdd.trim());
-                  if (e.key === 'Escape') { setAddingCat(false); setCatAdd(''); }
+                  if (e.key === 'Enter' && catAdd.trim()) createCatMut.mutate({ name: catAdd.trim(), color: catAddColor });
+                  if (e.key === 'Escape') { setAddingCat(false); setCatAdd(''); setCatAddColor(undefined); }
                 }}
                 placeholder="Category name..."
                 className="flex-1 border border-blue-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               />
+              <InlineColorPicker value={catAddColor} onChange={setCatAddColor} />
               <button
                 type="button"
                 disabled={!catAdd.trim() || createCatMut.isPending}
-                onClick={() => createCatMut.mutate(catAdd.trim())}
+                onClick={() => createCatMut.mutate({ name: catAdd.trim(), color: catAddColor })}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {createCatMut.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Save'}
               </button>
-              <button type="button" onClick={() => { setAddingCat(false); setCatAdd(''); }} className="p-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
+              <button type="button" onClick={() => { setAddingCat(false); setCatAdd(''); setCatAddColor(undefined); }} className="p-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
                 <X size={14} />
               </button>
             </div>
@@ -886,13 +1047,14 @@ export default function ProductsPage() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Color</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {!(categoriesAll as any[])?.length ? (
                 <tr>
-                  <td colSpan={2} className="text-center py-16 text-gray-400">
+                  <td colSpan={3} className="text-center py-16 text-gray-400">
                     <Tag size={36} className="mx-auto mb-3 text-gray-200" />
                     <p className="font-medium">No categories yet</p>
                     <p className="text-sm mt-1">Click "Add Category" to create your first one</p>
@@ -907,18 +1069,33 @@ export default function ProductsPage() {
                         value={catEdit!.name}
                         onChange={e => setCatEdit({ ...catEdit!, name: e.target.value })}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && catEdit!.name.trim()) updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim() });
+                          if (e.key === 'Enter' && catEdit!.name.trim()) updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim(), color: catEdit!.color });
                           if (e.key === 'Escape') setCatEdit(null);
                         }}
                         className="border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
                       />
                     ) : (
                       <div className="flex items-center gap-2.5">
-                        <span className="w-7 h-7 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0">
-                          <Tag size={13} className="text-blue-500" />
+                        <span
+                          className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${!c.color ? 'bg-blue-50' : ''}`}
+                          style={c.color ? { backgroundColor: `${c.color}22` } : undefined}
+                        >
+                          <Tag size={13} style={c.color ? { color: c.color } : undefined} className={!c.color ? 'text-blue-500' : ''} />
                         </span>
                         <span className="text-sm font-medium text-gray-900">{c.name}</span>
                       </div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {catEdit?.id === c.id ? (
+                      <InlineColorPicker value={catEdit!.color} onChange={(color) => setCatEdit({ ...catEdit!, color })} />
+                    ) : c.color ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                        <span className="w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: c.color }} />
+                        {c.color}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
                     )}
                   </td>
                   <td className="px-5 py-3.5">
@@ -927,7 +1104,7 @@ export default function ProductsPage() {
                         <button
                           type="button"
                           disabled={!catEdit!.name.trim() || updateCatMut.isPending}
-                          onClick={() => updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim() })}
+                          onClick={() => updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim(), color: catEdit!.color })}
                           className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
                         >
                           {updateCatMut.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
@@ -940,7 +1117,7 @@ export default function ProductsPage() {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => { setCatEdit({ id: c.id, name: c.name }); setAddingCat(false); }}
+                          onClick={() => { setCatEdit({ id: c.id, name: c.name, color: c.color }); setAddingCat(false); }}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit"
                         >

@@ -230,6 +230,10 @@ export default function POSPage() {
 
   // Derive categories
   const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
+  // name -> color, so the category strip and product tiles can share a
+  // product's category tint when the product itself has no color/image set.
+  const categoryColors = new Map<string, string>();
+  allProducts.forEach((p: any) => { if (p.category?.name && p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color); });
 
   // Filter products
   const filteredProducts = allProducts.filter((p: any) => {
@@ -389,6 +393,11 @@ export default function POSPage() {
   });
 
   const handleAddProduct = (product: any) => {
+    const price = parseFloat(product.selling_price);
+    if (!price || Number.isNaN(price) || price <= 0) {
+      toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
+      return;
+    }
     // Block sale if stock is zero/negative and setting is enabled
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
@@ -400,7 +409,7 @@ export default function POSPage() {
       product_id: product.id,
       name: product.name,
       sku: product.sku,
-      price: parseFloat(product.selling_price),
+      price,
       cost: parseFloat(product.cost_price || 0),
       tax_rate: effectiveTaxRate(product, storeSettings),
     });
@@ -611,19 +620,31 @@ export default function POSPage() {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-wrap content-start gap-1 overflow-y-auto min-h-0">
-                  {pagedProducts.map((product: any) => (
-                    <button
-                      type="button"
-                      key={product.id}
-                      title={`${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
-                      onClick={() => handleAddProduct(product)}
-                      style={{ width: '1.7cm', height: '1.7cm' }}
-                      className="bg-white hover:border-blue-300 hover:shadow-sm border border-gray-200 rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden"
-                    >
-                      <span className="w-full text-[10px] font-semibold text-gray-800 text-center leading-none line-clamp-2">{product.name}</span>
-                      <span className="text-[11px] font-black text-blue-700 tabular-nums leading-none">{formatCurrency(parseFloat(product.selling_price))}</span>
-                    </button>
-                  ))}
+                  {pagedProducts.map((product: any) => {
+                    const tileColor = product.color || (product.category?.name ? categoryColors.get(product.category.name) : undefined);
+                    return (
+                      <button
+                        type="button"
+                        key={product.id}
+                        title={`${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
+                        onClick={() => handleAddProduct(product)}
+                        style={{
+                          width: '1.7cm', height: '1.7cm',
+                          ...(product.image ? {} : tileColor ? { backgroundColor: `${tileColor}1f`, borderColor: tileColor } : {}),
+                        }}
+                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${product.image || tileColor ? '' : 'bg-white border-gray-200'}`}
+                      >
+                        {product.image && (
+                          <>
+                            <img src={product.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            <span className="absolute inset-0 bg-black/25" />
+                          </>
+                        )}
+                        <span className={`relative w-full text-[10px] font-semibold text-center leading-none line-clamp-2 ${product.image ? 'text-white' : 'text-gray-800'}`}>{product.name}</span>
+                        <span className={`relative text-[11px] font-black tabular-nums leading-none ${product.image ? 'text-white' : 'text-blue-700'}`}>{formatCurrency(parseFloat(product.selling_price))}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -836,21 +857,30 @@ export default function POSPage() {
       <div className="flex-shrink-0 flex gap-3" style={{ height: '200px' }}>
         <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 overflow-y-auto">
           <div className="flex flex-wrap gap-1.5">
-            {categories.map((cat) => (
-              <button
-                type="button"
-                key={cat}
-                title={cat === 'All' ? 'All Products' : cat}
-                onClick={() => setActiveCategory(cat)}
-                style={{ width: '1.9cm', height: '1.9cm' }}
-                className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[11px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation
-                  ${activeCategory === cat
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-700'}`}
-              >
-                {cat === 'All' ? 'All Products' : cat}
-              </button>
-            ))}
+            {categories.map((cat) => {
+              const catColor = cat === 'All' ? undefined : categoryColors.get(cat);
+              const isActive = activeCategory === cat;
+              return (
+                <button
+                  type="button"
+                  key={cat}
+                  title={cat === 'All' ? 'All Products' : cat}
+                  onClick={() => setActiveCategory(cat)}
+                  style={{
+                    width: '1.9cm', height: '1.9cm',
+                    ...(isActive
+                      ? (catColor ? { backgroundColor: catColor } : {})
+                      : (catColor ? { backgroundColor: `${catColor}1f`, borderColor: catColor } : {})),
+                  }}
+                  className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[11px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation border
+                    ${isActive
+                      ? `${catColor ? 'text-white border-transparent' : 'bg-blue-600 text-white border-transparent'}`
+                      : `${catColor ? 'text-gray-700' : 'bg-white border-gray-200 text-gray-600'} hover:bg-blue-50 hover:text-blue-700`}`}
+                >
+                  {cat === 'All' ? 'All Products' : cat}
+                </button>
+              );
+            })}
           </div>
         </div>
 

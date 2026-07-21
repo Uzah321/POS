@@ -142,6 +142,11 @@ export default function CashierPage() {
   }, [cart.items, hw.customerDisplayEnabled]);
 
   const addProduct = (product: any) => {
+    const price = parseFloat(product.selling_price);
+    if (!price || Number.isNaN(price) || price <= 0) {
+      toast.error(`${product.name} has no price set — add a price before selling it`);
+      return;
+    }
     // Block sale if stock is zero/negative and setting is enabled
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNeg = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
@@ -153,7 +158,7 @@ export default function CashierPage() {
       product_id: product.id,
       name:       product.name,
       sku:        product.sku,
-      price:      parseFloat(product.selling_price),
+      price,
       cost:       parseFloat(product.cost_price || 0),
       tax_rate:   effectiveTaxRate(product, storeSettings),
     });
@@ -493,7 +498,10 @@ export default function CashierPage() {
                   {matchedProducts.map(p => (
                     <button key={p.id} type="button" onClick={() => addProduct(p)}
                       className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-gray-50 flex items-center justify-between text-sm">
-                      <span>
+                      <span className="flex items-center">
+                        {(p.color || p.category?.color) && (
+                          <span className="w-2.5 h-2.5 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: p.color || p.category?.color }} />
+                        )}
                         <span className="text-gray-400 mr-3 text-xs">{p.sku}</span>
                         <span className="font-semibold text-gray-900">{p.name}</span>
                       </span>

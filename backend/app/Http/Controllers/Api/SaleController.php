@@ -73,7 +73,8 @@ class SaleController extends BaseApiController
             return $this->error('One or more items do not belong to this branch.', 422);
         }
 
-        return DB::transaction(function () use ($data, $request) {
+        try {
+            return DB::transaction(function () use ($data, $request) {
             // Products keyed by id, with each one's tax rate preloaded — used both for
             // per-item tax calculation below and cost price lookup further down.
             $productIds  = collect($data['items'])->pluck('product_id')->unique();
@@ -83,6 +84,41 @@ class SaleController extends BaseApiController
             // otherwise fall back to the global Settings tax rate, when tax is enabled.
             $taxEnabled    = filter_var(\App\Models\Setting::get('tax_enabled', false), FILTER_VALIDATE_BOOLEAN);
             $globalTaxRate = (float) \App\Models\Setting::get('tax_rate', 0);
+
+            // Re-validate stock server-side — the frontend only blocks adding an
+            // out-of-stock item to the cart, which a direct API call, the offline
+            // sync queue, or a second concurrent cashier can all bypass. Lock each
+            // row now (inside this transaction) so two simultaneous sales for the
+            // same product can't both read the same starting quantity and both pass.
+            $blockNegativeStock = filter_var(\App\Models\Setting::get('block_negative_stock', true), FILTER_VALIDATE_BOOLEAN);
+            if ($blockNegativeStock) {
+                // Aggregate quantity per product+variant first — the same line
+                // can appear more than once in a cart (e.g. split notes), and
+                // checking each occurrence in isolation would let their combined
+                // demand exceed stock even though each individual line "passed".
+                $neededByKey = [];
+                foreach ($data['items'] as $item) {
+                    $key = $item['product_id'].':'.($item['product_variant_id'] ?? '');
+                    $neededByKey[$key] = ($neededByKey[$key] ?? 0) + (float) $item['quantity'];
+                }
+
+                foreach ($neededByKey as $key => $needed) {
+                    [$productId, $variantId] = array_pad(explode(':', $key, 2), 2, null);
+                    $product = $productsById->get((int) $productId);
+                    if ($product && ! $product->track_stock) continue;
+
+                    $stock = Stock::where('warehouse_id', $data['warehouse_id'])
+                        ->where('product_id', $productId)
+                        ->where('product_variant_id', $variantId === '' ? null : $variantId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $available = (float) ($stock->quantity ?? 0);
+                    if ($available < $needed) {
+                        throw new \RuntimeException(($product->name ?? 'Item')." is out of stock (available: {$available})");
+                    }
+                }
+            }
 
             // Calculate totals
             $subtotal       = 0;
@@ -206,7 +242,10 @@ class SaleController extends BaseApiController
             }
 
             return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier', 'branch'), 'Sale completed', 201);
-        });
+            });
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
     }
 
     public function show(Sale $sale): \Illuminate\Http\JsonResponse

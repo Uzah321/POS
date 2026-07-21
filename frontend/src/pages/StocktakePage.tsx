@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Plus, X, ClipboardCheck, Check, AlertCircle, Download, CheckCircle2, Circle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
-import { settingsApi } from '../api';
+import { settingsApi, branchesApi } from '../api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -27,11 +27,19 @@ export default function StocktakePage() {
   const [includeQtyInSheet, setIncludeQtyInSheet] = useState(true);
   const [downloadingSheet, setDownloadingSheet] = useState(false);
   const [downloadingRowId, setDownloadingRowId] = useState<number | null>(null);
+  const [newCountModalOpen, setNewCountModalOpen] = useState(false);
+  const [newCountBranchId, setNewCountBranchId] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['stocktakes', filterStatus],
     queryFn: () => api.get('/stocktakes', { params: { status: filterStatus || undefined } }).then(r => r.data?.data),
   });
+
+  const { data: branchData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+  });
+  const branches: any[] = branchData || [];
 
   const { data: storeSettings } = useQuery({
     queryKey: ['settings'],
@@ -53,12 +61,23 @@ export default function StocktakePage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => offlineMutate(() => api.post('/stocktakes', { branch_id: user?.branch?.id }), 'stocktakes', 'create', { branch_id: user?.branch?.id }),
+    mutationFn: (branchId: number | string) => offlineMutate(() => api.post('/stocktakes', { branch_id: branchId }), 'stocktakes', 'create', { branch_id: branchId }),
     onSuccess: (result) => {
       if (result.offline) toast.success('Stocktake queued offline — will sync when server is back');
       else { toast.success('Stocktake created!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); const d = (result as any).data?.data?.data; if (d) setSelected(d); }
+      setNewCountModalOpen(false);
     },
   });
+
+  const openNewCountModal = () => {
+    setNewCountBranchId(String(user?.branch?.id ?? branches[0]?.id ?? ''));
+    setNewCountModalOpen(true);
+  };
+
+  const handleCreateStocktake = () => {
+    if (!newCountBranchId) { toast.error('Select a branch first'); return; }
+    createMutation.mutate(newCountBranchId);
+  };
 
   const updateMutation = useMutation({
     mutationFn: ({ id, items }: any) => offlineMutate(() => api.put(`/stocktakes/${id}`, { items }), 'stocktakes', 'update', { items }, id),
@@ -463,7 +482,7 @@ export default function StocktakePage() {
           <button onClick={() => setStockSheetModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-semibold hover:bg-gray-50">
             <Download size={16} /> Stock Sheet
           </button>
-          <button onClick={() => createMutation.mutate()} disabled={createMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={openNewCountModal} disabled={createMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
             <Plus size={16} /> Start New Count
           </button>
         </div>
@@ -512,6 +531,37 @@ export default function StocktakePage() {
           </table>
         )}
       </div>
+
+      {/* Start New Count modal — pick which branch to count */}
+      {newCountModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Start New Count</h2>
+              <button onClick={() => setNewCountModalOpen(false)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Branch</label>
+              <select
+                value={newCountBranchId}
+                onChange={e => setNewCountBranchId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {branches.length === 0 && <option value="">No branches available</option>}
+                {branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1.5">Every product currently stocked at this branch will be added to the count sheet.</p>
+            </div>
+            <button
+              onClick={handleCreateStocktake}
+              disabled={createMutation.isPending || !newCountBranchId}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Plus size={14} /> {createMutation.isPending ? 'Creating...' : 'Create Stocktake'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Full Stock Sheet download modal */}
       {stockSheetModalOpen && (
@@ -624,7 +674,7 @@ export default function StocktakePage() {
                               ? <CheckCircle2 size={14} className="text-emerald-600" />
                               : <Circle size={14} className="text-gray-200" />}
                           </td>
-                          <td className={`py-2 ${entered ? 'text-gray-900' : 'text-gray-400'}`}>{it.product?.name}</td>
+                          <td className={`py-2 ${entered ? 'text-gray-900' : 'text-gray-400'}`}>{it.product?.name ?? <span className="italic text-gray-400">Unknown product (#{it.product_id})</span>}</td>
                           <td className="py-2 text-right text-gray-500">{it.expected_qty}</td>
                           <td className="py-2 text-right">
                             {stocktakeDetail.status === 'completed' ? (

@@ -166,7 +166,10 @@ class ReportController extends BaseApiController
     public function inventoryReport(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
-        $products = Product::with('category', 'brand', 'stocks.warehouse')
+        // 'stocks.warehouse' is never read below — only stocks.quantity is
+        // summed — so eager-loading each stock row's warehouse just doubled
+        // the query cost for no reason.
+        $products = Product::with('category', 'brand', 'stocks')
             ->where('is_active', true)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->category_id, fn($q) => $q->where('category_id', $request->category_id))
@@ -541,28 +544,33 @@ class ReportController extends BaseApiController
     public function lowStock(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
-        $products = \App\Models\Product::with('stocks')
-            ->where('is_active', true)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+
+        // Aggregate stock per product and filter in SQL instead of loading every
+        // active product's full stock history into PHP and reducing it there —
+        // mirrors the same SUM/threshold logic dashboard() already does in SQL.
+        $products = \App\Models\Product::query()
+            ->select('products.id', 'products.name', 'products.sku', 'products.reorder_level')
+            ->selectRaw('COALESCE(SUM(stocks.quantity), 0) as stock')
+            ->leftJoin('stocks', 'stocks.product_id', '=', 'products.id')
+            ->where('products.is_active', true)
+            ->when($branchId, fn($q) => $q->where('products.branch_id', $branchId))
+            ->groupBy('products.id', 'products.name', 'products.sku', 'products.reorder_level')
+            // reorder_point/alert_threshold are unused, always-default columns —
+            // reorder_level is the one every other report/page in the app actually
+            // reads and lets the user customize per product.
+            // CASE WHEN instead of GREATEST()/MAX(a,b) — this app runs on
+            // SQLite (offline), Postgres, and MySQL/MariaDB, and only CASE WHEN
+            // is portable across all three for a scalar "at least 1" floor.
+            ->havingRaw('COALESCE(SUM(stocks.quantity), 0) <= CASE WHEN products.reorder_level > 1 THEN products.reorder_level ELSE 1 END')
             ->get()
-            ->filter(function ($p) {
-                // reorder_point/alert_threshold are unused, always-default columns —
-                // reorder_level is the one every other report/page in the app actually
-                // reads and lets the user customize per product.
-                $qty       = $p->stocks->sum('quantity');
-                $threshold = max((float) ($p->reorder_level ?? 0), 1);
-                return $qty <= $threshold;
-            })
-            ->values()
-            ->map(function ($p) {
-                return [
-                    'id'            => $p->id,
-                    'name'          => $p->name,
-                    'sku'           => $p->sku,
-                    'stock'         => (float) $p->stocks->sum('quantity'),
-                    'reorder_level' => $p->reorder_level ?? 0,
-                ];
-            });
+            ->map(fn($p) => [
+                'id'            => $p->id,
+                'name'          => $p->name,
+                'sku'           => $p->sku,
+                'stock'         => (float) $p->stock,
+                'reorder_level' => $p->reorder_level ?? 0,
+            ]);
+
         return $this->success($products);
     }
 
@@ -793,24 +801,35 @@ class ReportController extends BaseApiController
         $to   = $request->date_to   ?? now()->toDateString();
 
         $branches = Branch::all();
-        $result   = [];
 
+        // Three grouped queries (revenue+transactions, COGS, expenses) instead of
+        // 1 + 3-per-branch — this used to run 1+3N queries, scaling linearly with
+        // branch count. Grouping by branch_id here scales with data volume, not N.
+        $revenueByBranch = Sale::revenueCounted()
+            ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
+            ->groupBy('branch_id')
+            ->selectRaw('branch_id, SUM(total) as revenue, COUNT(*) as transactions')
+            ->get()->keyBy('branch_id');
+
+        $cogsByBranch = SaleItem::join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->whereIn('sales.status', Sale::REVENUE_STATUSES)
+            ->whereBetween(DB::raw('DATE(sales.completed_at)'), [$from, $to])
+            ->groupBy('sales.branch_id')
+            ->selectRaw('sales.branch_id, SUM(sale_items.cost_price * sale_items.quantity) as cogs')
+            ->get()->keyBy('branch_id');
+
+        $expensesByBranch = Expense::where('status', 'approved')
+            ->whereBetween('expense_date', [$from, $to])
+            ->groupBy('branch_id')
+            ->selectRaw('branch_id, SUM(amount) as expenses')
+            ->get()->keyBy('branch_id');
+
+        $result = [];
         foreach ($branches as $branch) {
-            $sales = Sale::revenueCounted()
-                ->where('branch_id', $branch->id)
-                ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
-                ->get(['id', 'total']);
-
-            $revenue = $sales->sum('total');
-
-            $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-                ->selectRaw('SUM(cost_price * quantity) as total')
-                ->value('total') ?? 0;
-
-            $expenses = Expense::where('status', 'approved')
-                ->where('branch_id', $branch->id)
-                ->whereBetween('expense_date', [$from, $to])
-                ->sum('amount');
+            $revenue      = (float) ($revenueByBranch->get($branch->id)->revenue ?? 0);
+            $transactions = (int) ($revenueByBranch->get($branch->id)->transactions ?? 0);
+            $cogs         = (float) ($cogsByBranch->get($branch->id)->cogs ?? 0);
+            $expenses     = (float) ($expensesByBranch->get($branch->id)->expenses ?? 0);
 
             $gross = $revenue - $cogs;
             $net   = $gross - $expenses;
@@ -824,7 +843,7 @@ class ReportController extends BaseApiController
                 'gp_percent'   => $revenue > 0 ? round(($gross / $revenue) * 100, 2) : 0,
                 'expenses'     => round($expenses, 2),
                 'net_profit'   => round($net, 2),
-                'transactions' => $sales->count(),
+                'transactions' => $transactions,
             ];
         }
 

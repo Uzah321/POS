@@ -26,9 +26,9 @@ class StocktakeController extends BaseApiController {
             'stock_id'           => $stock->id,
             'expected_qty'       => $stock->quantity,
         ]);
-        return $this->success($stocktake->load('items.product'), 'Stocktake created', 201);
+        return $this->success($stocktake->load(['items.product' => fn($q) => $q->withTrashed()]), 'Stocktake created', 201);
     }
-    public function show(Stocktake $stocktake) { return $this->success($stocktake->load(['branch','user','items.product'])); }
+    public function show(Stocktake $stocktake) { return $this->success($stocktake->load(['branch','user','items.product' => fn($q) => $q->withTrashed()])); }
     public function update(Request $request, Stocktake $stocktake) {
         $data = $request->validate(['items'=>'required|array','items.*.id'=>'required|exists:stocktake_items,id','items.*.counted_qty'=>'required|numeric|min:0']);
         foreach($data['items'] as $item) {
@@ -36,7 +36,7 @@ class StocktakeController extends BaseApiController {
             $si->update(['counted_qty'=>$item['counted_qty'],'variance'=>$item['counted_qty']-$si->expected_qty]);
         }
         $stocktake->update(['status'=>'in_progress']);
-        return $this->success($stocktake->load('items.product'), 'Counts saved');
+        return $this->success($stocktake->load(['items.product' => fn($q) => $q->withTrashed()]), 'Counts saved');
     }
     public function complete(Request $request, Stocktake $stocktake) {
         if ($stocktake->status==='completed') return $this->error('Already completed', 422);

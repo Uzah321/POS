@@ -180,6 +180,10 @@ class ReportController extends BaseApiController
                     ? $product->stocks->where('warehouse_id', $request->warehouse_id)->sum('quantity')
                     : $product->stocks->sum('quantity');
 
+                // Untracked items (services, made-to-order) never carry a meaningful
+                // quantity — matches the "out"/"low" definition used by
+                // InventoryController::stockLevels and the Products page, so a
+                // product doesn't read as low/out here while showing fine everywhere else.
                 return [
                     'id'            => $product->id,
                     'name'          => $product->name,
@@ -190,8 +194,8 @@ class ReportController extends BaseApiController
                     'stock_qty'     => $stockQty,
                     'stock_value'   => $stockQty * $product->cost_price,
                     'reorder_level' => $product->reorder_level,
-                    'is_low_stock'  => $stockQty <= $product->reorder_level,
-                    'is_out'        => $stockQty <= 0,
+                    'is_low_stock'  => $product->track_stock && $stockQty > 0 && $stockQty <= $product->reorder_level,
+                    'is_out'        => $product->track_stock && $stockQty <= 0,
                 ];
             });
 
@@ -199,7 +203,7 @@ class ReportController extends BaseApiController
             'total_products'   => $products->count(),
             'total_stock_value'=> $products->sum('stock_value'),
             'low_stock_count'  => $products->where('is_low_stock', true)->count(),
-            'out_of_stock'     => $products->where('stock_qty', '<=', 0)->count(),
+            'out_of_stock'     => $products->where('is_out', true)->count(),
         ];
 
         return $this->success(compact('products', 'summary'));
@@ -422,8 +426,8 @@ class ReportController extends BaseApiController
                 'units_sold'    => $sold?->units_sold ?? 0,
                 'revenue'       => $sold?->revenue ?? 0,
                 'stock_value'   => $currentStock * $product->cost_price,
-                'is_low_stock'  => $currentStock <= $product->reorder_level,
-                'is_out'        => $currentStock <= 0,
+                'is_low_stock'  => $product->track_stock && $currentStock > 0 && $currentStock <= $product->reorder_level,
+                'is_out'        => $product->track_stock && $currentStock <= 0,
             ];
         })->sortBy([
             ['category', 'asc'],

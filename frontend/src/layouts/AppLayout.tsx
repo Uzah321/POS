@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
   BarChart2, Receipt, Settings, LogOut,
-  Bell, Store, CreditCard, Menu, DollarSign, ClipboardList, UserCog,
+  Store, CreditCard, Menu, DollarSign, ClipboardList, UserCog,
   History, CalendarCheck, Cpu, BookOpen, FileText,
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
@@ -17,6 +17,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useDBSync } from '../hooks/useDBSync';
 import { authApi, currenciesApi, settingsApi } from '../api';
+import NotificationBell from '../components/ui/NotificationBell';
 import toast from 'react-hot-toast';
 
 type NavItem = { to: string; label: string; icon: React.ElementType; perm: string; external?: boolean };
@@ -439,10 +440,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
-          <button className="relative text-slate-500 hover:text-blue-700 transition-colors p-1.5 rounded-md hover:bg-blue-50 border border-transparent hover:border-blue-200">
-            <Bell size={19} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+          <NotificationBell />
 
           <div className="flex items-center gap-2.5 pl-1">
             <div className="w-8 h-8 rounded-md bg-blue-700 flex items-center justify-center text-white font-bold text-xs shadow-inner">

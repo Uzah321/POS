@@ -132,11 +132,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
     });
 
-    // Shift End
+    // Shift End (Cashup)
     Route::get('/shift-end/summary', [\App\Http\Controllers\Api\ShiftEndController::class, 'summary']);
     Route::get('/shift-end', [\App\Http\Controllers\Api\ShiftEndController::class, 'index']);
     Route::post('/shift-end', [\App\Http\Controllers\Api\ShiftEndController::class, 'store']);
     Route::patch('/shift-end/{shiftEnd}/approve', [\App\Http\Controllers\Api\ShiftEndController::class, 'approve']);
+    Route::patch('/shift-end/{shiftEnd}/reject', [\App\Http\Controllers\Api\ShiftEndController::class, 'reject']);
+    Route::get('/shift-end/{shiftEnd}', [\App\Http\Controllers\Api\ShiftEndController::class, 'show']);
+    Route::put('/shift-end/{shiftEnd}', [\App\Http\Controllers\Api\ShiftEndController::class, 'update']);
+    Route::delete('/shift-end/{shiftEnd}', [\App\Http\Controllers\Api\ShiftEndController::class, 'destroy']);
 
     // End of Day — matches /day-end frontend route's view_reports gate
     Route::middleware('permission:view_reports')->group(function () {

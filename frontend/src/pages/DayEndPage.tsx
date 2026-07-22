@@ -237,12 +237,20 @@ export default function DayEndPage() {
       };
       return offlineMutate(() => api.post('/end-of-day', payload), 'end_of_day', 'create', { _url: '/end-of-day', _method: 'POST', ...payload });
     },
-    onSuccess: (result) => {
+    onSuccess: (result: any) => {
       if (result.offline) toast.success('End-of-day saved offline');
       else {
-        toast.success('Day end submitted successfully!');
+        const cleared = result?.data?.data?.cleared_orders ?? 0;
+        toast.success(
+          cleared > 0
+            ? `Day end submitted — ${cleared} open order${cleared !== 1 ? 's' : ''} cleared`
+            : 'Day end submitted successfully!'
+        );
         qc.invalidateQueries({ queryKey: ['eod-summary'] });
         qc.invalidateQueries({ queryKey: ['eod-history'] });
+        // Held/open orders were cleared server-side — refresh anywhere they're shown
+        qc.invalidateQueries({ queryKey: ['open-tables'] });
+        qc.invalidateQueries({ queryKey: ['held-sales-dashboard'] });
       }
     },
     onError: (error: any) => {

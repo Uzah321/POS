@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
-const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Branch Consolidation', 'Cashup History'];
+const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Branch Consolidation', 'Cashup History', 'Day End History'];
 
 function printCashupReport(records: any[], from: string, to: string, fmt: (n: number) => string) {
   const statusColor = (s: string) => ({ pending: '#b45309', approved: '#16a34a', rejected: '#dc2626' }[s] ?? '#6b7280');
@@ -113,19 +113,33 @@ export default function ReportsPage() {
   const rangeParams = { date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}) };
   const categoryParams = categoryId ? { category_id: Number(categoryId) } : {};
 
-  const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to, branchId], queryFn: () => reportsApi.sales(rangeParams).then(r => r.data?.data), enabled: tab === 'Sales' });
-  const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to, branchId], queryFn: () => reportsApi.profitLoss(rangeParams).then(r => r.data?.data), enabled: tab === 'Profit & Loss' });
-  const { data: invData }   = useQuery({ queryKey: ['report-inventory', categoryId], queryFn: () => reportsApi.inventory(categoryParams).then(r => r.data?.data), enabled: tab === 'Inventory' });
-  const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to, branchId], queryFn: () => reportsApi.cashierPerformance(rangeParams).then(r => r.data?.data), enabled: tab === 'Cashier Performance' });
-  const { data: dailyData, isLoading: loadingDaily }   = useQuery({ queryKey: ['report-daily', dailyDate, branchId], queryFn: () => api.get('/reports/daily', { params: { date: dailyDate, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Daily Summary' });
-  const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth, branchId], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Monthly Report' });
-  const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId, branchId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances' });
-  const { data: consolidationData, isLoading: loadingConsolidation } = useQuery({ queryKey: ['report-consolidation', from, to], queryFn: () => api.get('/reports/branch-consolidation', { params: { date_from: from, date_to: to } }).then(r => r.data?.data), enabled: tab === 'Branch Consolidation' });
+  // staleTime: 0 on every report query below — the app-wide query default caches
+  // for 5 minutes (see App.tsx), which left these tabs showing whatever numbers
+  // were current when first opened even after new sales/stock changes happened
+  // elsewhere and the user switched back.
+  const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to, branchId], queryFn: () => reportsApi.sales(rangeParams).then(r => r.data?.data), enabled: tab === 'Sales', staleTime: 0 });
+  const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to, branchId], queryFn: () => reportsApi.profitLoss(rangeParams).then(r => r.data?.data), enabled: tab === 'Profit & Loss', staleTime: 0 });
+  const { data: invData }   = useQuery({ queryKey: ['report-inventory', categoryId], queryFn: () => reportsApi.inventory(categoryParams).then(r => r.data?.data), enabled: tab === 'Inventory', staleTime: 0 });
+  const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to, branchId], queryFn: () => reportsApi.cashierPerformance(rangeParams).then(r => r.data?.data), enabled: tab === 'Cashier Performance', staleTime: 0 });
+  const { data: dailyData, isLoading: loadingDaily }   = useQuery({ queryKey: ['report-daily', dailyDate, branchId], queryFn: () => api.get('/reports/daily', { params: { date: dailyDate, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Daily Summary', staleTime: 0 });
+  const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth, branchId], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Monthly Report', staleTime: 0 });
+  const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId, branchId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances', staleTime: 0 });
+  const { data: consolidationData, isLoading: loadingConsolidation } = useQuery({ queryKey: ['report-consolidation', from, to], queryFn: () => api.get('/reports/branch-consolidation', { params: { date_from: from, date_to: to } }).then(r => r.data?.data), enabled: tab === 'Branch Consolidation', staleTime: 0 });
   const { data: cashupRaw, isLoading: loadingCashup } = useQuery({
     queryKey: ['report-cashup', from, to, branchId],
     queryFn: () => api.get('/shift-end', { params: { date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}), per_page: 200 } }).then(r => r.data?.data),
     enabled: tab === 'Cashup History',
+    staleTime: 0,
   });
+  // Every Day End submission is preserved permanently in the end_of_day table —
+  // this tab is the "for future reference" archive the day's totals land in.
+  const { data: dayEndRaw, isLoading: loadingDayEnd } = useQuery({
+    queryKey: ['report-day-end', branchId],
+    queryFn: () => api.get('/end-of-day', { params: { ...(branchId ? { branch_id: Number(branchId) } : {}), per_page: 60 } }).then(r => r.data?.data),
+    enabled: tab === 'Day End History',
+    staleTime: 0,
+  });
+  const dayEndRecords: any[] = Array.isArray(dayEndRaw) ? dayEndRaw : dayEndRaw?.data ?? [];
   const cashupRecords: any[] = cashupRaw?.data ?? [];
 
   const downloadPdf = (url: string, params: Record<string, string>) => {
@@ -593,6 +607,56 @@ export default function ReportsPage() {
                       </tfoot>
                     </table>
                   </div>
+                </div>
+              </div>
+            )
+      )}
+
+      {/* Day End History */}
+      {tab === 'Day End History' && (
+        loadingDayEnd
+          ? <div className="bg-gray-100 rounded-md h-32 animate-pulse" />
+          : dayEndRecords.length === 0
+            ? <div className="bg-white rounded-md border border-gray-100 p-12 text-center text-gray-400">No day-end records yet. Once a Day End is submitted, its totals land here permanently.</div>
+            : (
+              <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Date</th>
+                        <th className="px-4 py-3 text-left">Branch</th>
+                        <th className="px-4 py-3 text-left">Closed By</th>
+                        <th className="px-4 py-3 text-right">Total Sales</th>
+                        <th className="px-4 py-3 text-right">Cash</th>
+                        <th className="px-4 py-3 text-right">Card</th>
+                        <th className="px-4 py-3 text-right">Mobile</th>
+                        <th className="px-4 py-3 text-right">Expenses</th>
+                        <th className="px-4 py-3 text-right">Variance</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {dayEndRecords.map((r: any) => (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{r.report_date}</td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{r.branch?.name ?? '-'}</td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{r.user?.name ?? '-'}</td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(r.total_sales ?? 0)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-700">{fmt(r.cash_sales ?? 0)}</td>
+                          <td className="px-4 py-3 text-right text-blue-700">{fmt(r.card_sales ?? 0)}</td>
+                          <td className="px-4 py-3 text-right text-purple-700">{fmt(r.mobile_money_sales ?? 0)}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{fmt(r.total_expenses ?? 0)}</td>
+                          <td className={`px-4 py-3 text-right font-bold ${(r.difference ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(r.difference ?? 0) >= 0 ? '+' : ''}{fmt(r.difference ?? 0)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium capitalize bg-green-100 text-green-700">{r.status ?? 'closed'}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )

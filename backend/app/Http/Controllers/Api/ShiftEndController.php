@@ -136,10 +136,90 @@ class ShiftEndController extends BaseApiController
         return $this->paginated($query->latest()->paginate($request->per_page ?? 100));
     }
 
+    /** True for admins/managers, who can see, approve, and manage every cashier's cash-up. */
+    private function canManage(Request $request): bool
+    {
+        return $request->user()->hasRole(['admin', 'manager']);
+    }
+
+    /** GET /shift-end/{shiftEnd} — single cash-up record */
+    public function show(Request $request, ShiftEnd $shiftEnd): \Illuminate\Http\JsonResponse
+    {
+        if (! $this->canManage($request) && $shiftEnd->user_id !== $request->user()->id) {
+            return $this->error('Cash-up not found.', 404);
+        }
+        return $this->success($shiftEnd->load('user', 'branch', 'approvedBy'));
+    }
+
+    /** PUT /shift-end/{shiftEnd} — correct a still-pending cash-up (declared cash / notes) */
+    public function update(Request $request, ShiftEnd $shiftEnd): \Illuminate\Http\JsonResponse
+    {
+        $isManager = $this->canManage($request);
+        if (! $isManager && $shiftEnd->user_id !== $request->user()->id) {
+            return $this->error('Cash-up not found.', 404);
+        }
+        if ($shiftEnd->status !== 'pending') {
+            return $this->error('Only a pending cash-up can be edited — this one has already been ' . $shiftEnd->status . '.', 422);
+        }
+
+        $data = $request->validate([
+            'declared_cash' => 'sometimes|numeric|min:0',
+            'notes'         => 'nullable|string|max:1000',
+        ]);
+
+        if (array_key_exists('declared_cash', $data)) {
+            $data['variance'] = $data['declared_cash'] - (float) $shiftEnd->expected_cash;
+        }
+
+        $shiftEnd->update($data);
+        return $this->success($shiftEnd->load('user', 'branch'), 'Cash-up updated');
+    }
+
+    /** DELETE /shift-end/{shiftEnd} — remove a still-pending cash-up (e.g. submitted by mistake) */
+    public function destroy(Request $request, ShiftEnd $shiftEnd): \Illuminate\Http\JsonResponse
+    {
+        $isManager = $this->canManage($request);
+        if (! $isManager && $shiftEnd->user_id !== $request->user()->id) {
+            return $this->error('Cash-up not found.', 404);
+        }
+        if ($shiftEnd->status === 'approved') {
+            return $this->error('An approved cash-up is a closed financial record and cannot be deleted.', 422);
+        }
+
+        $shiftEnd->delete();
+        return $this->success(null, 'Cash-up deleted');
+    }
+
     /** PATCH /shift-end/{id}/approve — manager approves a shift end */
     public function approve(Request $request, ShiftEnd $shiftEnd): \Illuminate\Http\JsonResponse
     {
+        if (! $this->canManage($request)) {
+            return $this->error('Only an admin or manager can approve a cash-up.', 403);
+        }
+        if ($shiftEnd->status !== 'pending') {
+            return $this->error('This cash-up has already been ' . $shiftEnd->status . '.', 422);
+        }
         $shiftEnd->update(['status' => 'approved', 'approved_by' => $request->user()->id]);
         return $this->success($shiftEnd->load('user', 'approvedBy'), 'Shift approved');
+    }
+
+    /** PATCH /shift-end/{id}/reject — manager rejects a shift end, cashier can then re-submit */
+    public function reject(Request $request, ShiftEnd $shiftEnd): \Illuminate\Http\JsonResponse
+    {
+        if (! $this->canManage($request)) {
+            return $this->error('Only an admin or manager can reject a cash-up.', 403);
+        }
+        if ($shiftEnd->status !== 'pending') {
+            return $this->error('This cash-up has already been ' . $shiftEnd->status . '.', 422);
+        }
+
+        $data = $request->validate(['notes' => 'nullable|string|max:1000']);
+
+        $shiftEnd->update([
+            'status'      => 'rejected',
+            'approved_by' => $request->user()->id,
+            'notes'       => $data['notes'] ?? $shiftEnd->notes,
+        ]);
+        return $this->success($shiftEnd->load('user', 'approvedBy'), 'Shift rejected');
     }
 }

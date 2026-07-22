@@ -10,7 +10,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download } from 'lucide-react';
+import { Download, Trash2, Pencil, Check, X, Loader2 } from 'lucide-react';
 
 interface SaleSummaryItem {
   id: number;
@@ -67,6 +67,12 @@ export default function ShiftEndPage() {
 
   const isCashier = hasRole('cashier');
   const isManager = hasRole('admin') || hasRole('manager');
+
+  // Inline edit state — used by both the manager's "All Records" table and the
+  // cashier's own "My Previous Shifts" table, since a pending cash-up can be
+  // corrected from either place (server enforces ownership either way).
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{ declared_cash: string; notes: string }>({ declared_cash: '', notes: '' });
 
   // Per-currency cash declaration (one entry per active currency)
   const activeCurrencies = currencies.filter((c) => c.is_active);
@@ -169,9 +175,38 @@ export default function ShiftEndPage() {
     mutationFn: (id: number) => offlineMutate(() => api.patch(`/shift-end/${id}/approve`), 'shift_end', 'approve', { _url: `/shift-end/${id}/approve`, _method: 'PATCH' }, id),
     onSuccess: (result) => {
       if (result.offline) toast.success('Approval saved offline - will sync when server is back');
-      else qc.invalidateQueries({ queryKey: ['shift-history'] });
+      else { toast.success('Cash-up approved'); qc.invalidateQueries({ queryKey: ['shift-history'] }); }
     },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to approve'),
   });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: number) => api.patch(`/shift-end/${id}/reject`),
+    onSuccess: () => { toast.success('Cash-up rejected'); qc.invalidateQueries({ queryKey: ['shift-history'] }); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to reject'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/shift-end/${id}`),
+    onSuccess: () => { toast.success('Cash-up deleted'); qc.invalidateQueries({ queryKey: ['shift-history'] }); },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to delete'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, declared_cash, notes }: { id: number; declared_cash: number; notes: string }) =>
+      api.put(`/shift-end/${id}`, { declared_cash, notes }),
+    onSuccess: () => {
+      toast.success('Cash-up updated');
+      setEditingId(null);
+      qc.invalidateQueries({ queryKey: ['shift-history'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update'),
+  });
+
+  const startEdit = (s: ShiftEndRecord) => {
+    setEditingId(s.id);
+    setEditForm({ declared_cash: String(s.declared_cash ?? 0), notes: s.notes ?? '' });
+  };
 
   const onSubmit = (data: FormData) => {
     const finalDeclared = activeCurrencies.length > 1
@@ -589,6 +624,7 @@ export default function ShiftEndPage() {
                       <th className="px-4 py-2 text-right">Declared</th>
                       <th className="px-4 py-2 text-right">Variance</th>
                       <th className="px-4 py-2 text-center">Status</th>
+                      <th className="px-4 py-2 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -598,11 +634,53 @@ export default function ShiftEndPage() {
                         <td className="px-4 py-2.5 text-right">{format(s.total_sales)}</td>
                         <td className="px-4 py-2.5 text-right text-gray-500">{s.total_transactions}</td>
                         <td className="px-4 py-2.5 text-right">{format(s.expected_cash)}</td>
-                        <td className="px-4 py-2.5 text-right">{format(s.declared_cash)}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          {editingId === s.id ? (
+                            <input
+                              type="number" step="0.01" min="0" autoFocus
+                              value={editForm.declared_cash}
+                              onChange={(e) => setEditForm((f) => ({ ...f, declared_cash: e.target.value }))}
+                              className="w-24 border border-blue-300 rounded-md px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : format(s.declared_cash)}
+                        </td>
                         <td className={`px-4 py-2.5 text-right font-medium ${s.variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {s.variance >= 0 ? '+' : ''}{format(s.variance)}
                         </td>
                         <td className="px-4 py-2.5 text-center">{statusBadge(s.status)}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          {editingId === s.id ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => updateMutation.mutate({ id: s.id, declared_cash: parseFloat(editForm.declared_cash) || 0, notes: editForm.notes })}
+                                disabled={updateMutation.isPending}
+                                title="Save"
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                              >
+                                {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                              </button>
+                              <button onClick={() => setEditingId(null)} title="Cancel" className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : s.status === 'pending' ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => startEdit(s)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={() => { if (window.confirm('Delete this cash-up? You can close the shift again afterward.')) deleteMutation.mutate(s.id); }}
+                                disabled={deleteMutation.isPending}
+                                title="Delete"
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 text-xs">"</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -651,22 +729,70 @@ export default function ShiftEndPage() {
                       <td className="px-4 py-3 text-right">{format(s.total_sales)}</td>
                       <td className="px-4 py-3 text-right text-gray-500">{s.total_transactions}</td>
                       <td className="px-4 py-3 text-right">{format(s.expected_cash)}</td>
-                      <td className="px-4 py-3 text-right">{format(s.declared_cash)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {editingId === s.id ? (
+                          <input
+                            type="number" step="0.01" min="0" autoFocus
+                            value={editForm.declared_cash}
+                            onChange={(e) => setEditForm((f) => ({ ...f, declared_cash: e.target.value }))}
+                            className="w-24 border border-blue-300 rounded-md px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        ) : format(s.declared_cash)}
+                      </td>
                       <td className={`px-4 py-3 text-right font-semibold ${s.variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {s.variance >= 0 ? '+' : ''}{format(s.variance)}
                       </td>
                       <td className="px-4 py-3 text-center">{statusBadge(s.status)}</td>
                       <td className="px-4 py-3 text-center">
-                        {s.status === 'pending' ? (
-                          <button
-                            onClick={() => approveMutation.mutate(s.id)}
-                            disabled={approveMutation.isPending}
-                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
+                        {editingId === s.id ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => updateMutation.mutate({ id: s.id, declared_cash: parseFloat(editForm.declared_cash) || 0, notes: editForm.notes })}
+                              disabled={updateMutation.isPending}
+                              title="Save"
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                            >
+                              {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                            </button>
+                            <button onClick={() => setEditingId(null)} title="Cancel" className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
+                              <X size={14} />
+                            </button>
+                          </div>
                         ) : (
-                          <span className="text-gray-300 text-xs">"</span>
+                          <div className="flex items-center justify-center gap-1">
+                            {s.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => approveMutation.mutate(s.id)}
+                                  disabled={approveMutation.isPending}
+                                  className="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg disabled:opacity-50"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => rejectMutation.mutate(s.id)}
+                                  disabled={rejectMutation.isPending}
+                                  className="text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-lg disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                                <button onClick={() => startEdit(s)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                                  <Pencil size={13} />
+                                </button>
+                              </>
+                            )}
+                            {s.status !== 'approved' && (
+                              <button
+                                onClick={() => { if (window.confirm('Delete this cash-up record?')) deleteMutation.mutate(s.id); }}
+                                disabled={deleteMutation.isPending}
+                                title="Delete"
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                            {s.status === 'approved' && <span className="text-gray-300 text-xs">"</span>}
+                          </div>
                         )}
                       </td>
                     </tr>

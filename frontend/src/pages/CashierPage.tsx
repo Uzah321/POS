@@ -142,6 +142,12 @@ export default function CashierPage() {
   }, [cart.items, hw.customerDisplayEnabled]);
 
   const addProduct = (product: any) => {
+    // A product already in the cart can't be scanned/tapped in again —
+    // quantity is adjusted from the cart's +/- controls instead.
+    if (cart.items.some((i) => i.product_id === product.id)) {
+      toast.error(`${product.name} is already in the cart — adjust its quantity there`);
+      return;
+    }
     const price = parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`);

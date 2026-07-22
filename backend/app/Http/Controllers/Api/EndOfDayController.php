@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\EndOfDay;
 use App\Models\Sale;
 use App\Models\Expense;
+use App\Models\HeldSale;
 use App\Models\SaleItem;
 use App\Models\ShiftEnd;
 use Illuminate\Http\Request;
@@ -144,26 +145,41 @@ class EndOfDayController extends BaseApiController
         $expectedCash = $data['opening_cash'] + $cashSales - $totalRefunds;
         $difference   = $data['actual_cash'] - $expectedCash;
 
-        $eod = EndOfDay::create([
-            'branch_id'            => $data['branch_id'],
-            'user_id'              => $request->user()->id,
-            'report_date'          => $data['report_date'],
-            'opening_cash'         => $data['opening_cash'],
-            'cash_sales'           => $cashSales,
-            'card_sales'           => $cardSales,
-            'mobile_money_sales'   => $mobileSales,
-            'other_sales'          => $otherSales,
-            'total_sales'          => $sales->sum('total'),
-            'total_refunds'        => $totalRefunds,
-            'total_expenses'       => $totalExpenses,
-            'expected_cash'        => $expectedCash,
-            'actual_cash'          => $data['actual_cash'],
-            'difference'           => $difference,
-            'notes'                => $data['notes'] ?? null,
-            'status'               => 'closed',
-        ]);
+        [$eod, $clearedOrders] = DB::transaction(function () use ($data, $request, $cashSales, $cardSales, $mobileSales, $otherSales, $sales, $totalRefunds, $totalExpenses, $expectedCash, $difference) {
+            $eod = EndOfDay::create([
+                'branch_id'            => $data['branch_id'],
+                'user_id'              => $request->user()->id,
+                'report_date'          => $data['report_date'],
+                'opening_cash'         => $data['opening_cash'],
+                'cash_sales'           => $cashSales,
+                'card_sales'           => $cardSales,
+                'mobile_money_sales'   => $mobileSales,
+                'other_sales'          => $otherSales,
+                'total_sales'          => $sales->sum('total'),
+                'total_refunds'        => $totalRefunds,
+                'total_expenses'       => $totalExpenses,
+                'expected_cash'        => $expectedCash,
+                'actual_cash'          => $data['actual_cash'],
+                'difference'           => $difference,
+                'notes'                => $data['notes'] ?? null,
+                'status'               => 'closed',
+            ]);
 
-        return $this->success($eod->load('user', 'branch'), 'End of day submitted successfully', 201);
+            // Completed sales already live permanently in the `sales` table and
+            // stay fully queryable via Reports by date — nothing to clear there.
+            // Held/open orders never became real transactions though, so once the
+            // day is officially closed they shouldn't roll over silently into
+            // tomorrow's till.
+            $clearedOrders = HeldSale::where('branch_id', $data['branch_id'])->delete();
+
+            return [$eod, $clearedOrders];
+        });
+
+        return $this->success(
+            ['end_of_day' => $eod->load('user', 'branch'), 'cleared_orders' => $clearedOrders],
+            'End of day submitted successfully',
+            201
+        );
     }
 
     /** GET /end-of-day — list EOD reports */

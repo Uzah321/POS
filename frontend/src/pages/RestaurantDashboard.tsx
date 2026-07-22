@@ -56,6 +56,12 @@ export default function RestaurantDashboard() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', 'restaurant', branchId],
+    // The app-wide query default caches for 5 minutes and skips refetch-on-focus
+    // (see App.tsx) — fine for slow-changing lists, but it left this screen
+    // showing whatever transaction count was current when it first loaded,
+    // even after new sales were rung up elsewhere and the user came back.
+    staleTime: 0,
+    refetchInterval: 30000,
     queryFn: async () => {
       try {
         return await reportsApi.dashboard().then(r => r.data);

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi, productsApi, warehousesApi } from '../api';
 import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet } from 'lucide-react';
@@ -8,9 +9,11 @@ import { offlineMutate } from '../lib/offlineMutation';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
 export default function InventoryPage() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState('');
+  // Pre-selects the "low"/"out" filter when arriving from the notification bell
+  const [filter, setFilter] = useState(searchParams.get('filter') ?? '');
   const [showImport, setShowImport] = useState(false);
 
   // Add Stock modal state
@@ -149,8 +152,14 @@ export default function InventoryPage() {
                 ) : stocks.map((s: any, i: number) => {
                   const qty = s.stocks_sum_quantity ?? s.quantity ?? 0;
                   const reorder = s.reorder_level ?? s.reorder_point ?? 5;
-                  const isLow = qty > 0 && qty <= reorder;
-                  const isOut = qty <= 0;
+                  // Untracked items (services, made-to-order) carry no meaningful
+                  // quantity — match InventoryController::stockLevels / ProductsPage,
+                  // which both exclude track_stock === false from low/out counts, so
+                  // the same product doesn't show "Out of Stock" here while reading
+                  // "Not Tracked" everywhere else.
+                  const tracked = s.track_stock !== false;
+                  const isLow = tracked && qty > 0 && qty <= reorder;
+                  const isOut = tracked && qty <= 0;
                   return (
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
@@ -165,8 +174,8 @@ export default function InventoryPage() {
                       <td className="px-4 py-3 text-sm font-bold text-gray-900">{qty}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{reorder}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${isOut ? 'bg-red-100 text-red-700' : isLow ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                          {isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${!tracked ? 'bg-gray-100 text-gray-500' : isOut ? 'bg-red-100 text-red-700' : isLow ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                          {!tracked ? 'Not Tracked' : isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
                         </span>
                       </td>
                     </tr>

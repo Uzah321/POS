@@ -40,6 +40,17 @@ function cartLineAccent(productId: number): string {
   return CART_LINE_ACCENTS[productId % CART_LINE_ACCENTS.length];
 }
 
+// Picks readable text (white or near-black) for a solid tile background —
+// relative luminance per WCAG so the chosen tile color always stays legible.
+function contrastText(hex: string): string {
+  const m = hex.replace('#', '');
+  const r = parseInt(m.substring(0, 2), 16) / 255;
+  const g = parseInt(m.substring(2, 4), 16) / 255;
+  const b = parseInt(m.substring(4, 6), 16) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.6 ? '#111827' : '#ffffff';
+}
+
 function CartRow({ item, format }: { item: CartItem; format: (v: number) => string }) {
   const { updateQty, removeItem } = useCartStore();
   const [editingQty, setEditingQty] = useState(false);
@@ -393,6 +404,13 @@ export default function POSPage() {
   });
 
   const handleAddProduct = (product: any) => {
+    // A product already in the cart can't be tapped in again — quantity is
+    // adjusted from the cart's +/- controls instead, so a duplicate click
+    // (or duplicate barcode scan) doesn't silently double the line.
+    if (cart.items.some((i) => i.product_id === product.id)) {
+      toast.error(`${product.name} is already in the cart — adjust its quantity there`, { duration: 2500 });
+      return;
+    }
     const price = parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
@@ -621,7 +639,13 @@ export default function POSPage() {
               ) : (
                 <div className="flex-1 flex flex-wrap content-start gap-1 overflow-y-auto min-h-0">
                   {pagedProducts.map((product: any) => {
-                    const tileColor = product.color || (product.category?.name ? categoryColors.get(product.category.name) : undefined);
+                    // A color chosen directly on the product renders as a solid tile — the
+                    // shade should show exactly as picked. Falling back to the category's
+                    // color (no explicit product color) stays a soft tint instead, since
+                    // that's a grouping cue rather than a deliberate per-product choice.
+                    const ownColor = product.color;
+                    const fallbackColor = !ownColor && product.category?.name ? categoryColors.get(product.category.name) : undefined;
+                    const textColor = ownColor && !product.image ? contrastText(ownColor) : undefined;
                     return (
                       <button
                         type="button"
@@ -630,9 +654,15 @@ export default function POSPage() {
                         onClick={() => handleAddProduct(product)}
                         style={{
                           width: '1.7cm', height: '1.7cm',
-                          ...(product.image ? {} : tileColor ? { backgroundColor: `${tileColor}1f`, borderColor: tileColor } : {}),
+                          ...(product.image
+                            ? {}
+                            : ownColor
+                              ? { backgroundColor: ownColor, borderColor: ownColor }
+                              : fallbackColor
+                                ? { backgroundColor: `${fallbackColor}1f`, borderColor: fallbackColor }
+                                : {}),
                         }}
-                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${product.image || tileColor ? '' : 'bg-white border-gray-200'}`}
+                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${product.image || ownColor || fallbackColor ? '' : 'bg-white border-gray-200'}`}
                       >
                         {product.image && (
                           <>
@@ -640,8 +670,14 @@ export default function POSPage() {
                             <span className="absolute inset-0 bg-black/25" />
                           </>
                         )}
-                        <span className={`relative w-full text-[10px] font-semibold text-center leading-none line-clamp-2 ${product.image ? 'text-white' : 'text-gray-800'}`}>{product.name}</span>
-                        <span className={`relative text-[11px] font-black tabular-nums leading-none ${product.image ? 'text-white' : 'text-blue-700'}`}>{formatCurrency(parseFloat(product.selling_price))}</span>
+                        <span
+                          className={`relative w-full text-[10px] font-semibold text-center leading-none line-clamp-2 ${product.image ? 'text-white' : textColor ? '' : 'text-gray-800'}`}
+                          style={textColor ? { color: textColor } : undefined}
+                        >{product.name}</span>
+                        <span
+                          className={`relative text-[11px] font-black tabular-nums leading-none ${product.image ? 'text-white' : textColor ? '' : 'text-blue-700'}`}
+                          style={textColor ? { color: textColor } : undefined}
+                        >{formatCurrency(parseFloat(product.selling_price))}</span>
                       </button>
                     );
                   })}

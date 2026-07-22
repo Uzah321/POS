@@ -51,6 +51,19 @@ function contrastText(hex: string): string {
   return lum > 0.6 ? '#111827' : '#ffffff';
 }
 
+// Mirrors the swatches shown under Settings → "Product Tile Colour Theme"
+// (same Tailwind shades, as hex) — auto-assigns a color to any tile that has
+// no explicit product/category color of its own, cycling deterministically
+// per product id so a given item's tile doesn't change color on every render.
+const TILE_THEMES: Record<string, string[]> = {
+  rainbow:    ['#bbf7d0', '#bfdbfe', '#e9d5ff', '#fed7aa', '#fbcfe8'],
+  blue:       ['#dbeafe', '#bfdbfe', '#93c5fd', '#e0f2fe', '#cffafe'],
+  green:      ['#dcfce7', '#d1fae5', '#ccfbf1', '#bbf7d0', '#a7f3d0'],
+  warm:       ['#ffedd5', '#fef3c7', '#fef9c3', '#fee2e2', '#fce7f3'],
+  monochrome: ['#f9fafb', '#f3f4f6', '#e5e7eb', '#f9fafb', '#ffffff'],
+  dark:       ['#1f2937', '#374151', '#1e293b', '#27272a', '#262626'],
+};
+
 function CartRow({ item, format }: { item: CartItem; format: (v: number) => string }) {
   const { updateQty, removeItem } = useCartStore();
   const [editingQty, setEditingQty] = useState(false);
@@ -250,6 +263,9 @@ export default function POSPage() {
   // product's category tint when the product itself has no color/image set.
   const categoryColors = new Map<string, string>();
   allProducts.forEach((p: any) => { if (p.category?.name && p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color); });
+  // Settings → "Product Tile Colour Theme" — applied to any tile that has
+  // neither its own color nor a colored category to fall back on.
+  const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
 
   // Filter products
   const filteredProducts = allProducts.filter((p: any) => {
@@ -645,29 +661,38 @@ export default function POSPage() {
                 <div className="flex-1 flex flex-wrap content-start gap-1 overflow-y-auto min-h-0">
                   {pagedProducts.map((product: any) => {
                     // A color chosen directly on the product renders as a solid tile — the
-                    // shade should show exactly as picked. Falling back to the category's
-                    // color (no explicit product color) stays a soft tint instead, since
-                    // that's a grouping cue rather than a deliberate per-product choice.
+                    // shade should show exactly as picked. A colored category (no explicit
+                    // product color) stays a soft tint instead, since that's a grouping cue
+                    // rather than a deliberate per-product choice. With neither, the active
+                    // tile-color theme fills in a solid color instead of plain white, picked
+                    // deterministically per product id so it stays stable across re-renders.
                     // An image is just a small accent thumbnail under the name, not the
                     // tile background, so it never fights with the color or the price text.
                     const ownColor = product.color;
-                    const fallbackColor = !ownColor && product.category?.name ? categoryColors.get(product.category.name) : undefined;
-                    const textColor = ownColor ? contrastText(ownColor) : undefined;
+                    const categoryColor = !ownColor && product.category?.name ? categoryColors.get(product.category.name) : undefined;
+                    const themeColor = !ownColor && !categoryColor ? tileTheme[Math.abs(product.id) % tileTheme.length] : undefined;
+                    const solidColor = ownColor || themeColor;
+                    const textColor = solidColor ? contrastText(solidColor) : undefined;
+                    // Same "out of stock" rule handleAddProduct blocks on — grey the tile out
+                    // to match, so it reads as unavailable before the cashier even taps it.
+                    const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
+                    const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
+                    const isOutOfStock = blockNegStock && product.track_stock !== false && stock !== null && stock <= 0;
                     return (
                       <button
                         type="button"
                         key={product.id}
-                        title={`${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
+                        title={isOutOfStock ? `${product.name} — Out of stock` : `${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
                         onClick={() => handleAddProduct(product)}
                         style={{
                           width: '1.7cm', height: '1.7cm',
-                          ...(ownColor
-                            ? { backgroundColor: ownColor, borderColor: ownColor }
-                            : fallbackColor
-                              ? { backgroundColor: `${fallbackColor}1f`, borderColor: fallbackColor }
+                          ...(solidColor
+                            ? { backgroundColor: solidColor, borderColor: solidColor }
+                            : categoryColor
+                              ? { backgroundColor: `${categoryColor}1f`, borderColor: categoryColor }
                               : {}),
                         }}
-                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${ownColor || fallbackColor ? '' : 'bg-white border-gray-200'}`}
+                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'grayscale opacity-50 hover:border-gray-200 cursor-not-allowed' : ''}`}
                       >
                         <span
                           className={`w-full text-[9px] font-semibold text-center leading-none ${product.image ? 'line-clamp-1' : 'line-clamp-2'} ${textColor ? '' : 'text-gray-800'}`}
@@ -679,7 +704,7 @@ export default function POSPage() {
                         <span
                           className={`text-[10px] font-black tabular-nums leading-none ${textColor ? '' : 'text-blue-700'}`}
                           style={textColor ? { color: textColor } : undefined}
-                        >{formatCurrency(parseFloat(product.selling_price))}</span>
+                        >{isOutOfStock ? 'Out of stock' : formatCurrency(parseFloat(product.selling_price))}</span>
                       </button>
                     );
                   })}

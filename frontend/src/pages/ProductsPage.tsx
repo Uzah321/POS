@@ -338,7 +338,15 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
+        <form
+          onSubmit={handleSubmit((d: FormData) => {
+            // color/image are driven entirely by the swatch picker (setValue),
+            // never a registered <input> — merge them in explicitly so a save
+            // can never silently drop the picked color/image.
+            mutation.mutate({ ...d, color: watchedColor, image: watchedImage });
+          })}
+          className="p-6 space-y-4"
+        >
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="text-sm font-semibold text-gray-700">Product Name *</label>

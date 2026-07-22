@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
 import { Loader2, Save, Building2, ShoppingCart, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -32,6 +32,7 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
 const field = 'w-full border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
 
 export default function SettingsPage() {
+  const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>({});
   const [toggles, setToggles] = useState({
     tax_enabled: false,
@@ -72,6 +73,12 @@ const { isLoading } = useQuery({
     onSuccess: (result) => {
       if (result.offline) toast.success('Settings saved offline - will sync when server is back');
       else toast.success('Settings saved successfully');
+      // Every page that reads settings (POS, Cashier, Dashboard, etc.) shares
+      // this same cached query — without invalidating it here, a saved change
+      // like the tile color theme sat invisible on those screens for up to
+      // the global 5-minute staleTime, or until something else happened to
+      // refetch it.
+      qc.invalidateQueries({ queryKey: ['settings'] });
     },
   });
 

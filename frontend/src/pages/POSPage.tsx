@@ -188,7 +188,12 @@ export default function POSPage() {
         return cached ? JSON.parse(cached) : {};
       }
     },
-    staleTime: 5 * 60 * 1000,
+    // Was 5 minutes — meant a change like the tile color theme could sit
+    // invisible on an already-open till until that window happened to lapse.
+    // Settings are cheap to refetch and rarely change, so just always check
+    // on mount (e.g. switching back to this page) instead of trusting a
+    // stale cache.
+    staleTime: 0,
   });
   const storeName = storeSettings?.company_name || 'Core';
 

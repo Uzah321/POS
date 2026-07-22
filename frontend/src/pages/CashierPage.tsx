@@ -76,7 +76,10 @@ export default function CashierPage() {
         return cached ? JSON.parse(cached) : {};
       }
     },
-    staleTime: 5 * 60 * 1000,
+    // Was 5 minutes — a saved settings change (e.g. block_negative_stock)
+    // could sit invisible on an already-open till. Cheap to refetch, so just
+    // always check on mount instead of trusting a stale cache.
+    staleTime: 0,
   });
 
   const storeName    = storeSettings?.company_name || 'Core';

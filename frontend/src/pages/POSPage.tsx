@@ -40,15 +40,30 @@ function cartLineAccent(productId: number): string {
   return CART_LINE_ACCENTS[productId % CART_LINE_ACCENTS.length];
 }
 
+// True WCAG relative luminance (gamma-corrected) — the naive "average the
+// raw 0-255 channels" shortcut this used to take misjudges saturated colors
+// like #EF4444 red as "dark enough for white text" when white on that red
+// actually falls below the readable contrast threshold; picking whichever
+// candidate wins the real contrast-ratio comparison avoids that.
+function relLuminance(r: number, g: number, b: number): number {
+  const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+function contrastRatio(l1: number, l2: number): number {
+  const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+  return (hi + 0.05) / (lo + 0.05);
+}
 // Picks readable text (white or near-black) for a solid tile background —
-// relative luminance per WCAG so the chosen tile color always stays legible.
+// whichever gives the higher WCAG contrast ratio against that background.
 function contrastText(hex: string): string {
   const m = hex.replace('#', '');
-  const r = parseInt(m.substring(0, 2), 16) / 255;
-  const g = parseInt(m.substring(2, 4), 16) / 255;
-  const b = parseInt(m.substring(4, 6), 16) / 255;
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return lum > 0.6 ? '#111827' : '#ffffff';
+  const r = parseInt(m.substring(0, 2), 16);
+  const g = parseInt(m.substring(2, 4), 16);
+  const b = parseInt(m.substring(4, 6), 16);
+  const bgLum = relLuminance(r, g, b);
+  const whiteContrast = contrastRatio(bgLum, 1);
+  const darkContrast = contrastRatio(bgLum, relLuminance(0x11, 0x18, 0x27)); // #111827
+  return darkContrast >= whiteContrast ? '#111827' : '#ffffff';
 }
 
 // Mirrors the swatches shown under Settings → "Product Tile Colour Theme"

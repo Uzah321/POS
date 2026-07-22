@@ -704,7 +704,7 @@ export default function POSPage() {
                         <span
                           className={`text-[10px] font-black tabular-nums leading-none ${textColor ? '' : 'text-blue-700'}`}
                           style={textColor ? { color: textColor } : undefined}
-                        >{isOutOfStock ? 'Out of stock' : formatCurrency(parseFloat(product.selling_price))}</span>
+                        >{formatCurrency(parseFloat(product.selling_price))}</span>
                       </button>
                     );
                   })}

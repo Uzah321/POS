@@ -21,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 const itemName = (it: any): string => it.product?.name ?? it.ingredient?.name ?? '';
 const itemSku = (it: any): string => it.product?.sku ?? it.ingredient?.sku ?? '';
 const itemCategory = (it: any): string => it.product?.category?.name ?? '';
+const itemUnit = (it: any): string => it.product?.unit?.abbreviation ?? it.ingredient?.unit?.abbreviation ?? it.ingredient?.stock_unit ?? '';
 const isIngredientItem = (it: any): boolean => !it.product_id && !!it.ingredient_id;
 
 export default function StocktakePage() {
@@ -191,13 +192,14 @@ export default function StocktakePage() {
       `Branch: ${st.branch?.name ?? '-'}`,
       `Status: ${(st.status ?? '').replace('_', ' ')}`,
       ``,
-      `Item,SKU,Category,Type,Expected Qty,Counted Qty,Variance,Notes`,
+      `Item,SKU,Category,Type,Unit,Expected Qty,Counted Qty,Variance,Notes`,
       ...rows.map((it: any) =>
         [
           `"${itemName(it)}"`,
           `"${itemSku(it)}"`,
           `"${itemCategory(it)}"`,
           isIngredientItem(it) ? 'Ingredient' : 'Product',
+          `"${itemUnit(it)}"`,
           it.expected_qty ?? '',
           it.counted_qty ?? '',
           it.variance ?? '',
@@ -236,11 +238,12 @@ export default function StocktakePage() {
     const margin = 40;
 
     autoTable(doc, {
-      head: [['Item', 'SKU', 'Type', 'Expected', 'Counted', 'Variance']],
+      head: [['Item', 'SKU', 'Type', 'Unit', 'Expected', 'Counted', 'Variance']],
       body: rows.map((it: any) => [
         itemName(it),
         itemSku(it),
         isIngredientItem(it) ? 'Ingredient' : 'Product',
+        itemUnit(it),
         it.expected_qty ?? '',
         it.counted_qty ?? '-',
         it.variance !== null && it.variance !== undefined ? (it.variance > 0 ? '+' : '') + it.variance : '-',
@@ -254,14 +257,15 @@ export default function StocktakePage() {
       columnStyles: {
         0: { cellWidth: 'auto' },
         1: { cellWidth: 90, font: 'courier', fontSize: 8 },
-        2: { cellWidth: 60 },
-        3: { cellWidth: 70, halign: 'right' },
-        4: { cellWidth: 70, halign: 'right' },
-        5: { cellWidth: 70, halign: 'right', fontStyle: 'bold' },
+        2: { cellWidth: 55 },
+        3: { cellWidth: 45, halign: 'center' },
+        4: { cellWidth: 65, halign: 'right' },
+        5: { cellWidth: 65, halign: 'right' },
+        6: { cellWidth: 65, halign: 'right', fontStyle: 'bold' },
       },
       didParseCell: (data) => {
         // Highlight rows with a non-zero variance so discrepancies stand out on paper too.
-        if (data.section === 'body' && data.column.index === 5) {
+        if (data.section === 'body' && data.column.index === 6) {
           const raw = rows[data.row.index]?.variance;
           if (raw !== null && raw !== undefined && parseFloat(raw) !== 0) {
             data.cell.styles.textColor = parseFloat(raw) < 0 ? [220, 38, 38] : [5, 150, 105];
@@ -322,9 +326,9 @@ export default function StocktakePage() {
         api.get('/ingredients', { params: { per_page: 1000 } }),
       ]);
       const products: any[] = (productsRes.data?.data?.data ?? productsRes.data?.data ?? [])
-        .map((p: any) => ({ name: p.name, sku: p.sku, category: p.category?.name ?? '-', qty: p.total_stock ?? 0, type: 'Product' }));
+        .map((p: any) => ({ name: p.name, sku: p.sku, category: p.category?.name ?? '-', unit: p.unit?.abbreviation ?? '', qty: p.total_stock ?? 0, type: 'Product' }));
       const ingredients: any[] = (ingredientsRes.data?.data?.data ?? ingredientsRes.data?.data ?? [])
-        .map((i: any) => ({ name: i.name, sku: i.sku, category: '-', qty: i.total_stock ?? 0, type: 'Ingredient' }));
+        .map((i: any) => ({ name: i.name, sku: i.sku, category: '-', unit: i.unit?.abbreviation ?? i.stock_unit ?? '', qty: i.total_stock ?? 0, type: 'Ingredient' }));
       // Counted in the same physical walk-through as products, so they belong
       // on the same sheet rather than a separate export.
       const items = [...products, ...ingredients].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
@@ -340,18 +344,19 @@ export default function StocktakePage() {
       const margin = 40;
 
       const head = includeQtyInSheet
-        ? [['#', 'Item', 'SKU', 'Category', 'Type', 'Current Qty', 'Counted']]
-        : [['#', 'Item', 'SKU', 'Category', 'Type', 'Counted Qty', 'Counted']];
+        ? [['#', 'Item', 'SKU', 'Category', 'Type', 'Unit', 'Current Qty', 'Counted']]
+        : [['#', 'Item', 'SKU', 'Category', 'Type', 'Unit', 'Counted Qty', 'Counted']];
       const body = items.map((it: any, i: number) => [
         String(i + 1),
         it.name ?? '',
         it.sku ?? '',
         it.category,
         it.type,
+        it.unit ?? '',
         includeQtyInSheet ? String(it.qty ?? 0) : '',
         '', // Counted checkbox — drawn manually in didDrawCell below, ticked by hand once physically counted
       ]);
-      const CHECKBOX_COL = 6;
+      const CHECKBOX_COL = 7;
 
       autoTable(doc, {
         head,
@@ -366,10 +371,11 @@ export default function StocktakePage() {
           0: { cellWidth: 28, halign: 'right', textColor: [148, 163, 184] },
           1: { cellWidth: 'auto' },
           2: { cellWidth: 90, font: 'courier', fontSize: 8 },
-          3: { cellWidth: 90 },
-          4: { cellWidth: 60 },
-          5: { cellWidth: 70, halign: 'right', fontStyle: includeQtyInSheet ? 'bold' : 'normal' },
-          6: { cellWidth: 50, halign: 'center' },
+          3: { cellWidth: 80 },
+          4: { cellWidth: 55 },
+          5: { cellWidth: 45, halign: 'center' },
+          6: { cellWidth: 65, halign: 'right', fontStyle: includeQtyInSheet ? 'bold' : 'normal' },
+          7: { cellWidth: 50, halign: 'center' },
         },
         // Draw an empty tick-box square in the "Counted" column for the
         // physical counter to mark by hand once they've counted that line.
@@ -479,6 +485,7 @@ export default function StocktakePage() {
         <td style="padding:6px 8px">${itemSku(it)}</td>
         <td style="padding:6px 8px">${itemCategory(it)}</td>
         <td style="padding:6px 8px">${isIngredientItem(it) ? 'Ingredient' : 'Product'}</td>
+        <td style="padding:6px 8px">${itemUnit(it)}</td>
         <td style="padding:6px 8px;text-align:center">${it.expected_qty ?? ''}</td>
         <td style="padding:6px 8px;min-width:60px">&nbsp;</td>
         <td style="padding:6px 8px;min-width:60px">&nbsp;</td>
@@ -490,7 +497,7 @@ export default function StocktakePage() {
       <h2 style="margin:0 0 4px">Stocktake Count Sheet</h2>
       <p style="margin:0 0 12px;color:#6b7280">Ref: ${ref} &nbsp;|&nbsp; Date: ${date} &nbsp;|&nbsp; Branch: ${stocktakeDetail.branch?.name ?? '-'}</p>
       <table>
-        <thead><tr><th>#</th><th>Item</th><th>SKU</th><th>Category</th><th>Type</th><th>Expected</th><th>Counted</th><th>Variance</th><th>Notes</th></tr></thead>
+        <thead><tr><th>#</th><th>Item</th><th>SKU</th><th>Category</th><th>Type</th><th>Unit</th><th>Expected</th><th>Counted</th><th>Variance</th><th>Notes</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
       <p style="margin-top:24px;font-size:11px;color:#9ca3af">Cashier signature: _________________________ &nbsp;&nbsp; Date: _____________</p>
@@ -710,7 +717,10 @@ export default function StocktakePage() {
                             {itemName(it) || <span className="italic text-gray-400">Unknown item (#{it.product_id ?? it.ingredient_id})</span>}
                             {isIngredientItem(it) && <span className="ml-1.5 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full align-middle">Ingredient</span>}
                           </td>
-                          <td className="py-2 text-right text-gray-500">{it.expected_qty}</td>
+                          <td className="py-2 text-right text-gray-500">
+                            {it.expected_qty}
+                            {itemUnit(it) && <span className="text-gray-400 text-xs ml-1">{itemUnit(it)}</span>}
+                          </td>
                           <td className="py-2 text-right">
                             {stocktakeDetail.status === 'completed' ? (
                               <span className="font-semibold">{it.counted_qty ?? '-'}</span>

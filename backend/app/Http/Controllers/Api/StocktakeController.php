@@ -13,8 +13,8 @@ class StocktakeController extends BaseApiController {
     // ingredient's — load both relations so the caller can render whichever is set.
     private function loadItems(Stocktake $stocktake): Stocktake {
         return $stocktake->load([
-            'items.product' => fn($q) => $q->withTrashed(),
-            'items.ingredient',
+            'items.product' => fn($q) => $q->withTrashed()->with('unit'),
+            'items.ingredient.unit',
         ]);
     }
 

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, AlertTriangle, PackageX, Wallet, Loader2 } from 'lucide-react';
-import { inventoryApi } from '../../api';
+import { Bell, AlertTriangle, PackageX, Wallet, Loader2, Wheat } from 'lucide-react';
+import { inventoryApi, ingredientsApi } from '../../api';
 import api from '../../lib/axios';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -43,6 +43,12 @@ export default function NotificationBell() {
     refetchInterval: 60000,
     staleTime: 0,
   });
+  const { data: outIngredients, isLoading: loadingOutIngredients } = useQuery({
+    queryKey: ['notif-out-ingredients'],
+    queryFn: () => ingredientsApi.list({ filter: 'out', per_page: 5 }).then(r => r.data?.data),
+    refetchInterval: 60000,
+    staleTime: 0,
+  });
   const { data: cashupsRaw, isLoading: loadingCashups } = useQuery({
     queryKey: ['notif-pending-cashups'],
     queryFn: () => api.get('/shift-end', { params: { per_page: 100 } }).then(r => r.data?.data),
@@ -55,12 +61,14 @@ export default function NotificationBell() {
   const outRows: StockRow[] = outStock?.data ?? [];
   const lowTotal = lowStock?.meta?.total ?? lowStock?.total ?? lowRows.length;
   const outTotal = outStock?.meta?.total ?? outStock?.total ?? outRows.length;
+  const outIngredientRows: StockRow[] = outIngredients?.data ?? [];
+  const outIngredientTotal = outIngredients?.meta?.total ?? outIngredients?.total ?? outIngredientRows.length;
   const allCashups: any[] = Array.isArray(cashupsRaw) ? cashupsRaw : cashupsRaw?.data ?? [];
   const pendingCashups = allCashups.filter((c) => c.status === 'pending').slice(0, 5);
   const pendingTotal = allCashups.filter((c) => c.status === 'pending').length;
 
-  const loading = loadingLow || loadingOut || (isManager && loadingCashups);
-  const totalCount = lowTotal + outTotal + (isManager ? pendingTotal : 0);
+  const loading = loadingLow || loadingOut || loadingOutIngredients || (isManager && loadingCashups);
+  const totalCount = lowTotal + outTotal + outIngredientTotal + (isManager ? pendingTotal : 0);
 
   const goTo = (path: string) => { setOpen(false); navigate(path); };
 
@@ -112,6 +120,32 @@ export default function NotificationBell() {
                   {outTotal > outRows.length && (
                     <button type="button" onClick={() => goTo('/inventory?filter=out')} className="text-xs text-blue-600 hover:underline mt-1.5">
                       View all {outTotal} →
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {outIngredientTotal > 0 && (
+                <div className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => goTo('/ingredients?filter=out')}
+                    className="w-full flex items-center justify-between text-xs font-semibold text-red-600 uppercase tracking-wide mb-2 hover:underline"
+                  >
+                    <span className="flex items-center gap-1.5"><Wheat size={13} /> Out of Stock Ingredients</span>
+                    <span>{outIngredientTotal}</span>
+                  </button>
+                  <ul className="space-y-1.5">
+                    {outIngredientRows.map((i) => (
+                      <li key={i.id} className="text-sm text-gray-700 flex items-center justify-between gap-2">
+                        <span className="truncate">{i.name}</span>
+                        <span className="text-xs text-red-500 font-medium flex-shrink-0">0 units</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {outIngredientTotal > outIngredientRows.length && (
+                    <button type="button" onClick={() => goTo('/ingredients?filter=out')} className="text-xs text-blue-600 hover:underline mt-1.5">
+                      View all {outIngredientTotal} →
                     </button>
                   )}
                 </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { ingredientsApi, unitsApi, suppliersApi } from '../api';
 import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered, PackageX } from 'lucide-react';
@@ -396,9 +397,11 @@ function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: (
 }
 
 export default function IngredientsPage() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState('');
+  // Pre-selects the "in"/"out" filter when arriving from the notification bell
+  const [filter, setFilter] = useState(searchParams.get('filter') ?? '');
   const [modal, setModal] = useState<{ open: boolean; ingredient?: any }>({ open: false });
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const qc = useQueryClient();

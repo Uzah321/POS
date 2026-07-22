@@ -234,7 +234,12 @@ export default function POSPage() {
         return cached.length > 0 ? cached : [];
       }
     },
-    staleTime: 60000,
+    // Product edits (price, color, image, stock) made from the Products page
+    // must show up here without the cashier needing to reload — same fix as
+    // the dashboard staleness issue: don't let this sit stale in the
+    // background while the till stays open all shift.
+    staleTime: 0,
+    refetchInterval: 30000,
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
@@ -643,9 +648,11 @@ export default function POSPage() {
                     // shade should show exactly as picked. Falling back to the category's
                     // color (no explicit product color) stays a soft tint instead, since
                     // that's a grouping cue rather than a deliberate per-product choice.
+                    // An image is just a small accent thumbnail under the name, not the
+                    // tile background, so it never fights with the color or the price text.
                     const ownColor = product.color;
                     const fallbackColor = !ownColor && product.category?.name ? categoryColors.get(product.category.name) : undefined;
-                    const textColor = ownColor && !product.image ? contrastText(ownColor) : undefined;
+                    const textColor = ownColor ? contrastText(ownColor) : undefined;
                     return (
                       <button
                         type="button"
@@ -654,28 +661,23 @@ export default function POSPage() {
                         onClick={() => handleAddProduct(product)}
                         style={{
                           width: '1.7cm', height: '1.7cm',
-                          ...(product.image
-                            ? {}
-                            : ownColor
-                              ? { backgroundColor: ownColor, borderColor: ownColor }
-                              : fallbackColor
-                                ? { backgroundColor: `${fallbackColor}1f`, borderColor: fallbackColor }
-                                : {}),
+                          ...(ownColor
+                            ? { backgroundColor: ownColor, borderColor: ownColor }
+                            : fallbackColor
+                              ? { backgroundColor: `${fallbackColor}1f`, borderColor: fallbackColor }
+                              : {}),
                         }}
-                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${product.image || ownColor || fallbackColor ? '' : 'bg-white border-gray-200'}`}
+                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${ownColor || fallbackColor ? '' : 'bg-white border-gray-200'}`}
                       >
-                        {product.image && (
-                          <>
-                            <img src={product.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                            <span className="absolute inset-0 bg-black/25" />
-                          </>
-                        )}
                         <span
-                          className={`relative w-full text-[10px] font-semibold text-center leading-none line-clamp-2 ${product.image ? 'text-white' : textColor ? '' : 'text-gray-800'}`}
+                          className={`w-full text-[9px] font-semibold text-center leading-none ${product.image ? 'line-clamp-1' : 'line-clamp-2'} ${textColor ? '' : 'text-gray-800'}`}
                           style={textColor ? { color: textColor } : undefined}
                         >{product.name}</span>
+                        {product.image && (
+                          <img src={product.image} alt="" className="w-5 h-5 rounded-sm object-cover flex-shrink-0 border border-black/5" />
+                        )}
                         <span
-                          className={`relative text-[11px] font-black tabular-nums leading-none ${product.image ? 'text-white' : textColor ? '' : 'text-blue-700'}`}
+                          className={`text-[10px] font-black tabular-nums leading-none ${textColor ? '' : 'text-blue-700'}`}
                           style={textColor ? { color: textColor } : undefined}
                         >{formatCurrency(parseFloat(product.selling_price))}</span>
                       </button>

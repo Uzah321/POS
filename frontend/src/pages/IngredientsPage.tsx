@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { ingredientsApi, unitsApi, suppliersApi } from '../api';
-import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered } from 'lucide-react';
+import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered, PackageX } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -398,15 +398,26 @@ function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: (
 export default function IngredientsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; ingredient?: any }>({ open: false });
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['ingredients', search, page],
-    queryFn: () => ingredientsApi.list({ search, page, per_page: 20 }).then(r => r.data?.data),
+    queryKey: ['ingredients', search, page, filter],
+    queryFn: () => ingredientsApi.list({ search, page, per_page: 20, filter: filter || undefined }).then(r => r.data?.data),
     placeholderData: keepPreviousData,
   });
+
+  // Lightweight counts for the summary chip — same per_page:1 trick ProductsPage
+  // uses so this is just a total lookup, not a full list fetch.
+  const { data: outStockMeta } = useQuery({
+    queryKey: ['ingredients-out-count'],
+    queryFn: () => ingredientsApi.list({ filter: 'out', per_page: 1 }).then(r => r.data?.data),
+    staleTime: 0,
+    refetchInterval: 30000,
+  });
+  const outOfStockTotal = outStockMeta?.meta?.total ?? outStockMeta?.total ?? 0;
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => ingredientsApi.delete(id),
@@ -434,7 +445,19 @@ export default function IngredientsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Wheat size={20} className="text-blue-600" /> Ingredients</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Wheat size={20} className="text-blue-600" /> Ingredients</h1>
+          {outOfStockTotal > 0 && (
+            <button
+              type="button"
+              onClick={() => { setFilter('out'); setPage(1); }}
+              className="flex items-center gap-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-full transition-colors"
+              title="Filter to out-of-stock ingredients"
+            >
+              <PackageX size={12} /> {outOfStockTotal} out of stock
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
             <button
@@ -462,8 +485,8 @@ export default function IngredientsPage() {
       </div>
 
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative max-w-sm">
+        <div className="p-4 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+          <div className="relative max-w-sm flex-1 min-w-[180px]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
@@ -472,6 +495,15 @@ export default function IngredientsPage() {
               className="w-full pl-9 pr-3 py-2 border border-gray-200 focus:border-blue-400 rounded-lg text-sm focus:outline-none"
             />
           </div>
+          <select
+            value={filter}
+            onChange={e => { setFilter(e.target.value); setPage(1); }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-400"
+          >
+            <option value="">All Stock</option>
+            <option value="in">In Stock</option>
+            <option value="out">Out of Stock</option>
+          </select>
         </div>
 
         {isLoading ? (
@@ -501,6 +533,7 @@ export default function IngredientsPage() {
                 <th className="text-left px-4 py-2.5">Cost</th>
                 <th className="text-left px-4 py-2.5">Qty (uom)</th>
                 <th className="text-left px-4 py-2.5">Stock Unit</th>
+                <th className="text-left px-4 py-2.5">Status</th>
                 <th className="text-right px-4 py-2.5">Actions</th>
               </tr>
             </thead>
@@ -526,6 +559,13 @@ export default function IngredientsPage() {
                   <td className="px-4 py-2.5 tabular-nums">${parseFloat(ing.cost_price || 0).toFixed(2)}</td>
                   <td className="px-4 py-2.5 tabular-nums">{ing.total_stock ?? '-'} <span className="text-gray-400 text-xs">{ing.unit?.abbreviation}</span></td>
                   <td className="px-4 py-2.5 text-gray-500">{ing.stock_unit || '-'}</td>
+                  <td className="px-4 py-2.5">
+                    {(ing.total_stock ?? 0) > 0 ? (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">In Stock</span>
+                    ) : (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Out of Stock</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
                       <button type="button" onClick={() => setModal({ open: true, ingredient: ing })} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50" title="Edit">

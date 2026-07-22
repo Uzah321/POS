@@ -25,7 +25,15 @@ class IngredientController extends BaseApiController
                       ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
                 });
             })
-            ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')));
+            ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')))
+            // Same "out"/"in" stock definition as InventoryController::stockLevels for
+            // products — summed across every warehouse's ingredient_stocks row.
+            ->when($request->filter === 'out', fn($q) => $q->whereRaw(
+                'COALESCE((SELECT SUM(quantity) FROM ingredient_stocks WHERE ingredient_id = ingredients.id), 0) <= 0'
+            ))
+            ->when($request->filter === 'in', fn($q) => $q->whereRaw(
+                'COALESCE((SELECT SUM(quantity) FROM ingredient_stocks WHERE ingredient_id = ingredients.id), 0) > 0'
+            ));
 
         return $this->paginated($query->orderBy('name')->paginate($request->per_page ?? 20));
     }

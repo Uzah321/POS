@@ -109,7 +109,10 @@ export default function CashierPage() {
         return cached.length > 0 ? cached : [];
       }
     },
-    staleTime: 60000,
+    // Product edits (price, color, image, stock) must show up here without
+    // reloading — same fix as the dashboard staleness issue.
+    staleTime: 0,
+    refetchInterval: 30000,
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];

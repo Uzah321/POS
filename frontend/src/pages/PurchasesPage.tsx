@@ -222,7 +222,7 @@ function downloadPurchaseOrderPdf(po: any, companyName: string, currencySymbol: 
   const items: any[] = po.items ?? [];
   const body = items.map((it: any, i: number) => [
     String(i + 1),
-    it.product?.name ?? '',
+    it.product?.description ? `${it.product?.name ?? ''}\n${it.product.description}` : (it.product?.name ?? ''),
     it.product?.sku ?? '',
     it.quantity,
     `${currencySymbol}${Number(it.unit_cost).toFixed(2)}`,

@@ -51,6 +51,10 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
       const saved = res.data?.data ?? res.data;
       toast.success(ingredient ? 'Ingredient updated' : 'Ingredient created');
       qc.invalidateQueries({ queryKey: ['ingredients'] });
+      // A new ingredient's opening stock can be exactly what a made-to-order
+      // product's recipe was waiting on — refresh its derived availability too.
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
       onSaved(saved);
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Error saving ingredient'),
@@ -417,6 +421,15 @@ function AddStockModal({ ingredient, onClose }: { ingredient: any; onClose: () =
       toast.success(result.offline ? 'Stock saved offline — will sync when server is back' : `Added ${quantity} ${ingredient.unit?.abbreviation ?? ''} to "${ingredient.name}"`);
       qc.invalidateQueries({ queryKey: ['ingredients'] });
       qc.invalidateQueries({ queryKey: ['ingredients-out-count'] });
+      // Made-to-order products derive their own availability from ingredient
+      // stock — without this, a pizza stays showing "out of stock" on the
+      // Products list and POS tiles until their next scheduled refetch, even
+      // though the ingredient that was blocking it just got topped up.
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to add stock'),

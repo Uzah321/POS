@@ -206,7 +206,7 @@ function ProductSearch({
           <p className="text-xs font-semibold text-gray-500">New product</p>
           {forceMadeToOrder && (
             <p className="text-[11px] text-orange-600 bg-orange-50 border border-orange-100 rounded px-2 py-1">
-              Will be created as <strong>Made to Order</strong> — assembled from the recipe you add next instead of carrying its own stock.
+              Will be created as <strong>Made on Order</strong> — assembled from the recipe you add next instead of carrying its own stock.
             </p>
           )}
           <input
@@ -677,7 +677,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                 <p className="font-semibold text-gray-900 text-sm">{product.name}</p>
                 {madeToOrder && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
-                    Made to Order
+                    Made on Order
                   </span>
                 )}
               </div>
@@ -689,7 +689,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                   onChange={e => setMadeToOrder(e.target.checked)}
                   className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                Made to Order — always available while ingredients last, deducted from stock instead of this product's own
+                Made on Order — always available while ingredients last, deducted from stock instead of this product's own
               </label>
             </div>
             <button

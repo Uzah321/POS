@@ -716,7 +716,7 @@ export default function POSPage() {
                       >
                         {product.made_to_order && (
                           <span
-                            title="Made to Order — prepared fresh from its recipe"
+                            title="Made on Order — prepared fresh from its recipe"
                             className="absolute top-0.5 right-0.5 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-orange-500 text-white shadow-sm"
                           >
                             <ChefHat size={9} />

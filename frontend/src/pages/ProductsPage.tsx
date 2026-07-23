@@ -534,7 +534,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
                 <input type="checkbox" {...register('made_to_order')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                Made to Order
+                Made on Order
               </label>
               <p className="text-xs text-gray-400 mt-1">
                 {watchedMadeToOrder
@@ -974,7 +974,7 @@ export default function ProductsPage() {
                               <p className="text-sm font-semibold text-gray-900">{p.name}</p>
                               {p.made_to_order && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700" title="Assembled from its recipe when sold — see Stock Production → Recipes">
-                                  <ChefHat size={10} /> Made to Order
+                                  <ChefHat size={10} /> Made on Order
                                 </span>
                               )}
                             </div>

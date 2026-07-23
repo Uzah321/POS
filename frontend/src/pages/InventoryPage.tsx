@@ -172,7 +172,7 @@ export default function InventoryPage() {
                           <span className="text-sm font-medium text-gray-900">{s.name}</span>
                           {s.made_to_order && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700" title="Assembled from its recipe when sold — see Stock Production → Recipes">
-                              <ChefHat size={10} /> Made to Order
+                              <ChefHat size={10} /> Made on Order
                             </span>
                           )}
                         </div>

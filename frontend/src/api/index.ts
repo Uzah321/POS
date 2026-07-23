@@ -34,6 +34,8 @@ export const ingredientsApi = {
   ordering: (id: number) => api.get(`/ingredients/${id}/ordering`),
   syncOrdering: (id: number, settings: Array<{ branch_id: number; recommended_quantity?: number; minimum_quantity?: number }>) =>
     api.put(`/ingredients/${id}/ordering`, { settings }),
+  addStock: (id: number, data: { warehouse_id: number; quantity: number }) =>
+    api.post(`/ingredients/${id}/add-stock`, data),
 };
 
 export const salesApi = {

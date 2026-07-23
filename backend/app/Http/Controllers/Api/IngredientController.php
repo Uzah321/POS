@@ -200,4 +200,27 @@ class IngredientController extends BaseApiController
 
         return $this->ordering($ingredient);
     }
+
+    /** Tops up an ingredient's stock at a warehouse — the "running low" restock action. */
+    public function addStock(Request $request, Ingredient $ingredient): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'quantity'     => 'required|numeric|min:0.001',
+        ]);
+
+        DB::transaction(function () use ($ingredient, $data) {
+            $stock = IngredientStock::firstOrNew([
+                'ingredient_id' => $ingredient->id,
+                'warehouse_id'  => $data['warehouse_id'],
+            ]);
+            $stock->quantity = (float) ($stock->quantity ?? 0) + (float) $data['quantity'];
+            $stock->save();
+        });
+
+        return $this->success(
+            $ingredient->fresh()->load('unit')->loadSum('stocks', 'quantity'),
+            'Ingredient stock added'
+        );
+    }
 }

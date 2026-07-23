@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { ingredientsApi, unitsApi, suppliersApi } from '../api';
-import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered, PackageX } from 'lucide-react';
+import { ingredientsApi, unitsApi, suppliersApi, warehousesApi } from '../api';
+import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered, PackageX, PackagePlus } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
+import { offlineMutate } from '../lib/offlineMutation';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -396,6 +397,80 @@ function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: (
   );
 }
 
+/** Quick restock action for an ingredient that's running low/out — adds
+ *  quantity to its stock at a chosen warehouse instead of requiring a full
+ *  purchase order. */
+function AddStockModal({ ingredient, onClose }: { ingredient: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: warehouses } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => warehousesApi.list().then(r => r.data?.data ?? []),
+    staleTime: 60000,
+  });
+  const [warehouseId, setWarehouseId] = useState('');
+  const [quantity, setQuantity] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: (payload: { warehouse_id: number; quantity: number }) =>
+      offlineMutate(() => ingredientsApi.addStock(ingredient.id, payload), 'ingredient_stocks', 'add', payload, ingredient.id),
+    onSuccess: (result) => {
+      toast.success(result.offline ? 'Stock saved offline — will sync when server is back' : `Added ${quantity} ${ingredient.unit?.abbreviation ?? ''} to "${ingredient.name}"`);
+      qc.invalidateQueries({ queryKey: ['ingredients'] });
+      qc.invalidateQueries({ queryKey: ['ingredients-out-count'] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to add stock'),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!warehouseId) { toast.error('Select a warehouse'); return; }
+    const qty = parseFloat(quantity);
+    if (!qty || qty <= 0) { toast.error('Enter a valid quantity'); return; }
+    mutation.mutate({ warehouse_id: Number(warehouseId), quantity: qty });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <PackagePlus size={18} className="text-green-600" />
+            <h2 className="text-base font-bold text-gray-900">Add Stock — {ingredient.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <p className="text-xs text-gray-400">
+            Currently {ingredient.total_stock ?? 0} {ingredient.unit?.abbreviation ?? ''} on hand.
+          </p>
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Warehouse *</label>
+            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className={field} autoFocus>
+              <option value="">Select warehouse...</option>
+              {(warehouses as any[])?.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Quantity to Add *</label>
+            <input
+              type="number" min="0.001" step="0.001"
+              value={quantity}
+              onChange={e => setQuantity(e.target.value)}
+              placeholder="0"
+              className={field}
+            />
+          </div>
+          <button type="submit" disabled={mutation.isPending} className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <PackagePlus size={14} />}
+            Add Stock
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function IngredientsPage() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
@@ -403,6 +478,7 @@ export default function IngredientsPage() {
   // Pre-selects the "in"/"out" filter when arriving from the notification bell
   const [filter, setFilter] = useState(searchParams.get('filter') ?? '');
   const [modal, setModal] = useState<{ open: boolean; ingredient?: any }>({ open: false });
+  const [addStockFor, setAddStockFor] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const qc = useQueryClient();
 
@@ -571,6 +647,9 @@ export default function IngredientsPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
+                      <button type="button" onClick={() => setAddStockFor(ing)} className="p-1.5 text-gray-400 hover:text-green-600 rounded-md hover:bg-green-50" title="Add Stock">
+                        <PackagePlus size={15} />
+                      </button>
                       <button type="button" onClick={() => setModal({ open: true, ingredient: ing })} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50" title="Edit">
                         <Edit size={15} />
                       </button>
@@ -594,6 +673,7 @@ export default function IngredientsPage() {
       </div>
 
       {modal.open && <IngredientModal ingredient={modal.ingredient} onClose={() => setModal({ open: false })} />}
+      {addStockFor && <AddStockModal ingredient={addStockFor} onClose={() => setAddStockFor(null)} />}
     </div>
   );
 }

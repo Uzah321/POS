@@ -69,6 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/ingredients/{ingredient}/vendors', [IngredientController::class, 'syncVendors']);
     Route::get('/ingredients/{ingredient}/ordering', [IngredientController::class, 'ordering']);
     Route::put('/ingredients/{ingredient}/ordering', [IngredientController::class, 'syncOrdering']);
+    Route::post('/ingredients/{ingredient}/add-stock', [IngredientController::class, 'addStock']);
     Route::apiResource('ingredients', IngredientController::class);
 
     // Sales

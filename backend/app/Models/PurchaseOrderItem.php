@@ -21,6 +21,8 @@ class PurchaseOrderItem extends Model
     ];
 
     public function purchaseOrder(): BelongsTo { return $this->belongsTo(PurchaseOrder::class); }
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
+    // withTrashed() — a PO is a historical record; it should still show what was
+    // actually ordered even if that product has since been deleted from the catalog.
+    public function product(): BelongsTo { return $this->belongsTo(Product::class)->withTrashed(); }
     public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
 }

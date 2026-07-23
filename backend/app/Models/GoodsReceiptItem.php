@@ -14,6 +14,8 @@ class GoodsReceiptItem extends Model
     protected $casts = ['expiry_date' => 'date', 'quantity' => 'decimal:3', 'unit_cost' => 'decimal:2'];
 
     public function goodsReceipt(): BelongsTo { return $this->belongsTo(GoodsReceipt::class); }
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
+    // withTrashed() — same reasoning as PurchaseOrderItem::product(): a goods
+    // receipt is a historical record of what actually arrived.
+    public function product(): BelongsTo { return $this->belongsTo(Product::class)->withTrashed(); }
     public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
 }

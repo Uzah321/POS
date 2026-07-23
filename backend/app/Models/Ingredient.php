@@ -28,6 +28,7 @@ class Ingredient extends Model
     public function stocks(): HasMany { return $this->hasMany(IngredientStock::class); }
     public function vendors(): HasMany { return $this->hasMany(IngredientVendor::class); }
     public function branchSettings(): HasMany { return $this->hasMany(IngredientBranchSetting::class); }
+    public function stockAdjustments(): HasMany { return $this->hasMany(IngredientStockAdjustment::class); }
 
     public function getTotalStockAttribute(): float
     {

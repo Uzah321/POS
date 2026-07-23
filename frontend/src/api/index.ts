@@ -34,8 +34,11 @@ export const ingredientsApi = {
   ordering: (id: number) => api.get(`/ingredients/${id}/ordering`),
   syncOrdering: (id: number, settings: Array<{ branch_id: number; recommended_quantity?: number; minimum_quantity?: number }>) =>
     api.put(`/ingredients/${id}/ordering`, { settings }),
-  addStock: (id: number, data: { warehouse_id: number; quantity: number }) =>
+  addStock: (id: number, data: { warehouse_id: number; quantity: number; reason?: string }) =>
     api.post(`/ingredients/${id}/add-stock`, data),
+  subtractStock: (id: number, data: { warehouse_id: number; quantity: number; reason: string }) =>
+    api.post(`/ingredients/${id}/subtract-stock`, data),
+  stockHistory: (id: number, params?: object) => api.get(`/ingredients/${id}/stock-history`, { params }),
 };
 
 export const salesApi = {
@@ -87,6 +90,7 @@ export const purchaseOrdersApi = {
 export const inventoryApi = {
   stockLevels:     (params?: object)          => api.get('/inventory/stock-levels', { params }),
   adjust:          (data: object)             => api.post('/inventory/adjust', data),
+  adjustments:     (params?: object)          => api.get('/inventory/adjustments', { params }),
   createTransfer:  (data: object)             => api.post('/inventory/transfers', data),
   receiveTransfer: (id: number, data: object) => api.post(`/inventory/transfers/${id}/receive`, data),
   importStock:     (data: object)             => api.post('/inventory/import', data),

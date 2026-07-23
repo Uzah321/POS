@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi, warehousesApi } from '../api';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat, PackagePlus } from 'lucide-react';
+import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat, PackagePlus, PackageMinus, History } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -567,10 +567,13 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   );
 }
 
-/** Quick per-product restock — adds quantity to this product's stock at a
- *  chosen warehouse, going through the same audited stock-adjustment
- *  endpoint as the Inventory page's Add Stock flow. */
-function AddProductStockModal({ product, onClose }: { product: any; onClose: () => void }) {
+const WASTAGE_REASONS = ['Expired', 'Spoiled/Went bad', 'Damaged', 'Breakage', 'Theft/Loss', 'Other'];
+
+/** Quick per-product stock add/remove — goes through the same audited
+ *  stock-adjustment endpoint as the Inventory page's Add Stock flow, so
+ *  every change (including wastage write-offs) lands in the same audit
+ *  trail visible via the History action. */
+function ProductStockAdjustModal({ product, mode, onClose }: { product: any; mode: 'add' | 'subtract'; onClose: () => void }) {
   const qc = useQueryClient();
   const field = 'border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-1 bg-gray-50 focus:bg-white transition-colors';
   const { data: warehouses } = useQuery({
@@ -581,19 +584,25 @@ function AddProductStockModal({ product, onClose }: { product: any; onClose: () 
   const [warehouseId, setWarehouseId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [cost, setCost] = useState(product.cost_price ? String(product.cost_price) : '');
+  const [reason, setReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const isAdd = mode === 'add';
 
   const mutation = useMutation({
     mutationFn: (payload: object) => offlineMutate(() => inventoryApi.adjust(payload), 'inventory', 'adjust', payload as Record<string, unknown>),
     onSuccess: (result) => {
-      toast.success(result.offline ? 'Stock saved offline — will sync when server is back' : `Added ${quantity} unit(s) to "${product.name}"`);
+      toast.success(result.offline
+        ? 'Stock saved offline — will sync when server is back'
+        : `${isAdd ? 'Added' : 'Removed'} ${quantity} unit(s) ${isAdd ? 'to' : 'from'} "${product.name}"`);
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
       qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+      qc.invalidateQueries({ queryKey: ['stock-adjustments', product.id] });
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to add stock'),
+    onError: (e: any) => toast.error(e.response?.data?.message || `Failed to ${isAdd ? 'add' : 'remove'} stock`),
   });
 
   const submit = (e: React.FormEvent) => {
@@ -601,10 +610,12 @@ function AddProductStockModal({ product, onClose }: { product: any; onClose: () 
     if (!warehouseId) { toast.error('Select a warehouse'); return; }
     const qty = parseFloat(quantity);
     if (!qty || qty <= 0) { toast.error('Enter a valid quantity'); return; }
+    const finalReason = reason === 'Other' ? customReason.trim() : reason;
+    if (!isAdd && !finalReason) { toast.error('Select or enter a reason'); return; }
     mutation.mutate({
       warehouse_id: Number(warehouseId),
-      type: 'in',
-      reason: 'Manual stock addition',
+      type: isAdd ? 'in' : 'damage',
+      reason: finalReason || 'Manual stock addition',
       items: [{
         product_id: product.id,
         quantity: qty,
@@ -618,8 +629,8 @@ function AddProductStockModal({ product, onClose }: { product: any; onClose: () 
       <div className="bg-white rounded-lg w-full max-w-sm shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <PackagePlus size={18} className="text-green-600" />
-            <h2 className="text-base font-bold text-gray-900">Add Stock — {product.name}</h2>
+            {isAdd ? <PackagePlus size={18} className="text-green-600" /> : <PackageMinus size={18} className="text-red-600" />}
+            <h2 className="text-base font-bold text-gray-900">{isAdd ? 'Add Stock' : 'Remove Stock (Wastage)'} — {product.name}</h2>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
@@ -633,18 +644,108 @@ function AddProductStockModal({ product, onClose }: { product: any; onClose: () 
             </select>
           </div>
           <div>
-            <label className="text-sm font-semibold text-gray-700">Quantity to Add *</label>
+            <label className="text-sm font-semibold text-gray-700">Quantity to {isAdd ? 'Add' : 'Remove'} *</label>
             <input type="number" min="0.001" step="0.001" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="0" className={field} />
           </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional</span></label>
-            <input type="number" min="0" step="0.01" value={cost} onChange={e => setCost(e.target.value)} className={field} />
-          </div>
-          <button type="submit" disabled={mutation.isPending} className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <PackagePlus size={14} />}
-            Add Stock
+          {isAdd ? (
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional</span></label>
+              <input type="number" min="0" step="0.01" value={cost} onChange={e => setCost(e.target.value)} className={field} />
+            </div>
+          ) : (
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Reason *</label>
+              <select value={reason} onChange={e => setReason(e.target.value)} className={field}>
+                <option value="">Select a reason...</option>
+                {WASTAGE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              {reason === 'Other' && (
+                <input value={customReason} onChange={e => setCustomReason(e.target.value)} placeholder="Describe the reason" className={field} />
+              )}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className={`w-full text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60 ${isAdd ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : (isAdd ? <PackagePlus size={14} /> : <PackageMinus size={14} />)}
+            {isAdd ? 'Add Stock' : 'Remove Stock'}
           </button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/** Read-only audit trail of every manual stock adjustment (add, wastage,
+ *  correction, etc.) made against this product across every warehouse. */
+function ProductHistoryModal({ product, onClose }: { product: any; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['stock-adjustments', product.id],
+    queryFn: () => inventoryApi.adjustments({ product_id: product.id, per_page: 50 }).then(r => r.data?.data),
+  });
+  const adjustments: any[] = data?.data ?? [];
+  // Flatten each adjustment's matching item row(s) for this product into one
+  // list — an adjustment can batch several products, but only this
+  // product's line (and the adjustment's own reason/type/user) matters here.
+  const rows = adjustments.flatMap((adj: any) =>
+    (adj.items ?? []).map((it: any) => ({ ...it, adjustment: adj }))
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg w-full max-w-2xl shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <History size={18} className="text-gray-500" />
+            <h2 className="text-base font-bold text-gray-900">Stock History — {product.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex justify-center py-12"><Loader2 size={22} className="animate-spin text-gray-400" /></div>
+          ) : rows.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">No stock changes recorded yet</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase sticky top-0">
+                <tr>
+                  <th className="text-left px-4 py-2">Date</th>
+                  <th className="text-left px-4 py-2">Type</th>
+                  <th className="text-right px-4 py-2">Change</th>
+                  <th className="text-right px-4 py-2">Balance</th>
+                  <th className="text-left px-4 py-2">Warehouse</th>
+                  <th className="text-left px-4 py-2">By</th>
+                  <th className="text-left px-4 py-2">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((r: any) => {
+                  const adj = parseFloat(r.quantity_adjusted);
+                  return (
+                    <tr key={r.id}>
+                      <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{new Date(r.adjustment.created_at).toLocaleString()}</td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${adj >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          {r.adjustment.type}
+                        </span>
+                      </td>
+                      <td className={`px-4 py-2 text-right font-semibold tabular-nums ${adj >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {adj >= 0 ? '+' : ''}{adj}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-gray-700">{r.quantity_after}</td>
+                      <td className="px-4 py-2 text-gray-500">{r.adjustment.warehouse?.name ?? '-'}</td>
+                      <td className="px-4 py-2 text-gray-500">{r.adjustment.user?.name ?? '-'}</td>
+                      <td className="px-4 py-2 text-gray-500">{r.adjustment.reason ?? '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -656,7 +757,8 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [branchId, setBranchId] = useState('');
   const [modal, setModal] = useState<{ open: boolean; product?: any }>({ open: false });
-  const [addStockFor, setAddStockFor] = useState<any>(null);
+  const [adjustFor, setAdjustFor] = useState<{ product: any; mode: 'add' | 'subtract' } | null>(null);
+  const [historyFor, setHistoryFor] = useState<any>(null);
   const [showImport, setShowImport] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'brands' | 'units'>('products');
   // Category management
@@ -1110,14 +1212,32 @@ export default function ProductsPage() {
                               Ingredients page instead), and untracked items don't
                               carry a meaningful quantity either. */}
                           {!p.made_to_order && p.track_stock !== false && (
-                            <button
-                              type="button"
-                              onClick={() => setAddStockFor(p)}
-                              title="Add Stock"
-                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            >
-                              <PackagePlus size={14} />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setAdjustFor({ product: p, mode: 'add' })}
+                                title="Add Stock"
+                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              >
+                                <PackagePlus size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAdjustFor({ product: p, mode: 'subtract' })}
+                                title="Remove Stock (Wastage)"
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <PackageMinus size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setHistoryFor(p)}
+                                title="Stock History"
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                <History size={14} />
+                              </button>
+                            </>
                           )}
                           <button
                             type="button"
@@ -1524,7 +1644,8 @@ export default function ProductsPage() {
       )}
 
       {modal.open && <ProductModal product={modal.product} onClose={() => setModal({ open: false })} />}
-      {addStockFor && <AddProductStockModal product={addStockFor} onClose={() => setAddStockFor(null)} />}
+      {adjustFor && <ProductStockAdjustModal product={adjustFor.product} mode={adjustFor.mode} onClose={() => setAdjustFor(null)} />}
+      {historyFor && <ProductHistoryModal product={historyFor} onClose={() => setHistoryFor(null)} />}
       {showImport && <InventoryImportModal onClose={() => setShowImport(false)} />}
     </div>
   );

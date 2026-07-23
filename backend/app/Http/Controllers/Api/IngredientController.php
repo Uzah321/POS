@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Models\IngredientStock;
+use App\Models\IngredientStockAdjustment;
 use App\Models\Product;
 use App\Models\ProductIngredient;
 use App\Models\Warehouse;
@@ -207,20 +208,89 @@ class IngredientController extends BaseApiController
         $data = $request->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'quantity'     => 'required|numeric|min:0.001',
+            'reason'       => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($ingredient, $data) {
+        DB::transaction(function () use ($request, $ingredient, $data) {
             $stock = IngredientStock::firstOrNew([
                 'ingredient_id' => $ingredient->id,
                 'warehouse_id'  => $data['warehouse_id'],
             ]);
-            $stock->quantity = (float) ($stock->quantity ?? 0) + (float) $data['quantity'];
+            $stock->quantity ??= 0;
+            $before = (float) $stock->quantity;
+            $after  = $before + (float) $data['quantity'];
+            $stock->quantity = $after;
             $stock->save();
+
+            IngredientStockAdjustment::create([
+                'ingredient_id'      => $ingredient->id,
+                'warehouse_id'       => $data['warehouse_id'],
+                'user_id'            => $request->user()->id,
+                'type'               => 'in',
+                'reason'             => $data['reason'] ?? 'Manual stock addition',
+                'quantity_before'    => $before,
+                'quantity_adjusted'  => (float) $data['quantity'],
+                'quantity_after'     => $after,
+            ]);
         });
 
         return $this->success(
             $ingredient->fresh()->load('unit')->loadSum('stocks', 'quantity'),
             'Ingredient stock added'
+        );
+    }
+
+    /** Writes off ingredient stock at a warehouse — spoilage/wastage/damage, always with a reason. */
+    public function subtractStock(Request $request, Ingredient $ingredient): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'quantity'     => 'required|numeric|min:0.001',
+            'reason'       => 'required|string',
+        ]);
+
+        DB::transaction(function () use ($request, $ingredient, $data) {
+            $stock = IngredientStock::firstOrNew([
+                'ingredient_id' => $ingredient->id,
+                'warehouse_id'  => $data['warehouse_id'],
+            ]);
+            $stock->quantity ??= 0;
+            $before = (float) $stock->quantity;
+
+            if ((float) $data['quantity'] > $before) {
+                abort(422, "Cannot remove {$data['quantity']} — only {$before} in stock at this warehouse.");
+            }
+
+            $after = $before - (float) $data['quantity'];
+            $stock->quantity = $after;
+            $stock->save();
+
+            IngredientStockAdjustment::create([
+                'ingredient_id'      => $ingredient->id,
+                'warehouse_id'       => $data['warehouse_id'],
+                'user_id'            => $request->user()->id,
+                'type'               => 'damage',
+                'reason'             => $data['reason'],
+                'quantity_before'    => $before,
+                'quantity_adjusted'  => -(float) $data['quantity'],
+                'quantity_after'     => $after,
+            ]);
+        });
+
+        return $this->success(
+            $ingredient->fresh()->load('unit')->loadSum('stocks', 'quantity'),
+            'Ingredient stock removed'
+        );
+    }
+
+    /** Audit trail — every manual add/remove made against this ingredient's stock. */
+    public function stockHistory(Ingredient $ingredient): \Illuminate\Http\JsonResponse
+    {
+        return $this->paginated(
+            $ingredient->stockAdjustments()
+                ->with(['warehouse:id,name', 'user:id,name'])
+                ->latest()
+                ->paginate(20)
         );
     }
 }

@@ -16,6 +16,7 @@ use App\Models\Unit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class InventoryController extends BaseApiController
 {
@@ -82,7 +83,9 @@ class InventoryController extends BaseApiController
         $data = $request->validate([
             'warehouse_id' => 'required|exists:warehouses,id',
             'type'         => 'required|in:in,out,damage,correction,opening,return',
-            'reason'       => 'nullable|string',
+            // A write-off (damage/wastage or an "out" removal) needs a reason on
+            // record — additions/corrections don't force one.
+            'reason'       => [Rule::requiredIf(in_array($request->type, ['damage', 'out'], true)), 'nullable', 'string'],
             'items'        => 'required|array|min:1',
             'items.*.product_id'         => 'required|exists:products,id',
             'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
@@ -130,6 +133,21 @@ class InventoryController extends BaseApiController
 
             return $this->success($adj->load('items.product'), 'Stock adjusted', 201);
         });
+    }
+
+    /** Audit trail — every manual stock adjustment (add/remove/wastage/correction), optionally scoped to one product. */
+    public function adjustments(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $query = StockAdjustment::with(['warehouse:id,name', 'user:id,name', 'items' => function ($q) use ($request) {
+                $q->with('product:id,name,sku');
+                if ($request->product_id) {
+                    $q->where('product_id', $request->product_id);
+                }
+            }])
+            ->when($request->product_id, fn ($q) => $q->whereHas('items', fn ($iq) => $iq->where('product_id', $request->product_id)))
+            ->when($request->type, fn ($q) => $q->where('type', $request->type));
+
+        return $this->paginated($query->latest()->paginate($request->per_page ?? 20));
     }
 
     // Stock transfers

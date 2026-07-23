@@ -70,6 +70,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/ingredients/{ingredient}/ordering', [IngredientController::class, 'ordering']);
     Route::put('/ingredients/{ingredient}/ordering', [IngredientController::class, 'syncOrdering']);
     Route::post('/ingredients/{ingredient}/add-stock', [IngredientController::class, 'addStock']);
+    Route::post('/ingredients/{ingredient}/subtract-stock', [IngredientController::class, 'subtractStock']);
+    Route::get('/ingredients/{ingredient}/stock-history', [IngredientController::class, 'stockHistory']);
     Route::apiResource('ingredients', IngredientController::class);
 
     // Sales
@@ -104,6 +106,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Inventory
     Route::get('/inventory/stock-levels', [InventoryController::class, 'stockLevels']);
     Route::post('/inventory/adjust', [InventoryController::class, 'adjust']);
+    Route::get('/inventory/adjustments', [InventoryController::class, 'adjustments']);
     Route::get('/inventory/transfers', [InventoryController::class, 'transferIndex']);
     Route::post('/inventory/transfers', [InventoryController::class, 'createTransfer']);
     Route::post('/inventory/transfers/{stockTransfer}/receive', [InventoryController::class, 'receiveTransfer']);

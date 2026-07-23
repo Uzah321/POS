@@ -17,6 +17,38 @@ use Illuminate\Support\Facades\DB;
 
 class ReportController extends BaseApiController
 {
+    /**
+     * Cost of goods sold for a set of sale ids — sums each line's *snapshotted*
+     * cost_price × quantity (the cost at the moment it was sold). Falls back to
+     * each product's *current* cost_price when the snapshot is entirely zero,
+     * which covers sale_items recorded before cost snapshotting existed; without
+     * this fallback those historical periods report artificially-inflated
+     * gross profit. Every COGS figure in this controller goes through here so
+     * the same number comes out for the same date range no matter which report
+     * endpoint computed it, and raw SQL SUM()s (which Postgres returns as
+     * strings, not numbers) always come out cast to float before use.
+     */
+    private function calculateCogs($saleIds): float
+    {
+        $ids = collect($saleIds);
+        if ($ids->isEmpty()) {
+            return 0.0;
+        }
+
+        $cogs = (float) (SaleItem::whereIn('sale_id', $ids)
+            ->selectRaw('SUM(cost_price * quantity) as total')
+            ->value('total') ?? 0);
+
+        if ($cogs === 0.0) {
+            $cogs = (float) (SaleItem::whereIn('sale_id', $ids)
+                ->join('products', 'products.id', '=', 'sale_items.product_id')
+                ->selectRaw('SUM(products.cost_price * sale_items.quantity) as total')
+                ->value('total') ?? 0);
+        }
+
+        return $cogs;
+    }
+
     public function dashboard(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
@@ -138,12 +170,15 @@ class ReportController extends BaseApiController
             ->whereDate('completed_at', '<=', $request->date_to);
 
         $sales    = $query->latest('completed_at')->paginate($request->per_page ?? 50);
+        // Query-builder ->sum()/->count() aggregates come back from Postgres as
+        // strings, not numbers — cast each one explicitly (see calculateCogs()
+        // docblock for why this matters).
         $summary  = [
-            'total_revenue'     => $query->sum('total'),
+            'total_revenue'     => (float) $query->sum('total'),
             'total_transactions'=> $query->count(),
-            'total_discount'    => $query->sum('discount_amount'),
-            'total_tax'         => $query->sum('tax_amount'),
-            'total_refunds'     => DB::table('refunds')->where('status', 'completed')
+            'total_discount'    => (float) $query->sum('discount_amount'),
+            'total_tax'         => (float) $query->sum('tax_amount'),
+            'total_refunds'     => (float) DB::table('refunds')->where('status', 'completed')
                 ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
                 ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to))
                 ->sum('amount'),
@@ -154,7 +189,12 @@ class ReportController extends BaseApiController
             ->selectRaw('DATE(completed_at) as date, COUNT(*) as transactions, SUM(total) as revenue')
             ->groupBy(DB::raw('DATE(completed_at)'))
             ->orderBy('date')
-            ->get();
+            ->get()
+            ->map(fn($row) => [
+                'date'         => $row->date,
+                'transactions' => (int) $row->transactions,
+                'revenue'      => (float) $row->revenue,
+            ]);
 
         return $this->success([
             'sales' => $sales,
@@ -176,12 +216,16 @@ class ReportController extends BaseApiController
             ->when($request->warehouse_id, fn($q) => $q->whereHas('stocks', fn($s) => $s->where('warehouse_id', $request->warehouse_id)))
             ->get()
             ->map(function ($product) use ($request) {
-                $stockQty = $request->warehouse_id
-                    ? $product->stocks->where('warehouse_id', $request->warehouse_id)->sum('quantity')
-                    : $product->stocks->sum('quantity');
+                // A made-to-order product (e.g. a pizza) never carries real stock rows —
+                // its accessor derives availability from its recipe's ingredients instead.
+                $stockQty = $product->made_to_order
+                    ? $product->total_stock
+                    : ($request->warehouse_id
+                        ? $product->stocks->where('warehouse_id', $request->warehouse_id)->sum('quantity')
+                        : $product->stocks->sum('quantity'));
 
-                // Untracked items (services, made-to-order) never carry a meaningful
-                // quantity — matches the "out"/"low" definition used by
+                // Untracked items (services) never carry a meaningful quantity —
+                // matches the "out"/"low" definition used by
                 // InventoryController::stockLevels and the Products page, so a
                 // product doesn't read as low/out here while showing fine everywhere else.
                 return [
@@ -217,22 +261,16 @@ class ReportController extends BaseApiController
         ]);
 
         $branchId = $this->effectiveBranchId($request);
-        $revenue = Sale::revenueCounted()
+        $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('completed_at', '>=', $request->date_from)
             ->whereDate('completed_at', '<=', $request->date_to)
-            ->sum('total');
+            ->get(['id', 'total']);
 
-        $cogs = SaleItem::whereHas('sale', fn($q) =>
-                $q->whereIn('status', Sale::REVENUE_STATUSES)
-                  ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
-                  ->whereDate('completed_at', '>=', $request->date_from)
-                  ->whereDate('completed_at', '<=', $request->date_to)
-            )
-            ->selectRaw('SUM(cost_price * quantity) as total')
-            ->value('total') ?? 0;
+        $revenue = (float) $sales->sum('total');
+        $cogs    = $this->calculateCogs($sales->pluck('id'));
 
-        $expenses = Expense::where('status', 'approved')
+        $expenses = (float) Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('expense_date', '>=', $request->date_from)
             ->whereDate('expense_date', '<=', $request->date_to)
@@ -276,12 +314,11 @@ class ReportController extends BaseApiController
             }
         }
 
-        $expenses = Expense::where('status', 'approved')
+        $expenses = (float) Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('expense_date', $date)->sum('amount');
 
-        $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-            ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
+        $cogs = $this->calculateCogs($sales->pluck('id'));
 
         $topProducts = SaleItem::whereIn('sale_id', $sales->pluck('id'))
             ->groupBy('product_id')
@@ -337,10 +374,9 @@ class ReportController extends BaseApiController
             ->with('payments', 'cashier:id,name,username')
             ->get();
 
-        $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-            ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
+        $cogs = $this->calculateCogs($sales->pluck('id'));
 
-        $expenses = Expense::where('status', 'approved')
+        $expenses = (float) Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereBetween('expense_date', [$from, $to])->sum('amount');
 
@@ -402,19 +438,32 @@ class ReportController extends BaseApiController
             ->when($categoryId, fn($q) => $q->where('category_id', $categoryId))
             ->get();
 
+        // whereIn(REVENUE_STATUSES), not just 'completed' — matches every other
+        // report's definition of "counted" revenue, so a refunded sale's units
+        // don't silently vanish from this report while still counting elsewhere.
         $unitsSold = SaleItem::whereHas('sale', fn($q) =>
-                $q->where('status', 'completed')
+                $q->whereIn('status', Sale::REVENUE_STATUSES)
                   ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
                   ->when($warehouseId, fn($sq) => $sq->where('warehouse_id', $warehouseId))
                   ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to]))
             ->groupBy('product_id')
             ->selectRaw('product_id, SUM(quantity) as units_sold, SUM(total) as revenue')
-            ->get()->keyBy('product_id');
+            ->get()
+            ->map(function ($row) {
+                $row->units_sold = (float) $row->units_sold;
+                $row->revenue = (float) $row->revenue;
+                return $row;
+            })
+            ->keyBy('product_id');
 
         $data = $products->map(function ($product) use ($warehouseId, $unitsSold) {
-            $currentStock = $warehouseId
-                ? $product->stocks->where('warehouse_id', $warehouseId)->sum('quantity')
-                : $product->stocks->sum('quantity');
+            // A made-to-order product's availability comes from its recipe's
+            // ingredients, not a real stock row — use the accessor for it.
+            $currentStock = $product->made_to_order
+                ? $product->total_stock
+                : ($warehouseId
+                    ? $product->stocks->where('warehouse_id', $warehouseId)->sum('quantity')
+                    : $product->stocks->sum('quantity'));
             $sold = $unitsSold[$product->id] ?? null;
             return [
                 'id'            => $product->id,
@@ -580,20 +629,31 @@ class ReportController extends BaseApiController
 
     public function vatReport(Request $request): \Illuminate\Http\JsonResponse
     {
+        // Every sibling report method scopes a non-admin to their own branch via
+        // effectiveBranchId() — this one didn't, so a non-admin could see every
+        // branch's VAT/tax data instead of just their own.
+        $branchId = $this->effectiveBranchId($request);
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to   = $request->to   ?? now()->toDateString();
 
         $sales = Sale::revenueCounted()
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->selectRaw('DATE(completed_at) as date, SUM(tax_amount) as vat_collected, SUM(total) as gross_total, COUNT(*) as sale_count')
             ->groupByRaw('DATE(completed_at)')
             ->orderBy('date')
-            ->get();
+            ->get()
+            ->map(function ($row) {
+                $row->vat_collected = (float) $row->vat_collected;
+                $row->gross_total = (float) $row->gross_total;
+                $row->sale_count = (int) $row->sale_count;
+                return $row;
+            });
 
         $totals = [
-            'total_vat'   => $sales->sum('vat_collected'),
-            'gross_total' => $sales->sum('gross_total'),
-            'sale_count'  => $sales->sum('sale_count'),
+            'total_vat'   => (float) $sales->sum('vat_collected'),
+            'gross_total' => (float) $sales->sum('gross_total'),
+            'sale_count'  => (int) $sales->sum('sale_count'),
         ];
 
         return $this->success(['rows' => $sales, 'totals' => $totals, 'from' => $from, 'to' => $to]);
@@ -625,22 +685,10 @@ class ReportController extends BaseApiController
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->get(['id', 'total', 'discount_amount', 'tax_amount', 'user_id', 'completed_at']);
 
-        $revenue = $sales->sum('total');
+        $revenue = (float) $sales->sum('total');
+        $cogs    = $this->calculateCogs($sales->pluck('id'));
 
-        $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-            ->selectRaw('SUM(cost_price * quantity) as total')
-            ->value('total') ?? 0;
-
-        // If cost_price was not recorded on sale items (legacy zero), derive COGS
-        // from the product's current cost_price as a best-effort fallback.
-        if ((float) $cogs === 0.0 && $sales->count() > 0) {
-            $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-                ->join('products', 'products.id', '=', 'sale_items.product_id')
-                ->selectRaw('SUM(products.cost_price * sale_items.quantity) as total')
-                ->value('total') ?? 0;
-        }
-
-        $expenses = Expense::where('status', 'approved')
+        $expenses = (float) Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereBetween('expense_date', [$from, $to])
             ->sum('amount');
@@ -653,7 +701,9 @@ class ReportController extends BaseApiController
             ->whereBetween(DB::raw('DATE(sales.completed_at)'), [$from, $to])
             ->groupBy('sale_payments.method')
             ->selectRaw('sale_payments.method, SUM(sale_payments.amount) as total')
-            ->get()->keyBy('method');
+            ->get()
+            ->map(fn($row) => ['method' => $row->method, 'total' => (float) $row->total])
+            ->keyBy('method');
 
         $grossProfit = $revenue - $cogs;
         $netProfit   = $grossProfit - $expenses;
@@ -706,12 +756,11 @@ class ReportController extends BaseApiController
             'Cache-Control'       => 'no-cache',
         ];
 
-        $cogs = SaleItem::whereIn('sale_id', $sales->pluck('id'))
-            ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
-        $expenses = Expense::where('status', 'approved')
+        $cogs = $this->calculateCogs($sales->pluck('id'));
+        $expenses = (float) Expense::where('status', 'approved')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->whereDate('expense_date', $date)->sum('amount');
-        $revenue     = $sales->sum('total');
+        $revenue     = (float) $sales->sum('total');
         $grossProfit = $revenue - $cogs;
         $netProfit   = $grossProfit - $expenses;
 
@@ -761,9 +810,9 @@ class ReportController extends BaseApiController
             ->with('cashier:id,name')
             ->get();
 
-        $cogs     = SaleItem::whereIn('sale_id', $sales->pluck('id'))->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0;
-        $expenses = Expense::where('status', 'approved')->when($branchId, fn($q) => $q->where('branch_id', $branchId))->whereBetween('expense_date', [$from, $to])->sum('amount');
-        $revenue  = $sales->sum('total');
+        $cogs     = $this->calculateCogs($sales->pluck('id'));
+        $expenses = (float) Expense::where('status', 'approved')->when($branchId, fn($q) => $q->where('branch_id', $branchId))->whereBetween('expense_date', [$from, $to])->sum('amount');
+        $revenue  = (float) $sales->sum('total');
         $gross    = $revenue - $cogs;
         $net      = $gross - $expenses;
 

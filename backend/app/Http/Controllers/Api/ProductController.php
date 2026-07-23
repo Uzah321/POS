@@ -51,7 +51,15 @@ class ProductController extends BaseApiController
             : $user->branch_id;
 
         $data = $request->validate([
-            'name'            => 'required|string|max:255',
+            'name'            => [
+                'required', 'string', 'max:255',
+                function ($attribute, $value, $fail) use ($branchId) {
+                    $exists = Product::where('branch_id', $branchId)
+                        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($value))])
+                        ->exists();
+                    if ($exists) $fail('Stock item name already exists.');
+                },
+            ],
             'sku'             => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
             'barcode'         => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
             'category_id'     => 'nullable|exists:categories,id',
@@ -66,6 +74,7 @@ class ProductController extends BaseApiController
             'wholesale_price' => 'nullable|numeric|min:0',
             'has_variants'    => 'boolean',
             'track_stock'     => 'boolean',
+            'made_to_order'   => 'boolean',
             'reorder_level'   => 'integer|min:0',
             'reorder_quantity' => 'integer|min:0',
             'expires'         => 'boolean',
@@ -126,7 +135,16 @@ class ProductController extends BaseApiController
         }
 
         $data = $request->validate([
-            'name'           => 'sometimes|string|max:255',
+            'name'           => [
+                'sometimes', 'string', 'max:255',
+                function ($attribute, $value, $fail) use ($product) {
+                    $exists = Product::where('branch_id', $product->branch_id)
+                        ->where('id', '!=', $product->id)
+                        ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($value))])
+                        ->exists();
+                    if ($exists) $fail('Stock item name already exists.');
+                },
+            ],
             'sku'            => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
             'barcode'        => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
             'category_id'    => 'nullable|exists:categories,id',
@@ -141,6 +159,7 @@ class ProductController extends BaseApiController
             'wholesale_price'=> 'nullable|numeric|min:0',
             'has_variants'   => 'boolean',
             'track_stock'    => 'boolean',
+            'made_to_order'  => 'boolean',
             'is_active'      => 'boolean',
             'reorder_level'  => 'integer|min:0',
             'reorder_quantity'=> 'integer|min:0',

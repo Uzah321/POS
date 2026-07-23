@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi } from '../api';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon } from 'lucide-react';
+import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -32,6 +32,16 @@ function generateBarcode(): string {
   return [...digits, check].join('');
 }
 
+/** Pulls a human-readable message out of a Laravel validation (422) error, or falls back to the generic message. */
+function extractErrorMessage(err: any): string {
+  const data = err?.response?.data;
+  if (data?.errors) {
+    const first = Object.values(data.errors)[0];
+    if (Array.isArray(first) && first.length) return String(first[0]);
+  }
+  return data?.message || err?.message || 'Something went wrong';
+}
+
 const schema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
@@ -46,6 +56,7 @@ const schema = z.object({
   description: z.string().optional(),
   color: z.string().optional(),
   image: z.string().optional(),
+  made_to_order: z.coerce.boolean().default(false),
 });
 
 // Preset swatches shown for quick-pick — a small, print-friendly palette that
@@ -222,6 +233,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   });
   const watchedColor = watch('color');
   const watchedImage = watch('image');
+  const watchedMadeToOrder = watch('made_to_order');
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -283,7 +295,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       qc.invalidateQueries({ queryKey: ['pos-products'] });
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error saving product'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Error saving product'),
   });
 
   const createCatMutation = useMutation({
@@ -518,6 +530,17 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               <label className="text-sm font-semibold text-gray-700">Reorder Level</label>
               <input type="number" step="1" min="0" {...register('reorder_level')} className={field} placeholder="5" />
               <p className="text-xs text-gray-400 mt-1">Flag as low stock at or below this quantity</p>
+            </div>
+            <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
+                <input type="checkbox" {...register('made_to_order')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                Made to Order
+              </label>
+              <p className="text-xs text-gray-400 mt-1">
+                {watchedMadeToOrder
+                  ? 'Prepared on order — a sale deducts its recipe’s ingredients instead of this item’s own stock, and it goes out of stock when an ingredient runs low. Set up the recipe under Stock Production → Recipes.'
+                  : 'For items assembled at the till from raw ingredients (e.g. a pizza) rather than kept pre-made in stock.'}
+              </p>
             </div>
             <ColorImagePicker
               color={watchedColor}
@@ -947,7 +970,14 @@ export default function ProductsPage() {
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-gray-900">{p.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold text-gray-900">{p.name}</p>
+                              {p.made_to_order && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700" title="Assembled from its recipe when sold — see Stock Production → Recipes">
+                                  <ChefHat size={10} /> Made to Order
+                                </span>
+                              )}
+                            </div>
                             {p.barcode && <p className="text-xs text-gray-400">{p.barcode}</p>}
                           </div>
                         </div>

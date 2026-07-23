@@ -4,8 +4,10 @@
  * (e.g. $1/$5/$10/$20/$50/$100 or R10/R20/R50/R100/R200) and the amounts
  * accumulate into the tendered total.
  */
-import { useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Keyboard, Hand } from 'lucide-react';
 import NumericKeypad from './NumericKeypad';
+import { useHardwareStore } from '../../stores/hardwareStore';
 
 export interface CashNotesPadProps {
   value: string;
@@ -41,7 +43,7 @@ const BTN_BASE_COMPACT =
   'flex items-center justify-center rounded font-bold select-none transition-colors ' +
   'touch-manipulation cursor-pointer disabled:opacity-50';
 
-export default function CashNotesPad({
+const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function CashNotesPad({
   value,
   onChange,
   onConfirm,
@@ -54,12 +56,34 @@ export default function CashNotesPad({
   size = 'compact',
   hideNoteButtons = false,
   hideConfirmButton = false,
-}: CashNotesPadProps) {
+}, forwardedRef) {
   const [history, setHistory] = useState<number[]>([]);
   const [showKeypad, setShowKeypad] = useState(false);
   const notes = NOTE_DENOMINATIONS[currencyCode] ?? NOTE_DENOMINATIONS.USD;
   const large = size === 'large';
   const BTN_BASE = large ? BTN_BASE_LARGE : BTN_BASE_COMPACT;
+
+  // Desktops with a physical keyboard can type the amount directly instead of
+  // tapping a popup keypad; touchscreens keep the popup. The till remembers
+  // whichever mode was last picked (shared with Settings → Hardware).
+  const keyboardMode = !useHardwareStore((s) => s.touchscreenMode);
+  const setTouchscreenMode = useHardwareStore((s) => s.update);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Lets a caller (e.g. "you must enter an amount" validation) call .focus()
+  // on the typed-entry input directly — a no-op in touch mode, where there's
+  // no text input to focus (tapping opens the popup keypad instead).
+  useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
+
+  useEffect(() => {
+    if (keyboardMode) inputRef.current?.focus();
+  }, [keyboardMode]);
+
+  const handleTypedChange = (raw: string) => {
+    let v = raw.replace(/[^0-9.]/g, '');
+    const parts = v.split('.');
+    if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+    onChange(v);
+  };
 
   const addNote = (n: number) => {
     if (disabled) return;
@@ -87,25 +111,59 @@ export default function CashNotesPad({
 
   return (
     <div className="select-none">
-      {/* Label + value share one row to save vertical space. Tapping it opens a
-          numeric keypad so the cashier can type any exact amount (e.g. 13, 17)
-          instead of being limited to the fixed note denominations below. */}
-      <button
-        type="button"
-        onClick={() => { if (!disabled) setShowKeypad(true); }}
-        disabled={disabled}
-        title="Tap to type an exact amount"
-        className={`w-full flex items-center justify-between px-3 touch-manipulation transition-colors ${large ? 'mb-2 min-h-[44px] rounded-lg' : 'mb-1 min-h-[34px] rounded'} ${
-          large
-            ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
-            : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
-        } ${disabled ? '' : 'active:brightness-95'}`}
-      >
-        {label && <span className={`font-semibold text-gray-500 uppercase tracking-wide ${large ? 'text-xs' : 'text-[10px]'}`}>{label}</span>}
-        <span className={`font-black tabular-nums font-mono tracking-tight ml-auto ${large ? 'text-3xl' : 'text-xl'} ${value ? 'text-blue-700' : 'text-gray-300'}`}>
-          {value || '0.00'}
-        </span>
-      </button>
+      {/* Label + value share one row to save vertical space. In keyboard mode the
+          value itself is a real input a physical keyboard can type straight into;
+          in touch mode, tapping opens a popup numeric keypad instead. The small
+          icon button on the right switches between the two at any time. */}
+      <div className={`w-full flex items-center gap-1.5 ${large ? 'mb-2' : 'mb-1'}`}>
+        {keyboardMode ? (
+          <div
+            className={`flex-1 flex items-center justify-between px-3 transition-colors ${large ? 'min-h-[44px] rounded-lg' : 'min-h-[34px] rounded'} ${
+              large
+                ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
+                : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
+            }`}
+          >
+            {label && <span className={`font-semibold text-gray-500 uppercase tracking-wide flex-shrink-0 ${large ? 'text-xs' : 'text-[10px]'}`}>{label}</span>}
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="decimal"
+              value={value}
+              disabled={disabled}
+              placeholder="0.00"
+              onChange={(e) => handleTypedChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onConfirm?.(); } }}
+              className={`flex-1 min-w-0 bg-transparent text-right font-black tabular-nums font-mono tracking-tight focus:outline-none ${large ? 'text-3xl' : 'text-xl'} ${value ? 'text-blue-700' : 'text-gray-300'}`}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { if (!disabled) setShowKeypad(true); }}
+            disabled={disabled}
+            title="Tap to type an exact amount"
+            className={`flex-1 flex items-center justify-between px-3 touch-manipulation transition-colors ${large ? 'min-h-[44px] rounded-lg' : 'min-h-[34px] rounded'} ${
+              large
+                ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
+                : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
+            } ${disabled ? '' : 'active:brightness-95'}`}
+          >
+            {label && <span className={`font-semibold text-gray-500 uppercase tracking-wide ${large ? 'text-xs' : 'text-[10px]'}`}>{label}</span>}
+            <span className={`font-black tabular-nums font-mono tracking-tight ml-auto ${large ? 'text-3xl' : 'text-xl'} ${value ? 'text-blue-700' : 'text-gray-300'}`}>
+              {value || '0.00'}
+            </span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setTouchscreenMode({ touchscreenMode: keyboardMode })}
+          title={keyboardMode ? 'Switch to touchscreen popup keypad' : 'Switch to keyboard entry'}
+          className={`flex-shrink-0 flex items-center justify-center rounded-lg border text-gray-500 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition-colors ${large ? 'w-11 h-11' : 'w-8 h-8'} border-gray-200 bg-white`}
+        >
+          {keyboardMode ? <Hand size={large ? 18 : 14} /> : <Keyboard size={large ? 18 : 14} />}
+        </button>
+      </div>
 
       {showKeypad && (
         <NumericKeypad
@@ -177,4 +235,6 @@ export default function CashNotesPad({
       )}
     </div>
   );
-}
+});
+
+export default CashNotesPad;

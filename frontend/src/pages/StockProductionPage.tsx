@@ -19,6 +19,16 @@ function generateSku(): string {
   return `${prefix}-${digits}`;
 }
 
+/** Pulls a human-readable message out of a Laravel validation (422) error, or falls back to the generic message. */
+function extractErrorMessage(err: any): string {
+  const data = err?.response?.data;
+  if (data?.errors) {
+    const first = Object.values(data.errors)[0];
+    if (Array.isArray(first) && first.length) return String(first[0]);
+  }
+  return data?.message || err?.message || 'Something went wrong';
+}
+
 /** Resizes/compresses an image file client-side before it's stored as a base64
  * data URL — keeps the offline product cache (up to 500 products refreshed
  * every sync) from ballooning in size. */
@@ -58,10 +68,15 @@ function ProductSearch({
   label,
   placeholder,
   onSelect,
+  forceMadeToOrder = false,
 }: {
   label: string;
   placeholder: string;
   onSelect: (p: any) => void;
+  /** When true, a product created from this picker is flagged made_to_order —
+   *  used by the Recipes tab's product picker, since a product only gets a
+   *  recipe there because it's assembled from ingredients at the till. */
+  forceMadeToOrder?: boolean;
 }) {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
@@ -100,10 +115,11 @@ function ProductSearch({
       cost_price: parseFloat(newCost) || 0,
       selling_price: parseFloat(newPrice) || 0,
       unit_id: newUnitId || null,
+      ...(forceMadeToOrder ? { made_to_order: true } : {}),
     }),
     onSuccess: (res) => {
       const created = res.data?.data ?? res.data;
-      toast.success(`Product "${created.name}" created`);
+      toast.success(forceMadeToOrder ? `"${created.name}" created — add its ingredients below` : `Product "${created.name}" created`);
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
       onSelect(created);
@@ -115,7 +131,7 @@ function ProductSearch({
       setNewPrice('0');
       setNewUnitId('');
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create product'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Failed to create product'),
   });
 
   const startCreating = () => {
@@ -188,6 +204,11 @@ function ProductSearch({
       {open && creating && (
         <div className="absolute z-30 mt-1 w-full bg-white border border-blue-200 rounded-md shadow-lg p-3 space-y-2">
           <p className="text-xs font-semibold text-gray-500">New product</p>
+          {forceMadeToOrder && (
+            <p className="text-[11px] text-orange-600 bg-orange-50 border border-orange-100 rounded px-2 py-1">
+              Will be created as <strong>Made to Order</strong> — assembled from the recipe you add next instead of carrying its own stock.
+            </p>
+          )}
           <input
             value={newName}
             onChange={e => setNewName(e.target.value)}
@@ -309,7 +330,7 @@ function IngredientSearch({
       setNewCost('0');
       setNewUnitId('');
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create ingredient'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Failed to create ingredient'),
   });
 
   const startCreating = () => {
@@ -450,6 +471,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
   const [rows, setRows] = useState<RecipeRow[]>([]);
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [madeToOrder, setMadeToOrder] = useState(false);
   const [copyPickerOpen, setCopyPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const consumedInitialId = useRef(false);
@@ -491,6 +513,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
     setRows([]);
     setDescription('');
     setImage(null);
+    setMadeToOrder(!!p?.made_to_order);
     setCopyPickerOpen(false);
   };
 
@@ -562,8 +585,8 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
           'product_ingredients', 'sync', { ingredients: ingredientsPayload }, product.id,
         ),
         offlineMutate(
-          () => productsApi.update(product.id, { description, image }),
-          'products', 'update', { description, image }, product.id,
+          () => productsApi.update(product.id, { description, image, made_to_order: madeToOrder }),
+          'products', 'update', { description, image, made_to_order: madeToOrder }, product.id,
         ),
       ]);
       return { ingredients, details };
@@ -572,7 +595,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
       const offline = ingredients.offline || details.offline;
       toast.success(offline ? 'Recipe saved offline — will sync when server is back' : 'Recipe saved — cost price recalculated');
       const newCost = (ingredients.data as any)?.cost_price;
-      if (newCost != null) setProduct((p: any) => p ? { ...p, cost_price: newCost } : p);
+      setProduct((p: any) => p ? { ...p, ...(newCost != null ? { cost_price: newCost } : {}), made_to_order: madeToOrder } : p);
       qc.invalidateQueries({ queryKey: ['product-ingredients', product?.id] });
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
@@ -650,8 +673,24 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
         {product ? (
           <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
             <div className="flex-1">
-              <p className="font-semibold text-gray-900 text-sm">{product.name}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-gray-900 text-sm">{product.name}</p>
+                {madeToOrder && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                    Made to Order
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-400 font-mono">{product.sku}</p>
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 mt-1.5 select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={madeToOrder}
+                  onChange={e => setMadeToOrder(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Made to Order — always available while ingredients last, deducted from stock instead of this product's own
+              </label>
             </div>
             <button
               type="button"
@@ -678,6 +717,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
             label="Search product to define ingredients for"
             placeholder="Product name, SKU or barcode..."
             onSelect={selectProduct}
+            forceMadeToOrder
           />
         )}
         {product && copyPickerOpen && (

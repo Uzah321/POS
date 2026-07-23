@@ -20,7 +20,7 @@ import {
   Search, Plus, Minus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
   User, Award,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ChefHat,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -714,6 +714,14 @@ export default function POSPage() {
                         }}
                         className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'grayscale opacity-50 hover:border-gray-200 cursor-not-allowed' : ''}`}
                       >
+                        {product.made_to_order && (
+                          <span
+                            title="Made to Order — prepared fresh from its recipe"
+                            className="absolute top-0.5 right-0.5 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-orange-500 text-white shadow-sm"
+                          >
+                            <ChefHat size={9} />
+                          </span>
+                        )}
                         <span
                           className={`w-full text-[9px] font-semibold text-center leading-none ${product.image ? 'line-clamp-1' : 'line-clamp-2'} ${textColor ? '' : 'text-gray-800'}`}
                           style={textColor ? { color: textColor } : undefined}

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi, productsApi, warehousesApi } from '../api';
-import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet } from 'lucide-react';
+import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet, ChefHat } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
@@ -150,12 +150,16 @@ export default function InventoryPage() {
                 {stocks.length === 0 ? (
                   <tr><td colSpan={7} className="text-center py-12 text-gray-400">No products found</td></tr>
                 ) : stocks.map((s: any, i: number) => {
-                  const qty = s.stocks_sum_quantity ?? s.quantity ?? 0;
+                  // A made-to-order product (e.g. a pizza) never carries real `stocks`
+                  // rows, so the raw stocks_sum_quantity aggregate is always 0 for it —
+                  // use the total_stock accessor instead, which derives "how many more
+                  // can be made" from the recipe's ingredient levels.
+                  const qty = s.made_to_order ? (s.total_stock ?? 0) : (s.stocks_sum_quantity ?? s.quantity ?? 0);
                   const reorder = s.reorder_level ?? s.reorder_point ?? 5;
-                  // Untracked items (services, made-to-order) carry no meaningful
-                  // quantity — match InventoryController::stockLevels / ProductsPage,
-                  // which both exclude track_stock === false from low/out counts, so
-                  // the same product doesn't show "Out of Stock" here while reading
+                  // Untracked items (services) carry no meaningful quantity — match
+                  // InventoryController::stockLevels / ProductsPage, which both
+                  // exclude track_stock === false from low/out counts, so the same
+                  // product doesn't show "Out of Stock" here while reading
                   // "Not Tracked" everywhere else.
                   const tracked = s.track_stock !== false;
                   const isLow = tracked && qty > 0 && qty <= reorder;
@@ -166,6 +170,11 @@ export default function InventoryPage() {
                         <div className="flex items-center gap-2">
                           {(isLow || isOut) && <AlertTriangle size={14} className={isOut ? 'text-red-500' : 'text-yellow-500'} />}
                           <span className="text-sm font-medium text-gray-900">{s.name}</span>
+                          {s.made_to_order && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700" title="Assembled from its recipe when sold — see Stock Production → Recipes">
+                              <ChefHat size={10} /> Made to Order
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.sku || '-'}</td>

@@ -6,6 +6,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\Stock;
+use App\Models\IngredientStock;
 use App\Models\Customer;
 use App\Models\LoyaltyTransaction;
 use App\Models\CustomerCreditTransaction;
@@ -106,6 +107,11 @@ class SaleController extends BaseApiController
                     [$productId, $variantId] = array_pad(explode(':', $key, 2), 2, null);
                     $product = $productsById->get((int) $productId);
                     if ($product && ! $product->track_stock) continue;
+
+                    if ($product && $product->made_to_order) {
+                        $this->assertRecipeCanMake($product, $data['warehouse_id'], $needed);
+                        continue;
+                    }
 
                     $stock = Stock::where('warehouse_id', $data['warehouse_id'])
                         ->where('product_id', $productId)
@@ -211,8 +217,14 @@ class SaleController extends BaseApiController
                     'note'               => $item['note'] ?? null,
                 ]);
 
-                // Deduct from stock
-                $this->deductStock($data['warehouse_id'], $item['product_id'], $item['product_variant_id'] ?? null, $item['quantity']);
+                // Deduct from stock — a made-to-order item deducts its recipe's
+                // ingredients instead, since it never carries its own stock row.
+                $product = $productsById->get($item['product_id']);
+                if ($product && $product->made_to_order) {
+                    $this->deductIngredients($product, $data['warehouse_id'], (float) $item['quantity']);
+                } else {
+                    $this->deductStock($data['warehouse_id'], $item['product_id'], $item['product_variant_id'] ?? null, $item['quantity']);
+                }
             }
 
             // Record payments
@@ -265,8 +277,16 @@ class SaleController extends BaseApiController
         $sale->load('items');
 
         return DB::transaction(function () use ($sale) {
-            // Restore stock for each item
+            // Restore stock for each item — a made-to-order item restores the
+            // recipe's ingredients it consumed instead, mirroring how it was deducted.
+            $productsById = \App\Models\Product::whereIn('id', $sale->items->pluck('product_id'))->get()->keyBy('id');
             foreach ($sale->items as $item) {
+                $product = $productsById->get($item->product_id);
+                if ($product && $product->made_to_order) {
+                    $this->restoreIngredients($product, $sale->warehouse_id, (float) $item->quantity);
+                    continue;
+                }
+
                 $stock = Stock::where('warehouse_id', $sale->warehouse_id)
                     ->where('product_id', $item->product_id)
                     ->where('product_variant_id', $item->product_variant_id)
@@ -364,6 +384,61 @@ class SaleController extends BaseApiController
 
         if ($stock) {
             $stock->decrement('quantity', $qty);
+        }
+    }
+
+    /** Throws if a made-to-order product's recipe can't cover $qtySold more units. */
+    private function assertRecipeCanMake(\App\Models\Product $product, int $warehouseId, float $qtySold): void
+    {
+        $recipe = $product->ingredients()->with('ingredient')->get();
+        if ($recipe->isEmpty()) {
+            throw new \RuntimeException("{$product->name} has no recipe set up — add its ingredients first.");
+        }
+
+        foreach ($recipe as $row) {
+            $needed = (float) $row->quantity * $qtySold;
+            if ($needed <= 0) continue;
+
+            $ingredientStock = IngredientStock::where('warehouse_id', $warehouseId)
+                ->where('ingredient_id', $row->ingredient_id)
+                ->lockForUpdate()
+                ->first();
+
+            $available = (float) ($ingredientStock->quantity ?? 0);
+            if ($available < $needed) {
+                $ingredientName = $row->ingredient->name ?? 'an ingredient';
+                throw new \RuntimeException("{$product->name} is out of stock — not enough {$ingredientName} (available: {$available}, need: {$needed})");
+            }
+        }
+    }
+
+    /** Deducts a made-to-order product's recipe ingredients for $qtySold units. */
+    private function deductIngredients(\App\Models\Product $product, int $warehouseId, float $qtySold): void
+    {
+        $recipe = $product->ingredients()->get();
+        foreach ($recipe as $row) {
+            $needed = (float) $row->quantity * $qtySold;
+            if ($needed <= 0) continue;
+
+            IngredientStock::where('warehouse_id', $warehouseId)
+                ->where('ingredient_id', $row->ingredient_id)
+                ->first()
+                ?->decrement('quantity', $needed);
+        }
+    }
+
+    /** Restores a made-to-order product's recipe ingredients when its sale is voided. */
+    private function restoreIngredients(\App\Models\Product $product, int $warehouseId, float $qtySold): void
+    {
+        $recipe = $product->ingredients()->get();
+        foreach ($recipe as $row) {
+            $restore = (float) $row->quantity * $qtySold;
+            if ($restore <= 0) continue;
+
+            IngredientStock::where('warehouse_id', $warehouseId)
+                ->where('ingredient_id', $row->ingredient_id)
+                ->first()
+                ?->increment('quantity', $restore);
         }
     }
 }

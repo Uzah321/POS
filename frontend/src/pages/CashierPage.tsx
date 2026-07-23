@@ -639,6 +639,7 @@ export default function CashierPage() {
             {payMethod === 'cash' && (
               <div className="mt-3">
                 <CashNotesPad
+                  ref={tenderedRef}
                   value={cashTendered}
                   onChange={setCashTendered}
                   onConfirm={handleProcessSale}

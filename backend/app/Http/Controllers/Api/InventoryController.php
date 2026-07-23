@@ -26,6 +26,24 @@ class InventoryController extends BaseApiController
         $filter   = $request->filter;
         $branchId = $this->effectiveBranchId($request);
 
+        // A made-to-order product (e.g. a pizza) never has its own `stocks` rows —
+        // its availability comes from its recipe's ingredients instead, which needs
+        // a per-ingredient MIN() that doesn't reduce to the raw-SQL threshold check
+        // below. Resolve those in PHP via the model accessor and fold their ids in.
+        $madeToOrderIds = collect();
+        if (in_array($filter, ['low', 'out'], true)) {
+            $madeToOrderIds = Product::where('made_to_order', true)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->get()
+                ->filter(function (Product $p) use ($filter) {
+                    $available = $p->total_stock;
+                    return $filter === 'out'
+                        ? $available <= 0
+                        : ($available > 0 && $available <= $p->reorder_level);
+                })
+                ->pluck('id');
+        }
+
         $query = Product::with('category')
             ->withSum('stocks', 'quantity')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
@@ -40,12 +58,20 @@ class InventoryController extends BaseApiController
                       ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
                 });
             })
-            ->when($filter === 'low', fn($q) => $q->where('track_stock', true)->whereRaw(
-                'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) > 0 AND COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= products.reorder_level'
-            ))
-            ->when($filter === 'out', fn($q) => $q->where('track_stock', true)->whereRaw(
-                'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= 0'
-            ));
+            ->when($filter === 'low', fn($q) => $q->where(function ($q) use ($madeToOrderIds) {
+                $q->where(function ($q) {
+                    $q->where('made_to_order', false)->where('track_stock', true)->whereRaw(
+                        'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) > 0 AND COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= products.reorder_level'
+                    );
+                })->orWhereIn('id', $madeToOrderIds);
+            }))
+            ->when($filter === 'out', fn($q) => $q->where(function ($q) use ($madeToOrderIds) {
+                $q->where(function ($q) {
+                    $q->where('made_to_order', false)->where('track_stock', true)->whereRaw(
+                        'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= 0'
+                    );
+                })->orWhereIn('id', $madeToOrderIds);
+            }));
 
         return $this->paginated($query->orderBy('name')->paginate($request->per_page ?? 30));
     }

@@ -14,7 +14,7 @@ class Product extends Model
     protected $fillable = [
         'name', 'slug', 'sku', 'barcode', 'branch_id', 'category_id', 'brand_id', 'tax_rate_id', 'unit_id',
         'description', 'cost_price', 'selling_price', 'wholesale_price', 'image', 'color',
-        'has_variants', 'track_stock', 'is_active', 'reorder_level', 'reorder_quantity',
+        'has_variants', 'track_stock', 'made_to_order', 'is_active', 'reorder_level', 'reorder_quantity',
         'expires', 'alert_quantity',
     ];
 
@@ -23,6 +23,7 @@ class Product extends Model
     protected $casts = [
         'has_variants' => 'boolean',
         'track_stock' => 'boolean',
+        'made_to_order' => 'boolean',
         'is_active' => 'boolean',
         'expires' => 'boolean',
         'cost_price' => 'decimal:2',
@@ -55,6 +56,12 @@ class Product extends Model
 
     public function getTotalStockAttribute(): float
     {
+        // A made-to-order item (e.g. a pizza) never carries its own stock row — it's
+        // assembled from its recipe when sold, so "how much is in stock" really means
+        // "how many more can the current ingredient levels make."
+        if ($this->made_to_order) {
+            return $this->maxSellableFromIngredients();
+        }
         // Use withSum result if already computed (no N+1)
         if (array_key_exists('stocks_sum_quantity', $this->attributes)) {
             return (float) ($this->attributes['stocks_sum_quantity'] ?? 0);
@@ -63,6 +70,31 @@ class Product extends Model
             return (float) $this->stocks->sum('quantity');
         }
         return (float) $this->stocks()->sum('quantity');
+    }
+
+    /**
+     * How many more units this recipe can currently make, i.e. the smallest
+     * (ingredient stock ÷ quantity needed per unit) across every ingredient in the
+     * recipe. A product flagged made_to_order with no recipe yet defined can't make
+     * anything — 0, not "unlimited" — so it doesn't silently oversell during setup.
+     */
+    public function maxSellableFromIngredients(): float
+    {
+        $rows = $this->ingredients()->with(['ingredient' => fn ($q) => $q->withSum('stocks', 'quantity')])->get();
+        if ($rows->isEmpty()) {
+            return 0.0;
+        }
+
+        $max = null;
+        foreach ($rows as $row) {
+            $need = (float) $row->quantity;
+            if ($need <= 0) continue;
+            $have = (float) ($row->ingredient->total_stock ?? 0);
+            $possible = floor($have / $need);
+            $max = $max === null ? $possible : min($max, $possible);
+        }
+
+        return $max === null ? 0.0 : max(0.0, $max);
     }
 
     public function getProfitAttribute(): float

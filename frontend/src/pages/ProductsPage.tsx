@@ -1,10 +1,10 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi } from '../api';
+import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi, warehousesApi } from '../api';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat } from 'lucide-react';
+import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat, PackagePlus } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 import { useOfflineStore } from '../stores/offlineStore';
 import { useAuthStore } from '../stores/authStore';
+import { offlineMutate } from '../lib/offlineMutation';
 
 function makeMutId() {
   return `mut-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -566,12 +567,96 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   );
 }
 
+/** Quick per-product restock — adds quantity to this product's stock at a
+ *  chosen warehouse, going through the same audited stock-adjustment
+ *  endpoint as the Inventory page's Add Stock flow. */
+function AddProductStockModal({ product, onClose }: { product: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const field = 'border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-1 bg-gray-50 focus:bg-white transition-colors';
+  const { data: warehouses } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => warehousesApi.list().then(r => r.data?.data ?? []),
+    staleTime: 60000,
+  });
+  const [warehouseId, setWarehouseId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [cost, setCost] = useState(product.cost_price ? String(product.cost_price) : '');
+
+  const mutation = useMutation({
+    mutationFn: (payload: object) => offlineMutate(() => inventoryApi.adjust(payload), 'inventory', 'adjust', payload as Record<string, unknown>),
+    onSuccess: (result) => {
+      toast.success(result.offline ? 'Stock saved offline — will sync when server is back' : `Added ${quantity} unit(s) to "${product.name}"`);
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to add stock'),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!warehouseId) { toast.error('Select a warehouse'); return; }
+    const qty = parseFloat(quantity);
+    if (!qty || qty <= 0) { toast.error('Enter a valid quantity'); return; }
+    mutation.mutate({
+      warehouse_id: Number(warehouseId),
+      type: 'in',
+      reason: 'Manual stock addition',
+      items: [{
+        product_id: product.id,
+        quantity: qty,
+        cost_price: cost ? parseFloat(cost) : undefined,
+      }],
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <PackagePlus size={18} className="text-green-600" />
+            <h2 className="text-base font-bold text-gray-900">Add Stock — {product.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <p className="text-xs text-gray-400">Currently {product.total_stock ?? 0} unit(s) on hand.</p>
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Warehouse *</label>
+            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className={field} autoFocus>
+              <option value="">Select warehouse...</option>
+              {(warehouses as any[])?.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Quantity to Add *</label>
+            <input type="number" min="0.001" step="0.001" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="0" className={field} />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional</span></label>
+            <input type="number" min="0" step="0.01" value={cost} onChange={e => setCost(e.target.value)} className={field} />
+          </div>
+          <button type="submit" disabled={mutation.isPending} className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <PackagePlus size={14} />}
+            Add Stock
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [branchId, setBranchId] = useState('');
   const [modal, setModal] = useState<{ open: boolean; product?: any }>({ open: false });
+  const [addStockFor, setAddStockFor] = useState<any>(null);
   const [showImport, setShowImport] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'brands' | 'units'>('products');
   // Category management
@@ -1020,6 +1105,20 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1">
+                          {/* Made-to-order products carry no stock of their own (it's
+                              derived from their recipe's ingredients — see the
+                              Ingredients page instead), and untracked items don't
+                              carry a meaningful quantity either. */}
+                          {!p.made_to_order && p.track_stock !== false && (
+                            <button
+                              type="button"
+                              onClick={() => setAddStockFor(p)}
+                              title="Add Stock"
+                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            >
+                              <PackagePlus size={14} />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setModal({ open: true, product: p })}
@@ -1425,6 +1524,7 @@ export default function ProductsPage() {
       )}
 
       {modal.open && <ProductModal product={modal.product} onClose={() => setModal({ open: false })} />}
+      {addStockFor && <AddProductStockModal product={addStockFor} onClose={() => setAddStockFor(null)} />}
       {showImport && <InventoryImportModal onClose={() => setShowImport(false)} />}
     </div>
   );

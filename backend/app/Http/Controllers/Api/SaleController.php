@@ -144,16 +144,20 @@ class SaleController extends BaseApiController
                         : min((float) $item['discount_value'], $lineSubtotal);
                 }
 
+                // Prices in the system are VAT-inclusive — the configured rate is
+                // baked into unit_price already, so tax is extracted out of the
+                // taxable amount rather than added on top of it. Net + tax must
+                // reconcile back to the taxable (inclusive) amount.
                 $taxable = $lineSubtotal - $discAmt;
                 $product = $productsById->get($item['product_id']);
                 $rate    = $taxEnabled ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
-                $taxAmt  = round($taxable * ($rate / 100), 2);
+                $taxAmt  = round($taxable - ($taxable / (1 + $rate / 100)), 2);
 
                 $lineItems[] = array_merge($item, [
                     'subtotal'        => $lineSubtotal,
                     'discount_amount' => $discAmt,
                     'tax_amount'      => $taxAmt,
-                    'total'           => $taxable + $taxAmt,
+                    'total'           => $taxable,
                 ]);
 
                 $subtotal      += $lineSubtotal;
@@ -170,7 +174,9 @@ class SaleController extends BaseApiController
             }
             $totalDiscount += $cartDiscount;
 
-            $total      = $subtotal - $totalDiscount + $totalTax;
+            // tax_amount is informational (VAT extracted from the already-inclusive
+            // prices above) — it's not added on top, since it's already inside subtotal.
+            $total      = $subtotal - $totalDiscount;
             $amountPaid = collect($data['payments'])->sum('amount');
             $changeDue  = max(0, $amountPaid - $total);
 

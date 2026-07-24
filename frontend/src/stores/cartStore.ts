@@ -145,13 +145,15 @@ export const useCartStore = create<CartState>()(
         });
       },
       removeHeldOrder: (id: string) => set({ heldOrders: get().heldOrders.filter((h) => h.id !== id) }),
+      // Prices are VAT-inclusive — tax_rate is already baked into i.price, so
+      // taxTotal below extracts the VAT portion out of subtotal rather than
+      // adding it on top (must mirror SaleController::store's calculation).
       subtotal: () => get().items.reduce((sum, i) => sum + i.price * i.quantity - i.discount * i.quantity, 0),
-      taxTotal: () => get().items.reduce((sum, i) => sum + ((i.price - i.discount) * i.quantity * i.tax_rate) / 100, 0),
-      total: () => {
-        const sub = get().subtotal();
-        const tax = get().taxTotal();
-        return sub + tax - get().discount;
-      },
+      taxTotal: () => get().items.reduce((sum, i) => {
+        const taxable = (i.price - i.discount) * i.quantity;
+        return sum + (taxable - taxable / (1 + i.tax_rate / 100));
+      }, 0),
+      total: () => get().subtotal() - get().discount,
     }),
     {
       name: 'cart-storage',

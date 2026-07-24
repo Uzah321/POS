@@ -31,7 +31,6 @@ const TABLES = ['Walk-in', ...Array.from({ length: 20 }, (_, i) => `T-${i + 1}`)
 
 export default function CashierPage() {
   const [codeInput, setCodeInput]             = useState('');
-  const [matchedProducts, setMatchedProducts] = useState<any[]>([]);
   const [payMethod, setPayMethod]             = useState<PayMethod>('cash');
   const [cashTendered, setCashTendered]       = useState('');
   const [currentTime, setCurrentTime]         = useState(new Date());
@@ -120,6 +119,22 @@ export default function CashierPage() {
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
 
+  // Regular stock browser under the Scan/PLU box — shows every product before
+  // the cashier types anything, and narrows live as they type (name/sku/barcode),
+  // so a till doesn't require memorizing codes to find something.
+  const BROWSE_LIMIT = 60;
+  const browseQuery = codeInput.trim().toLowerCase();
+  const browseMatches = browseQuery
+    ? allProducts.filter(p =>
+        p.name.toLowerCase().includes(browseQuery) ||
+        (p.sku ?? '').toLowerCase().includes(browseQuery) ||
+        (p.barcode ?? '').toLowerCase().includes(browseQuery)
+      )
+    : allProducts;
+  const browseSorted = [...browseMatches].sort((a, b) => a.name.localeCompare(b.name));
+  const browseProducts = browseSorted.slice(0, BROWSE_LIMIT);
+  const browseOverflow = browseSorted.length - browseProducts.length;
+
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
     const product = allProducts.find(p =>
@@ -148,22 +163,21 @@ export default function CashierPage() {
   }, [cart.items, hw.customerDisplayEnabled]);
 
   const addProduct = (product: any) => {
-    // A product already in the cart can't be scanned/tapped in again —
-    // quantity is adjusted from the cart's +/- controls instead.
-    if (cart.items.some((i) => i.product_id === product.id)) {
-      toast.error(`${product.name} is already in the cart — adjust its quantity there`);
-      return;
-    }
     const price = parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`);
       return;
     }
-    // Block sale if stock is zero/negative and setting is enabled
+    // Scanning/tapping a product already in the cart bumps its quantity by
+    // one — same as re-scanning the same barcode at a real till — instead of
+    // blocking with an error. The stock check below accounts for what's
+    // already in the cart so repeat-punching the same product still can't
+    // oversell it.
+    const existingQty = cart.items.find((i) => i.product_id === product.id)?.quantity ?? 0;
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNeg = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-    if (blockNeg && product.track_stock !== false && stock !== null && stock <= 0) {
-      toast.error(`${product.name} is out of stock`);
+    if (blockNeg && product.track_stock !== false && stock !== null && existingQty + 1 > stock) {
+      toast.error(stock <= 0 ? `${product.name} is out of stock` : `Only ${stock} ${product.name} in stock`);
       return;
     }
     cart.addItem({
@@ -175,7 +189,6 @@ export default function CashierPage() {
       tax_rate:   effectiveTaxRate(product, storeSettings),
     });
     setCodeInput('');
-    setMatchedProducts([]);
     setTimeout(() => codeRef.current?.focus(), 40);
   };
 
@@ -191,13 +204,12 @@ export default function CashierPage() {
     );
     if (exact) { addProduct(exact); return; }
 
-    const matches = allProducts.filter(p => p.name.toLowerCase().includes(ql));
-    if (matches.length === 0) {
+    // Otherwise fall back to whatever the live name/sku/barcode filter below
+    // the input has already narrowed things down to.
+    if (browseMatches.length === 0) {
       toast.error(`"${q}" not found`);
-    } else if (matches.length === 1) {
-      addProduct(matches[0]);
-    } else {
-      setMatchedProducts(matches.slice(0, 8));
+    } else if (browseMatches.length === 1) {
+      addProduct(browseMatches[0]);
     }
   };
 
@@ -382,8 +394,6 @@ export default function CashierPage() {
   // ── Global keyboard shortcuts ────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
       const { handleProcessSale, handleHoldOrder, saleMutation, holdMutation, cart } = kbRef.current;
 
       if (e.key === 'F9') { e.preventDefault(); if (!saleMutation.isPending) handleProcessSale(); }
@@ -392,7 +402,7 @@ export default function CashierPage() {
       if (e.key === 'F1') { e.preventDefault(); setPayMethod('cash'); }
       if (e.key === 'F2') { e.preventDefault(); setPayMethod('card'); }
       if (e.key === 'F3') { e.preventDefault(); setPayMethod('mobile_money'); }
-      if (e.key === 'Escape' && !inInput) { setMatchedProducts([]); codeRef.current?.focus(); }
+      if (e.key === 'Escape') { setCodeInput(''); codeRef.current?.focus(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -488,8 +498,8 @@ export default function CashierPage() {
               <input
                 ref={codeRef}
                 value={codeInput}
-                onChange={e => { setCodeInput(e.target.value); setMatchedProducts([]); }}
-                placeholder="Scan barcode or type product code / name..."
+                onChange={e => setCodeInput(e.target.value)}
+                placeholder="Scan barcode, or type to search stock..."
                 className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-md px-4 py-2.5 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
               />
@@ -502,30 +512,6 @@ export default function CashierPage() {
               >
                 <Keyboard size={15} />
               </button>
-              {matchedProducts.length > 1 && (
-                <div className="absolute top-full left-0 right-0 z-50 bg-white rounded-md border border-gray-200 shadow-xl max-h-72 overflow-y-auto mt-1">
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-400 font-semibold uppercase tracking-wider">
-                    {matchedProducts.length} products found
-                  </div>
-                  {matchedProducts.map(p => (
-                    <button key={p.id} type="button" onClick={() => addProduct(p)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b border-gray-50 flex items-center justify-between text-sm">
-                      <span className="flex items-center">
-                        {(p.color || p.category?.color) && (
-                          <span className="w-2.5 h-2.5 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: p.color || p.category?.color }} />
-                        )}
-                        <span className="text-gray-400 mr-3 text-xs">{p.sku}</span>
-                        <span className="font-semibold text-gray-900">{p.name}</span>
-                      </span>
-                      <span className="text-blue-700 font-bold">{formatCurrency(parseFloat(p.selling_price))}</span>
-                    </button>
-                  ))}
-                  <button type="button" onClick={() => { setMatchedProducts([]); codeRef.current?.focus(); }}
-                    className="w-full text-center py-2 text-xs text-gray-400 hover:text-gray-600">
-                    ESC — cancel
-                  </button>
-                </div>
-              )}
             </div>
             <button type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-md font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">
@@ -533,6 +519,47 @@ export default function CashierPage() {
             </button>
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
           </form>
+
+          {/* Regular stock — every active product for this till's branch,
+              visible from the moment the register opens. Typing above narrows
+              it live by name/sku/barcode; tapping a row adds it just like a scan. */}
+          <div className="mt-2 border-t border-gray-100 pt-2">
+            <div className="flex items-center justify-between px-1 pb-1.5">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {browseQuery ? `${browseSorted.length} match${browseSorted.length !== 1 ? 'es' : ''}` : `Stock (${allProducts.length})`}
+              </span>
+              {browseQuery && (
+                <button type="button" onClick={() => { setCodeInput(''); codeRef.current?.focus(); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 font-semibold">
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="max-h-56 overflow-y-auto rounded-md border border-gray-100">
+              {browseProducts.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-6">No products match "{codeInput}"</p>
+              ) : (
+                browseProducts.map(p => (
+                  <button key={p.id} type="button" onClick={() => addProduct(p)}
+                    className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between text-sm touch-manipulation">
+                    <span className="flex items-center min-w-0">
+                      {(p.color || p.category?.color) && (
+                        <span className="w-2.5 h-2.5 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: p.color || p.category?.color }} />
+                      )}
+                      <span className="text-gray-400 mr-3 text-xs flex-shrink-0">{p.sku}</span>
+                      <span className="font-semibold text-gray-900 truncate">{p.name}</span>
+                    </span>
+                    <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}</span>
+                  </button>
+                ))
+              )}
+              {browseOverflow > 0 && (
+                <p className="text-center text-gray-400 text-xs py-1.5 bg-gray-50 border-t border-gray-100">
+                  +{browseOverflow} more — keep typing to narrow
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -756,16 +783,15 @@ export default function CashierPage() {
     {showSearchModal && (
       <OnScreenKeyboard
         value={codeInput}
-        onChange={(v) => { setCodeInput(v); setMatchedProducts([]); }}
+        onChange={(v) => setCodeInput(v)}
         onClose={() => {
           setShowSearchModal(false);
-          // Auto-submit if search has content
+          // Auto-add if the on-screen keyboard's search narrowed to exactly one
+          // product; otherwise the live stock list below the input already
+          // shows whatever matched, so there's nothing else to do here.
           if (codeInput.trim()) {
-            const ql = codeInput.trim().toLowerCase();
-            const matches = allProducts.filter(p => p.name.toLowerCase().includes(ql) || (p.sku ?? '').toLowerCase().includes(ql));
-            if (matches.length === 1) { addProduct(matches[0]); }
-            else if (matches.length > 1) { setMatchedProducts(matches.slice(0, 8)); }
-            else if (matches.length === 0 && codeInput.trim()) { toast.error(`"${codeInput.trim()}" not found`); }
+            if (browseMatches.length === 1) { addProduct(browseMatches[0]); }
+            else if (browseMatches.length === 0) { toast.error(`"${codeInput.trim()}" not found`); }
           }
           setTimeout(() => codeRef.current?.focus(), 80);
         }}

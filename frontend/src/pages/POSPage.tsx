@@ -445,23 +445,21 @@ export default function POSPage() {
   });
 
   const handleAddProduct = (product: any) => {
-    // A product already in the cart can't be tapped in again — quantity is
-    // adjusted from the cart's +/- controls instead, so a duplicate click
-    // (or duplicate barcode scan) doesn't silently double the line.
-    if (cart.items.some((i) => i.product_id === product.id)) {
-      toast.error(`${product.name} is already in the cart — adjust its quantity there`, { duration: 2500 });
-      return;
-    }
     const price = parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
       return;
     }
-    // Block sale if stock is zero/negative and setting is enabled
+    // Tapping/scanning a product already in the cart bumps its quantity by
+    // one — same as re-scanning the same barcode at a real till — instead of
+    // blocking with an error. The stock check below accounts for what's
+    // already in the cart so repeat-punching the same product still can't
+    // oversell it.
+    const existingQty = cart.items.find((i) => i.product_id === product.id)?.quantity ?? 0;
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-    if (blockNegStock && product.track_stock !== false && stock !== null && stock <= 0) {
-      toast.error(`${product.name} is out of stock`, { duration: 3000 });
+    if (blockNegStock && product.track_stock !== false && stock !== null && existingQty + 1 > stock) {
+      toast.error(stock <= 0 ? `${product.name} is out of stock` : `Only ${stock} ${product.name} in stock`, { duration: 3000 });
       return;
     }
     cart.addItem({

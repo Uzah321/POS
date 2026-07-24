@@ -55,22 +55,26 @@ class ReportController extends BaseApiController
         $cacheKey = 'dashboard:' . ($branchId ?: 'all');
 
         $payload = Cache::remember($cacheKey, now()->addSeconds(30), function () use ($branchId) {
-            $today = now()->toDateString();
-            $thisMonth = now()->startOfMonth()->toDateString();
+            // Plain >= / < range bounds (not whereDate()/DATE()) so Postgres can use the
+            // sales_status_completed_at_index / sales_status_branch_completed_at_index
+            // range portion instead of scanning every historical row for the status.
+            $todayStart = now()->startOfDay();
+            $todayEnd = now()->endOfDay();
+            $monthStart = now()->startOfMonth();
 
             $todaySales = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->whereDate('completed_at', $today)
+                ->whereBetween('completed_at', [$todayStart, $todayEnd])
                 ->get(['total']);
 
             $monthSales = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->whereDate('completed_at', '>=', $thisMonth)
+                ->where('completed_at', '>=', $monthStart)
                 ->get(['total']);
 
             $monthCustomers = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->whereDate('completed_at', '>=', $thisMonth)
+                ->where('completed_at', '>=', $monthStart)
                 ->whereNotNull('customer_id')
                 ->distinct('customer_id')
                 ->count('customer_id');
@@ -122,7 +126,7 @@ class ReportController extends BaseApiController
                 ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
                 ->whereIn('sales.status', Sale::REVENUE_STATUSES)
                 ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
-                ->whereDate('sales.completed_at', $today)
+                ->whereBetween('sales.completed_at', [$todayStart, $todayEnd])
                 ->groupBy('sale_payments.method')
                 ->selectRaw('sale_payments.method, SUM(sale_payments.amount) as total')
                 ->get()

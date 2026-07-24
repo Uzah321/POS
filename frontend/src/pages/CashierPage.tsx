@@ -520,46 +520,45 @@ export default function CashierPage() {
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
           </form>
 
-          {/* Regular stock — every active product for this till's branch,
-              visible from the moment the register opens. Typing above narrows
-              it live by name/sku/barcode; tapping a row adds it just like a scan. */}
-          <div className="mt-2 border-t border-gray-100 pt-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {browseQuery ? `${browseSorted.length} match${browseSorted.length !== 1 ? 'es' : ''}` : `Stock (${allProducts.length})`}
-              </span>
-              {browseQuery && (
+          {/* Stock search results — only appears once the cashier starts typing;
+              narrows live by name/sku/barcode as they keep typing. */}
+          {browseQuery && (
+            <div className="mt-2 border-t border-gray-100 pt-2">
+              <div className="flex items-center justify-between px-1 pb-1.5">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {browseSorted.length} match{browseSorted.length !== 1 ? 'es' : ''}
+                </span>
                 <button type="button" onClick={() => { setCodeInput(''); codeRef.current?.focus(); }}
                   className="text-xs text-gray-400 hover:text-gray-600 font-semibold">
                   Clear
                 </button>
-              )}
+              </div>
+              <div className="max-h-56 overflow-y-auto rounded-md border border-gray-100">
+                {browseProducts.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-6">No products match "{codeInput}"</p>
+                ) : (
+                  browseProducts.map(p => (
+                    <button key={p.id} type="button" onClick={() => addProduct(p)}
+                      className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between text-sm touch-manipulation">
+                      <span className="flex items-center min-w-0">
+                        {(p.color || p.category?.color) && (
+                          <span className="w-2.5 h-2.5 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: p.color || p.category?.color }} />
+                        )}
+                        <span className="text-gray-400 mr-3 text-xs flex-shrink-0">{p.sku}</span>
+                        <span className="font-semibold text-gray-900 truncate">{p.name}</span>
+                      </span>
+                      <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}</span>
+                    </button>
+                  ))
+                )}
+                {browseOverflow > 0 && (
+                  <p className="text-center text-gray-400 text-xs py-1.5 bg-gray-50 border-t border-gray-100">
+                    +{browseOverflow} more — keep typing to narrow
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="max-h-56 overflow-y-auto rounded-md border border-gray-100">
-              {browseProducts.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-6">No products match "{codeInput}"</p>
-              ) : (
-                browseProducts.map(p => (
-                  <button key={p.id} type="button" onClick={() => addProduct(p)}
-                    className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between text-sm touch-manipulation">
-                    <span className="flex items-center min-w-0">
-                      {(p.color || p.category?.color) && (
-                        <span className="w-2.5 h-2.5 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: p.color || p.category?.color }} />
-                      )}
-                      <span className="text-gray-400 mr-3 text-xs flex-shrink-0">{p.sku}</span>
-                      <span className="font-semibold text-gray-900 truncate">{p.name}</span>
-                    </span>
-                    <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}</span>
-                  </button>
-                ))
-              )}
-              {browseOverflow > 0 && (
-                <p className="text-center text-gray-400 text-xs py-1.5 bg-gray-50 border-t border-gray-100">
-                  +{browseOverflow} more — keep typing to narrow
-                </p>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

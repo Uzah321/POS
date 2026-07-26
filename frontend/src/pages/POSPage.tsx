@@ -17,7 +17,7 @@ import NumericKeypad from '../components/ui/NumericKeypad';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import {
-  Search, Plus, Minus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
+  Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
   User, Award,
   ChevronLeft, ChevronRight, ChefHat,
@@ -98,15 +98,7 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
       </div>
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => updateQty(item.product_id, item.quantity - 1)}
-          className="w-8 h-8 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation"
-        >
-          <Minus size={14} />
-        </button>
-        {/* Tap qty to open keypad */}
+      <div className="flex items-center flex-shrink-0">
         <button
           type="button"
           onClick={openQtyEdit}
@@ -114,13 +106,6 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
           title="Tap to set quantity"
         >
           {item.quantity}
-        </button>
-        <button
-          type="button"
-          onClick={() => updateQty(item.product_id, item.quantity + 1)}
-          className="w-8 h-8 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation"
-        >
-          <Plus size={14} />
         </button>
       </div>
       <div className="w-14 text-right flex-shrink-0">

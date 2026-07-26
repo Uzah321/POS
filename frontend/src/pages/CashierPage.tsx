@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { productsApi, salesApi, settingsApi } from '../api';
-import { useCartStore } from '../stores/cartStore';
+import { useCartStore, type CartItem } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
@@ -16,7 +16,8 @@ import { effectiveTaxRate } from '../lib/taxSettings';
 import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
-import { Loader2, Plus, Minus, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search } from 'lucide-react';
+import NumericKeypad from '../components/ui/NumericKeypad';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -37,6 +38,8 @@ export default function CashierPage() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showOpenTables, setShowOpenTables]   = useState(false);
   const [showVoidModal, setShowVoidModal]     = useState(false);
+  const [editingQtyItem, setEditingQtyItem]   = useState<CartItem | null>(null);
+  const [qtyInput, setQtyInput]               = useState('');
   const [voidSearch, setVoidSearch]           = useState('');
 
   const codeRef     = useRef<HTMLInputElement>(null);
@@ -428,6 +431,14 @@ export default function CashierPage() {
   const fmtDate = (d: Date) => d.toLocaleDateString('en-ZA');
   const itemCount = cart.items.reduce((s, i) => s + i.quantity, 0);
 
+  const confirmQtyEdit = () => {
+    if (!editingQtyItem) return;
+    const n = parseInt(qtyInput, 10);
+    if (!isNaN(n) && n > 0) cart.updateQty(editingQtyItem.product_id, n);
+    else if (n === 0) cart.removeItem(editingQtyItem.product_id);
+    setEditingQtyItem(null);
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
@@ -591,17 +602,12 @@ export default function CashierPage() {
                 return (
                   <div key={item.product_id}
                     className={`flex items-center px-4 py-3.5 border-b border-gray-50 text-base ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                    <div className="w-36 flex items-center justify-center gap-2 flex-shrink-0">
+                    <div className="w-36 flex items-center justify-center flex-shrink-0">
                       <button type="button"
-                        onClick={() => cart.updateQty(item.product_id, item.quantity - 1)}
-                        className="w-10 h-10 rounded bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 flex items-center justify-center transition-colors touch-manipulation">
-                        <Minus size={16} />
-                      </button>
-                      <span className="w-10 text-center font-bold text-gray-900 tabular-nums">{item.quantity}</span>
-                      <button type="button"
-                        onClick={() => cart.updateQty(item.product_id, item.quantity + 1)}
-                        className="w-10 h-10 rounded bg-gray-100 hover:bg-blue-100 hover:text-blue-600 text-gray-500 flex items-center justify-center transition-colors touch-manipulation">
-                        <Plus size={16} />
+                        onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
+                        title="Tap to set quantity"
+                        className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
+                        {item.quantity}
                       </button>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -890,6 +896,20 @@ export default function CashierPage() {
           </div>
         </div>
       </div>
+    )}
+
+    {editingQtyItem && (
+      <NumericKeypad
+        modal
+        value={qtyInput}
+        onChange={setQtyInput}
+        onConfirm={confirmQtyEdit}
+        onClose={() => setEditingQtyItem(null)}
+        label={`Quantity — ${editingQtyItem.name}`}
+        allowDecimal={false}
+        confirmLabel="✓ Set Qty"
+        confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+      />
     )}
     </>
   );

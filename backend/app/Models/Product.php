@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -39,6 +40,7 @@ class Product extends Model
     public function variants(): HasMany { return $this->hasMany(ProductVariant::class); }
     public function stocks(): HasMany { return $this->hasMany(Stock::class); }
     public function ingredients(): HasMany { return $this->hasMany(ProductIngredient::class); }
+    public function caseUnit(): HasOne { return $this->hasOne(ProductCaseUnit::class, 'case_product_id'); }
 
     /**
      * Recompute cost_price as the sum of each ingredient's quantity × its own cost_price.

@@ -9,9 +9,9 @@ class GoodsReceiptItem extends Model
 {
     protected $fillable = [
         'goods_receipt_id', 'purchase_order_item_id', 'product_id', 'product_variant_id',
-        'quantity', 'unit_cost', 'batch_number', 'expiry_date',
+        'quantity', 'is_bulk', 'unit_cost', 'batch_number', 'expiry_date',
     ];
-    protected $casts = ['expiry_date' => 'date', 'quantity' => 'decimal:3', 'unit_cost' => 'decimal:2'];
+    protected $casts = ['expiry_date' => 'date', 'quantity' => 'decimal:3', 'unit_cost' => 'decimal:2', 'is_bulk' => 'boolean'];
 
     public function goodsReceipt(): BelongsTo { return $this->belongsTo(GoodsReceipt::class); }
     // withTrashed() — same reasoning as PurchaseOrderItem::product(): a goods

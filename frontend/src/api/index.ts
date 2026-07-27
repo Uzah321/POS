@@ -20,6 +20,7 @@ export const productsApi = {
   getCaseUnit: (id: number) => api.get(`/products/${id}/case-unit`),
   setCaseUnit: (id: number, data: { unit_product_id: number; units_per_case: number }) =>
     api.put(`/products/${id}/case-unit`, data),
+  pendingCaseBreaks: () => api.get('/case-units/pending-breaks'),
 };
 
 export const ingredientsApi = {

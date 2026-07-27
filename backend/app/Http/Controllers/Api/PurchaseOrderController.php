@@ -115,6 +115,9 @@ class PurchaseOrderController extends BaseApiController
             'items.*.product_id'             => 'required|exists:products,id',
             'items.*.product_variant_id'     => 'nullable|exists:product_variants,id',
             'items.*.quantity'               => 'required|numeric|min:0.001',
+            // Whether this line arrived as sealed cases/bulk packs (needs a case
+            // break before it's sellable as individual units) or loose singles.
+            'items.*.is_bulk'                => 'sometimes|boolean',
             'items.*.unit_cost'              => 'required|numeric|min:0',
             'items.*.batch_number'           => 'nullable|string',
             'items.*.expiry_date'            => 'nullable|date',
@@ -139,6 +142,7 @@ class PurchaseOrderController extends BaseApiController
                     'product_id'             => $item['product_id'],
                     'product_variant_id'     => $item['product_variant_id'] ?? null,
                     'quantity'               => $item['quantity'],
+                    'is_bulk'                => $item['is_bulk'] ?? false,
                     'unit_cost'              => $item['unit_cost'],
                     'batch_number'           => $item['batch_number'] ?? null,
                     'expiry_date'            => $item['expiry_date'] ?? null,

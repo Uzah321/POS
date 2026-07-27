@@ -350,6 +350,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
         already_received: Number(it.received_quantity ?? 0),
         quantity: outstanding,
         unit_cost: Number(it.unit_cost),
+        is_bulk: false,
         batch_number: '',
         expiry_date: '',
       };
@@ -374,6 +375,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
             product_id: l.product_id,
             product_variant_id: l.product_variant_id || undefined,
             quantity: l.quantity,
+            is_bulk: l.is_bulk,
             unit_cost: l.unit_cost,
             batch_number: l.batch_number || undefined,
             expiry_date: l.expiry_date || undefined,
@@ -458,6 +460,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
                 <th className="px-3 py-2 text-right text-xs text-gray-500">Ordered</th>
                 <th className="px-3 py-2 text-right text-xs text-gray-500">Received</th>
                 <th className="px-3 py-2 text-right text-xs text-gray-500 w-24">Receiving</th>
+                <th className="px-3 py-2 text-center text-xs text-gray-500 w-36">Received As</th>
                 <th className="px-3 py-2 text-right text-xs text-gray-500 w-28">Unit Cost</th>
                 <th className="px-3 py-2 text-left text-xs text-gray-500 w-28">Batch #</th>
                 <th className="px-3 py-2 text-left text-xs text-gray-500 w-36">Expiry</th>
@@ -470,6 +473,24 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
                     <td className="px-3 py-2 text-right text-gray-500">{l.already_received}</td>
                     <td className="px-3 py-2">
                       <input type="number" min="0" value={l.quantity} onChange={(e) => updateLine(i, 'quantity', +e.target.value)} className="w-full text-right border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => updateLine(i, 'is_bulk', false)}
+                          className={`flex-1 px-2 py-1.5 transition-colors ${!l.is_bulk ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                        >
+                          Singles
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateLine(i, 'is_bulk', true)}
+                          className={`flex-1 px-2 py-1.5 transition-colors border-l border-gray-200 ${l.is_bulk ? 'bg-amber-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                        >
+                          Bulk
+                        </button>
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <input type="number" step="0.01" min="0" value={l.unit_cost} onChange={(e) => updateLine(i, 'unit_cost', +e.target.value)} className="w-full text-right border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -490,6 +511,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
             <span>Receiving Total</span><span className="text-emerald-600">{formatAmount(total)}</span>
           </div>
           <p className="text-xs text-gray-400">Currency: {activeCurrency?.symbol ?? '$'}. Stock will be added to {po.warehouse?.name ?? 'the PO warehouse'} on save.</p>
+          <p className="text-xs text-amber-600">Lines marked "Bulk" arrive as sealed cases and will show up under Production → Break Bulk / Cases, waiting to be broken into individual units.</p>
         </div>
         <div className="p-6 border-t flex-shrink-0">
           <button

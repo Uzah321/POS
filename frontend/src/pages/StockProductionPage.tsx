@@ -905,6 +905,15 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
     enabled: !!caseProduct?.id,
   });
 
+  // Products received as "Bulk" on a goods receipt (see PurchasesPage) that
+  // still have stock on hand — i.e. sealed cases waiting to be broken. A
+  // product drops off this list on its own once it's fully broken down.
+  const { data: pendingBreaks, isLoading: pendingLoading } = useQuery({
+    queryKey: ['pending-case-breaks'],
+    queryFn: () => productsApi.pendingCaseBreaks().then(r => r.data?.data ?? []),
+    refetchInterval: 60000,
+  });
+
   const selectCaseProduct = (p: any) => {
     setCaseProduct(p);
     setCasesToBreak('1');
@@ -976,6 +985,7 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
         qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
         qc.invalidateQueries({ queryKey: ['pos-products'] });
         qc.invalidateQueries({ queryKey: ['products'] });
+        qc.invalidateQueries({ queryKey: ['pending-case-breaks'] });
       }
       setCasesToBreak('1');
     },
@@ -986,6 +996,39 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
 
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-3">
+        <h2 className="font-semibold text-gray-700 text-sm flex items-center gap-1.5">
+          <PackageOpen size={15} className="text-amber-500" /> Pending Bulk Breaks
+        </h2>
+        {pendingLoading ? (
+          <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-gray-400" /></div>
+        ) : !pendingBreaks || pendingBreaks.length === 0 ? (
+          <p className="text-xs text-gray-400">No bulk/case stock waiting to be broken. Cases marked "Bulk" when a supplier order is received will show up here.</p>
+        ) : (
+          <div className="space-y-2">
+            {pendingBreaks.map((p: any) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => selectCaseProduct(p)}
+                className={`w-full flex items-center justify-between gap-3 p-3 rounded-md border text-left transition-colors ${
+                  caseProduct?.id === p.id ? 'bg-blue-50 border-blue-300' : 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm truncate">{p.name}</p>
+                  <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-sm font-bold text-amber-700">{p.on_hand} on hand</p>
+                  <p className="text-xs text-gray-400">{p.case_unit ? 'Ready to break' : 'Needs setup'}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-5 space-y-4">
         <h2 className="font-semibold text-gray-700 text-sm">Case / Bulk Product</h2>
         {caseProduct ? (

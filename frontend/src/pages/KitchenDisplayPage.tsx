@@ -106,7 +106,13 @@ export default function KitchenDisplayPage() {
   useEffect(() => {
     fetchOrders();
     const interval = setInterval(fetchOrders, settings.kdsRefreshInterval * 1000);
-    return () => clearInterval(interval);
+    // A kitchen screen left in a background tab/minimized window gets its
+    // setInterval above throttled hard by the browser — orders can sit stale
+    // well past the configured refresh. Force a fetch the instant it's
+    // visible again instead of waiting for the throttled interval to catch up.
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchOrders(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, [settings.kdsRefreshInterval]);
 
   const bump = async (order: KdsOrder) => {

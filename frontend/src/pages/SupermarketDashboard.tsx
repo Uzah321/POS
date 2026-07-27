@@ -51,6 +51,10 @@ export default function SupermarketDashboard() {
     // any faster and this would just be re-fetching the same cached payload.
     staleTime: 0,
     refetchInterval: 10000,
+    // Browsers throttle background-tab timers hard, so a dashboard left open
+    // unfocused for a while can sit well behind the interval above — force a
+    // fresh fetch the instant the tab regains focus instead of waiting it out.
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       try {
         return await reportsApi.dashboard().then(r => r.data);
@@ -117,6 +121,7 @@ export default function SupermarketDashboard() {
       try { return await salesApi.listHeld().then(r => r.data); } catch { return { data: [] }; }
     },
     refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 
   const d                = data?.data || {};

@@ -95,6 +95,7 @@ export default function CashierPage() {
     queryFn: () => axios.get('/api/kds/orders').then(r => r.data),
     refetchInterval: 3000,
     enabled: isRestaurant,
+    refetchOnWindowFocus: true,
   });
   const kdsOrders: any[] = kdsData?.data ?? [];
 
@@ -118,6 +119,12 @@ export default function CashierPage() {
     // another till, must show up here without reloading.
     staleTime: 0,
     refetchInterval: 10000,
+    // App-wide default (App.tsx) turns this off so slow-changing lists don't
+    // re-fetch on every alt-tab — but a till is often left open in a
+    // background tab for a while, where browsers throttle the interval above
+    // to a crawl. Force a fresh fetch the moment the tab regains focus so
+    // stock/prices catch up immediately instead of waiting out the throttle.
+    refetchOnWindowFocus: true,
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];

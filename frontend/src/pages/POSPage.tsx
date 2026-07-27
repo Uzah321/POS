@@ -88,8 +88,8 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
   const openQtyEdit = () => { setQtyInput(String(item.quantity)); setEditingQty(true); };
   const confirmQty = () => {
     const n = parseInt(qtyInput, 10);
-    if (!isNaN(n) && n > 0) updateQty(item.product_id, n);
-    else if (n === 0) removeItem(item.product_id);
+    if (!isNaN(n) && n > 0) updateQty(item.line_id, n);
+    else if (n === 0) removeItem(item.line_id);
     setEditingQty(false);
   };
 
@@ -114,7 +114,7 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
       <div className="w-16 text-right flex-shrink-0">
         <p className="text-sm font-bold text-gray-900 tabular-nums">{format(lineTotal)}</p>
       </div>
-      <button type="button" onClick={() => removeItem(item.product_id)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
+      <button type="button" onClick={() => removeItem(item.line_id)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
         <Trash2 size={14} />
       </button>
 
@@ -435,12 +435,10 @@ export default function POSPage() {
       toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
       return;
     }
-    // Tapping/scanning a product already in the cart bumps its quantity by
-    // one — same as re-scanning the same barcode at a real till — instead of
-    // blocking with an error. The stock check below accounts for what's
-    // already in the cart so repeat-punching the same product still can't
-    // oversell it.
-    const existingQty = cart.items.find((i) => i.product_id === product.id)?.quantity ?? 0;
+    // Tapping/scanning a product already in the cart adds a new line rather
+    // than bumping an existing one — so the stock check here must sum every
+    // line already in the cart for this product, not just look up one.
+    const existingQty = cart.items.filter((i) => i.product_id === product.id).reduce((s, i) => s + i.quantity, 0);
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
     if (blockNegStock && product.track_stock !== false && stock !== null && existingQty + 1 > stock) {
@@ -824,7 +822,7 @@ export default function POSPage() {
                 <p className="text-xs">Add items to start</p>
               </div>
             ) : (
-              cart.items.map((item) => <CartRow key={item.product_id} item={item} format={formatCurrency} />)
+              cart.items.map((item) => <CartRow key={item.line_id} item={item} format={formatCurrency} />)
             )}
           </div>
 

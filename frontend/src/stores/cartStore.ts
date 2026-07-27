@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface CartItem {
+  // Unique per cart line — the same product can appear on more than one line
+  // (each tap/scan adds a new line rather than bumping an existing one), so
+  // product_id alone can no longer identify a specific row.
+  line_id: string;
   product_id: number;
   variant_id?: number;
   name: string;
@@ -11,6 +15,12 @@ export interface CartItem {
   tax_rate: number;
   quantity: number;
   discount: number;
+}
+
+let lineIdCounter = 0;
+function newLineId(): string {
+  lineIdCounter += 1;
+  return `line-${Date.now()}-${lineIdCounter}`;
 }
 
 export interface HeldOrder {
@@ -50,10 +60,10 @@ interface CartState {
   cashTendered: string;
   isSplitPayment: boolean;
   splitPayments: Array<{ method: string; amount: string }>;
-  addItem: (item: Omit<CartItem, 'quantity' | 'discount'>) => void;
-  updateQty: (product_id: number, qty: number) => void;
-  updateDiscount: (product_id: number, discount: number) => void;
-  removeItem: (product_id: number) => void;
+  addItem: (item: Omit<CartItem, 'line_id' | 'quantity' | 'discount'>, quantity?: number) => void;
+  updateQty: (line_id: string, qty: number) => void;
+  updateDiscount: (line_id: string, discount: number) => void;
+  removeItem: (line_id: string) => void;
   setCustomer: (id: number | null, name: string) => void;
   setDiscount: (d: number) => void;
   setNote: (n: string) => void;
@@ -92,17 +102,15 @@ export const useCartStore = create<CartState>()(
       cashTendered: '',
       isSplitPayment: false,
       splitPayments: [],
-      addItem: (item) => {
-        const existing = get().items.find((i) => i.product_id === item.product_id);
-        if (existing) {
-          set({ items: get().items.map((i) => i.product_id === item.product_id ? { ...i, quantity: i.quantity + 1 } : i) });
-        } else {
-          set({ items: [...get().items, { ...item, quantity: 1, discount: 0 }] });
-        }
+      // Every tap/scan adds its own new line, even for a product already in the
+      // cart — the cart reads as a running list of what was rung up, in order,
+      // rather than one row per product with a running quantity.
+      addItem: (item, quantity = 1) => {
+        set({ items: [...get().items, { ...item, line_id: newLineId(), quantity, discount: 0 }] });
       },
-      updateQty: (id, qty) => set({ items: qty <= 0 ? get().items.filter((i) => i.product_id !== id) : get().items.map((i) => i.product_id === id ? { ...i, quantity: qty } : i) }),
-      updateDiscount: (id, discount) => set({ items: get().items.map((i) => i.product_id === id ? { ...i, discount } : i) }),
-      removeItem: (id) => set({ items: get().items.filter((i) => i.product_id !== id) }),
+      updateQty: (id, qty) => set({ items: qty <= 0 ? get().items.filter((i) => i.line_id !== id) : get().items.map((i) => i.line_id === id ? { ...i, quantity: qty } : i) }),
+      updateDiscount: (id, discount) => set({ items: get().items.map((i) => i.line_id === id ? { ...i, discount } : i) }),
+      removeItem: (id) => set({ items: get().items.filter((i) => i.line_id !== id) }),
       setCustomer: (id, name) => set({ customerId: id, customerName: name }),
       setDiscount: (d) => set({ discount: d }),
       setNote: (n) => set({ note: n }),

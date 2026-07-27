@@ -171,12 +171,10 @@ export default function CashierPage() {
       toast.error(`${product.name} has no price set — add a price before selling it`);
       return;
     }
-    // Scanning/tapping a product already in the cart bumps its quantity by
-    // one — same as re-scanning the same barcode at a real till — instead of
-    // blocking with an error. The stock check below accounts for what's
-    // already in the cart so repeat-punching the same product still can't
-    // oversell it.
-    const existingQty = cart.items.find((i) => i.product_id === product.id)?.quantity ?? 0;
+    // Scanning/tapping a product already in the cart adds a new line rather
+    // than bumping an existing one — so the stock check here must sum every
+    // line already in the cart for this product, not just look up one.
+    const existingQty = cart.items.filter((i) => i.product_id === product.id).reduce((s, i) => s + i.quantity, 0);
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNeg = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
     if (blockNeg && product.track_stock !== false && stock !== null && existingQty + 1 > stock) {
@@ -317,8 +315,7 @@ export default function CashierPage() {
     cart.clearCart();
     const data = held.cart_data ?? {};
     (data.items ?? []).forEach((it: any) => {
-      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0 });
-      cart.updateQty(it.product_id, it.quantity);
+      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0 }, it.quantity);
     });
     cart.setTableNumber(held.table_number || 'Walk-in');
     deleteHeldMutation.mutate(held.id);
@@ -434,8 +431,8 @@ export default function CashierPage() {
   const confirmQtyEdit = () => {
     if (!editingQtyItem) return;
     const n = parseInt(qtyInput, 10);
-    if (!isNaN(n) && n > 0) cart.updateQty(editingQtyItem.product_id, n);
-    else if (n === 0) cart.removeItem(editingQtyItem.product_id);
+    if (!isNaN(n) && n > 0) cart.updateQty(editingQtyItem.line_id, n);
+    else if (n === 0) cart.removeItem(editingQtyItem.line_id);
     setEditingQtyItem(null);
   };
 
@@ -600,7 +597,7 @@ export default function CashierPage() {
               cart.items.map((item, idx) => {
                 const lineTotal = (item.price - item.discount) * item.quantity;
                 return (
-                  <div key={item.product_id}
+                  <div key={item.line_id}
                     className={`flex items-center px-4 py-3.5 border-b border-gray-50 text-base ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                     <div className="w-36 flex items-center justify-center flex-shrink-0">
                       <button type="button"
@@ -617,7 +614,7 @@ export default function CashierPage() {
                       {formatCurrency(lineTotal)}
                     </span>
                     <button type="button"
-                      onClick={() => cart.removeItem(item.product_id)}
+                      onClick={() => cart.removeItem(item.line_id)}
                       title="Remove item"
                       className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors touch-manipulation">
                       <Trash2 size={16} />

@@ -58,6 +58,7 @@ const schema = z.object({
   color: z.string().optional(),
   image: z.string().optional(),
   made_to_order: z.coerce.boolean().default(false),
+  is_taxable: z.coerce.boolean().default(true),
 });
 
 // Preset swatches shown for quick-pick — a small, print-friendly palette that
@@ -225,16 +226,21 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       initial_quantity: 0,
       color: product.color ?? undefined,
       image: product.image ?? undefined,
+      // Older cached copies (synced before this field existed) won't have it —
+      // treat as taxable, matching the backend column's default.
+      is_taxable: product.is_taxable ?? true,
     } : {
       sku: generateSku(),
       barcode: generateBarcode(),
       reorder_level: 5,
       initial_quantity: 0,
+      is_taxable: true,
     },
   });
   const watchedColor = watch('color');
   const watchedImage = watch('image');
   const watchedMadeToOrder = watch('made_to_order');
+  const watchedIsTaxable = watch('is_taxable');
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -541,6 +547,17 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                 {watchedMadeToOrder
                   ? 'Prepared on order — a sale deducts its recipe’s ingredients instead of this item’s own stock, and it goes out of stock when an ingredient runs low. Set up the recipe under Stock Production → Recipes.'
                   : 'For items assembled at the till from raw ingredients (e.g. a pizza) rather than kept pre-made in stock.'}
+              </p>
+            </div>
+            <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
+                <input type="checkbox" {...register('is_taxable')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                Taxable
+              </label>
+              <p className="text-xs text-gray-400 mt-1">
+                {watchedIsTaxable
+                  ? 'Tax is applied at checkout — this product’s own tax rate if one is assigned, otherwise the store-wide rate.'
+                  : 'Tax-exempt — this product never carries tax, regardless of the store-wide tax setting.'}
               </p>
             </div>
             <ColorImagePicker

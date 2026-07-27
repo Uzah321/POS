@@ -150,7 +150,8 @@ class SaleController extends BaseApiController
                 // reconcile back to the taxable (inclusive) amount.
                 $taxable = $lineSubtotal - $discAmt;
                 $product = $productsById->get($item['product_id']);
-                $rate    = $taxEnabled ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
+                $isTaxable = $product?->is_taxable ?? true;
+                $rate    = ($taxEnabled && $isTaxable) ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
                 $taxAmt  = round($taxable - ($taxable / (1 + $rate / 100)), 2);
 
                 $lineItems[] = array_merge($item, [

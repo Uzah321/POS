@@ -47,8 +47,10 @@ export default function SupermarketDashboard() {
     // (see App.tsx) — fine for slow-changing lists, but it left this screen
     // showing whatever transaction count was current when it first loaded,
     // even after new sales were rung up elsewhere and the user came back.
+    // 10s matches the backend's dashboard cache TTL (see ReportController) —
+    // any faster and this would just be re-fetching the same cached payload.
     staleTime: 0,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
     queryFn: async () => {
       try {
         return await reportsApi.dashboard().then(r => r.data);
@@ -114,7 +116,7 @@ export default function SupermarketDashboard() {
     queryFn: async () => {
       try { return await salesApi.listHeld().then(r => r.data); } catch { return { data: [] }; }
     },
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const d                = data?.data || {};

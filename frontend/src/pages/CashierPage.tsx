@@ -93,7 +93,7 @@ export default function CashierPage() {
   const { data: kdsData } = useQuery({
     queryKey: ['cashier-kds'],
     queryFn: () => axios.get('/api/kds/orders').then(r => r.data),
-    refetchInterval: 4000,
+    refetchInterval: 3000,
     enabled: isRestaurant,
   });
   const kdsOrders: any[] = kdsData?.data ?? [];
@@ -114,10 +114,10 @@ export default function CashierPage() {
         return cached.length > 0 ? cached : [];
       }
     },
-    // Product edits (price, color, image, stock) must show up here without
-    // reloading — same fix as the dashboard staleness issue.
+    // Product edits (price, color, image, stock), or stock moved by a sale on
+    // another till, must show up here without reloading.
     staleTime: 0,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];

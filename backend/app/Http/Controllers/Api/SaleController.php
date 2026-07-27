@@ -259,6 +259,8 @@ class SaleController extends BaseApiController
                 }
             }
 
+            $this->bustDashboardCache($data['branch_id']);
+
             return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier', 'branch'), 'Sale completed', 201);
             });
         } catch (\RuntimeException $e) {
@@ -324,6 +326,7 @@ class SaleController extends BaseApiController
             }
 
             $sale->update(['status' => 'voided']);
+            $this->bustDashboardCache($sale->branch_id);
 
             return $this->success($sale->fresh(), 'Sale cancelled successfully');
         });

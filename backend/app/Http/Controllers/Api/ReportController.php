@@ -53,7 +53,11 @@ class ReportController extends BaseApiController
         $branchId = $this->effectiveBranchId($request);
         $cacheKey = 'dashboard:' . ($branchId ?: 'all');
 
-        $payload = Cache::remember($cacheKey, now()->addSeconds(30), function () use ($branchId) {
+        // Short TTL as a safety net for changes this cache isn't proactively
+        // busted for (e.g. another branch's admin-wide view) — the mutations that
+        // actually move these numbers (sales, voids) call bustDashboardCache()
+        // directly so the dashboard updates immediately rather than waiting this out.
+        $payload = Cache::remember($cacheKey, now()->addSeconds(10), function () use ($branchId) {
             // Plain >= / < range bounds (not whereDate()/DATE()) so Postgres can use the
             // sales_status_completed_at_index / sales_status_branch_completed_at_index
             // range portion instead of scanning every historical row for the status.

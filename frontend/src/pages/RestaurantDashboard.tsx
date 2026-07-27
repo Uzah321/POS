@@ -60,8 +60,10 @@ export default function RestaurantDashboard() {
     // (see App.tsx) — fine for slow-changing lists, but it left this screen
     // showing whatever transaction count was current when it first loaded,
     // even after new sales were rung up elsewhere and the user came back.
+    // 10s matches the backend's dashboard cache TTL (see ReportController) —
+    // any faster and this would just be re-fetching the same cached payload.
     staleTime: 0,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
     queryFn: async () => {
       try {
         return await reportsApi.dashboard().then(r => r.data);
@@ -112,7 +114,7 @@ export default function RestaurantDashboard() {
   const { data: kdsData } = useQuery({
     queryKey: ['kds-orders'],
     queryFn: () => axios.get('/api/kds/orders').then(r => r.data),
-    refetchInterval: 6000,
+    refetchInterval: 3000,
   });
 
   const d           = data?.data || {};

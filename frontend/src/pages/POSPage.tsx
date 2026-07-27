@@ -252,12 +252,12 @@ export default function POSPage() {
         return cached.length > 0 ? cached : [];
       }
     },
-    // Product edits (price, color, image, stock) made from the Products page
-    // must show up here without the cashier needing to reload — same fix as
-    // the dashboard staleness issue: don't let this sit stale in the
-    // background while the till stays open all shift.
+    // Product edits (price, color, image, stock) made from the Products page,
+    // or stock moved by a sale on another till, must show up here without the
+    // cashier needing to reload — don't let this sit stale in the background
+    // while the till stays open all shift.
     staleTime: 0,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];

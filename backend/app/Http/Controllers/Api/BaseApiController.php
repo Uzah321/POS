@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 abstract class BaseApiController extends Controller
 {
@@ -28,6 +29,21 @@ abstract class BaseApiController extends Controller
         }
 
         return $user?->branch_id;
+    }
+
+    /**
+     * Drop the cached dashboard payload (see ReportController::dashboard) for a
+     * branch and for the "all branches" admin view, so the next request rebuilds
+     * it instead of serving numbers from before whatever just changed. Call this
+     * after any mutation the dashboard's headline stats depend on — a completed/
+     * voided sale, a stock change, etc. — instead of waiting out the cache TTL.
+     */
+    protected function bustDashboardCache(?int $branchId): void
+    {
+        if ($branchId) {
+            Cache::forget('dashboard:' . $branchId);
+        }
+        Cache::forget('dashboard:all');
     }
 
     protected function success(mixed $data = null, string $message = 'Success', int $code = 200): \Illuminate\Http\JsonResponse

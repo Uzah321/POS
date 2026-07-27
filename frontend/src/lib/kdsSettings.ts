@@ -19,7 +19,7 @@ export interface KdsSettings {
 
 export const DEFAULT_KDS_SETTINGS: KdsSettings = {
   kdsTheme: 'dark',
-  kdsRefreshInterval: 4,
+  kdsRefreshInterval: 2,
   kdsColumns: 'auto',
   kdsUrgentMinutes: 5,
   kdsShowServed: false,

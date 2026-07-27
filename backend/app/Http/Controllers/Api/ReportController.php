@@ -6,7 +6,6 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Expense;
 use App\Models\Product;
-use App\Models\Stock;
 use App\Models\Customer;
 use App\Models\ShiftEnd;
 use App\Models\Branch;
@@ -79,11 +78,44 @@ class ReportController extends BaseApiController
                 ->distinct('customer_id')
                 ->count('customer_id');
 
-            $lowStockCount = Stock::query()
-                ->join('products', 'products.id', '=', 'stocks.product_id')
-                ->where('products.is_active', true)
-                ->when($branchId, fn($q) => $q->where('products.branch_id', $branchId))
-                ->whereColumn('stocks.quantity', '<=', 'products.reorder_level')
+            // Matches the "low"/"out" definitions used by InventoryController::stockLevels
+            // and the inventory/daily reports below: total stock per product (summed
+            // across warehouses) against the reorder level, tracked products only. The
+            // previous version joined stocks directly and used `<=` against each raw
+            // stock row — so a single low warehouse row on an otherwise well-stocked
+            // product counted as "low", and a stock-out (quantity 0) counted as "low"
+            // too, disagreeing with every other "out of stock" figure in the app.
+            $madeToOrderProducts = Product::where('made_to_order', true)
+                ->where('is_active', true)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->get();
+            $madeToOrderLowIds = $madeToOrderProducts
+                ->filter(fn(Product $p) => $p->total_stock > 0 && $p->total_stock <= $p->reorder_level)
+                ->pluck('id');
+            $madeToOrderOutIds = $madeToOrderProducts
+                ->filter(fn(Product $p) => $p->total_stock <= 0)
+                ->pluck('id');
+
+            $lowStockCount = Product::where('is_active', true)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->where(function ($q) use ($madeToOrderLowIds) {
+                    $q->where(function ($q) {
+                        $q->where('made_to_order', false)->where('track_stock', true)->whereRaw(
+                            'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) > 0 AND COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= products.reorder_level'
+                        );
+                    })->orWhereIn('id', $madeToOrderLowIds);
+                })
+                ->count();
+
+            $outOfStockCount = Product::where('is_active', true)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->where(function ($q) use ($madeToOrderOutIds) {
+                    $q->where(function ($q) {
+                        $q->where('made_to_order', false)->where('track_stock', true)->whereRaw(
+                            'COALESCE((SELECT SUM(quantity) FROM stocks WHERE product_id = products.id), 0) <= 0'
+                        );
+                    })->orWhereIn('id', $madeToOrderOutIds);
+                })
                 ->count();
 
             // Sales by day (last 30 days)
@@ -147,6 +179,7 @@ class ReportController extends BaseApiController
                     'customers' => $monthCustomers,
                 ],
                 'low_stock_count'  => $lowStockCount,
+                'out_of_stock_count' => $outOfStockCount,
                 'total_products'   => Product::when($branchId, fn($q) => $q->where('branch_id', $branchId))->count(),
                 'total_customers'  => Customer::count(),
                 'sales_trend' => $salesTrend,

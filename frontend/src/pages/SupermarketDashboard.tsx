@@ -6,7 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { DollarSign, ShoppingCart, TrendingUp, AlertTriangle, Users, Package, ArrowUpRight, Loader2 } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, AlertTriangle, PackageX, Users, Package, ArrowUpRight, Loader2 } from 'lucide-react';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { format } from 'date-fns';
 
@@ -99,6 +99,7 @@ export default function SupermarketDashboard() {
             },
             total_products: totalProducts,
             low_stock_count: 0,
+            out_of_stock_count: 0,
             sales_trend: salesTrend,
             top_products: [],
             payment_breakdown: paymentBreakdown,
@@ -145,11 +146,12 @@ export default function SupermarketDashboard() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${d.today?.transactions ?? 0} transactions`} icon={DollarSign}    iconBg="bg-blue-50"   trend="+12%" />
         <StatCard label="Transactions" value={d.today?.transactions ?? 0}              sub="Today"               icon={ShoppingCart}  iconBg="bg-blue-50"   trend="+8%" />
         <StatCard label="Avg Basket"   value={formatCurrency(d.today?.avg_sale ?? 0)}  sub="Per transaction" icon={TrendingUp} iconBg="bg-blue-50" />
         <StatCard label="Low Stock"    value={d.low_stock_count ?? 0}                  sub="Items need reorder"  icon={AlertTriangle}  iconBg={d.low_stock_count > 0 ? 'bg-orange-50' : 'bg-blue-50'} />
+        <StatCard label="Out of Stock" value={d.out_of_stock_count ?? 0}               sub="Items at zero"       icon={PackageX}        iconBg={d.out_of_stock_count > 0 ? 'bg-red-50' : 'bg-blue-50'} />
       </div>
 
       {/* Sales trend + Top products */}

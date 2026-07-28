@@ -478,7 +478,16 @@ export default function StocktakePage() {
     const ref = stocktakeDetail.reference ?? selected?.reference ?? 'stocktake';
     const date = new Date().toLocaleDateString();
     const rows: any[] = stocktakeDetail.items ?? [];
-    const rowsHtml = rows.map((it: any, idx: number) => `
+    // A line already counted (saved counted_qty) shows its real counted/variance
+    // values instead of a blank cell — this sheet doubles as both the blank
+    // walkthrough form (uncounted lines) and a printable results copy (counted
+    // ones), so a completed stocktake doesn't print as if nothing was counted.
+    const rowsHtml = rows.map((it: any, idx: number) => {
+      const counted = it.counted_qty !== null && it.counted_qty !== undefined;
+      const variance = it.variance !== null && it.variance !== undefined ? parseFloat(it.variance) : null;
+      const varianceLabel = variance !== null ? (variance > 0 ? '+' : '') + variance : '&nbsp;';
+      const varianceColor = variance !== null && variance !== 0 ? (variance < 0 ? '#dc2626' : '#059669') : 'inherit';
+      return `
       <tr style="border-bottom:1px solid #e5e7eb">
         <td style="padding:6px 8px">${idx + 1}</td>
         <td style="padding:6px 8px">${itemName(it)}</td>
@@ -487,10 +496,11 @@ export default function StocktakePage() {
         <td style="padding:6px 8px">${isIngredientItem(it) ? 'Ingredient' : 'Product'}</td>
         <td style="padding:6px 8px">${itemUnit(it)}</td>
         <td style="padding:6px 8px;text-align:center">${it.expected_qty ?? ''}</td>
-        <td style="padding:6px 8px;min-width:60px">&nbsp;</td>
-        <td style="padding:6px 8px;min-width:60px">&nbsp;</td>
+        <td style="padding:6px 8px;min-width:60px">${counted ? it.counted_qty : '&nbsp;'}</td>
+        <td style="padding:6px 8px;min-width:60px;font-weight:bold;color:${varianceColor}">${varianceLabel}</td>
         <td style="padding:6px 8px;min-width:80px">&nbsp;</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     const html = `<!DOCTYPE html><html><head><title>Count Sheet - ${ref}</title>
       <style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th{background:#f3f4f6;padding:6px 8px;text-align:left;border-bottom:2px solid #d1d5db}@media print{button{display:none}}</style>
       </head><body>

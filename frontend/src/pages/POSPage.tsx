@@ -685,21 +685,41 @@ export default function POSPage() {
                     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
                     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
                     const isOutOfStock = blockNegStock && product.track_stock !== false && stock !== null && stock <= 0;
+                    // Some browser extensions / content-blockers (seen with Brave Shields)
+                    // inject their own !important CSS that silently wins over a plain
+                    // inline style, leaving the tile blank even though React set the
+                    // right color — a plain style object can't out-rank that. Setting
+                    // the same properties via setProperty(..., 'important') on the real
+                    // DOM node forces our color back on top regardless.
+                    const applyTileStyle = (el: HTMLButtonElement | null) => {
+                      if (!el) return;
+                      if (solidColor) {
+                        el.style.setProperty('background-color', solidColor, 'important');
+                        el.style.setProperty('border-color', solidColor, 'important');
+                      } else if (categoryColor) {
+                        el.style.setProperty('background-color', `${categoryColor}1f`, 'important');
+                        el.style.setProperty('border-color', categoryColor, 'important');
+                      } else {
+                        el.style.removeProperty('background-color');
+                        el.style.removeProperty('border-color');
+                      }
+                      if (isOutOfStock) {
+                        el.style.setProperty('filter', 'grayscale(1)', 'important');
+                        el.style.setProperty('opacity', '0.5', 'important');
+                      } else {
+                        el.style.removeProperty('filter');
+                        el.style.removeProperty('opacity');
+                      }
+                    };
                     return (
                       <button
                         type="button"
                         key={product.id}
+                        ref={applyTileStyle}
                         title={isOutOfStock ? `${product.name} — Out of stock` : `${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
                         onClick={() => handleAddProduct(product)}
-                        style={{
-                          width: '1.7cm', height: '1.7cm',
-                          ...(solidColor
-                            ? { backgroundColor: solidColor, borderColor: solidColor }
-                            : categoryColor
-                              ? { backgroundColor: `${categoryColor}1f`, borderColor: categoryColor }
-                              : {}),
-                        }}
-                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'grayscale opacity-50 hover:border-gray-200 cursor-not-allowed' : ''}`}
+                        style={{ width: '1.7cm', height: '1.7cm' }}
+                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'hover:border-gray-200 cursor-not-allowed' : ''}`}
                       >
                         {product.made_to_order && (
                           <span

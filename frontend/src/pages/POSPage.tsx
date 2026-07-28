@@ -273,9 +273,16 @@ export default function POSPage() {
   // name -> color, so the category strip and product tiles can share a
   // product's category tint when the product itself has no color/image set.
   const categoryColors = new Map<string, string>();
-  allProducts.forEach((p: any) => { if (p.category?.name && p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color); });
+  const categoryIds = new Map<string, number>();
+  allProducts.forEach((p: any) => {
+    if (!p.category?.name) return;
+    if (p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color);
+    if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
+  });
   // Settings → "Product Tile Colour Theme" — applied to any tile that has
-  // neither its own color nor a colored category to fall back on.
+  // neither its own color nor a colored category to fall back on. Categories
+  // with no explicit color of their own get the same theme treatment,
+  // cycling deterministically per category id (same idea as product tiles).
   const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
 
   // Filter products
@@ -961,24 +968,36 @@ export default function POSPage() {
         <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 overflow-y-auto">
           <div className="flex flex-wrap gap-1.5">
             {categories.map((cat) => {
-              const catColor = cat === 'All' ? undefined : categoryColors.get(cat);
+              const ownCatColor = cat === 'All' ? undefined : categoryColors.get(cat);
+              const themeCatColor = cat === 'All' || ownCatColor ? undefined : tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length];
+              const catColor = ownCatColor || themeCatColor;
               const isActive = activeCategory === cat;
+              const catTextColor = catColor ? contrastText(catColor) : undefined;
+              // Same reasoning as product tiles (see applyTileStyle below) — a
+              // plain inline background-color can silently fail to paint on
+              // some browsers; box-shadow forced via !important survives it.
+              const applyCatStyle = (el: HTMLButtonElement | null) => {
+                if (!el) return;
+                if (catColor) {
+                  el.style.setProperty('box-shadow', `inset 0 0 0 100px ${isActive ? catColor : `${catColor}1f`}`, 'important');
+                  el.style.setProperty('border-color', isActive ? 'transparent' : catColor, 'important');
+                } else {
+                  el.style.removeProperty('box-shadow');
+                  el.style.removeProperty('border-color');
+                }
+              };
               return (
                 <button
                   type="button"
                   key={cat}
+                  ref={applyCatStyle}
                   title={cat === 'All' ? 'All Products' : cat}
                   onClick={() => setActiveCategory(cat)}
-                  style={{
-                    width: '1.9cm', height: '1.9cm',
-                    ...(isActive
-                      ? (catColor ? { backgroundColor: catColor } : {})
-                      : (catColor ? { backgroundColor: `${catColor}1f`, borderColor: catColor } : {})),
-                  }}
+                  style={{ width: '1.9cm', height: '1.9cm', ...(catTextColor ? { color: catTextColor } : {}) }}
                   className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[11px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation border
                     ${isActive
-                      ? `${catColor ? 'text-white border-transparent' : 'bg-blue-600 text-white border-transparent'}`
-                      : `${catColor ? 'text-gray-700' : 'bg-white border-gray-200 text-gray-600'} hover:bg-blue-50 hover:text-blue-700`}`}
+                      ? `${catColor ? '' : 'bg-blue-600 text-white border-transparent'}`
+                      : `${catColor ? '' : 'bg-white border-gray-200 text-gray-600'} hover:bg-blue-50 hover:text-blue-700`}`}
                 >
                   {cat === 'All' ? 'All Products' : cat}
                 </button>

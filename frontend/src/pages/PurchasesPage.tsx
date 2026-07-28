@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { purchaseOrdersApi, suppliersApi, branchesApi, warehousesApi, productsApi, settingsApi } from '../api';
 import { Plus, Search, CheckCircle, Loader2, X, Truck, Eye, Printer, PackageCheck, FileText } from 'lucide-react';
@@ -45,6 +45,68 @@ function extractErrorMessage(err: any): string {
     if (Array.isArray(first) && first.length) return String(first[0]);
   }
   return data?.message || err?.message || 'Something went wrong';
+}
+
+/** Searchable product picker for a PO line item — filters the already-loaded,
+ *  branch-scoped `products` list client-side (no separate API call, and no
+ *  risk of surfacing another branch's catalog the way a global product
+ *  search would) by name, SKU, or barcode. */
+function POProductPicker({ products, value, onSelect }: { products: any[] | undefined; value: string; onSelect: (id: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const selected = products?.find((p: any) => String(p.id) === value);
+  const q = query.trim().toLowerCase();
+  const results = (products ?? [])
+    .filter((p: any) => !q
+      || (p.name ?? '').toLowerCase().includes(q)
+      || (p.sku ?? '').toLowerCase().includes(q)
+      || (p.barcode ?? '').toLowerCase().includes(q))
+    .slice(0, 20);
+
+  return (
+    <div ref={ref} className="relative col-span-5">
+      <div className="relative">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={open ? query : (selected?.name ?? '')}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setQuery(''); setOpen(true); }}
+          placeholder="Search product by name, SKU, or barcode..."
+          className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+        />
+      </div>
+      {open && (
+        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+          {results.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-400">No matching products</p>
+          ) : (
+            results.map((p: any) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { onSelect(String(p.id)); setQuery(''); setOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-amber-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between gap-2 text-sm"
+              >
+                <span className="truncate">{p.name}</span>
+                <span className="text-xs text-gray-400 font-mono flex-shrink-0">{p.sku}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function POModal({ onClose }: { onClose: () => void }) {
@@ -184,9 +246,7 @@ function POModal({ onClose }: { onClose: () => void }) {
             </div>
             {items.map((item, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 mb-2">
-                <select value={item.product_id} onChange={(e) => selectProduct(i, e.target.value)} className="col-span-5 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                  <option value="">Select product...</option>{products?.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                <POProductPicker products={products} value={item.product_id} onSelect={(id) => selectProduct(i, id)} />
                 <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', +e.target.value)} placeholder="0" className="col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
                 <div className="col-span-3 relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">{activeCurrency?.symbol ?? '$'}</span>

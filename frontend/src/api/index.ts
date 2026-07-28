@@ -21,6 +21,7 @@ export const productsApi = {
   setCaseUnit: (id: number, data: { unit_product_id: number; units_per_case: number }) =>
     api.put(`/products/${id}/case-unit`, data),
   pendingCaseBreaks: () => api.get('/case-units/pending-breaks'),
+  dismissBulkFlag: (id: number) => api.post(`/products/${id}/dismiss-bulk-flag`),
 };
 
 export const ingredientsApi = {

@@ -992,6 +992,18 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
     onError: (e: any) => toast.error(e.message || e.response?.data?.message || 'Case break failed'),
   });
 
+  // For a line marked "Bulk" by mistake at receiving — it's really just a
+  // normal sellable item, not a case that unpacks into something smaller —
+  // clear it off this list without needing a (nonsensical) case definition.
+  const dismissMutation = useMutation({
+    mutationFn: (productId: number) => productsApi.dismissBulkFlag(productId),
+    onSuccess: () => {
+      toast.success('Removed from pending bulk breaks');
+      qc.invalidateQueries({ queryKey: ['pending-case-breaks'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to remove'),
+  });
+
   const unitsProduced = unitDef ? (parseFloat(casesToBreak) || 0) * unitDef.unitsPerCase : 0;
 
   return (
@@ -1007,23 +1019,40 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
         ) : (
           <div className="space-y-2">
             {pendingBreaks.map((p: any) => (
-              <button
+              <div
                 key={p.id}
-                type="button"
-                onClick={() => selectCaseProduct(p)}
-                className={`w-full flex items-center justify-between gap-3 p-3 rounded-md border text-left transition-colors ${
+                className={`w-full flex items-center gap-1.5 p-2 rounded-md border transition-colors ${
                   caseProduct?.id === p.id ? 'bg-blue-50 border-blue-300' : 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
                 }`}
               >
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{p.name}</p>
-                  <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <p className="text-sm font-bold text-amber-700">{p.on_hand} on hand</p>
-                  <p className="text-xs text-gray-400">{p.case_unit ? 'Ready to break' : 'Needs setup'}</p>
-                </div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => selectCaseProduct(p)}
+                  className="flex-1 min-w-0 flex items-center justify-between gap-3 p-1 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{p.name}</p>
+                    <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-sm font-bold text-amber-700">{p.on_hand} on hand</p>
+                    <p className="text-xs text-gray-400">{p.case_unit ? 'Ready to break' : 'Needs setup'}</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Remove "${p.name}" from Pending Bulk Breaks? It's still just a normal product — this only clears the "Bulk" flag, it won't touch its stock. It'll reappear if received as Bulk again.`)) {
+                      dismissMutation.mutate(p.id);
+                    }
+                  }}
+                  disabled={dismissMutation.isPending}
+                  title="Not a case — remove from this list"
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             ))}
           </div>
         )}

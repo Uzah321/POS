@@ -55,6 +55,20 @@ class ProductCaseUnitController extends BaseApiController
         return $this->success($pending);
     }
 
+    /**
+     * Clears every "bulk" flag ever recorded against this product's goods
+     * receipts, so it stops showing up in pendingBreaks() — for a line that
+     * was marked Bulk by mistake at receiving (it's really just a normal
+     * sellable item, not a case that unpacks into something smaller).
+     * Doesn't touch stock or the receipt records themselves, only the flag
+     * that puts a product on the pending-breaks radar.
+     */
+    public function dismiss(Product $product): \Illuminate\Http\JsonResponse
+    {
+        GoodsReceiptItem::where('product_id', $product->id)->where('is_bulk', true)->update(['is_bulk' => false]);
+        return $this->success(null, 'Removed from pending bulk breaks');
+    }
+
     public function set(Request $request, Product $product): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([

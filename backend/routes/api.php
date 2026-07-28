@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/{product}/case-unit', [ProductCaseUnitController::class, 'show']);
     Route::put('/products/{product}/case-unit', [ProductCaseUnitController::class, 'set']);
     Route::get('/case-units/pending-breaks', [ProductCaseUnitController::class, 'pendingBreaks']);
+    Route::post('/products/{product}/dismiss-bulk-flag', [ProductCaseUnitController::class, 'dismiss']);
     Route::apiResource('products', ProductController::class);
 
     // Ingredients — raw materials consumed by recipes, a separate entity from Products

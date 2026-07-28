@@ -685,22 +685,25 @@ export default function POSPage() {
                     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
                     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
                     const isOutOfStock = blockNegStock && product.track_stock !== false && stock !== null && stock <= 0;
-                    // Some browser extensions / content-blockers (seen with Brave Shields)
-                    // inject their own !important CSS that silently wins over a plain
-                    // inline style, leaving the tile blank even though React set the
-                    // right color — a plain style object can't out-rank that. Setting
-                    // the same properties via setProperty(..., 'important') on the real
-                    // DOM node forces our color back on top regardless.
+                    // Some browsers/extensions (confirmed on a Brave till this session)
+                    // repaint an element's background-color/background-image after the
+                    // fact — even one forced with !important — while leaving border-color
+                    // untouched (this is what Chromium's "force dark mode for web content"
+                    // does: flatten arbitrary backgrounds, but leave borders/text alone).
+                    // Forcing background-color a second, harder way doesn't help since it's
+                    // the same property being repainted. An inset box-shadow paints an
+                    // identical solid fill but isn't the property that gets touched, so it
+                    // survives where background-color doesn't.
                     const applyTileStyle = (el: HTMLButtonElement | null) => {
                       if (!el) return;
                       if (solidColor) {
-                        el.style.setProperty('background-color', solidColor, 'important');
+                        el.style.setProperty('box-shadow', `inset 0 0 0 100px ${solidColor}`, 'important');
                         el.style.setProperty('border-color', solidColor, 'important');
                       } else if (categoryColor) {
-                        el.style.setProperty('background-color', `${categoryColor}1f`, 'important');
+                        el.style.setProperty('box-shadow', `inset 0 0 0 100px ${categoryColor}1f`, 'important');
                         el.style.setProperty('border-color', categoryColor, 'important');
                       } else {
-                        el.style.removeProperty('background-color');
+                        el.style.removeProperty('box-shadow');
                         el.style.removeProperty('border-color');
                       }
                       if (isOutOfStock) {

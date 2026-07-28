@@ -27,6 +27,12 @@ export interface CashNotesPadProps {
   /** Hide the built-in confirm/process button — use when the caller has its
    *  own Process action elsewhere on the page. */
   hideConfirmButton?: boolean;
+  /** Precomputed change due (tendered − totalDue). Shown as its own banner
+   *  whenever positive — regardless of hideConfirmButton — so change is
+   *  never something the cashier has to spot inside a button's label. */
+  change?: number;
+  /** Formats `change` for display, e.g. with the active currency symbol. */
+  formatAmount?: (n: number) => string;
 }
 
 const NOTE_DENOMINATIONS: Record<string, number[]> = {
@@ -56,6 +62,8 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
   size = 'compact',
   hideNoteButtons = false,
   hideConfirmButton = false,
+  change,
+  formatAmount,
 }, forwardedRef) {
   const [history, setHistory] = useState<number[]>([]);
   const [showKeypad, setShowKeypad] = useState(false);
@@ -164,6 +172,15 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
           {keyboardMode ? <Hand size={large ? 18 : 14} /> : <Keyboard size={large ? 18 : 14} />}
         </button>
       </div>
+
+      {change !== undefined && change > 0 && (
+        <div className={`flex items-center justify-between px-3 rounded-lg bg-emerald-50 border-2 border-emerald-300 ${large ? 'py-2.5 mb-2' : 'py-1.5 mb-1'}`}>
+          <span className={`font-bold text-emerald-700 uppercase tracking-wide ${large ? 'text-xs' : 'text-[10px]'}`}>Change Due</span>
+          <span className={`font-black tabular-nums font-mono tracking-tight text-emerald-700 ${large ? 'text-2xl' : 'text-lg'}`}>
+            {formatAmount ? formatAmount(change) : change.toFixed(2)}
+          </span>
+        </div>
+      )}
 
       {showKeypad && (
         <NumericKeypad

@@ -683,6 +683,8 @@ export default function CashierPage() {
                   currencyCode={activeCurrency?.code ?? 'USD'}
                   totalDue={totalDue}
                   size="large"
+                  change={change}
+                  formatAmount={fmtActive}
                   confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process Sale'}
                   confirmCls={canProcess ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
                   disabled={cart.items.length === 0}

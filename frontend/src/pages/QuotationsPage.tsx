@@ -1,14 +1,74 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
-import { branchesApi, settingsApi } from '../api';
+import { branchesApi, settingsApi, productsApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { Plus, X, FileText, Send, Check, XCircle, Eye, Download } from 'lucide-react';
+import { useAuthStore } from '../stores/authStore';
+import { Plus, X, FileText, Send, Check, XCircle, Eye, Download, Search } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+/** Searchable product picker for a quotation line item — mirrors the PO line
+ *  item picker (PurchasesPage.tsx). Selecting a product fills in its name and
+ *  current selling price and tags the line with product_id; typing text that
+ *  doesn't match anything is kept as a freeform line name (quotations can
+ *  include one-off items/services that aren't in the product catalog). */
+function QuoteProductPicker({ products, name, onSelect, onNameChange }: { products: any[] | undefined; name: string; onSelect: (p: any) => void; onNameChange: (name: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const results = (products ?? [])
+    .filter((p: any) => !q
+      || (p.name ?? '').toLowerCase().includes(q)
+      || (p.sku ?? '').toLowerCase().includes(q)
+      || (p.barcode ?? '').toLowerCase().includes(q))
+    .slice(0, 20);
+
+  return (
+    <div ref={ref} className="relative col-span-4">
+      <div className="relative">
+        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          value={open ? query : name}
+          onChange={(e) => { const v = e.target.value; setQuery(v); onNameChange(v); setOpen(true); }}
+          onFocus={() => { setQuery(name); setOpen(true); }}
+          onBlur={() => setOpen(false)}
+          placeholder="Search product or type a custom item..."
+          className="w-full border border-gray-200 rounded-lg pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {results.map((p: any) => (
+            <button
+              type="button"
+              key={p.id}
+              // onMouseDown fires before the input's onBlur closes the list
+              onMouseDown={(e) => { e.preventDefault(); onSelect(p); setQuery(''); setOpen(false); }}
+              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between gap-2 text-sm"
+            >
+              <span className="truncate">{p.name}</span>
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0">{p.sku}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Builds and downloads a print-ready PDF of a quotation — same house style as the Purchase Order PDF. */
 function downloadQuotationPdf(q: any, companyName: string, currencySymbol: string) {
@@ -116,22 +176,33 @@ const STATUS_COLORS: Record<string, string> = {
   expired: 'bg-amber-100 text-amber-700',
 };
 
-type QuotationItem = { name: string; quantity: string; unit_price: string; discount: string; tax_amount: string };
+type QuotationItem = { product_id: string; name: string; quantity: string; unit_price: string; discount: string; tax_amount: string };
+
+const blankItem = (): QuotationItem => ({ product_id: '', name: '', quantity: '1', unit_price: '', discount: '0', tax_amount: '0' });
 
 export default function QuotationsPage() {
   const { format, activeCurrency } = useCurrencyStore();
+  const user = useAuthStore(s => s.user);
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
   const [branchId, setBranchId] = useState('');
   const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState<any>(null);
-  const [form, setForm] = useState({ notes: '', valid_until: '', items: [{ name: '', quantity: '1', unit_price: '', discount: '0', tax_amount: '0' }] as QuotationItem[] });
+  const [form, setForm] = useState({ notes: '', valid_until: '', items: [blankItem()] as QuotationItem[] });
 
   const { data: branchData } = useQuery({
     queryKey: ['branches'],
     queryFn: () => branchesApi.list().then(r => r.data?.data || []),
     staleTime: 120000,
+  });
+
+  // Products belong to the user's branch — the same branch a quotation is
+  // being raised under (backend defaults quotation.branch_id to it too).
+  const { data: quoteProducts } = useQuery({
+    queryKey: ['products', 'quote-select', user?.branch?.id],
+    queryFn: () => productsApi.list({ per_page: 1000, branch_id: user?.branch?.id, is_active: 1 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    enabled: showNew && !!user?.branch?.id,
   });
 
   const { data: storeSettings } = useQuery({
@@ -190,8 +261,13 @@ export default function QuotationsPage() {
     return s + sub + parseFloat(i.tax_amount || '0') - parseFloat(i.discount || '0');
   }, 0);
 
+  const selectProduct = (idx: number, p: any) =>
+    setForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, product_id: String(p.id), name: p.name, unit_price: it.unit_price || String(p.selling_price ?? '') } : it) }));
+
   const handleCreate = () => {
-    const items = form.items.filter(i => i.name && i.unit_price);
+    const items = form.items
+      .filter(i => i.name && i.unit_price)
+      .map(({ product_id, ...rest }) => ({ ...rest, product_id: product_id ? Number(product_id) : undefined }));
     if (!items.length) { toast.error('Add at least one item'); return; }
     createMutation.mutate({ valid_until: form.valid_until || null, notes: form.notes || null, items });
   };
@@ -292,7 +368,12 @@ export default function QuotationsPage() {
                   </div>
                   {form.items.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-1 items-center">
-                      <input value={item.name} onChange={e => updateItem(idx, 'name', e.target.value)} placeholder="Item name" className="col-span-4 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <QuoteProductPicker
+                        products={quoteProducts}
+                        name={item.name}
+                        onSelect={(p) => selectProduct(idx, p)}
+                        onNameChange={(name) => updateItem(idx, 'name', name)}
+                      />
                       <input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       <input type="number" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', e.target.value)} className="col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       <input type="number" value={item.discount} onChange={e => updateItem(idx, 'discount', e.target.value)} className="col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -300,7 +381,7 @@ export default function QuotationsPage() {
                       {form.items.length > 1 && <button onClick={() => setForm(f => ({...f, items: f.items.filter((_,i) => i!==idx)}))} className="text-red-400 hover:text-red-600"><X size={12} /></button>}
                     </div>
                   ))}
-                  <button onClick={() => setForm(f => ({...f, items: [...f.items, {name:'',quantity:'1',unit_price:'',discount:'0',tax_amount:'0'}]}))} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><Plus size={12} />Add item</button>
+                  <button onClick={() => setForm(f => ({...f, items: [...f.items, blankItem()]}))} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><Plus size={12} />Add item</button>
                 </div>
               </div>
 

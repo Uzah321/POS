@@ -794,6 +794,19 @@ export default function POSPage() {
               <span className="text-sm font-bold text-gray-900">Current Sale</span>
               <button
                 type="button"
+                onClick={() => setShowCustomerPicker(true)}
+                title="Select customer"
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold transition-colors touch-manipulation max-w-[140px] ${
+                  cart.customerId
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700'
+                }`}
+              >
+                <User size={11} className="flex-shrink-0" />
+                <span className="truncate">{cart.customerId ? cart.customerName : 'Customer'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={handleHoldOrder}
                 disabled={cart.items.length === 0 || holdMutation.isPending}
                 aria-label="Hold order (F8)"

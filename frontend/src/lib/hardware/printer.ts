@@ -84,6 +84,12 @@ export interface ReceiptData {
   fiscalDay?: string;
   recGn?: string;
   rec68?: string;
+  // Real ZIMRA fiscalisation result for this sale/refund (see fiscal_receipt on
+  // the API response) — takes over from the legacy static fields above once a
+  // receipt has actually been submitted and accepted.
+  fiscalVerificationCode?: string;
+  fiscalQrCodeUrl?: string;
+  fiscalReceiptGlobalNo?: number;
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'none';
@@ -196,7 +202,16 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     fiscalDay: options.fiscalDay,
     recGn: options.recGn,
     rec68: options.rec68,
+    fiscalVerificationCode: groupedVerificationCode(sale?.fiscal_receipt?.qr_data),
+    fiscalQrCodeUrl: sale?.fiscal_receipt?.qr_code_url ?? undefined,
+    fiscalReceiptGlobalNo: sale?.fiscal_receipt?.receipt_global_no ?? undefined,
   };
+}
+
+/** Displays the raw qr_data as four-character groups separated by "-", per §11's receipt verification code format. */
+function groupedVerificationCode(qrData?: string): string | undefined {
+  if (!qrData) return undefined;
+  return qrData.match(/.{1,4}/g)?.join('-');
 }
 
 // ---------------------------------------------------------------------------
@@ -322,10 +337,19 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
   if (d.storePhone) parts.push(line(`Tel : ${d.storePhone}`));
   if (d.vatNumber)  parts.push(line(`VAT No : ${d.vatNumber}`));
   if (d.tinNumber)  parts.push(line(`TIN No : ${d.tinNumber}`));
-  if (d.deviceId)   parts.push(line(`Device Id : ${d.deviceId}`));
-  if (d.recGn)      parts.push(line(`REC GN : ${d.recGn}`));
-  if (d.rec68)      parts.push(line(`REC 68 : ${d.rec68}`));
-  if (d.fiscalDay)  parts.push(line(`Fiscal Day : ${d.fiscalDay}`));
+  if (d.fiscalReceiptGlobalNo == null) {
+    if (d.deviceId)   parts.push(line(`Device Id : ${d.deviceId}`));
+    if (d.recGn)      parts.push(line(`REC GN : ${d.recGn}`));
+    if (d.rec68)      parts.push(line(`REC 68 : ${d.rec68}`));
+    if (d.fiscalDay)  parts.push(line(`Fiscal Day : ${d.fiscalDay}`));
+  } else {
+    // Thermal ESC/POS printers vary too much in raster/QR command support to
+    // reliably print the QR bitmap here — the printed verification code is
+    // spec-compliant on its own (§11 marks the QR picture as optional when a
+    // printer can't render it); the customer can still verify manually via it.
+    parts.push(line(`Rec No : ${d.fiscalReceiptGlobalNo}`));
+    if (d.fiscalVerificationCode) parts.push(line(`Verify : ${d.fiscalVerificationCode}`));
+  }
 
   parts.push(
     bytes(LF),
@@ -397,13 +421,24 @@ export async function printReceipt(data: ReceiptData, mode: 'browser' | 'webusb'
     await sendToUsb(buildEscPosReceipt(data));
     return;
   }
-  browserPrintReceipt(data);
+  await browserPrintReceipt(data);
 }
 
 // ---------------------------------------------------------------------------
 // Browser print — layout driven by ReceiptSettings
 // ---------------------------------------------------------------------------
 import { loadReceiptSettings, FONT_FAMILY_MAP, type ReceiptSettings } from '../receiptSettings';
+import QRCode from 'qrcode';
+
+/** Renders the ZIMRA QR deep-link as a data-URL PNG for the browser/HTML receipt layout. Returns undefined if generation fails (printer.ts must never let a QR-image bug block printing). */
+async function renderFiscalQrDataUrl(qrCodeUrl?: string): Promise<string | undefined> {
+  if (!qrCodeUrl) return undefined;
+  try {
+    return await QRCode.toDataURL(qrCodeUrl, { margin: 1, width: 140 });
+  } catch {
+    return undefined;
+  }
+}
 
 function dividerCss(style: ReceiptSettings['dividerStyle']): string {
   if (style === 'solid')  return 'border-top:1px solid #000; margin:4px 0;';
@@ -411,7 +446,7 @@ function dividerCss(style: ReceiptSettings['dividerStyle']): string {
   return 'border-top:1px dashed #000; margin:4px 0;';
 }
 
-export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSettings>): string {
+export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSettings>, qrImageDataUrl?: string): string {
   const s: ReceiptSettings = { ...loadReceiptSettings(), ...settings };
   const { dateStr, timeStr } = parseReceiptDate(d);
   const { net, vat, gross, pct } = vatInfo(d);
@@ -496,13 +531,20 @@ ${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} 
 ${d.storePhone ? `<div>Tel : ${d.storePhone}</div>` : ''}
 ${d.vatNumber ? `<div>VAT No : ${d.vatNumber}</div>` : ''}
 ${d.tinNumber ? `<div>TIN No : ${d.tinNumber}</div>` : ''}
+${d.fiscalReceiptGlobalNo == null ? `
 ${d.deviceId ? `<div>Device Id : ${d.deviceId}</div>` : ''}
 ${d.recGn ? `<div>REC GN : ${d.recGn}</div>` : ''}
 ${d.rec68 ? `<div>REC 68 : ${d.rec68}</div>` : ''}
-${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}
+${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}` : ''}
 <br>
 <div class="center bold">FISCAL TAX INVOICE</div>
 <div class="solid"></div>
+${d.fiscalReceiptGlobalNo != null ? `
+<div class="center">Rec No : ${d.fiscalReceiptGlobalNo}</div>
+${qrImageDataUrl ? `<div class="center"><img src="${qrImageDataUrl}" width="130" height="130" alt="QR"></div>` : ''}
+${d.fiscalVerificationCode ? `<div class="center">Verification code:</div><div class="center bold">${d.fiscalVerificationCode}</div>` : ''}
+${d.fiscalQrCodeUrl ? `<div class="center" style="font-size:${9}px;word-break:break-all;">You can verify this receipt manually at<br>${d.fiscalQrCodeUrl.split('/').slice(0, 3).join('/')}/</div>` : ''}
+<div class="solid"></div>` : ''}
 <div class="center">${d.footer ?? 'Core POS'}</div>
 </body></html>`;
   }
@@ -564,10 +606,14 @@ ${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span
 </body></html>`;
 }
 
-export function browserPrintReceipt(d: ReceiptData): void {
-  const html = buildReceiptHtml(d);
+export async function browserPrintReceipt(d: ReceiptData): Promise<void> {
+  // window.open() must run synchronously off the user gesture that triggered
+  // printing, or popup blockers kill it — so open the (blank) window first,
+  // then fill it in once the QR image is ready.
   const w = window.open('', '_blank', 'width=320,height=700,toolbar=0,scrollbars=1');
   if (!w) { alert('Allow popups to print receipts'); return; }
+  const qrImageDataUrl = await renderFiscalQrDataUrl(d.fiscalQrCodeUrl);
+  const html = buildReceiptHtml(d, undefined, qrImageDataUrl);
   w.document.write(html);
   w.document.close();
   w.focus();

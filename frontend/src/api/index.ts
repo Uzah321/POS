@@ -180,6 +180,32 @@ export const warehousesApi = {
   list: (params?: object) => api.get('/warehouses', { params }),
 };
 
+export const taxRatesApi = {
+  list: () => api.get('/tax-rates'),
+};
+
+export const registersApi = {
+  list: (params?: object) => api.get('/registers', { params }),
+  get: (id: number) => api.get(`/registers/${id}`),
+  create: (data: object) => api.post('/registers', data),
+  update: (id: number, data: object) => api.put(`/registers/${id}`, data),
+  delete: (id: number) => api.delete(`/registers/${id}`),
+};
+
+// ZIMRA fiscalisation — device registration/config live under manage_settings;
+// sync is open to any authenticated session (see routes/api.php).
+export const fiscalApi = {
+  verifyTaxpayer: (registerId: number, data: object) => api.post(`/fiscal/registers/${registerId}/verify-taxpayer`, data),
+  registerDevice: (registerId: number, data: object) => api.post(`/fiscal/registers/${registerId}/register-device`, data),
+  refreshConfig: (fiscalDeviceId: number) => api.post(`/fiscal/devices/${fiscalDeviceId}/refresh-config`),
+  renewCertificate: (fiscalDeviceId: number, data?: object) => api.post(`/fiscal/devices/${fiscalDeviceId}/renew-certificate`, data ?? {}),
+  openDay: (fiscalDeviceId: number) => api.post(`/fiscal/devices/${fiscalDeviceId}/open-day`),
+  closeDay: (fiscalDeviceId: number) => api.post(`/fiscal/devices/${fiscalDeviceId}/close-day`),
+  status: (fiscalDeviceId: number) => api.get(`/fiscal/devices/${fiscalDeviceId}/status`),
+  updateTaxMapping: (id: number, data: { local_tax_rate_id: number | null }) => api.patch(`/fiscal/tax-mappings/${id}`, data),
+  sync: (branchId?: number) => api.post('/fiscal/sync', branchId ? { branch_id: branchId } : {}),
+};
+
 export const ecocashApi = {
   list:    (params?: object) => api.get('/ecocash', { params }),
   create:  (data: object)    => api.post('/ecocash', data),

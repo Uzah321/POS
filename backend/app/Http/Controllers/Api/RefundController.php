@@ -6,8 +6,10 @@ use App\Models\Refund;
 use App\Models\RefundItem;
 use App\Models\Sale;
 use App\Models\Stock;
+use App\Services\Zimra\FiscalSubmissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class RefundController extends BaseApiController
 {
@@ -24,6 +26,7 @@ class RefundController extends BaseApiController
     {
         $data = $request->validate([
             'sale_id' => 'required|exists:sales,id',
+            'register_id' => 'nullable|exists:registers,id',
             'reason'  => 'nullable|string',
             'items'   => 'required|array|min:1',
             'items.*.sale_item_id' => 'required|exists:sale_items,id',
@@ -31,7 +34,7 @@ class RefundController extends BaseApiController
             'items.*.restock'      => 'boolean',
         ]);
 
-        return DB::transaction(function () use ($data, $request) {
+        $result = DB::transaction(function () use ($data, $request) {
             $sale = Sale::with('items')->findOrFail($data['sale_id']);
 
             // A voided sale already had its stock restored by SaleController::cancel() —
@@ -45,6 +48,7 @@ class RefundController extends BaseApiController
 
             $refund = Refund::create([
                 'sale_id' => $sale->id,
+                'register_id' => $data['register_id'] ?? $sale->register_id,
                 'user_id' => $request->user()->id,
                 'amount'  => 0,
                 'reason'  => $data['reason'] ?? null,
@@ -105,8 +109,39 @@ class RefundController extends BaseApiController
                 'amount_paid' => $sale->amount_paid - $totalRefund,
             ]);
 
-            return $this->success($refund->load('items'), 'Refund processed', 201);
+            $refund->load('items.saleItem.product', 'sale');
+
+            // See SaleController::store() for why this never throws into the
+            // refund's own response — a credit note is deferred (prepareForRefund
+            // returns null) until the original sale's own fiscal receipt has been
+            // accepted by ZIMRA, per RCPT032.
+            $fiscalReceipt = null;
+            try {
+                $fiscalReceipt = app(FiscalSubmissionService::class)->prepareForRefund($refund);
+            } catch (\Throwable $e) {
+                Log::error('Failed to prepare ZIMRA credit note for refund', ['refund_id' => $refund->id, 'error' => $e->getMessage()]);
+            }
+
+            return [$refund, $fiscalReceipt];
         });
+
+        [$refund, $fiscalReceipt] = $result;
+
+        if ($fiscalReceipt) {
+            try {
+                app(FiscalSubmissionService::class)->attemptSubmit($fiscalReceipt);
+            } catch (\Throwable $e) {
+                Log::error('ZIMRA credit note submission threw unexpectedly', ['fiscal_receipt_id' => $fiscalReceipt->id, 'error' => $e->getMessage()]);
+            }
+            $fiscalReceipt->refresh();
+        }
+
+        $payload = $refund->toArray();
+        $payload['fiscal_receipt'] = $fiscalReceipt?->only([
+            'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
+        ]);
+
+        return $this->success($payload, 'Refund processed', 201);
     }
 
     public function show(Refund $refund): \Illuminate\Http\JsonResponse

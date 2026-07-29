@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { db } from '../lib/db';
@@ -157,6 +158,7 @@ export default function POSPage() {
   const { paymentMethod, setPaymentMethod, cashTendered, setCashTendered, isSplitPayment, setIsSplitPayment, splitPayments, setSplitPayments } = cart;
 
   const branchId = user?.branch?.id ?? 1;
+  const { registerId, registers: fiscalRegisters, needsSelection: needsRegisterSelection, selectRegister } = useSelectedRegister(branchId);
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
@@ -548,6 +550,7 @@ export default function POSPage() {
     const salePayload = {
       branch_id: branchId,
       warehouse_id: 1,
+      register_id: registerId,
       customer_id: cart.customerId,
       table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
       order_type: cart.orderType,
@@ -1039,7 +1042,7 @@ export default function POSPage() {
             <button
               type="button"
               onClick={handleProcessSale}
-              disabled={cart.items.length === 0 || saleMutation.isPending || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
+              disabled={cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
               aria-label="Process sale (F9)"
               aria-keyshortcuts="F9"
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-base touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
@@ -1232,6 +1235,30 @@ export default function POSPage() {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Till selection — only ever shown when this branch has more than one
+        active register configured for ZIMRA fiscalisation (Settings ›
+        Fiscalisation); a single-till branch never sees this. */}
+    {needsRegisterSelection && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+          <h2 className="font-bold text-gray-900 mb-1">Select this till</h2>
+          <p className="text-sm text-gray-500 mb-4">This branch has more than one till registered with ZIMRA — pick which one this device is, so receipts fiscalise correctly.</p>
+          <div className="space-y-2">
+            {fiscalRegisters.map((r: any) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => selectRegister(r.id)}
+                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors font-semibold text-gray-800"
+              >
+                {r.name}
+              </button>
+            ))}
           </div>
         </div>
       </div>

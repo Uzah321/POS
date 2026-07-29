@@ -12,8 +12,10 @@ use App\Models\LoyaltyTransaction;
 use App\Models\CustomerCreditTransaction;
 use App\Models\HeldSale;
 use App\Models\ShiftEnd;
+use App\Services\Zimra\FiscalSubmissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SaleController extends BaseApiController
 {
@@ -44,6 +46,7 @@ class SaleController extends BaseApiController
         $data = $request->validate([
             'branch_id'      => 'required|exists:branches,id',
             'warehouse_id'   => 'required|exists:warehouses,id',
+            'register_id'    => 'nullable|exists:registers,id',
             'customer_id'    => 'nullable|exists:customers,id',
             'items'          => 'required|array|min:1',
             'items.*.product_id'         => 'required|exists:products,id',
@@ -75,7 +78,7 @@ class SaleController extends BaseApiController
         }
 
         try {
-            return DB::transaction(function () use ($data, $request) {
+            $result = DB::transaction(function () use ($data, $request) {
             // Products keyed by id, with each one's tax rate preloaded — used both for
             // per-item tax calculation below and cost price lookup further down.
             $productIds  = collect($data['items'])->pluck('product_id')->unique();
@@ -184,6 +187,7 @@ class SaleController extends BaseApiController
             $sale = Sale::create([
                 'branch_id'       => $data['branch_id'],
                 'warehouse_id'    => $data['warehouse_id'],
+                'register_id'     => $data['register_id'] ?? null,
                 'customer_id'     => $data['customer_id'] ?? null,
                 'user_id'         => $request->user()->id,
                 'status'          => 'completed',
@@ -262,11 +266,47 @@ class SaleController extends BaseApiController
 
             $this->bustDashboardCache($data['branch_id']);
 
-            return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier', 'branch'), 'Sale completed', 201);
+            $sale->load('items.product', 'payments', 'customer', 'cashier', 'branch');
+
+            // Allocating fiscal receipt numbering happens inside this same
+            // transaction (see FiscalSubmissionService) so it can never be
+            // skipped or double-issued — but it must never be able to fail the
+            // sale itself, since ZIMRA availability is entirely outside Core's
+            // control and a till going down because a government API is
+            // unreachable is not acceptable.
+            $fiscalReceipt = null;
+            try {
+                $fiscalReceipt = app(FiscalSubmissionService::class)->prepareForSale($sale);
+            } catch (\Throwable $e) {
+                Log::error('Failed to prepare ZIMRA fiscal receipt for sale', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+            }
+
+            return [$sale, $fiscalReceipt];
             });
         } catch (\RuntimeException $e) {
             return $this->error($e->getMessage(), 422);
         }
+
+        [$sale, $fiscalReceipt] = $result;
+
+        // The actual HTTP call to ZIMRA happens only after the sale's own
+        // transaction has committed — a slow/unreachable ZIMRA must never hold
+        // open a DB transaction or roll back a completed sale.
+        if ($fiscalReceipt) {
+            try {
+                app(FiscalSubmissionService::class)->attemptSubmit($fiscalReceipt);
+            } catch (\Throwable $e) {
+                Log::error('ZIMRA fiscal receipt submission threw unexpectedly', ['fiscal_receipt_id' => $fiscalReceipt->id, 'error' => $e->getMessage()]);
+            }
+            $fiscalReceipt->refresh();
+        }
+
+        $payload = $sale->toArray();
+        $payload['fiscal_receipt'] = $fiscalReceipt?->only([
+            'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
+        ]);
+
+        return $this->success($payload, 'Sale completed', 201);
     }
 
     public function show(Sale $sale): \Illuminate\Http\JsonResponse

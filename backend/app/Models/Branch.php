@@ -15,6 +15,7 @@ class Branch extends Model
 
     public function users(): HasMany { return $this->hasMany(User::class); }
     public function warehouses(): HasMany { return $this->hasMany(Warehouse::class); }
+    public function registers(): HasMany { return $this->hasMany(Register::class); }
     public function sales(): HasMany { return $this->hasMany(Sale::class); }
     public function expenses(): HasMany { return $this->hasMany(Expense::class); }
     public function purchaseOrders(): HasMany { return $this->hasMany(PurchaseOrder::class); }

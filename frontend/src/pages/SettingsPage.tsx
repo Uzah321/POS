@@ -1,9 +1,10 @@
 ﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
-import { Loader2, Save, Building2, ShoppingCart, Package } from 'lucide-react';
+import { Loader2, Save, Building2, ShoppingCart, Package, Landmark } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
+import FiscalisationPanel from '../components/FiscalisationPanel';
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -149,31 +150,19 @@ const { isLoading } = useQuery({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-gray-100">
-            <p className="text-sm font-semibold text-gray-900">Fiscal Device Details</p>
-            <p className="text-xs text-gray-400 mt-0.5 mb-3">
-              Optional — only fill these in if you already have a certified fiscal device issuing these numbers elsewhere.
-              This software does not itself fiscalize receipts with ZIMRA, so these are printed as-is, exactly as entered.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Device ID</label>
-                <input value={values.fiscal_device_id ?? ''} onChange={set('fiscal_device_id')} placeholder="22449" className={field} />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Fiscal Day</label>
-                <input value={values.fiscal_day ?? ''} onChange={set('fiscal_day')} placeholder="440" className={field} />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">REC GN</label>
-                <input value={values.fiscal_rec_gn ?? ''} onChange={set('fiscal_rec_gn')} placeholder="47979" className={field} />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">REC 68</label>
-                <input value={values.fiscal_rec_68 ?? ''} onChange={set('fiscal_rec_68')} placeholder="1" className={field} />
-              </div>
-            </div>
+        </div>
+      </div>
+
+      {/* ZIMRA Fiscalisation */}
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+            <Landmark size={16} className="text-blue-600" />
           </div>
+          <h2 className="font-semibold text-gray-900">ZIMRA Fiscalisation</h2>
+        </div>
+        <div className="p-6">
+          <FiscalisationPanel />
         </div>
       </div>
 

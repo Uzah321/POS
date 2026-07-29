@@ -81,8 +81,17 @@ return new class extends Migration
         });
         // No doctrine/dbal in this project, so Blueprint::change() isn't
         // available to flip nullable — every row is already populated above,
-        // so enforce NOT NULL directly (Postgres-only project, per .env).
-        DB::statement('ALTER TABLE product_ingredients ALTER COLUMN ingredient_id SET NOT NULL');
+        // so enforce NOT NULL directly. Driver-specific: production runs on
+        // Postgres or MySQL/MariaDB (see installer), but the test suite's own
+        // phpunit.xml runs migrations against sqlite, which can't ALTER a
+        // column's nullability without a full table rebuild — skip it there
+        // since this is a defensive DB-level constraint, not something the
+        // app depends on the database to enforce.
+        match (DB::getDriverName()) {
+            'sqlite' => null,
+            'mysql' => DB::statement('ALTER TABLE product_ingredients MODIFY ingredient_id BIGINT UNSIGNED NOT NULL'),
+            default => DB::statement('ALTER TABLE product_ingredients ALTER COLUMN ingredient_id SET NOT NULL'),
+        };
 
         Schema::table('products', function (Blueprint $table) {
             $table->dropColumn('is_ingredient');

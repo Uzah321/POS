@@ -14,15 +14,17 @@ import { useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  productsApi, customersApi, usersApi, suppliersApi, branchesApi,
+  productsApi, customersApi, usersApi, suppliersApi, branchesApi, fiscalApi,
 } from '../api';
 import { db } from '../lib/db';
 import { syncPendingMutations } from '../lib/offlineMutation';
+import { useAuthStore } from '../stores/authStore';
 
 const SYNC_INTERVAL_MS = 20000;
 
 export function useDBSync() {
   const qc = useQueryClient();
+  const branchId = useAuthStore(s => s.user?.branch?.id);
 
   const refreshCache = useCallback(async () => {
     try {
@@ -87,13 +89,28 @@ export function useDBSync() {
     }
   }, [qc]);
 
+  // Retries any ZIMRA fiscal receipts that couldn't reach the government API
+  // yet (network blip, ZIMRA outage) — mirrors syncPending's own resilience
+  // pattern instead of a separate scheduler. Best-effort: a failure here is
+  // exactly "still couldn't reach ZIMRA," which is already logged server-side
+  // and simply retried again next interval.
+  const syncFiscal = useCallback(async () => {
+    if (!branchId) return;
+    try {
+      await fiscalApi.sync(branchId);
+    } catch {
+      // ignore — retried on the next interval
+    }
+  }, [branchId]);
+
   useEffect(() => {
     void syncPending();
     void refreshCache();
+    void syncFiscal();
 
-    const interval = setInterval(() => { void syncPending(); }, SYNC_INTERVAL_MS);
+    const interval = setInterval(() => { void syncPending(); void syncFiscal(); }, SYNC_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [syncFiscal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { isSyncing: false, lastSynced: null as number | null, syncNow: refreshCache };
 }

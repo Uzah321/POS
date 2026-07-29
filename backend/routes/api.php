@@ -165,6 +165,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('brands', \App\Http\Controllers\Api\BrandController::class);
     Route::apiResource('units', \App\Http\Controllers\Api\UnitController::class);
     Route::apiResource('warehouses', \App\Http\Controllers\Api\WarehouseController::class);
+    Route::get('/tax-rates', [\App\Http\Controllers\Api\TaxRateController::class, 'index']);
+
+    // ZIMRA fiscalisation — retry-sync stays open to any authenticated session
+    // (it's called automatically by the frontend's offline-sync poll and only
+    // resubmits receipts that were already built and signed); every device
+    // registration/config action is manage_settings-gated.
+    Route::post('/fiscal/sync', [\App\Http\Controllers\Api\FiscalController::class, 'sync']);
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::apiResource('registers', \App\Http\Controllers\Api\RegisterController::class);
+        Route::post('/fiscal/registers/{register}/verify-taxpayer', [\App\Http\Controllers\Api\FiscalController::class, 'verifyTaxpayer']);
+        Route::post('/fiscal/registers/{register}/register-device', [\App\Http\Controllers\Api\FiscalController::class, 'registerDevice']);
+        Route::post('/fiscal/devices/{fiscalDevice}/refresh-config', [\App\Http\Controllers\Api\FiscalController::class, 'refreshConfig']);
+        Route::post('/fiscal/devices/{fiscalDevice}/renew-certificate', [\App\Http\Controllers\Api\FiscalController::class, 'renewCertificate']);
+        Route::post('/fiscal/devices/{fiscalDevice}/open-day', [\App\Http\Controllers\Api\FiscalController::class, 'openDay']);
+        Route::post('/fiscal/devices/{fiscalDevice}/close-day', [\App\Http\Controllers\Api\FiscalController::class, 'closeDay']);
+        Route::get('/fiscal/devices/{fiscalDevice}/status', [\App\Http\Controllers\Api\FiscalController::class, 'status']);
+        Route::patch('/fiscal/tax-mappings/{fiscalTaxMapping}', [\App\Http\Controllers\Api\FiscalController::class, 'updateTaxMapping']);
+    });
 
     // Settings — matches /settings frontend route's manage_settings gate
     Route::middleware('permission:manage_settings')->group(function () {

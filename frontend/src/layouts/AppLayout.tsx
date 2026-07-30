@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
@@ -151,6 +151,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, [isPosPage]);
+
+  // Arrow-up/down scroll the main workspace — lets staff page through long
+  // lists (products, sales history, reports) without reaching for the mouse.
+  // Skipped while typing/selecting so it doesn't fight normal field editing.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
+      const el = mainRef.current;
+      if (!el) return;
+      e.preventDefault();
+      el.scrollBy({ top: e.key === 'ArrowDown' ? 80 : -80, behavior: 'smooth' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Auto-open the group containing the active route
   useEffect(() => {
@@ -458,7 +477,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             page-level scrolling — actually get that height from their parent. Without it, this
             <main> lets content grow to its natural size and scrolls the whole page instead of
             the page's own internal scroll regions. */}
-        <main className="app-workspace flex-1 flex flex-col overflow-y-auto p-5 lg:p-6">
+        <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto p-5 lg:p-6">
           {children}
         </main>
       </div>

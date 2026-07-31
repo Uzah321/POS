@@ -152,17 +152,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, [isPosPage]);
 
-  // Arrow-up/down scroll the main workspace — lets staff page through long
-  // lists (products, sales history, reports) without reaching for the mouse.
-  // Skipped while typing/selecting so it doesn't fight normal field editing.
+  // Arrow-up/down scroll whichever panel the user is actually in — the main
+  // workspace normally, but a modal's own list/table instead when one is open.
+  // Never falls back to scrolling the main screen from inside a modal, since
+  // that scrolls a panel the user can't even see. Skipped while typing/
+  // selecting so it doesn't fight normal field editing.
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
+    const findScrollable = (start: HTMLElement): HTMLElement | null => {
+      let node: HTMLElement | null = start;
+      while (node && node !== document.body) {
+        const style = getComputedStyle(node);
+        if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+      return null;
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
       const target = e.target as HTMLElement;
       const tag = target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
-      const el = mainRef.current;
+      const el = findScrollable(target);
       if (!el) return;
       e.preventDefault();
       el.scrollBy({ top: e.key === 'ArrowDown' ? 80 : -80, behavior: 'smooth' });

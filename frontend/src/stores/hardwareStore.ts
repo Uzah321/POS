@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type PrinterMode = 'browser' | 'webusb' | 'system' | 'none';
+export type PrinterMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
 export type ScaleMode = 'webserial' | 'none';
 export type CardMachineMode = 'webhook' | 'none';
 

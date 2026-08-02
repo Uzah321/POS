@@ -6,8 +6,8 @@ import {
   RefreshCw, Star, Bluetooth, Cable
 } from 'lucide-react';
 import {
-  connectUsbPrinter, disconnectUsbPrinter, printLabel, printReceipt,
-  openCashDrawer, resolveReceiptPrintMode, isSystemPrintAvailable, listSystemPrinters
+  connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
+  printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, isSystemPrintAvailable, listSystemPrinters
 } from '../lib/hardware/printer';
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
@@ -112,6 +112,9 @@ export default function HardwarePage() {
   // USB printer connection state
   const [usbConnected, setUsbConnected] = useState(false);
 
+  // Bluetooth printer connection state
+  const [bleConnected, setBleConnected] = useState(false);
+
   // System printer setup (Core desktop app only) — the printers Windows
   // reports (USB, Bluetooth-paired, network) once "Scan for Printers" runs.
   const [systemPrinters, setSystemPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
@@ -159,6 +162,24 @@ export default function HardwarePage() {
   const handleDisconnectUsb = async () => {
     await disconnectUsbPrinter();
     setUsbConnected(false);
+    hw.update({ printerMode: 'browser', printerName: '' });
+    toast.success('Printer disconnected');
+  };
+
+  const handleConnectBluetooth = async () => {
+    try {
+      const info = await connectBluetoothPrinter();
+      hw.update({ printerMode: 'webbluetooth', printerName: info.name });
+      setBleConnected(true);
+      toast.success(`Connected: ${info.name}`);
+    } catch (e: any) {
+      toast.error(e.message ?? 'Could not connect Bluetooth printer');
+    }
+  };
+
+  const handleDisconnectBluetooth = async () => {
+    await disconnectBluetoothPrinter();
+    setBleConnected(false);
     hw.update({ printerMode: 'browser', printerName: '' });
     toast.success('Printer disconnected');
   };
@@ -260,18 +281,20 @@ export default function HardwarePage() {
                   </p>
                 </div>
               </label>
-              {(['browser', 'webusb'] as const).map((mode) => (
+              {(['browser', 'webusb', 'webbluetooth'] as const).map((mode) => (
                 <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="printerMode" value={mode} checked={hw.printerMode === mode}
                     onChange={() => hw.update({ printerMode: mode })} className="accent-blue-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {mode === 'browser' ? 'System Print Dialog' : 'Direct USB / ESC-POS'}
+                      {mode === 'browser' ? 'System Print Dialog' : mode === 'webusb' ? 'Direct USB / ESC-POS' : 'Direct Bluetooth / ESC-POS'}
                     </p>
                     <p className="text-xs text-gray-500">
                       {mode === 'browser'
                         ? 'Opens the Windows print dialog on every sale — the cashier must pick a printer and click Print each time'
-                        : 'Prints instantly without a dialog (Chrome/Edge only, requires USB thermal printer)'}
+                        : mode === 'webusb'
+                          ? 'Prints instantly without a dialog (Chrome/Edge only, requires USB thermal printer)'
+                          : 'Prints instantly without a dialog, straight from this browser tab (Chrome/Edge only, requires a Bluetooth LE thermal printer)'}
                     </p>
                   </div>
                 </label>
@@ -343,6 +366,20 @@ export default function HardwarePage() {
                   : <button onClick={handleDisconnectUsb} className="px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">Disconnect</button>}
               </div>
               <p className="text-xs text-gray-400 mt-3">Plug in your thermal printer, then click Connect. Chrome/Edge will show a USB device picker.</p>
+            </Card>
+          )}
+
+          {hw.printerMode === 'webbluetooth' && (
+            <Card title="Bluetooth Printer">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Status ok={bleConnected} label={bleConnected ? (hw.printerName || 'Connected') : 'Not connected'} />
+                {!bleConnected
+                  ? <button onClick={handleConnectBluetooth} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Bluetooth size={14} />Connect Printer</button>
+                  : <button onClick={handleDisconnectBluetooth} className="px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">Disconnect</button>}
+              </div>
+              <p className="text-xs text-gray-400 mt-3">Pair the printer in Windows Bluetooth settings first, then click Connect — Chrome/Edge will show a Bluetooth device picker.</p>
+              <p className="text-xs text-gray-400 mt-1">Covers the common ESC/POS Bluetooth LE printer profile. A handful of vendor-proprietary printers aren't compatible — use System Print Dialog for those instead.</p>
+              <p className="text-xs text-amber-600 mt-2">Reconnect after closing this tab or restarting the browser — Bluetooth pairing here isn't remembered across sessions.</p>
             </Card>
           )}
 

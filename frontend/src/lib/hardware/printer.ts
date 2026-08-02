@@ -123,7 +123,7 @@ export interface ReceiptData {
   fiscalReceiptGlobalNo?: number;
 }
 
-export type ReceiptPrintMode = 'browser' | 'webusb' | 'system' | 'none';
+export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
 
 export interface BuildReceiptOptions {
   storeName?: string;
@@ -174,8 +174,9 @@ function printableDate(value: unknown): string {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
-export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' | 'system' {
+export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' | 'webbluetooth' | 'system' {
   if (mode === 'webusb') return 'webusb';
+  if (mode === 'webbluetooth') return 'webbluetooth';
   // Falls back to the print-dialog path outside the desktop app (e.g. a
   // plain browser tab), or if the saved mode predates this feature.
   if (mode === 'system' && isSystemPrintAvailable()) return 'system';
@@ -442,6 +443,77 @@ async function sendToUsb(data: Uint8Array): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Web Bluetooth printer connection — the genuine no-dialog path for a
+// Bluetooth thermal printer from a plain browser tab (no desktop app needed).
+// Unlike USB, thermal printers don't share one standard Bluetooth LE profile;
+// this covers the common ESC/POS BLE printer service plus the generic BLE-UART
+// serial services several cheap printer boards reuse. Most inexpensive 58/80mm
+// Bluetooth receipt printers are covered; a handful of vendor-proprietary ones
+// are not — those still work via the "System Print Dialog" mode instead.
+// ---------------------------------------------------------------------------
+const BLE_PRINTER_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb', // common ESC/POS BLE printer service
+  '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10 style BLE-UART
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Microchip/RN-series BLE serial
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Nordic UART-style custom service
+];
+
+let bleDevice: any = null;
+let bleCharacteristic: any = null;
+
+export async function connectBluetoothPrinter(): Promise<{ name: string }> {
+  if (!('bluetooth' in navigator)) throw new Error('Web Bluetooth not supported in this browser');
+  const device = await (navigator as any).bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: BLE_PRINTER_SERVICES,
+  });
+  const server = await device.gatt.connect();
+
+  let characteristic: any = null;
+  for (const serviceUuid of BLE_PRINTER_SERVICES) {
+    try {
+      const service = await server.getPrimaryService(serviceUuid);
+      const chars = await service.getCharacteristics();
+      characteristic = chars.find((c: any) => c.properties.writeWithoutResponse || c.properties.write) ?? null;
+      if (characteristic) break;
+    } catch {
+      // This device doesn't expose that particular service — try the next one.
+    }
+  }
+
+  if (!characteristic) {
+    try { device.gatt.disconnect(); } catch {}
+    throw new Error('Connected, but no printable service found on this device — it may use a proprietary protocol');
+  }
+
+  bleDevice = device;
+  bleCharacteristic = characteristic;
+  return { name: device.name ?? 'Bluetooth Printer' };
+}
+
+export async function disconnectBluetoothPrinter(): Promise<void> {
+  if (bleDevice?.gatt?.connected) {
+    try { bleDevice.gatt.disconnect(); } catch {}
+  }
+  bleDevice = null;
+  bleCharacteristic = null;
+}
+
+async function sendToBluetooth(data: Uint8Array): Promise<void> {
+  if (!bleCharacteristic) throw new Error('No Bluetooth printer connected');
+  // BLE writes are capped by the negotiated ATT MTU (often just 20 bytes) —
+  // chunk so this works regardless of what the connected stack negotiated.
+  const CHUNK = 100;
+  const canWriteWithoutResponse = !!bleCharacteristic.properties?.writeWithoutResponse;
+  for (let offset = 0; offset < data.length; offset += CHUNK) {
+    const chunk = data.slice(offset, offset + CHUNK);
+    if (canWriteWithoutResponse) await bleCharacteristic.writeValueWithoutResponse(chunk);
+    else await bleCharacteristic.writeValue(chunk);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Open cash drawer
 // ---------------------------------------------------------------------------
 export async function openCashDrawer(): Promise<void> {
@@ -453,11 +525,15 @@ export async function openCashDrawer(): Promise<void> {
 // ---------------------------------------------------------------------------
 export async function printReceipt(
   data: ReceiptData,
-  mode: 'browser' | 'webusb' | 'system' = 'browser',
+  mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
   systemPrinterName?: string,
 ): Promise<void> {
   if (mode === 'webusb' && usbDevice) {
     await sendToUsb(buildEscPosReceipt(data));
+    return;
+  }
+  if (mode === 'webbluetooth' && bleCharacteristic) {
+    await sendToBluetooth(buildEscPosReceipt(data));
     return;
   }
   if (mode === 'system') {

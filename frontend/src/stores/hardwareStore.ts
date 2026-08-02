@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type PrinterMode = 'browser' | 'webusb' | 'none';
+export type PrinterMode = 'browser' | 'webusb' | 'system' | 'none';
 export type ScaleMode = 'webserial' | 'none';
 export type CardMachineMode = 'webhook' | 'none';
 
@@ -10,6 +10,10 @@ export interface HardwareConfig {
   printerMode: PrinterMode;
   printerVendorId: number | null;
   printerProductId: number | null;
+  // 'webusb': the connected USB device's product name (display only).
+  // 'system': the exact OS printer name (Electron's getPrintersAsync `name`,
+  // not `displayName`) — this is the deviceName silent-printed to, so it must
+  // match precisely.
   printerName: string;
   autoPrintReceipt: boolean;
 

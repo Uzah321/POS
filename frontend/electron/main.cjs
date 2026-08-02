@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, session } = require('electron');
+const { app, BrowserWindow, dialog, session, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const http = require('http');
@@ -178,6 +178,57 @@ async function ensureServerStarted() {
   return ready;
 }
 
+// ---------------------------------------------------------------------------
+// Silent printing — the whole point of the desktop shell over a plain browser
+// tab: a receipt printer picked once in Hardware Setup, then every sale
+// prints there with zero dialog and zero "which printer?" prompt.
+// ---------------------------------------------------------------------------
+async function listSystemPrinters() {
+  if (!mainWindow) return [];
+  try {
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map((p) => ({
+      name: p.name,
+      displayName: p.displayName || p.name,
+      isDefault: !!p.isDefault,
+      status: p.status,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Renders receipt HTML in a hidden, throwaway window and sends it straight
+ *  to the named OS printer — no print dialog, no preview, no user gesture. */
+function printSilentHtml(html, printerName) {
+  return new Promise((resolve) => {
+    const printWin = new BrowserWindow({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true },
+    });
+
+    const cleanup = (result) => {
+      if (!printWin.isDestroyed()) printWin.close();
+      resolve(result);
+    };
+
+    printWin.loadURL('about:blank')
+      .then(() => printWin.webContents.executeJavaScript(
+        `document.open(); document.write(${JSON.stringify(html)}); document.close();`
+      ))
+      // Let layout/paint settle before handing off to the print pipeline —
+      // matches the small delay the browser-print path already uses.
+      .then(() => new Promise((r) => setTimeout(r, 300)))
+      .then(() => {
+        printWin.webContents.print(
+          { silent: true, deviceName: printerName, printBackground: true },
+          (success, failureReason) => cleanup({ success, failureReason: success ? undefined : failureReason }),
+        );
+      })
+      .catch((err) => cleanup({ success: false, failureReason: String(err?.message ?? err) }));
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -192,6 +243,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -246,9 +298,15 @@ app.whenReady().then(async () => {
       u.startsWith('devtools://') ||
       u.startsWith('chrome-extension://') ||
       u.startsWith('data:') ||
-      u.startsWith('blob:');
+      u.startsWith('blob:') ||
+      // The hidden print window (see printSilentHtml) navigates here before
+      // its receipt HTML is injected via executeJavaScript.
+      u === 'about:blank';
     callback({ cancel: !isLocal });
   });
+
+  ipcMain.handle('printers:list', () => listSystemPrinters());
+  ipcMain.handle('printer:print', (_event, { html, printerName }) => printSilentHtml(html, printerName));
 
   const started = await ensureServerStarted();
 

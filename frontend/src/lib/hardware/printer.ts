@@ -1,9 +1,40 @@
 /**
  * Thermal Printer Service
- * Supports two modes:
- *  1. browser  — opens window.print() with receipt-formatted CSS (works with ANY printer)
- *  2. webusb   — sends raw ESC/POS bytes directly to a USB thermal printer (no dialog, instant)
+ * Supports three modes:
+ *  1. browser — opens window.print() with receipt-formatted CSS (works with ANY printer,
+ *               but the cashier sees a print dialog and must pick a printer every time)
+ *  2. webusb  — sends raw ESC/POS bytes directly to a USB thermal printer (no dialog, instant)
+ *  3. system  — silent-prints to a specific OS printer chosen once in Hardware Setup, via the
+ *               Core desktop app's Electron shell (window.electronAPI). No dialog, no per-order
+ *               printer choice — this only works inside the installed desktop app, never a
+ *               plain browser tab, since only Electron can print without a user gesture/dialog.
  */
+
+interface ElectronPrinterBridge {
+  isElectron: true;
+  listPrinters: () => Promise<Array<{ name: string; displayName: string; isDefault: boolean; status?: number }>>;
+  printSilent: (html: string, printerName: string) => Promise<{ success: boolean; failureReason?: string }>;
+}
+
+function electronBridge(): ElectronPrinterBridge | undefined {
+  return (globalThis as any).electronAPI as ElectronPrinterBridge | undefined;
+}
+
+/** Whether silent, dialog-free system printing is possible in this window — only true inside the Core desktop app. */
+export function isSystemPrintAvailable(): boolean {
+  return !!electronBridge()?.isElectron;
+}
+
+/** Lists every printer Windows knows about (USB, Bluetooth-paired, network) — desktop app only. */
+export async function listSystemPrinters(): Promise<Array<{ name: string; displayName: string; isDefault: boolean }>> {
+  const bridge = electronBridge();
+  if (!bridge) return [];
+  try {
+    return await bridge.listPrinters();
+  } catch {
+    return [];
+  }
+}
 
 // ---------------------------------------------------------------------------
 // ESC/POS byte helpers
@@ -92,7 +123,7 @@ export interface ReceiptData {
   fiscalReceiptGlobalNo?: number;
 }
 
-export type ReceiptPrintMode = 'browser' | 'webusb' | 'none';
+export type ReceiptPrintMode = 'browser' | 'webusb' | 'system' | 'none';
 
 export interface BuildReceiptOptions {
   storeName?: string;
@@ -143,8 +174,12 @@ function printableDate(value: unknown): string {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
-export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' {
-  return mode === 'webusb' ? 'webusb' : 'browser';
+export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' | 'system' {
+  if (mode === 'webusb') return 'webusb';
+  // Falls back to the print-dialog path outside the desktop app (e.g. a
+  // plain browser tab), or if the saved mode predates this feature.
+  if (mode === 'system' && isSystemPrintAvailable()) return 'system';
+  return 'browser';
 }
 
 export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions = {}): ReceiptData {
@@ -416,9 +451,23 @@ export async function openCashDrawer(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Print receipt
 // ---------------------------------------------------------------------------
-export async function printReceipt(data: ReceiptData, mode: 'browser' | 'webusb' = 'browser'): Promise<void> {
+export async function printReceipt(
+  data: ReceiptData,
+  mode: 'browser' | 'webusb' | 'system' = 'browser',
+  systemPrinterName?: string,
+): Promise<void> {
   if (mode === 'webusb' && usbDevice) {
     await sendToUsb(buildEscPosReceipt(data));
+    return;
+  }
+  if (mode === 'system') {
+    const bridge = electronBridge();
+    if (!bridge) throw new Error('Silent printing requires the Core desktop app');
+    if (!systemPrinterName) throw new Error('No default printer set — pick one in Hardware > Receipt Printer');
+    const qrImageDataUrl = await renderFiscalQrDataUrl(data.fiscalQrCodeUrl);
+    const html = buildReceiptHtml(data, undefined, qrImageDataUrl);
+    const result = await bridge.printSilent(html, systemPrinterName);
+    if (!result.success) throw new Error(result.failureReason || 'Print failed');
     return;
   }
   await browserPrintReceipt(data);

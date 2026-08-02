@@ -427,7 +427,8 @@ export default function POSPage() {
           recGn: storeSettings?.fiscal_rec_gn || undefined,
           rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
-        resolveReceiptPrintMode(hw.printerMode)
+        resolveReceiptPrintMode(hw.printerMode),
+        hw.printerName
       ).catch((error: any) => {
         toast.error(error?.message ?? 'Sale completed, but receipt printing failed');
       });

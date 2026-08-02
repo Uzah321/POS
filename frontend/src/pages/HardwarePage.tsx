@@ -2,11 +2,12 @@
 import { useHardwareStore } from '../stores/hardwareStore';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
-  Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat
+  Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
+  RefreshCw, Star, Bluetooth, Cable
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, printLabel, printReceipt,
-  openCashDrawer, resolveReceiptPrintMode
+  openCashDrawer, resolveReceiptPrintMode, isSystemPrintAvailable, listSystemPrinters
 } from '../lib/hardware/printer';
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
@@ -111,6 +112,12 @@ export default function HardwarePage() {
   // USB printer connection state
   const [usbConnected, setUsbConnected] = useState(false);
 
+  // System printer setup (Core desktop app only) — the printers Windows
+  // reports (USB, Bluetooth-paired, network) once "Scan for Printers" runs.
+  const [systemPrinters, setSystemPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
+  const [scanningPrinters, setScanningPrinters] = useState(false);
+  const desktopAppAvailable = isSystemPrintAvailable();
+
   const currency = activeCurrency?.symbol ?? '$';
 
   useEffect(() => {
@@ -118,6 +125,22 @@ export default function HardwarePage() {
       hw.update({ printerMode: 'browser' });
     }
   }, [hw]);
+
+  const handleScanPrinters = async () => {
+    setScanningPrinters(true);
+    try {
+      const found = await listSystemPrinters();
+      setSystemPrinters(found);
+      if (found.length === 0) toast.error('No printers found — check it\'s installed/paired in Windows first');
+    } finally {
+      setScanningPrinters(false);
+    }
+  };
+
+  const handleSetDefaultPrinter = (printerName: string) => {
+    hw.update({ printerMode: 'system', printerName });
+    toast.success(`"${printerName}" set as the default receipt printer`);
+  };
 
   // ----------------------------------------------------------
   // Handlers
@@ -161,7 +184,7 @@ export default function HardwarePage() {
       change: 9.53,
       currency,
       footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
-    }, resolveReceiptPrintMode(hw.printerMode)).catch((error: any) => {
+    }, resolveReceiptPrintMode(hw.printerMode), hw.printerName).catch((error: any) => {
       toast.error(error?.message ?? 'Could not print test receipt');
     });
   };
@@ -224,17 +247,30 @@ export default function HardwarePage() {
         <div className="space-y-4">
           <Card title="Printer Mode">
             <div className="space-y-2">
+              <label className={`flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 ${desktopAppAvailable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                <input type="radio" name="printerMode" value="system" checked={hw.printerMode === 'system'}
+                  disabled={!desktopAppAvailable}
+                  onChange={() => hw.update({ printerMode: 'system' })} className="accent-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Set a Default Printer (recommended)</p>
+                  <p className="text-xs text-gray-500">
+                    {desktopAppAvailable
+                      ? 'Pick one printer below, once — every sale then prints there silently, with no dialog and nothing for the cashier to select'
+                      : 'Requires the Core desktop app (not a browser tab) — install it to set this up'}
+                  </p>
+                </div>
+              </label>
               {(['browser', 'webusb'] as const).map((mode) => (
                 <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="printerMode" value={mode} checked={hw.printerMode === mode}
                     onChange={() => hw.update({ printerMode: mode })} className="accent-blue-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {mode === 'browser' ? 'System / Bluetooth Print (recommended)' : 'Direct USB / ESC-POS'}
+                      {mode === 'browser' ? 'System Print Dialog' : 'Direct USB / ESC-POS'}
                     </p>
                     <p className="text-xs text-gray-500">
                       {mode === 'browser'
-                        ? 'Uses the Windows print dialog, so paired Bluetooth receipt printers work without extra drivers in the app'
+                        ? 'Opens the Windows print dialog on every sale — the cashier must pick a printer and click Print each time'
                         : 'Prints instantly without a dialog (Chrome/Edge only, requires USB thermal printer)'}
                     </p>
                   </div>
@@ -242,6 +278,52 @@ export default function HardwarePage() {
               ))}
             </div>
           </Card>
+
+          {hw.printerMode === 'system' && (
+            <Card title="Setup Printer">
+              <p className="text-sm text-gray-600 mb-3">
+                Scans for every printer Windows currently knows about — connected by USB cable, paired over Bluetooth, or on the network. Pick the receipt printer and it becomes the one every sale prints to automatically.
+              </p>
+              <button onClick={handleScanPrinters} disabled={scanningPrinters}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60 mb-3">
+                <RefreshCw size={14} className={scanningPrinters ? 'animate-spin' : ''} />
+                {scanningPrinters ? 'Scanning-' : 'Scan for Printers'}
+              </button>
+
+              {systemPrinters.length > 0 && (
+                <div className="space-y-2">
+                  {systemPrinters.map((p) => {
+                    const isCurrentDefault = hw.printerName === p.name;
+                    return (
+                      <div key={p.name} className={`flex items-center justify-between gap-3 p-3 rounded-md border ${isCurrentDefault ? 'border-blue-300 bg-blue-50' : 'border-gray-100'}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {/* Windows doesn't tell us cable vs Bluetooth vs network — Cable is just the generic "physical printer" glyph here */}
+                          <Cable size={15} className="text-gray-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{p.displayName}</p>
+                            {p.isDefault && <p className="text-xs text-gray-400">Windows default printer</p>}
+                          </div>
+                        </div>
+                        {isCurrentDefault ? (
+                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-700 flex-shrink-0"><Star size={13} className="fill-blue-700" />Default</span>
+                        ) : (
+                          <button onClick={() => handleSetDefaultPrinter(p.name)}
+                            className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-800 flex-shrink-0">
+                            Set as Default
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5 text-xs text-gray-500">
+                <div className="flex gap-2 items-start"><Cable size={13} className="mt-0.5 flex-shrink-0" /><p>USB thermal printers: plug in, install its Windows driver once, then scan.</p></div>
+                <div className="flex gap-2 items-start"><Bluetooth size={13} className="mt-0.5 flex-shrink-0" /><p>Bluetooth printers: pair it in Windows Bluetooth settings first (it'll show up as an installed printer), then scan.</p></div>
+              </div>
+            </Card>
+          )}
 
           {hw.printerMode === 'browser' && (
             <Card title="Bluetooth Printer Setup">
@@ -265,7 +347,7 @@ export default function HardwarePage() {
           )}
 
           <Card title="Settings">
-            <p className="text-sm text-gray-600">Every completed order now triggers a receipt print. Use the mode above to choose Bluetooth/system printing or direct USB printing.</p>
+            <p className="text-sm text-gray-600">Every completed order now triggers a receipt print. Use the mode above to choose a default printer, the system dialog, or direct USB printing.</p>
           </Card>
 
           <Card title="Test">

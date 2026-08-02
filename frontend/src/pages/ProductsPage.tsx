@@ -211,6 +211,8 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   const [newUnit, setNewUnit] = useState({ name: '', abbreviation: '' });
   const [addingUnit, setAddingUnit] = useState(false);
   const isOnline = useOfflineStore((s) => s.isOnline);
+  const { activeCurrency, toUsd } = useCurrencyStore();
+  const rate = activeCurrency?.exchange_rate || 1;
 
   const { data: cats }   = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.list().then(r => r.data?.data || []) });
   const { data: brands } = useQuery({ queryKey: ['brands'],    queryFn: () => brandsApi.list().then(r => r.data?.data || []) });
@@ -220,8 +222,11 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
     resolver: zodResolver(schema) as any,
     defaultValues: product ? {
       ...product,
-      selling_price: parseFloat(product.selling_price || 0),
-      cost_price: parseFloat(product.cost_price || 0),
+      // Prices are always stored in USD (the base currency) — show them
+      // converted into whichever currency the user currently has active,
+      // so editing round-trips through the same units they were entered in.
+      selling_price: parseFloat(product.selling_price || 0) * rate,
+      cost_price: parseFloat(product.cost_price || 0) * rate,
       reorder_level: product.reorder_level ?? 5,
       initial_quantity: 0,
       color: product.color ?? undefined,
@@ -244,14 +249,18 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const payload = { ...data } as Record<string, unknown>;
+      // Form fields are entered in the active currency — convert back to
+      // USD (the base currency the backend/db always store) before saving.
+      const usdSellingPrice = toUsd(data.selling_price);
+      const usdCostPrice = toUsd(data.cost_price);
+      const payload = { ...data, selling_price: usdSellingPrice, cost_price: usdCostPrice } as Record<string, unknown>;
       const saveOffline = async () => {
         if (product) {
           await db.products.put({
             ...product,
             ...payload,
-            selling_price: String(data.selling_price),
-            cost_price: String(data.cost_price),
+            selling_price: String(usdSellingPrice),
+            cost_price: String(usdCostPrice),
           } as LocalProduct);
           await db.pendingMutations.add({
             id: makeMutId(), resource: 'products', action: 'update',
@@ -264,7 +273,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             ...payload,
             name: data.name,
             sku: data.sku,
-            selling_price: String(data.selling_price), cost_price: String(data.cost_price),
+            selling_price: String(usdSellingPrice), cost_price: String(usdCostPrice),
             is_active: 1, total_stock: data.initial_quantity ?? 0,
           } as LocalProduct);
           await db.pendingMutations.add({
@@ -397,12 +406,12 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               </div>
             </div>
             <div>
-              <label className="text-sm font-semibold text-gray-700">Selling Price *</label>
+              <label className="text-sm font-semibold text-gray-700">Selling Price * <span className="text-gray-400 font-medium">({activeCurrency?.code || 'USD'})</span></label>
               <input type="number" step="0.01" {...register('selling_price')} className={field} />
               {errors.selling_price && <p className="text-red-500 text-xs mt-1">Required</p>}
             </div>
             <div>
-              <label className="text-sm font-semibold text-gray-700">Cost Price</label>
+              <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">({activeCurrency?.code || 'USD'})</span></label>
               <input type="number" step="0.01" {...register('cost_price')} className={field} />
             </div>
             <div>
@@ -598,9 +607,11 @@ function ProductStockAdjustModal({ product, mode, onClose }: { product: any; mod
     queryFn: () => warehousesApi.list().then(r => r.data?.data ?? []),
     staleTime: 60000,
   });
+  const { activeCurrency, toUsd } = useCurrencyStore();
+  const rate = activeCurrency?.exchange_rate || 1;
   const [warehouseId, setWarehouseId] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [cost, setCost] = useState(product.cost_price ? String(product.cost_price) : '');
+  const [cost, setCost] = useState(product.cost_price ? String(parseFloat(product.cost_price) * rate) : '');
   const [reason, setReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const isAdd = mode === 'add';
@@ -636,7 +647,7 @@ function ProductStockAdjustModal({ product, mode, onClose }: { product: any; mod
       items: [{
         product_id: product.id,
         quantity: qty,
-        cost_price: cost ? parseFloat(cost) : undefined,
+        cost_price: cost ? toUsd(parseFloat(cost)) : undefined,
       }],
     });
   };
@@ -666,7 +677,7 @@ function ProductStockAdjustModal({ product, mode, onClose }: { product: any; mod
           </div>
           {isAdd ? (
             <div>
-              <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional</span></label>
+              <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional, {activeCurrency?.code || 'USD'}</span></label>
               <input type="number" min="0" step="0.01" value={cost} onChange={e => setCost(e.target.value)} className={field} />
             </div>
           ) : (

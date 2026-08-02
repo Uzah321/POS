@@ -193,6 +193,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Audit log — matches /audit-logs frontend route's manage_settings gate
     Route::middleware('permission:manage_settings')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\Api\AuditLogController::class, 'index']);
+        Route::get('/audit-logs/users', [\App\Http\Controllers\Api\AuditLogController::class, 'filterUsers']);
+        Route::get('/audit-logs/pdf', [\App\Http\Controllers\Api\AuditLogController::class, 'exportPdf']);
     });
 
     // Currencies — read stays open (needed broadly, e.g. POS currency selector);

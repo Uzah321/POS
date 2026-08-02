@@ -18,20 +18,49 @@ class AuditLog extends Model
         return $this->event ?? '';
     }
 
+    /**
+     * Finds the most recently written log row for a given auditable model and
+     * merges extra detail (e.g. line items with quantities) into its
+     * new_values. Needed because parent/child rows are usually created in two
+     * steps — the observer already logged the parent by the time its child
+     * items (which hold the actual quantities) exist — so there's nothing to
+     * append to until after both are done.
+     */
+    public static function attachExtra(Model $auditable, array $extra): void
+    {
+        try {
+            $log = static::where('auditable_type', get_class($auditable))
+                ->where('auditable_id', $auditable->getKey())
+                ->latest('id')
+                ->first();
+            if (!$log) return;
+            $log->new_values = array_merge($log->new_values ?? [], $extra);
+            $log->save();
+        } catch (\Throwable) {
+            // never let audit logging break the main request
+        }
+    }
+
     public function getDescriptionAttribute(): string
     {
-        $model   = $this->auditable_type ? class_basename($this->auditable_type) : '';
-        $id      = $this->auditable_id ?? '';
-        $name    = ($this->new_values['name'] ?? null) ?? ($this->old_values['name'] ?? null);
-        $subject = $name ? "'{$name}'" : ($id ? "{$model} #{$id}" : $model);
+        $model = $this->auditable_type ? class_basename($this->auditable_type) : '';
+        $id    = $this->auditable_id ?? '';
+        $name  = ($this->new_values['name'] ?? null) ?? ($this->old_values['name'] ?? null);
+        // With a name field (Product, Customer, ...): "Product 'Coke 500ml'".
+        // Without one (StockAdjustment, StockTransfer, ...) the model+id is
+        // already the whole subject, so it must not be prefixed with the
+        // model name again — that previously read "Stockadjustment
+        // StockAdjustment #5 created".
+        $label = $name ? (ucfirst($model) . " '{$name}'") : ($id ? "{$model} #{$id}" : ucfirst($model));
+        $items = $this->new_values['items'] ?? $this->old_values['items'] ?? null;
 
         switch ($this->event) {
             case 'login':   return 'User logged in';
             case 'logout':  return 'User logged out';
-            case 'created': return ucfirst($model) . " {$subject} created";
-            case 'deleted': return ucfirst($model) . " {$subject} deleted";
+            case 'created': return "{$label} created" . $this->summarizeItems($items);
+            case 'deleted': return "{$label} deleted";
             case 'updated':
-                $skip    = ['updated_at', 'created_at', 'slug', 'password', 'remember_token'];
+                $skip    = ['updated_at', 'created_at', 'slug', 'password', 'remember_token', 'items'];
                 $changes = [];
                 if (!empty($this->old_values)) {
                     foreach ($this->old_values as $field => $oldVal) {
@@ -43,11 +72,26 @@ class AuditLog extends Model
                 if (!empty($changes)) {
                     $detail = implode(', ', array_slice($changes, 0, 3));
                     if (count($changes) > 3) $detail .= ' (+' . (count($changes) - 3) . ' more)';
-                    return ucfirst($model) . " {$subject} updated: {$detail}";
+                    return "{$label} updated: {$detail}" . $this->summarizeItems($items);
                 }
-                return ucfirst($model) . " {$subject} updated";
+                return "{$label} updated" . $this->summarizeItems($items);
             default:
                 return trim(ucfirst($this->event ?? '') . ($model ? " {$model}" : '') . ($id ? " #{$id}" : ''));
         }
+    }
+
+    /** Turns an attached items[] detail array (see attachExtra()) into a short " — 2x Coke +100, 1x Sprite -5" style suffix. */
+    private function summarizeItems(?array $items): string
+    {
+        if (empty($items)) return '';
+        $parts = [];
+        foreach (array_slice($items, 0, 4) as $item) {
+            $label = $item['product_name'] ?? $item['name'] ?? ('#' . ($item['product_id'] ?? '?'));
+            $qty   = $item['quantity_adjusted'] ?? $item['quantity'] ?? $item['received_quantity'] ?? null;
+            $parts[] = $qty !== null ? "{$label} ({$qty})" : $label;
+        }
+        $suffix = ' — ' . implode(', ', $parts);
+        if (count($items) > 4) $suffix .= ' +' . (count($items) - 4) . ' more';
+        return $suffix;
     }
 }

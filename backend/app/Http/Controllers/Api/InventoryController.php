@@ -13,6 +13,7 @@ use App\Models\StockTransferItem;
 use App\Models\StockCount;
 use App\Models\StockCountItem;
 use App\Models\Unit;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -101,6 +102,12 @@ class InventoryController extends BaseApiController
                 'reason'       => $data['reason'] ?? null,
             ]);
 
+            // Audited separately below — StockAdjustmentItem itself isn't an
+            // observed model (it's a pure line-item child), and at the point
+            // the observer logged $adj's own "created" event above, none of
+            // these child rows (which hold the actual quantities) existed yet.
+            $auditItems = [];
+
             foreach ($data['items'] as $item) {
                 $stock = Stock::firstOrNew([
                     'product_id'         => $item['product_id'],
@@ -129,7 +136,25 @@ class InventoryController extends BaseApiController
                     'quantity_after'      => $after,
                     'cost_price'          => $item['cost_price'] ?? 0,
                 ]);
+
+                $product = Product::find($item['product_id']);
+                $auditItems[] = [
+                    'product_id'        => $item['product_id'],
+                    'product_name'      => $product?->name,
+                    'product_sku'       => $product?->sku,
+                    'quantity_before'   => $before,
+                    'quantity_adjusted' => $isNegative ? -abs($quantity) : abs($quantity),
+                    'quantity_after'    => $after,
+                    'cost_price'        => $item['cost_price'] ?? 0,
+                ];
             }
+
+            AuditLog::attachExtra($adj, [
+                'warehouse_id' => $data['warehouse_id'],
+                'type'         => $data['type'],
+                'reason'       => $data['reason'] ?? null,
+                'items'        => $auditItems,
+            ]);
 
             return $this->success($adj->load('items.product'), 'Stock adjusted', 201);
         });
@@ -181,6 +206,7 @@ class InventoryController extends BaseApiController
                 'notes'             => $data['notes'] ?? null,
             ]);
 
+            $auditItems = [];
             foreach ($data['items'] as $item) {
                 StockTransferItem::create([
                     'stock_transfer_id'  => $transfer->id,
@@ -188,7 +214,22 @@ class InventoryController extends BaseApiController
                     'product_variant_id' => $item['product_variant_id'] ?? null,
                     'quantity'           => $item['quantity'],
                 ]);
+
+                $product = Product::find($item['product_id']);
+                $auditItems[] = [
+                    'product_id'   => $item['product_id'],
+                    'product_name' => $product?->name,
+                    'product_sku'  => $product?->sku,
+                    'quantity'     => $item['quantity'],
+                ];
             }
+
+            AuditLog::attachExtra($transfer, [
+                'from_warehouse_id' => $data['from_warehouse_id'],
+                'to_warehouse_id'   => $data['to_warehouse_id'],
+                'notes'             => $data['notes'] ?? null,
+                'items'             => $auditItems,
+            ]);
 
             return $this->success($transfer->load('items.product'), 'Transfer created', 201);
         });
@@ -201,6 +242,7 @@ class InventoryController extends BaseApiController
         }
 
         return DB::transaction(function () use ($request, $stockTransfer) {
+            $auditItems = [];
             foreach ($stockTransfer->items as $item) {
                 // Deduct from source
                 $from = Stock::where('warehouse_id', $stockTransfer->from_warehouse_id)
@@ -215,13 +257,25 @@ class InventoryController extends BaseApiController
                     'product_variant_id' => $item->product_variant_id,
                     'warehouse_id'       => $stockTransfer->to_warehouse_id,
                 ]);
-                $to->quantity = ($to->quantity ?? 0) + $item->quantity;
+                $toBefore = $to->quantity ?? 0;
+                $to->quantity = $toBefore + $item->quantity;
                 $to->save();
 
                 $item->update(['received_quantity' => $item->quantity]);
+
+                $auditItems[] = [
+                    'product_id'         => $item->product_id,
+                    'product_name'       => $item->product?->name,
+                    'product_sku'        => $item->product?->sku,
+                    'received_quantity'  => $item->quantity,
+                    'destination_before' => $toBefore,
+                    'destination_after'  => $to->quantity,
+                ];
             }
 
             $stockTransfer->update(['status' => 'received', 'received_at' => now()]);
+
+            AuditLog::attachExtra($stockTransfer, ['items' => $auditItems]);
 
             return $this->success($stockTransfer->load('items'), 'Transfer received');
         });

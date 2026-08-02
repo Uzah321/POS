@@ -41,6 +41,11 @@ export default function CashierPage() {
   const [editingQtyItem, setEditingQtyItem]   = useState<CartItem | null>(null);
   const [qtyInput, setQtyInput]               = useState('');
   const [voidSearch, setVoidSearch]           = useState('');
+  // Arrow-key highlight over the Scan/PLU results list — -1 means nothing
+  // highlighted (plain Enter still falls back to the exact-code/single-match
+  // lookup below). Row refs let the highlighted row scroll into view.
+  const [highlightIndex, setHighlightIndex]   = useState(-1);
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const codeRef     = useRef<HTMLInputElement>(null);
   const tenderedRef = useRef<HTMLInputElement>(null);
@@ -145,6 +150,16 @@ export default function CashierPage() {
   const browseProducts = browseSorted.slice(0, BROWSE_LIMIT);
   const browseOverflow = browseSorted.length - browseProducts.length;
 
+  // A fresh keystroke starts with nothing arrow-highlighted — the cashier
+  // presses ArrowDown to start navigating the new result list.
+  useEffect(() => { setHighlightIndex(-1); }, [browseQuery]);
+
+  // Keep the highlighted row visible as the cashier arrows past the edge of the scroll area
+  useEffect(() => {
+    if (highlightIndex < 0) return;
+    rowRefs.current[highlightIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [highlightIndex]);
+
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
     const product = allProducts.find(p =>
@@ -202,6 +217,14 @@ export default function CashierPage() {
 
   const handleCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // An arrow-highlighted row wins first (cashier navigated the results
+    // with the keyboard) — before falling back to an exact code match.
+    if (highlightIndex >= 0 && browseProducts[highlightIndex]) {
+      addProduct(browseProducts[highlightIndex]);
+      return;
+    }
+
     const q = codeInput.trim();
     if (!q) return;
 
@@ -218,6 +241,19 @@ export default function CashierPage() {
       toast.error(`"${q}" not found`);
     } else if (browseMatches.length === 1) {
       addProduct(browseMatches[0]);
+    }
+  };
+
+  // ArrowUp/ArrowDown while the Scan/PLU box is focused move the highlight
+  // through the currently visible result list instead of doing nothing.
+  const handleCodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!browseQuery || browseProducts.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.min(browseProducts.length - 1, i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(0, i - 1));
     }
   };
 
@@ -514,6 +550,7 @@ export default function CashierPage() {
                 ref={codeRef}
                 value={codeInput}
                 onChange={e => setCodeInput(e.target.value)}
+                onKeyDown={handleCodeKeyDown}
                 placeholder="Scan barcode, or type to search stock..."
                 className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-md px-4 py-2.5 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
@@ -552,8 +589,15 @@ export default function CashierPage() {
                 {browseProducts.length === 0 ? (
                   <p className="text-center text-gray-400 text-sm py-6">No products match "{codeInput}"</p>
                 ) : (
-                  browseProducts.map(p => (
+                  browseProducts.map((p, rowIndex) => (
                     <button key={p.id} type="button" onClick={() => addProduct(p)}
+                      ref={(el) => { rowRefs.current[rowIndex] = el; }}
+                      // A plain Tailwind bg-* class can't win here — index.css's
+                      // skeuomorphic button theme paints every bordered button
+                      // with its own background/box-shadow (see the `[class*="border"]`
+                      // rule there), and only an inline style beats a non-!important
+                      // stylesheet rule regardless of class specificity.
+                      style={rowIndex === highlightIndex ? { background: '#bfdbfe', boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.15)' } : undefined}
                       className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between text-sm touch-manipulation">
                       <span className="flex items-center min-w-0">
                         {(p.color || p.category?.color) && (

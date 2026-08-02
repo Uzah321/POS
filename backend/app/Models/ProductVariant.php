@@ -15,8 +15,8 @@ class ProductVariant extends Model
     protected $casts = [
         'attributes' => 'array',
         'is_active' => 'boolean',
-        'cost_price' => 'decimal:2',
-        'selling_price' => 'decimal:2',
+        'cost_price' => 'decimal:4',
+        'selling_price' => 'decimal:4',
     ];
 
     public function product(): BelongsTo { return $this->belongsTo(Product::class); }

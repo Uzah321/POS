@@ -28,9 +28,9 @@ class Product extends Model
         'is_active' => 'boolean',
         'is_taxable' => 'boolean',
         'expires' => 'boolean',
-        'cost_price' => 'decimal:2',
-        'selling_price' => 'decimal:2',
-        'wholesale_price' => 'decimal:2',
+        'cost_price' => 'decimal:4',
+        'selling_price' => 'decimal:4',
+        'wholesale_price' => 'decimal:4',
     ];
 
     public function branch(): BelongsTo { return $this->belongsTo(Branch::class); }
@@ -54,7 +54,7 @@ class Product extends Model
             return;
         }
         $cost = $rows->sum(fn (ProductIngredient $row) => (float) $row->quantity * (float) ($row->ingredient->cost_price ?? 0));
-        $this->update(['cost_price' => round($cost, 2)]);
+        $this->update(['cost_price' => round($cost, 4)]);
     }
 
     public function getTotalStockAttribute(): float

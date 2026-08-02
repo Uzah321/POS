@@ -17,13 +17,14 @@ import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
-import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search } from 'lucide-react';
+import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
-  { value: 'cash',         label: 'CASH',   key: 'F1', activeClass: 'bg-blue-600   border-blue-700   text-white' },
-  { value: 'card',         label: 'CARD',   key: 'F2', activeClass: 'bg-blue-700   border-blue-800   text-white' },
-  { value: 'mobile_money', label: 'MOBILE', key: 'F3', activeClass: 'bg-purple-700 border-purple-800 text-white' },
+  { value: 'cash',         label: 'CASH',   key: 'F1', activeClass: 'bg-emerald-600 border-emerald-700 text-white' },
+  { value: 'card',         label: 'CARD',   key: 'F2', activeClass: 'bg-blue-600    border-blue-700    text-white' },
+  { value: 'mobile_money', label: 'MOBILE', key: 'F3', activeClass: 'bg-purple-600  border-purple-700  text-white' },
 ] as const;
 
 type PayMethod = typeof PAY_METHODS[number]['value'];
@@ -36,6 +37,7 @@ export default function CashierPage() {
   const [cashTendered, setCashTendered]       = useState('');
   const [currentTime, setCurrentTime]         = useState(new Date());
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [categoryFilter, setCategoryFilter]   = useState('All');
   const [showOpenTables, setShowOpenTables]   = useState(false);
   const [showVoidModal, setShowVoidModal]     = useState(false);
   const [editingQtyItem, setEditingQtyItem]   = useState<CartItem | null>(null);
@@ -134,25 +136,48 @@ export default function CashierPage() {
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
 
+  // Category colors — same scheme as the restaurant POS grid, so a color
+  // picked in Products/Categories shows up consistently on every till.
+  const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
+  const categoryColors = new Map<string, string>();
+  const categoryIds = new Map<string, number>();
+  allProducts.forEach((p: any) => {
+    if (!p.category?.name) return;
+    if (p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color);
+    if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
+  });
+  const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
+  // A product's own color wins, then its category's color, then a stable
+  // theme color cycled per product id — same fallback order as the grid tiles.
+  const productAccent = (p: any): string | undefined => {
+    if (p.color) return p.color;
+    if (p.category?.name && categoryColors.has(p.category.name)) return categoryColors.get(p.category.name);
+    return tileTheme[Math.abs(p.id) % tileTheme.length];
+  };
+
   // Regular stock browser under the Scan/PLU box — shows every product before
   // the cashier types anything, and narrows live as they type (name/sku/barcode),
-  // so a till doesn't require memorizing codes to find something.
+  // so a till doesn't require memorizing codes to find something. A tapped
+  // category chip narrows the same list further, so browsing by aisle/section
+  // works the same way scanning/typing does.
   const BROWSE_LIMIT = 60;
   const browseQuery = codeInput.trim().toLowerCase();
-  const browseMatches = browseQuery
-    ? allProducts.filter(p =>
-        p.name.toLowerCase().includes(browseQuery) ||
-        (p.sku ?? '').toLowerCase().includes(browseQuery) ||
-        (p.barcode ?? '').toLowerCase().includes(browseQuery)
-      )
-    : allProducts;
+  const browseMatches = allProducts.filter(p => {
+    const matchesCategory = categoryFilter === 'All' || p.category?.name === categoryFilter;
+    const matchesQuery = !browseQuery ||
+      p.name.toLowerCase().includes(browseQuery) ||
+      (p.sku ?? '').toLowerCase().includes(browseQuery) ||
+      (p.barcode ?? '').toLowerCase().includes(browseQuery);
+    return matchesCategory && matchesQuery;
+  });
+  const browsingActive = !!browseQuery || categoryFilter !== 'All';
   const browseSorted = [...browseMatches].sort((a, b) => a.name.localeCompare(b.name));
   const browseProducts = browseSorted.slice(0, BROWSE_LIMIT);
   const browseOverflow = browseSorted.length - browseProducts.length;
 
-  // A fresh keystroke starts with nothing arrow-highlighted — the cashier
-  // presses ArrowDown to start navigating the new result list.
-  useEffect(() => { setHighlightIndex(-1); }, [browseQuery]);
+  // A fresh keystroke or category tap starts with nothing arrow-highlighted —
+  // the cashier presses ArrowDown to start navigating the new result list.
+  useEffect(() => { setHighlightIndex(-1); }, [browseQuery, categoryFilter]);
 
   // Keep the highlighted row visible as the cashier arrows past the edge of the scroll area
   useEffect(() => {
@@ -487,9 +512,11 @@ export default function CashierPage() {
 
       {/* ── Header card ────────────────────────────────────────────────────── */}
       <div className="mx-4 mt-2 mb-2 flex-shrink-0">
-        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-4 py-2 flex items-center justify-between">
+        <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-400" />
+          <div className="px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-5">
-            <span className="text-blue-600 font-bold text-base">{storeName}</span>
+            <span className="font-bold text-base bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{storeName}</span>
             <span className="text-gray-400 text-sm">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
             {isRestaurant && (
               <>
@@ -529,12 +556,13 @@ export default function CashierPage() {
                 Server starting...
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-blue-500 font-medium text-sm">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> Ready
+              <span className="flex items-center gap-1.5 text-emerald-500 font-medium text-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span> Ready
               </span>
             )}
             <span className="text-gray-400">{fmtDate(currentTime)}</span>
             <span className="text-gray-900 font-bold tabular-nums">{fmtTime(currentTime)}</span>
+          </div>
           </div>
         </div>
       </div>
@@ -573,24 +601,55 @@ export default function CashierPage() {
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
           </form>
 
-          {/* Stock search results — only appears once the cashier starts typing;
-              narrows live by name/sku/barcode as they keep typing. */}
-          {browseQuery && (
+          {/* Category chips — colored per Settings → "Product Tile Colour Theme"
+              (or the category's own color), same palette as the restaurant POS
+              grid, so cashiers can browse by aisle/section without typing. */}
+          {categories.length > 1 && (
+            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto">
+              <Layers size={13} className="text-gray-300 flex-shrink-0" />
+              {categories.map(cat => {
+                const catColor = cat === 'All' ? undefined : (categoryColors.get(cat) ?? tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length]);
+                const isActive = categoryFilter === cat;
+                const catText = catColor ? contrastText(catColor) : undefined;
+                return (
+                  <button key={cat} type="button"
+                    onClick={() => { setCategoryFilter(cat); codeRef.current?.focus(); }}
+                    style={isActive && catColor ? { backgroundColor: catColor, borderColor: catColor, color: catText } : catColor ? { borderColor: `${catColor}80`, color: catColor } : undefined}
+                    className={`flex-shrink-0 px-3 py-1 rounded-full border-2 text-xs font-bold whitespace-nowrap transition-all touch-manipulation
+                      ${!catColor && isActive ? 'bg-blue-600 border-blue-600 text-white' : ''}
+                      ${!catColor && !isActive ? 'border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600' : ''}
+                      ${catColor && !isActive ? 'bg-white hover:opacity-80' : ''}`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Stock search results — appears once the cashier starts typing or
+              taps a category chip; narrows live by name/sku/barcode as they
+              keep typing, or by category as they tap another chip. */}
+          {browsingActive && (
             <div className="mt-2 border-t border-gray-100 pt-2">
               <div className="flex items-center justify-between px-1 pb-1.5">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   {browseSorted.length} match{browseSorted.length !== 1 ? 'es' : ''}
                 </span>
-                <button type="button" onClick={() => { setCodeInput(''); codeRef.current?.focus(); }}
+                <button type="button" onClick={() => { setCodeInput(''); setCategoryFilter('All'); codeRef.current?.focus(); }}
                   className="text-xs text-gray-400 hover:text-gray-600 font-semibold">
                   Clear
                 </button>
               </div>
               <div className="max-h-56 overflow-y-auto rounded-md border border-gray-100">
                 {browseProducts.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-6">No products match "{codeInput}"</p>
+                  <p className="text-center text-gray-400 text-sm py-6">
+                    {browseQuery ? `No products match "${codeInput}"` : `No products in "${categoryFilter}"`}
+                  </p>
                 ) : (
-                  browseProducts.map((p, rowIndex) => (
+                  browseProducts.map((p, rowIndex) => {
+                    const accent = productAccent(p);
+                    return (
                     <button key={p.id} type="button" onClick={() => addProduct(p)}
                       ref={(el) => { rowRefs.current[rowIndex] = el; }}
                       // A plain Tailwind bg-* class can't win here — index.css's
@@ -598,18 +657,19 @@ export default function CashierPage() {
                       // with its own background/box-shadow (see the `[class*="border"]`
                       // rule there), and only an inline style beats a non-!important
                       // stylesheet rule regardless of class specificity.
-                      style={rowIndex === highlightIndex ? { background: '#bfdbfe', boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.15)' } : undefined}
+                      style={{
+                        borderLeft: accent ? `4px solid ${accent}` : undefined,
+                        ...(rowIndex === highlightIndex ? { background: '#bfdbfe', boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.15)' } : undefined),
+                      }}
                       className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between text-sm touch-manipulation">
                       <span className="flex items-center min-w-0">
-                        {(p.color || p.category?.color) && (
-                          <span className="w-2.5 h-2.5 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: p.color || p.category?.color }} />
-                        )}
                         <span className="text-gray-400 mr-3 text-xs flex-shrink-0">{p.sku}</span>
                         <span className="font-semibold text-gray-900 truncate">{p.name}</span>
                       </span>
                       <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}</span>
                     </button>
-                  ))
+                    );
+                  })
                 )}
                 {browseOverflow > 0 && (
                   <p className="text-center text-gray-400 text-xs py-1.5 bg-gray-50 border-t border-gray-100">
@@ -638,8 +698,8 @@ export default function CashierPage() {
           {/* Items */}
           <div className="flex-1 overflow-y-auto">
             {cart.items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-300 select-none gap-3">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="opacity-30">
+              <div className="flex flex-col items-center justify-center h-full text-blue-200 select-none gap-3">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="opacity-60">
                   <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
                   <path d="M16 10a4 4 0 0 1-8 0"/>
                 </svg>
@@ -650,7 +710,7 @@ export default function CashierPage() {
                 const lineTotal = (item.price - item.discount) * item.quantity;
                 return (
                   <div key={item.line_id}
-                    className={`flex items-center px-4 py-3.5 border-b border-gray-50 text-base ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                    className={`flex items-center pl-3 pr-4 py-3.5 border-b border-l-4 border-gray-50 text-base ${cartLineAccent(item.product_id)} ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                     <div className="w-36 flex items-center justify-center flex-shrink-0">
                       <button type="button"
                         onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
@@ -693,7 +753,7 @@ export default function CashierPage() {
         <div className="w-[40%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[560px] max-w-[640px] flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
 
           {/* Total box */}
-          <div className="bg-blue-600 rounded-lg shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-lg shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
             <span className="text-white/70 font-semibold text-base tracking-wide">TOTAL</span>
             <span className="text-white font-bold text-4xl tabular-nums font-mono">{formatCurrency(total)}</span>
           </div>

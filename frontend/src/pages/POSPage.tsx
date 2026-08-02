@@ -145,6 +145,12 @@ export default function POSPage() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+  // Arrow-key highlight over the search results grid — -1 means nothing
+  // highlighted yet (plain Enter still falls back to the exact-code lookup
+  // below). Tile refs let the highlighted tile scroll into view as the
+  // cashier arrows past what's currently on screen.
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const tileRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const qc = useQueryClient();
   const cart = useCartStore();
   const { user } = useAuthStore();
@@ -302,6 +308,16 @@ export default function POSPage() {
 
   // Reset to page 1 whenever the visible product set changes
   useEffect(() => { setProductPage(0); }, [activeCategory, search]);
+
+  // A fresh search/category/page starts with nothing arrow-highlighted —
+  // the cashier presses ArrowDown to start navigating the new result set.
+  useEffect(() => { setHighlightIndex(-1); }, [search, activeCategory, clampedPage]);
+
+  // Keep the highlighted tile visible as the cashier arrows past the edge of the scroll area
+  useEffect(() => {
+    if (highlightIndex < 0) return;
+    tileRefs.current[highlightIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [highlightIndex]);
 
   // Auto-add when barcode scan yields exactly 1 match
   useEffect(() => {
@@ -471,15 +487,37 @@ export default function POSPage() {
     toast.success(`Added ${product.name}`, { duration: 800 });
   };
 
-  // Search-box Enter — look up an exact SKU/barcode match (or a single filtered
-  // result) and add it directly, so a cashier can key in a code without touching the grid
+  // Search-box Enter — an arrow-highlighted tile wins first (cashier navigated
+  // the results with the keyboard), otherwise fall back to an exact SKU/barcode
+  // match (or a single filtered result), so a cashier can key in a code without
+  // touching the grid at all.
   const handleSearchEnter = () => {
+    if (highlightIndex >= 0 && pagedProducts[highlightIndex]) {
+      handleAddProduct(pagedProducts[highlightIndex]);
+      setSearch('');
+      return;
+    }
     const code = search.trim();
     if (!code) return;
     const exact = allProducts.find((p: any) => (p.sku ?? '') === code || (p.barcode ?? '') === code);
     if (exact) { handleAddProduct(exact); setSearch(''); return; }
     if (filteredProducts.length === 1) { handleAddProduct(filteredProducts[0]); setSearch(''); return; }
     toast.error(`No exact match for "${code}"`);
+  };
+
+  // ArrowUp/ArrowDown while the search box is focused move the highlight
+  // through the currently visible page of results instead of doing nothing
+  // (global ArrowUp/ArrowDown panel-scrolling in AppLayout already backs off
+  // for focused inputs, so this is the only handler that sees them here).
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (pagedProducts.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.min(pagedProducts.length - 1, i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(0, i - 1));
+    }
   };
 
   const { data: customerResults, isFetching: customerSearching } = useQuery({
@@ -650,6 +688,7 @@ export default function POSPage() {
                   ref={searchRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
                   placeholder="Search product"
                   className="w-full pl-9 pr-9 py-2 border border-gray-200 focus:border-blue-400 rounded-lg text-sm bg-white focus:outline-none transition-colors"
                 />
@@ -676,7 +715,7 @@ export default function POSPage() {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-wrap content-start gap-1 overflow-y-auto min-h-0">
-                  {pagedProducts.map((product: any) => {
+                  {pagedProducts.map((product: any, tileIndex: number) => {
                     // A color chosen directly on the product renders as a solid tile — the
                     // shade should show exactly as picked. A colored category (no explicit
                     // product color) stays a soft tint instead, since that's a grouping cue
@@ -724,15 +763,16 @@ export default function POSPage() {
                         el.style.removeProperty('opacity');
                       }
                     };
+                    const isHighlighted = tileIndex === highlightIndex;
                     return (
                       <button
                         type="button"
                         key={product.id}
-                        ref={applyTileStyle}
+                        ref={(el) => { tileRefs.current[tileIndex] = el; applyTileStyle(el); }}
                         title={isOutOfStock ? `${product.name} — Out of stock` : `${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
                         onClick={() => handleAddProduct(product)}
                         style={{ width: '1.7cm', height: '1.7cm' }}
-                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'hover:border-gray-200 cursor-not-allowed' : ''}`}
+                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'hover:border-gray-200 cursor-not-allowed' : ''} ${isHighlighted ? 'outline outline-2 outline-blue-500 outline-offset-1 z-10' : ''}`}
                       >
                         {product.made_to_order && (
                           <span

@@ -678,8 +678,10 @@ export default function HardwarePage() {
 
           <Card title="Usage on Register">
             <div className="space-y-2 text-sm text-gray-600">
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>When a scale is connected, the live weight reading appears in the quantity field for the selected product.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Place the product on the scale; the weight auto-fills. Tap the product card to add it.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Mark a product "Sold by Weight (kg)" on the Products page — Selling Price becomes the price per kilogram.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Place the item on the scale, then tap the product tile — the live weight becomes the cart quantity automatically.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>No scale, or nothing on it yet? A keypad pops up to type the weight in by hand instead.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Once connected here, the scale reconnects automatically every time the till loads — no need to revisit this page each shift.</p></div>
             </div>
           </Card>
         </div>

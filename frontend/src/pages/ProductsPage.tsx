@@ -59,6 +59,7 @@ const schema = z.object({
   image: z.string().optional(),
   made_to_order: z.coerce.boolean().default(false),
   is_taxable: z.coerce.boolean().default(true),
+  sold_by_weight: z.coerce.boolean().default(false),
 });
 
 // Preset swatches shown for quick-pick — a small, print-friendly palette that
@@ -234,18 +235,21 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       // Older cached copies (synced before this field existed) won't have it —
       // treat as taxable, matching the backend column's default.
       is_taxable: product.is_taxable ?? true,
+      sold_by_weight: product.sold_by_weight ?? false,
     } : {
       sku: generateSku(),
       barcode: generateBarcode(),
       reorder_level: 5,
       initial_quantity: 0,
       is_taxable: true,
+      sold_by_weight: false,
     },
   });
   const watchedColor = watch('color');
   const watchedImage = watch('image');
   const watchedMadeToOrder = watch('made_to_order');
   const watchedIsTaxable = watch('is_taxable');
+  const watchedSoldByWeight = watch('sold_by_weight');
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -567,6 +571,17 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                 {watchedIsTaxable
                   ? 'Tax is applied at checkout — this product’s own tax rate if one is assigned, otherwise the store-wide rate.'
                   : 'Tax-exempt — this product never carries tax, regardless of the store-wide tax setting.'}
+              </p>
+            </div>
+            <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
+                <input type="checkbox" {...register('sold_by_weight')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                Sold by Weight (kg)
+              </label>
+              <p className="text-xs text-gray-400 mt-1">
+                {watchedSoldByWeight
+                  ? 'Priced per kg — Selling Price above is the price per kilogram. On the till, place the item on a connected weighing scale and the live reading fills the quantity automatically (Settings → Hardware → Weighing Scale). Without a scale, the cashier enters the weight by hand.'
+                  : 'For butchery/deli/produce items priced per kilogram rather than sold as a fixed count.'}
               </p>
             </div>
             <ColorImagePicker

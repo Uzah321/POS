@@ -15,6 +15,10 @@ export interface CartItem {
   tax_rate: number;
   quantity: number;
   discount: number;
+  // Butchery/deli/produce items priced per kg — quantity is a live scale
+  // reading (fractional kg) instead of a unit count, and the qty keypad
+  // allows decimals for this line.
+  sold_by_weight?: boolean;
 }
 
 let lineIdCounter = 0;
@@ -60,7 +64,7 @@ interface CartState {
   cashTendered: string;
   isSplitPayment: boolean;
   splitPayments: Array<{ method: string; amount: string }>;
-  addItem: (item: Omit<CartItem, 'line_id' | 'quantity' | 'discount'>, quantity?: number) => void;
+  addItem: (item: Omit<CartItem, 'line_id' | 'quantity' | 'discount'>, quantity?: number) => CartItem;
   updateQty: (line_id: string, qty: number) => void;
   updateDiscount: (line_id: string, discount: number) => void;
   removeItem: (line_id: string) => void;
@@ -106,7 +110,9 @@ export const useCartStore = create<CartState>()(
       // cart — the cart reads as a running list of what was rung up, in order,
       // rather than one row per product with a running quantity.
       addItem: (item, quantity = 1) => {
-        set({ items: [...get().items, { ...item, line_id: newLineId(), quantity, discount: 0 }] });
+        const newItem: CartItem = { ...item, line_id: newLineId(), quantity, discount: 0 };
+        set({ items: [...get().items, newItem] });
+        return newItem;
       },
       updateQty: (id, qty) => set({ items: qty <= 0 ? get().items.filter((i) => i.line_id !== id) : get().items.map((i) => i.line_id === id ? { ...i, quantity: qty } : i) }),
       updateDiscount: (id, discount) => set({ items: get().items.map((i) => i.line_id === id ? { ...i, discount } : i) }),

@@ -10,6 +10,7 @@ import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
+import { useWeighingScale, toKg } from '../lib/hardware/scale';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { effectiveTaxRate } from '../lib/taxSettings';
@@ -18,7 +19,7 @@ import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
-import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Layers } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Layers, Scale as ScaleIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -42,6 +43,10 @@ export default function CashierPage() {
   const [showVoidModal, setShowVoidModal]     = useState(false);
   const [editingQtyItem, setEditingQtyItem]   = useState<CartItem | null>(null);
   const [qtyInput, setQtyInput]               = useState('');
+  // A weight-priced product tapped with no live scale reading — prompts for
+  // a hand-entered weight before anything is added to the cart.
+  const [pendingWeightProduct, setPendingWeightProduct] = useState<any | null>(null);
+  const [weightInput, setWeightInput]         = useState('');
   const [voidSearch, setVoidSearch]           = useState('');
   // Arrow-key highlight over the Scan/PLU results list — -1 means nothing
   // highlighted (plain Enter still falls back to the exact-code/single-match
@@ -60,6 +65,11 @@ export default function CashierPage() {
   const hw           = useHardwareStore();
   const currency     = activeCurrency?.symbol ?? '$';
   const branchId     = user?.branch?.id ?? 1;
+  const scale        = useWeighingScale(hw.scaleBaudRate);
+  const scaleActive  = hw.scaleMode === 'webserial';
+  // A reading counts as "live" only while the scale is actually connected —
+  // once disconnected, stop trusting whatever the last value happened to be.
+  const liveKg       = scaleActive && scale.connected && scale.weight ? toKg(scale.weight) : null;
 
   const { isServerUp: isOnline } = useServerHealth();
 
@@ -201,6 +211,14 @@ export default function CashierPage() {
 
   useBarcodeScanner({ enabled: hw.barcodeScannerEnabled, onScan: handleBarcodeScan });
 
+  // Auto-fill the weight prompt the moment the scale settles on a reading —
+  // only while the cashier hasn't started typing a value by hand.
+  useEffect(() => {
+    if (pendingWeightProduct && weightInput === '' && liveKg && liveKg > 0) {
+      setWeightInput(String(Math.round(liveKg * 1000) / 1000));
+    }
+  }, [liveKg, pendingWeightProduct, weightInput]);
+
   // Broadcast cart to customer display
   useEffect(() => {
     if (!hw.customerDisplayEnabled) return;
@@ -212,11 +230,14 @@ export default function CashierPage() {
     });
   }, [cart.items, hw.customerDisplayEnabled]);
 
-  const addProduct = (product: any) => {
+  // Shared by both the direct-add path (live scale reading, or a plain
+  // count item) and the manual-weight-entry path below — keeps the price
+  // check / stock check / toast messaging identical for both.
+  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean): boolean => {
     const price = parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`);
-      return;
+      return false;
     }
     // Scanning/tapping a product already in the cart adds a new line rather
     // than bumping an existing one — so the stock check here must sum every
@@ -224,9 +245,9 @@ export default function CashierPage() {
     const existingQty = cart.items.filter((i) => i.product_id === product.id).reduce((s, i) => s + i.quantity, 0);
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNeg = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-    if (blockNeg && product.track_stock !== false && stock !== null && existingQty + 1 > stock) {
+    if (blockNeg && product.track_stock !== false && stock !== null && existingQty + qty > stock) {
       toast.error(stock <= 0 ? `${product.name} is out of stock` : `Only ${stock} ${product.name} in stock`);
-      return;
+      return false;
     }
     cart.addItem({
       product_id: product.id,
@@ -235,7 +256,42 @@ export default function CashierPage() {
       price,
       cost:       parseFloat(product.cost_price || 0),
       tax_rate:   effectiveTaxRate(product, storeSettings),
-    });
+      sold_by_weight: soldByWeight,
+    }, qty);
+    return true;
+  };
+
+  const addProduct = (product: any) => {
+    const soldByWeight = !!product.sold_by_weight;
+    if (soldByWeight) {
+      // Use the live scale reading (in kg) if one's available. Otherwise
+      // prompt for a hand-entered weight — nothing is added to the cart
+      // until a real weight is confirmed, so a dismissed prompt never
+      // leaves a phantom "1 kg" line behind.
+      const kg = liveKg && liveKg > 0 ? Math.round(liveKg * 1000) / 1000 : null;
+      if (kg === null) {
+        if (scaleActive && !scale.connected) toast.error(`${product.name} is sold by weight — scale isn't connected, enter the weight manually`);
+        setPendingWeightProduct(product);
+        setWeightInput('');
+        return;
+      }
+      if (addProductWithQty(product, kg, true)) {
+        setCodeInput('');
+        setTimeout(() => codeRef.current?.focus(), 40);
+      }
+      return;
+    }
+    if (addProductWithQty(product, 1, false)) {
+      setCodeInput('');
+      setTimeout(() => codeRef.current?.focus(), 40);
+    }
+  };
+
+  const confirmPendingWeight = () => {
+    if (!pendingWeightProduct) return;
+    const n = parseFloat(weightInput);
+    if (!isNaN(n) && n > 0) addProductWithQty(pendingWeightProduct, Math.round(n * 1000) / 1000, true);
+    setPendingWeightProduct(null);
     setCodeInput('');
     setTimeout(() => codeRef.current?.focus(), 40);
   };
@@ -384,7 +440,7 @@ export default function CashierPage() {
     cart.clearCart();
     const data = held.cart_data ?? {};
     (data.items ?? []).forEach((it: any) => {
-      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0 }, it.quantity);
+      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0, sold_by_weight: !!it.sold_by_weight }, it.quantity);
     });
     cart.setTableNumber(held.table_number || 'Walk-in');
     deleteHeldMutation.mutate(held.id);
@@ -499,9 +555,15 @@ export default function CashierPage() {
 
   const confirmQtyEdit = () => {
     if (!editingQtyItem) return;
-    const n = parseInt(qtyInput, 10);
-    if (!isNaN(n) && n > 0) cart.updateQty(editingQtyItem.line_id, n);
-    else if (n === 0) cart.removeItem(editingQtyItem.line_id);
+    if (editingQtyItem.sold_by_weight) {
+      const n = parseFloat(qtyInput);
+      if (!isNaN(n) && n > 0) cart.updateQty(editingQtyItem.line_id, Math.round(n * 1000) / 1000);
+      else cart.removeItem(editingQtyItem.line_id);
+    } else {
+      const n = parseInt(qtyInput, 10);
+      if (!isNaN(n) && n > 0) cart.updateQty(editingQtyItem.line_id, n);
+      else if (n === 0) cart.removeItem(editingQtyItem.line_id);
+    }
     setEditingQtyItem(null);
   };
 
@@ -551,6 +613,18 @@ export default function CashierPage() {
             </button>
           </div>
           <div className="flex items-center gap-4 text-sm">
+            {scaleActive && (
+              scale.connected ? (
+                <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs" title="Weighing scale connected">
+                  <ScaleIcon size={13} />
+                  {liveKg !== null ? `${liveKg.toFixed(3)} kg` : 'Scale ready'}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-gray-300 font-semibold text-xs" title="Weighing scale not connected — connect it under Settings → Hardware">
+                  <ScaleIcon size={13} /> Scale off
+                </span>
+              )
+            )}
             {!isOnline ? (
               <span className="flex items-center gap-1.5 text-amber-500 font-semibold text-xs">
                 Server starting...
@@ -665,8 +739,13 @@ export default function CashierPage() {
                       <span className="flex items-center min-w-0">
                         <span className="text-gray-400 mr-3 text-xs flex-shrink-0">{p.sku}</span>
                         <span className="font-semibold text-gray-900 truncate">{p.name}</span>
+                        {p.sold_by_weight && (
+                          <span className="ml-2 flex items-center gap-0.5 text-[10px] font-bold text-blue-500 flex-shrink-0" title="Sold by weight">
+                            <ScaleIcon size={10} />/kg
+                          </span>
+                        )}
                       </span>
-                      <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}</span>
+                      <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}{p.sold_by_weight ? '/kg' : ''}</span>
                     </button>
                     );
                   })
@@ -716,7 +795,7 @@ export default function CashierPage() {
                         onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
                         title="Tap to set quantity"
                         className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
-                        {item.quantity}
+                        {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
                       </button>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1016,9 +1095,25 @@ export default function CashierPage() {
         onChange={setQtyInput}
         onConfirm={confirmQtyEdit}
         onClose={() => setEditingQtyItem(null)}
-        label={`Quantity — ${editingQtyItem.name}`}
-        allowDecimal={false}
+        label={editingQtyItem.sold_by_weight ? `Weight (kg) — ${editingQtyItem.name}` : `Quantity — ${editingQtyItem.name}`}
+        allowDecimal={!!editingQtyItem.sold_by_weight}
+        quickAmounts={editingQtyItem.sold_by_weight && liveKg && liveKg > 0 ? [Math.round(liveKg * 1000) / 1000] : undefined}
         confirmLabel="✓ Set Qty"
+        confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+      />
+    )}
+
+    {pendingWeightProduct && (
+      <NumericKeypad
+        modal
+        value={weightInput}
+        onChange={setWeightInput}
+        onConfirm={confirmPendingWeight}
+        onClose={() => setPendingWeightProduct(null)}
+        label={`Weight (kg) — ${pendingWeightProduct.name}${scaleActive ? (scale.connected ? ' — place on scale or type weight' : ' — scale not connected') : ''}`}
+        allowDecimal
+        quickAmounts={liveKg && liveKg > 0 ? [Math.round(liveKg * 1000) / 1000] : undefined}
+        confirmLabel="✓ Add to Cart"
         confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
       />
     )}

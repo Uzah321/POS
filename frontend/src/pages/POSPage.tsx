@@ -11,6 +11,7 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
+import { useWeighingScale, toKg } from '../lib/hardware/scale';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { effectiveTaxRate } from '../lib/taxSettings';
@@ -22,7 +23,7 @@ import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
   User, Award,
-  ChevronLeft, ChevronRight, ChefHat,
+  ChevronLeft, ChevronRight, ChefHat, Scale as ScaleIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -40,9 +41,15 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
 
   const openQtyEdit = () => { setQtyInput(String(item.quantity)); setEditingQty(true); };
   const confirmQty = () => {
-    const n = parseInt(qtyInput, 10);
-    if (!isNaN(n) && n > 0) updateQty(item.line_id, n);
-    else if (n === 0) removeItem(item.line_id);
+    if (item.sold_by_weight) {
+      const n = parseFloat(qtyInput);
+      if (!isNaN(n) && n > 0) updateQty(item.line_id, Math.round(n * 1000) / 1000);
+      else removeItem(item.line_id);
+    } else {
+      const n = parseInt(qtyInput, 10);
+      if (!isNaN(n) && n > 0) updateQty(item.line_id, n);
+      else if (n === 0) removeItem(item.line_id);
+    }
     setEditingQty(false);
   };
 
@@ -58,7 +65,7 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
           className="w-9 h-8 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation"
           title="Tap to set quantity"
         >
-          {item.quantity}
+          {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
         </button>
       </div>
       <div className="w-14 text-right flex-shrink-0">
@@ -79,8 +86,8 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
           onChange={setQtyInput}
           onConfirm={confirmQty}
           onClose={() => setEditingQty(false)}
-          label={`Quantity — ${item.name}`}
-          allowDecimal={false}
+          label={item.sold_by_weight ? `Weight (kg) — ${item.name}` : `Quantity — ${item.name}`}
+          allowDecimal={!!item.sold_by_weight}
           confirmLabel="✓ Set Qty"
           confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
         />
@@ -120,6 +127,22 @@ export default function POSPage() {
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
+  const scale = useWeighingScale(hw.scaleBaudRate);
+  const scaleActive = hw.scaleMode === 'webserial';
+  const liveKg = scaleActive && scale.connected && scale.weight ? toKg(scale.weight) : null;
+  // A weight-priced product tapped with no live scale reading — prompts for
+  // a hand-entered weight before anything is added to the cart, so a
+  // dismissed prompt never leaves a phantom "1 kg" line behind.
+  const [pendingWeightProduct, setPendingWeightProduct] = useState<any | null>(null);
+  const [weightInput, setWeightInput] = useState('');
+
+  // Auto-fill the weight prompt the moment the scale settles on a reading —
+  // only while the cashier hasn't started typing a value by hand.
+  useEffect(() => {
+    if (pendingWeightProduct && weightInput === '' && liveKg && liveKg > 0) {
+      setWeightInput(String(Math.round(liveKg * 1000) / 1000));
+    }
+  }, [liveKg, pendingWeightProduct, weightInput]);
 
   const { data: storeSettings } = useQuery({
     queryKey: ['settings'],
@@ -413,11 +436,14 @@ export default function POSPage() {
     },
   });
 
-  const handleAddProduct = (product: any) => {
+  // Shared by both the direct-add path (live scale reading, or a plain
+  // count item) and the manual-weight-entry path below — keeps the price
+  // check / stock check / toast messaging identical for both.
+  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean): boolean => {
     const price = parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
-      return;
+      return false;
     }
     // Tapping/scanning a product already in the cart adds a new line rather
     // than bumping an existing one — so the stock check here must sum every
@@ -425,9 +451,9 @@ export default function POSPage() {
     const existingQty = cart.items.filter((i) => i.product_id === product.id).reduce((s, i) => s + i.quantity, 0);
     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-    if (blockNegStock && product.track_stock !== false && stock !== null && existingQty + 1 > stock) {
+    if (blockNegStock && product.track_stock !== false && stock !== null && existingQty + qty > stock) {
       toast.error(stock <= 0 ? `${product.name} is out of stock` : `Only ${stock} ${product.name} in stock`, { duration: 3000 });
-      return;
+      return false;
     }
     cart.addItem({
       product_id: product.id,
@@ -436,8 +462,37 @@ export default function POSPage() {
       price,
       cost: parseFloat(product.cost_price || 0),
       tax_rate: effectiveTaxRate(product, storeSettings),
-    });
-    toast.success(`Added ${product.name}`, { duration: 800 });
+      sold_by_weight: soldByWeight,
+    }, qty);
+    return true;
+  };
+
+  const handleAddProduct = (product: any) => {
+    const soldByWeight = !!product.sold_by_weight;
+    if (soldByWeight) {
+      // Use the live scale reading (in kg) if one's available. Otherwise
+      // prompt for a hand-entered weight rather than silently adding "1".
+      const kg = liveKg && liveKg > 0 ? Math.round(liveKg * 1000) / 1000 : null;
+      if (kg === null) {
+        if (scaleActive && !scale.connected) toast.error(`${product.name} is sold by weight — scale isn't connected, enter the weight manually`);
+        setPendingWeightProduct(product);
+        setWeightInput('');
+        return;
+      }
+      if (addProductWithQty(product, kg, true)) toast.success(`Added ${product.name} (${kg.toFixed(3)} kg)`, { duration: 800 });
+      return;
+    }
+    if (addProductWithQty(product, 1, false)) toast.success(`Added ${product.name}`, { duration: 800 });
+  };
+
+  const confirmPendingWeight = () => {
+    if (!pendingWeightProduct) return;
+    const n = parseFloat(weightInput);
+    if (!isNaN(n) && n > 0) {
+      const qty = Math.round(n * 1000) / 1000;
+      if (addProductWithQty(pendingWeightProduct, qty, true)) toast.success(`Added ${pendingWeightProduct.name} (${qty.toFixed(3)} kg)`, { duration: 800 });
+    }
+    setPendingWeightProduct(null);
   };
 
   // Search-box Enter — an arrow-highlighted tile wins first (cashier navigated
@@ -735,6 +790,14 @@ export default function POSPage() {
                             <ChefHat size={9} />
                           </span>
                         )}
+                        {product.sold_by_weight && (
+                          <span
+                            title="Sold by weight — reads from the scale"
+                            className="absolute top-0.5 left-0.5 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-blue-500 text-white shadow-sm"
+                          >
+                            <ScaleIcon size={9} />
+                          </span>
+                        )}
                         <span
                           className={`w-full text-[9px] font-semibold text-center leading-none ${product.image ? 'line-clamp-1' : 'line-clamp-2'} ${textColor ? '' : 'text-gray-800'}`}
                           style={textColor ? { color: textColor } : undefined}
@@ -745,7 +808,7 @@ export default function POSPage() {
                         <span
                           className={`text-[10px] font-black tabular-nums leading-none ${textColor ? '' : 'text-blue-700'}`}
                           style={textColor ? { color: textColor } : undefined}
-                        >{formatCurrency(parseFloat(product.selling_price))}</span>
+                        >{formatCurrency(parseFloat(product.selling_price))}{product.sold_by_weight ? '/kg' : ''}</span>
                       </button>
                     );
                   })}
@@ -1156,6 +1219,22 @@ export default function POSPage() {
         label="Covers"
         allowDecimal={false}
         confirmLabel="✓ Set Covers"
+        confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+      />
+    )}
+
+    {/* Manual weight entry — a weight-priced product tapped with no live scale reading */}
+    {pendingWeightProduct && (
+      <NumericKeypad
+        modal
+        value={weightInput}
+        onChange={setWeightInput}
+        onConfirm={confirmPendingWeight}
+        onClose={() => setPendingWeightProduct(null)}
+        label={`Weight (kg) — ${pendingWeightProduct.name}${scaleActive ? (scale.connected ? ' — place on scale or type weight' : ' — scale not connected') : ''}`}
+        allowDecimal
+        quickAmounts={liveKg && liveKg > 0 ? [Math.round(liveKg * 1000) / 1000] : undefined}
+        confirmLabel="✓ Add to Cart"
         confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
       />
     )}

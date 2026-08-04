@@ -15,7 +15,7 @@ class Product extends Model
     protected $fillable = [
         'name', 'slug', 'sku', 'barcode', 'hs_code', 'branch_id', 'category_id', 'brand_id', 'tax_rate_id', 'unit_id',
         'description', 'cost_price', 'selling_price', 'wholesale_price', 'image', 'color',
-        'has_variants', 'track_stock', 'made_to_order', 'is_active', 'is_taxable', 'reorder_level', 'reorder_quantity',
+        'has_variants', 'track_stock', 'made_to_order', 'is_active', 'is_taxable', 'sold_by_weight', 'reorder_level', 'reorder_quantity',
         'expires', 'alert_quantity',
     ];
 
@@ -27,6 +27,7 @@ class Product extends Model
         'made_to_order' => 'boolean',
         'is_active' => 'boolean',
         'is_taxable' => 'boolean',
+        'sold_by_weight' => 'boolean',
         'expires' => 'boolean',
         'cost_price' => 'decimal:4',
         'selling_price' => 'decimal:4',

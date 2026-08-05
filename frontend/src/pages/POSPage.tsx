@@ -127,8 +127,8 @@ export default function POSPage() {
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
-  const scale = useWeighingScale(hw.scaleBaudRate);
-  const scaleActive = hw.scaleMode === 'webserial';
+  const scale = useWeighingScale({ mode: hw.scaleMode, baudRate: hw.scaleBaudRate, host: hw.scaleHost, port: hw.scalePort });
+  const scaleActive = hw.scaleMode === 'webserial' || hw.scaleMode === 'network';
   const liveKg = scaleActive && scale.connected && scale.weight ? toKg(scale.weight) : null;
   // A weight-priced product tapped with no live scale reading — prompts for
   // a hand-entered weight before anything is added to the cart, so a

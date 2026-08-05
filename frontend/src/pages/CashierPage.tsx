@@ -65,8 +65,8 @@ export default function CashierPage() {
   const hw           = useHardwareStore();
   const currency     = activeCurrency?.symbol ?? '$';
   const branchId     = user?.branch?.id ?? 1;
-  const scale        = useWeighingScale(hw.scaleBaudRate);
-  const scaleActive  = hw.scaleMode === 'webserial';
+  const scale        = useWeighingScale({ mode: hw.scaleMode, baudRate: hw.scaleBaudRate, host: hw.scaleHost, port: hw.scalePort });
+  const scaleActive  = hw.scaleMode === 'webserial' || hw.scaleMode === 'network';
   // A reading counts as "live" only while the scale is actually connected —
   // once disconnected, stop trusting whatever the last value happened to be.
   const liveKg       = scaleActive && scale.connected && scale.weight ? toKg(scale.weight) : null;

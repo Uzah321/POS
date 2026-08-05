@@ -9,4 +9,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   listPrinters: () => ipcRenderer.invoke('printers:list'),
   printSilent: (html, printerName) => ipcRenderer.invoke('printer:print', { html, printerName }),
+
+  // Ethernet weighing scale — raw TCP socket, main-process only (renderers
+  // can't open TCP sockets). Data/close arrive as push events since this is
+  // a continuous stream, not a request/response call.
+  connectScale: (host, port) => ipcRenderer.invoke('scale:connect', { host, port }),
+  disconnectScale: () => ipcRenderer.invoke('scale:disconnect'),
+  onScaleData: (callback) => {
+    const listener = (_event, chunk) => callback(chunk);
+    ipcRenderer.on('scale:data', listener);
+    return () => ipcRenderer.removeListener('scale:data', listener);
+  },
+  onScaleClosed: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('scale:closed', listener);
+    return () => ipcRenderer.removeListener('scale:closed', listener);
+  },
 });

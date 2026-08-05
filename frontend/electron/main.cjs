@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog, session, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const http = require('http');
+const net = require('net');
 const path = require('path');
 
 // Touchscreen: enable touch events globally before app is ready
@@ -229,6 +230,63 @@ function printSilentHtml(html, printerName) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Ethernet weighing scale — some butchery/deli scales speak the same
+// continuous "1.250 kg\r\n" protocol as a serial scale, but stream it over a
+// raw TCP socket instead of a COM port. Browsers can't open raw TCP sockets
+// at all (no WebSocket-to-TCP without a bridge), so this only works inside
+// the desktop shell; a plain browser tab stays on Web Serial only.
+// ---------------------------------------------------------------------------
+let scaleSocket = null;
+
+function scaleDisconnect() {
+  if (scaleSocket) {
+    scaleSocket.removeAllListeners();
+    scaleSocket.destroy();
+    scaleSocket = null;
+  }
+}
+
+function scaleConnect(host, port) {
+  return new Promise((resolve) => {
+    scaleDisconnect();
+
+    const socket = new net.Socket();
+    let settled = false;
+
+    const fail = (message) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve({ success: false, error: message });
+    };
+
+    socket.setTimeout(5000);
+    socket.once('timeout', () => fail('Connection timed out'));
+    socket.once('error', (err) => fail(err.message || 'Connection failed'));
+
+    socket.connect(port, host, () => {
+      if (settled) return;
+      settled = true;
+      socket.setTimeout(0);
+      scaleSocket = socket;
+
+      socket.on('data', (chunk) => {
+        mainWindow?.webContents.send('scale:data', chunk.toString('utf8'));
+      });
+      socket.on('close', () => {
+        if (scaleSocket === socket) scaleSocket = null;
+        mainWindow?.webContents.send('scale:closed');
+      });
+      socket.on('error', () => {
+        // 'close' fires right after — let that notify the renderer.
+      });
+
+      resolve({ success: true });
+    });
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -307,6 +365,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('printers:list', () => listSystemPrinters());
   ipcMain.handle('printer:print', (_event, { html, printerName }) => printSilentHtml(html, printerName));
+  ipcMain.handle('scale:connect', (_event, { host, port }) => scaleConnect(host, port));
+  ipcMain.handle('scale:disconnect', () => { scaleDisconnect(); return { success: true }; });
 
   const started = await ensureServerStarted();
 
@@ -327,6 +387,7 @@ app.on('activate', () => {
 });
 
 app.on('window-all-closed', () => {
+  scaleDisconnect();
   if (process.platform !== 'darwin') {
     app.quit();
   }

@@ -12,7 +12,7 @@ import {
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
 } from '../lib/hardware/customerDisplay';
-import { useWeighingScale } from '../lib/hardware/scale';
+import { useWeighingScale, isNetworkScaleAvailable } from '../lib/hardware/scale';
 import { simulateCardPayment } from '../lib/hardware/cardMachine';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -107,7 +107,7 @@ export default function HardwarePage() {
     setKdsRaw(k => { const n = { ...k, [key]: val }; saveKdsSettings(n); return n; });
 
   // Scale hook
-  const scale = useWeighingScale(hw.scaleBaudRate);
+  const scale = useWeighingScale({ mode: hw.scaleMode, baudRate: hw.scaleBaudRate, host: hw.scaleHost, port: hw.scalePort });
 
   // USB printer connection state
   const [usbConnected, setUsbConnected] = useState(false);
@@ -625,13 +625,19 @@ export default function HardwarePage() {
         <div className="space-y-4">
           <Card title="Weighing Scale">
             <div className="space-y-2">
-              {(['webserial', 'none'] as const).map((mode) => (
+              {(['webserial', 'network', 'none'] as const).map((mode) => (
                 <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="scaleMode" value={mode} checked={hw.scaleMode === mode}
                     onChange={() => hw.update({ scaleMode: mode })} className="accent-blue-600" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{mode === 'webserial' ? 'Web Serial (USB/RS-232)' : 'Disabled'}</p>
-                    <p className="text-xs text-gray-500">{mode === 'webserial' ? 'Connect via Chrome/Edge Web Serial API' : 'No scale integration'}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {mode === 'webserial' ? 'Web Serial (USB/RS-232)' : mode === 'network' ? 'Ethernet (Network)' : 'Disabled'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {mode === 'webserial' ? 'Connect via Chrome/Edge Web Serial API'
+                        : mode === 'network' ? 'Connect over the LAN via IP address — Core desktop app only'
+                        : 'No scale integration'}
+                    </p>
                   </div>
                 </label>
               ))}
@@ -639,41 +645,75 @@ export default function HardwarePage() {
           </Card>
 
           {hw.scaleMode === 'webserial' && (
-            <>
-              <Card title="Baud Rate">
-                <select
-                  value={hw.scaleBaudRate}
-                  onChange={(e) => hw.update({ scaleBaudRate: Number(e.target.value) })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  {[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((b) => (
-                    <option key={b} value={b}>{b} baud</option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Check your scale's manual for the correct baud rate (usually 9600).</p>
-              </Card>
+            <Card title="Baud Rate">
+              <select
+                value={hw.scaleBaudRate}
+                onChange={(e) => hw.update({ scaleBaudRate: Number(e.target.value) })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              >
+                {[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((b) => (
+                  <option key={b} value={b}>{b} baud</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Check your scale's manual for the correct baud rate (usually 9600).</p>
+            </Card>
+          )}
 
-              <Card title="Connection">
-                <div className="flex items-center gap-3 flex-wrap mb-3">
-                  <Status ok={scale.connected} label={scale.connected ? 'Connected' : 'Disconnected'} />
-                  {scale.weight && (
-                    <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold">
-                      {scale.weight.value} {scale.weight.unit}
-                    </span>
-                  )}
+          {hw.scaleMode === 'network' && (
+            <Card title="Network Address">
+              {!isNetworkScaleAvailable() && (
+                <div className="flex items-center gap-2 text-amber-600 text-xs mb-3 bg-amber-50 border border-amber-100 rounded-md p-2">
+                  <AlertTriangle size={13} className="flex-shrink-0" />
+                  Ethernet scales only work inside the Core desktop app — this browser tab can't open a network connection directly.
                 </div>
-                {scale.error && (
-                  <div className="flex items-center gap-2 text-red-600 text-xs mb-3">
-                    <AlertTriangle size={13} />{scale.error}
-                  </div>
+              )}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-1 block">IP Address</label>
+                  <input
+                    type="text"
+                    value={hw.scaleHost}
+                    onChange={(e) => hw.update({ scaleHost: e.target.value })}
+                    placeholder="192.168.1.200"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Port</label>
+                  <input
+                    type="number"
+                    value={hw.scalePort}
+                    onChange={(e) => hw.update({ scalePort: Number(e.target.value) })}
+                    placeholder="4001"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Check your scale's network setup menu for its IP address and TCP port (often 4001 or 23).</p>
+            </Card>
+          )}
+
+          {(hw.scaleMode === 'webserial' || hw.scaleMode === 'network') && (
+            <Card title="Connection">
+              <div className="flex items-center gap-3 flex-wrap mb-3">
+                <Status ok={scale.connected} label={scale.connected ? 'Connected' : 'Disconnected'} />
+                {scale.weight && (
+                  <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold">
+                    {scale.weight.value} {scale.weight.unit}
+                  </span>
                 )}
-                <div className="flex gap-3">
-                  {!scale.connected
-                    ? <button onClick={scale.connect} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Wifi size={14} />Connect Scale</button>
-                    : <button onClick={scale.disconnect} className="px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">Disconnect</button>}
+              </div>
+              {scale.error && (
+                <div className="flex items-center gap-2 text-red-600 text-xs mb-3">
+                  <AlertTriangle size={13} />{scale.error}
                 </div>
-              </Card>
-            </>
+              )}
+              <div className="flex gap-3">
+                {!scale.connected
+                  ? <button onClick={scale.connect} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Wifi size={14} />Connect Scale</button>
+                  : <button onClick={scale.disconnect} className="px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">Disconnect</button>}
+              </div>
+            </Card>
           )}
 
           <Card title="Usage on Register">

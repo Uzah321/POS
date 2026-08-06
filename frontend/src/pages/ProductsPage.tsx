@@ -852,14 +852,13 @@ export default function ProductsPage() {
   });
 
   // Accurate aggregate stats " separate lightweight queries
-  // 'all' — this management table must show every category regardless of
-  // which mode is currently active, or an admin could never retag a
-  // category created under the other mode (it'd be filtered out of the list
-  // before they could select it). The product editor's own category picker
-  // (`cats` below) intentionally stays scoped to the active mode instead.
+  // Scoped to the currently active mode, same as everywhere else — a
+  // restaurant-mode admin managing categories shouldn't see (or be able to
+  // edit) the supermarket catalog's categories, and vice versa. Switch modes
+  // to manage that side's categories instead.
   const { data: categoriesAll } = useQuery({
-    queryKey: ['categories', 'all'],
-    queryFn: () => categoriesApi.list({ business_type: 'all' }).then(r => r.data?.data || []),
+    queryKey: ['categories'],
+    queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
     staleTime: 120000,
   });
   // No mutation in the app (stock adjustments, GRV, transfers, stocktakes, sales)

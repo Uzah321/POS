@@ -15,10 +15,12 @@ class ProductController extends BaseApiController
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         $query = Product::with('category', 'brand', 'unit', 'taxRate')
             ->withSum('stocks', 'quantity')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->where(function ($q) use ($s) {
@@ -207,10 +209,12 @@ class ProductController extends BaseApiController
         $term = $request->q ?? '';
         $warehouseId = $request->warehouse_id;
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         $products = Product::with('category', 'taxRate', 'variants')
             ->where('is_active', true)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
                   ->orWhere('barcode', $term)

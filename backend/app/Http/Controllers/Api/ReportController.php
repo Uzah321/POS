@@ -51,13 +51,14 @@ class ReportController extends BaseApiController
     public function dashboard(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
-        $cacheKey = 'dashboard:' . ($branchId ?: 'all');
+        $businessType = $this->effectiveBusinessType($request);
+        $cacheKey = 'dashboard:' . ($branchId ?: 'all') . ':' . ($businessType ?: 'all');
 
         // Short TTL as a safety net for changes this cache isn't proactively
         // busted for (e.g. another branch's admin-wide view) — the mutations that
         // actually move these numbers (sales, voids) call bustDashboardCache()
         // directly so the dashboard updates immediately rather than waiting this out.
-        $payload = Cache::remember($cacheKey, now()->addSeconds(10), function () use ($branchId) {
+        $payload = Cache::remember($cacheKey, now()->addSeconds(10), function () use ($branchId, $businessType) {
             // Plain >= / < range bounds (not whereDate()/DATE()) so Postgres can use the
             // sales_status_completed_at_index / sales_status_branch_completed_at_index
             // range portion instead of scanning every historical row for the status.
@@ -67,16 +68,19 @@ class ReportController extends BaseApiController
 
             $todaySales = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
                 ->whereBetween('completed_at', [$todayStart, $todayEnd])
                 ->get(['total']);
 
             $monthSales = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
                 ->where('completed_at', '>=', $monthStart)
                 ->get(['total']);
 
             $monthCustomers = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
                 ->where('completed_at', '>=', $monthStart)
                 ->whereNotNull('customer_id')
                 ->distinct('customer_id')
@@ -92,6 +96,7 @@ class ReportController extends BaseApiController
             $madeToOrderProducts = Product::where('made_to_order', true)
                 ->where('is_active', true)
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
                 ->get();
             $madeToOrderLowIds = $madeToOrderProducts
                 ->filter(fn(Product $p) => $p->total_stock > 0 && $p->total_stock <= $p->reorder_level)
@@ -102,6 +107,7 @@ class ReportController extends BaseApiController
 
             $lowStockCount = Product::where('is_active', true)
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
                 ->where(function ($q) use ($madeToOrderLowIds) {
                     $q->where(function ($q) {
                         $q->where('made_to_order', false)->where('track_stock', true)->whereRaw(
@@ -113,6 +119,7 @@ class ReportController extends BaseApiController
 
             $outOfStockCount = Product::where('is_active', true)
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
                 ->where(function ($q) use ($madeToOrderOutIds) {
                     $q->where(function ($q) {
                         $q->where('made_to_order', false)->where('track_stock', true)->whereRaw(
@@ -128,6 +135,7 @@ class ReportController extends BaseApiController
             // otherwise the frontend's `typeof x === 'number'` currency check silently zeroes them.
             $salesTrend = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
                 ->where('completed_at', '>=', now()->subDays(30))
                 ->groupBy(DB::raw('DATE(completed_at)'))
                 ->selectRaw('DATE(completed_at) as date, SUM(total) as revenue, COUNT(*) as transactions')
@@ -143,6 +151,7 @@ class ReportController extends BaseApiController
             $topProducts = SaleItem::whereHas('sale', fn($q) =>
                     $q->whereIn('status', Sale::REVENUE_STATUSES)
                       ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
+                      ->when($businessType, fn($sq) => $this->scopeSalesToBusinessType($sq, $businessType))
                       ->where('completed_at', '>=', now()->subDays(30))
                 )
                 ->groupBy('product_id')
@@ -162,6 +171,7 @@ class ReportController extends BaseApiController
                 ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
                 ->whereIn('sales.status', Sale::REVENUE_STATUSES)
                 ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
                 ->whereBetween('sales.completed_at', [$todayStart, $todayEnd])
                 ->groupBy('sale_payments.method')
                 ->selectRaw('sale_payments.method, SUM(sale_payments.amount) as total')
@@ -184,7 +194,9 @@ class ReportController extends BaseApiController
                 ],
                 'low_stock_count'  => $lowStockCount,
                 'out_of_stock_count' => $outOfStockCount,
-                'total_products'   => Product::when($branchId, fn($q) => $q->where('branch_id', $branchId))->count(),
+                'total_products'   => Product::when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
+                    ->count(),
                 'total_customers'  => Customer::count(),
                 'sales_trend' => $salesTrend,
                 'top_products' => $topProducts,
@@ -203,9 +215,11 @@ class ReportController extends BaseApiController
         ]);
 
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         $query = Sale::with('cashier:id,name', 'branch:id,name', 'customer:id,name')
             ->revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->when($request->cashier_id, fn($q) => $q->where('user_id', $request->cashier_id))
             ->whereDate('completed_at', '>=', $request->date_from)
             ->whereDate('completed_at', '<=', $request->date_to);
@@ -247,12 +261,14 @@ class ReportController extends BaseApiController
     public function inventoryReport(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         // 'stocks.warehouse' is never read below — only stocks.quantity is
         // summed — so eager-loading each stock row's warehouse just doubled
         // the query cost for no reason.
         $products = Product::with('category', 'brand', 'stocks')
             ->where('is_active', true)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->when($request->category_id, fn($q) => $q->where('category_id', $request->category_id))
             ->when($request->warehouse_id, fn($q) => $q->whereHas('stocks', fn($s) => $s->where('warehouse_id', $request->warehouse_id)))
             ->get()
@@ -302,8 +318,10 @@ class ReportController extends BaseApiController
         ]);
 
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereDate('completed_at', '>=', $request->date_from)
             ->whereDate('completed_at', '<=', $request->date_to)
             ->get(['id', 'total']);
@@ -336,9 +354,11 @@ class ReportController extends BaseApiController
     {
         $date     = $request->date ?? now()->toDateString();
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereDate('completed_at', $date)
             ->with('payments', 'cashier:id,name,username', 'items')
             ->get();
@@ -405,12 +425,14 @@ class ReportController extends BaseApiController
     {
         $month    = $request->month ?? now()->format('Y-m');
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         [$year, $mon] = explode('-', $month);
         $from = "{$year}-{$mon}-01";
         $to   = date('Y-m-t', strtotime($from));
 
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->with('payments', 'cashier:id,name,username')
             ->get();
@@ -467,6 +489,7 @@ class ReportController extends BaseApiController
         $warehouseId = $request->warehouse_id;
         $categoryId = $request->category_id;
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         $from = $request->date_from ?? $request->from ?? now()->subDays(30)->toDateString();
         $to   = $request->date_to ?? $request->to ?? now()->toDateString();
 
@@ -476,6 +499,7 @@ class ReportController extends BaseApiController
             ])
             ->where('is_active', true)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->when($categoryId, fn($q) => $q->where('category_id', $categoryId))
             ->get();
 
@@ -485,6 +509,7 @@ class ReportController extends BaseApiController
         $unitsSold = SaleItem::whereHas('sale', fn($q) =>
                 $q->whereIn('status', Sale::REVENUE_STATUSES)
                   ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
+                  ->when($businessType, fn($sq) => $this->scopeSalesToBusinessType($sq, $businessType))
                   ->when($warehouseId, fn($sq) => $sq->where('warehouse_id', $warehouseId))
                   ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to]))
             ->groupBy('product_id')
@@ -561,11 +586,13 @@ class ReportController extends BaseApiController
     {
         $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         $sales = DB::table('sales')
             ->join('users', 'users.id', '=', 'sales.user_id')
             ->whereIn('sales.status', Sale::REVENUE_STATUSES)
             ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
             ->whereDate('sales.completed_at', '>=', $request->date_from)
             ->whereDate('sales.completed_at', '<=', $request->date_to)
             ->groupBy('sales.user_id', 'users.name')
@@ -576,6 +603,7 @@ class ReportController extends BaseApiController
         $voids = DB::table('sales')
             ->where('status', 'voided')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereDate('updated_at', '>=', $request->date_from)
             ->whereDate('updated_at', '<=', $request->date_to)
             ->groupBy('user_id')
@@ -586,6 +614,7 @@ class ReportController extends BaseApiController
             ->join('sales', 'sales.id', '=', 'refunds.sale_id')
             ->where('refunds.status', 'completed')
             ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
             ->whereDate('refunds.created_at', '>=', $request->date_from)
             ->whereDate('refunds.created_at', '<=', $request->date_to)
             ->groupBy('refunds.user_id')
@@ -638,6 +667,7 @@ class ReportController extends BaseApiController
     public function lowStock(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         // Aggregate stock per product and filter in SQL instead of loading every
         // active product's full stock history into PHP and reducing it there —
@@ -648,6 +678,7 @@ class ReportController extends BaseApiController
             ->leftJoin('stocks', 'stocks.product_id', '=', 'products.id')
             ->where('products.is_active', true)
             ->when($branchId, fn($q) => $q->where('products.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->groupBy('products.id', 'products.name', 'products.sku', 'products.reorder_level')
             // reorder_point/alert_threshold are unused, always-default columns —
             // reorder_level is the one every other report/page in the app actually
@@ -674,11 +705,13 @@ class ReportController extends BaseApiController
         // effectiveBranchId() — this one didn't, so a non-admin could see every
         // branch's VAT/tax data instead of just their own.
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to   = $request->to   ?? now()->toDateString();
 
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->selectRaw('DATE(completed_at) as date, SUM(tax_amount) as vat_collected, SUM(total) as gross_total, COUNT(*) as sale_count')
             ->groupByRaw('DATE(completed_at)')
@@ -710,6 +743,7 @@ class ReportController extends BaseApiController
     {
         $period   = $request->period ?? 'daily';
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         if ($period === 'monthly') {
             $month = $request->month ?? now()->format('Y-m');
@@ -723,6 +757,7 @@ class ReportController extends BaseApiController
 
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->get(['id', 'total', 'discount_amount', 'tax_amount', 'user_id', 'completed_at']);
 
@@ -739,6 +774,7 @@ class ReportController extends BaseApiController
             ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
             ->whereIn('sales.status', Sale::REVENUE_STATUSES)
             ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
             ->whereBetween(DB::raw('DATE(sales.completed_at)'), [$from, $to])
             ->groupBy('sale_payments.method')
             ->selectRaw('sale_payments.method, SUM(sale_payments.amount) as total')
@@ -784,9 +820,11 @@ class ReportController extends BaseApiController
     {
         $date     = $request->date ?? now()->toDateString();
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereDate('completed_at', $date)
             ->with('cashier:id,name', 'items')
             ->get();
@@ -841,12 +879,14 @@ class ReportController extends BaseApiController
     {
         $month    = $request->month ?? now()->format('Y-m');
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         [$year, $mon] = explode('-', $month);
         $from = "{$year}-{$mon}-01";
         $to   = date('Y-m-t', strtotime($from));
 
         $sales = Sale::revenueCounted()
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->with('cashier:id,name')
             ->get();
@@ -893,6 +933,7 @@ class ReportController extends BaseApiController
     {
         $from = $request->date_from ?? now()->startOfMonth()->toDateString();
         $to   = $request->date_to   ?? now()->toDateString();
+        $businessType = $this->effectiveBusinessType($request);
 
         $branches = Branch::all();
 
@@ -900,6 +941,7 @@ class ReportController extends BaseApiController
         // 1 + 3-per-branch — this used to run 1+3N queries, scaling linearly with
         // branch count. Grouping by branch_id here scales with data volume, not N.
         $revenueByBranch = Sale::revenueCounted()
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->groupBy('branch_id')
             ->selectRaw('branch_id, SUM(total) as revenue, COUNT(*) as transactions')
@@ -907,6 +949,7 @@ class ReportController extends BaseApiController
 
         $cogsByBranch = SaleItem::join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->whereIn('sales.status', Sale::REVENUE_STATUSES)
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
             ->whereBetween(DB::raw('DATE(sales.completed_at)'), [$from, $to])
             ->groupBy('sales.branch_id')
             ->selectRaw('sales.branch_id, SUM(sale_items.cost_price * sale_items.quantity) as cogs')

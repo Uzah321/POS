@@ -807,8 +807,9 @@ export default function ProductsPage() {
   // Category management
   const [catAdd, setCatAdd] = useState('');
   const [catAddColor, setCatAddColor] = useState<string | undefined>(undefined);
+  const [catAddType, setCatAddType] = useState<'restaurant' | 'supermarket' | 'both'>('both');
   const [addingCat, setAddingCat] = useState(false);
-  const [catEdit, setCatEdit] = useState<{ id: number; name: string; color?: string } | null>(null);
+  const [catEdit, setCatEdit] = useState<{ id: number; name: string; color?: string; business_type?: 'restaurant' | 'supermarket' | 'both' } | null>(null);
   // Brand management
   const [brandAdd, setBrandAdd] = useState('');
   const [addingBrand, setAddingBrand] = useState(false);
@@ -851,9 +852,14 @@ export default function ProductsPage() {
   });
 
   // Accurate aggregate stats " separate lightweight queries
+  // 'all' — this management table must show every category regardless of
+  // which mode is currently active, or an admin could never retag a
+  // category created under the other mode (it'd be filtered out of the list
+  // before they could select it). The product editor's own category picker
+  // (`cats` below) intentionally stays scoped to the active mode instead.
   const { data: categoriesAll } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
+    queryKey: ['categories', 'all'],
+    queryFn: () => categoriesApi.list({ business_type: 'all' }).then(r => r.data?.data || []),
     staleTime: 120000,
   });
   // No mutation in the app (stock adjustments, GRV, transfers, stocktakes, sales)
@@ -886,12 +892,12 @@ export default function ProductsPage() {
 
   // Category CRUD mutations
   const createCatMut = useMutation({
-    mutationFn: ({ name, color }: { name: string; color?: string }) => categoriesApi.create({ name, color }),
-    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['categories'] }); setCatAdd(''); setCatAddColor(undefined); setAddingCat(false); toast.success('Category created'); },
+    mutationFn: ({ name, color, business_type }: { name: string; color?: string; business_type?: string }) => categoriesApi.create({ name, color, business_type }),
+    onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['categories'] }); setCatAdd(''); setCatAddColor(undefined); setCatAddType('both'); setAddingCat(false); toast.success('Category created'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to create category'),
   });
   const updateCatMut = useMutation({
-    mutationFn: ({ id, name, color }: { id: number; name: string; color?: string }) => categoriesApi.update(id, { name, color: color ?? null }),
+    mutationFn: ({ id, name, color, business_type }: { id: number; name: string; color?: string; business_type?: string }) => categoriesApi.update(id, { name, color: color ?? null, business_type }),
     onSuccess: () => { qcMain.invalidateQueries({ queryKey: ['categories'] }); setCatEdit(null); toast.success('Category updated'); },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update category'),
   });
@@ -1323,22 +1329,32 @@ export default function ProductsPage() {
                 value={catAdd}
                 onChange={e => setCatAdd(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && catAdd.trim()) createCatMut.mutate({ name: catAdd.trim(), color: catAddColor });
-                  if (e.key === 'Escape') { setAddingCat(false); setCatAdd(''); setCatAddColor(undefined); }
+                  if (e.key === 'Enter' && catAdd.trim()) createCatMut.mutate({ name: catAdd.trim(), color: catAddColor, business_type: catAddType });
+                  if (e.key === 'Escape') { setAddingCat(false); setCatAdd(''); setCatAddColor(undefined); setCatAddType('both'); }
                 }}
                 placeholder="Category name..."
                 className="flex-1 border border-blue-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               />
               <InlineColorPicker value={catAddColor} onChange={setCatAddColor} />
+              <select
+                value={catAddType}
+                onChange={e => setCatAddType(e.target.value as 'restaurant' | 'supermarket' | 'both')}
+                className="border border-blue-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                title="Which POS this category shows up in"
+              >
+                <option value="both">Both</option>
+                <option value="restaurant">Restaurant</option>
+                <option value="supermarket">Supermarket</option>
+              </select>
               <button
                 type="button"
                 disabled={!catAdd.trim() || createCatMut.isPending}
-                onClick={() => createCatMut.mutate({ name: catAdd.trim(), color: catAddColor })}
+                onClick={() => createCatMut.mutate({ name: catAdd.trim(), color: catAddColor, business_type: catAddType })}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {createCatMut.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Save'}
               </button>
-              <button type="button" onClick={() => { setAddingCat(false); setCatAdd(''); setCatAddColor(undefined); }} className="p-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
+              <button type="button" onClick={() => { setAddingCat(false); setCatAdd(''); setCatAddColor(undefined); setCatAddType('both'); }} className="p-2 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50">
                 <X size={14} />
               </button>
             </div>
@@ -1348,13 +1364,14 @@ export default function ProductsPage() {
               <tr>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Color</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Shows In</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {!(categoriesAll as any[])?.length ? (
                 <tr>
-                  <td colSpan={3} className="text-center py-16 text-gray-400">
+                  <td colSpan={4} className="text-center py-16 text-gray-400">
                     <Tag size={36} className="mx-auto mb-3 text-gray-200" />
                     <p className="font-medium">No categories yet</p>
                     <p className="text-sm mt-1">Click "Add Category" to create your first one</p>
@@ -1369,7 +1386,7 @@ export default function ProductsPage() {
                         value={catEdit!.name}
                         onChange={e => setCatEdit({ ...catEdit!, name: e.target.value })}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && catEdit!.name.trim()) updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim(), color: catEdit!.color });
+                          if (e.key === 'Enter' && catEdit!.name.trim()) updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim(), color: catEdit!.color, business_type: catEdit!.business_type });
                           if (e.key === 'Escape') setCatEdit(null);
                         }}
                         className="border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
@@ -1400,11 +1417,32 @@ export default function ProductsPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     {catEdit?.id === c.id ? (
+                      <select
+                        value={catEdit!.business_type ?? 'both'}
+                        onChange={e => setCatEdit({ ...catEdit!, business_type: e.target.value as 'restaurant' | 'supermarket' | 'both' })}
+                        className="border border-blue-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="both">Both</option>
+                        <option value="restaurant">Restaurant</option>
+                        <option value="supermarket">Supermarket</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        c.business_type === 'restaurant' ? 'bg-orange-100 text-orange-700'
+                        : c.business_type === 'supermarket' ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {c.business_type ?? 'both'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {catEdit?.id === c.id ? (
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
                           disabled={!catEdit!.name.trim() || updateCatMut.isPending}
-                          onClick={() => updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim(), color: catEdit!.color })}
+                          onClick={() => updateCatMut.mutate({ id: c.id, name: catEdit!.name.trim(), color: catEdit!.color, business_type: catEdit!.business_type })}
                           className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
                         >
                           {updateCatMut.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
@@ -1417,7 +1455,7 @@ export default function ProductsPage() {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => { setCatEdit({ id: c.id, name: c.name, color: c.color }); setAddingCat(false); }}
+                          onClick={() => { setCatEdit({ id: c.id, name: c.name, color: c.color, business_type: c.business_type ?? 'both' }); setAddingCat(false); }}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit"
                         >

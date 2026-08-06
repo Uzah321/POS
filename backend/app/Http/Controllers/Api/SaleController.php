@@ -22,9 +22,11 @@ class SaleController extends BaseApiController
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
         $query = Sale::with('customer', 'cashier', 'branch')
             ->withCount('items')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->cashier_id, fn($q) => $q->where('user_id', $request->cashier_id))
             ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
@@ -186,6 +188,10 @@ class SaleController extends BaseApiController
 
             $sale = Sale::create([
                 'branch_id'       => $data['branch_id'],
+                // Stamped from whichever mode was active when this sale was rung
+                // up, so reports can filter by it later without joining through
+                // sale_items -> products -> categories on every query.
+                'business_type'   => \App\Models\Setting::get('business_type'),
                 'warehouse_id'    => $data['warehouse_id'],
                 'register_id'     => $data['register_id'] ?? null,
                 'customer_id'     => $data['customer_id'] ?? null,

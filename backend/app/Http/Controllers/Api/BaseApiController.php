@@ -32,6 +32,60 @@ abstract class BaseApiController extends Controller
     }
 
     /**
+     * Resolve which business type (restaurant/supermarket) a request should be
+     * scoped to, mirroring effectiveBranchId() above. Defaults to whichever
+     * mode is currently active (the global `business_type` setting the
+     * dashboard's "Switch to..." toggle writes), so every catalog/report
+     * endpoint automatically follows the mode switch with no frontend
+     * changes required. A caller may pass `business_type=all` (or any
+     * explicit value) to opt out of — or override — that default, which the
+     * admin-facing category management screen uses to see every category
+     * regardless of the currently active mode.
+     */
+    protected function effectiveBusinessType(Request $request): ?string
+    {
+        if ($request->filled('business_type')) {
+            $type = $request->string('business_type')->toString();
+            return $type === 'all' ? null : $type;
+        }
+
+        return \App\Models\Setting::get('business_type') ?: null;
+    }
+
+    /**
+     * Restricts a Sale query (or any query joined to `sales`) to the given
+     * business type. A sale rung up before this column existed — or synced
+     * from an older client — has a null business_type and is left visible in
+     * every mode's reports/lists rather than silently vanishing from both.
+     * Pass $table when the query joins `sales` under an alias/join rather
+     * than being the base table itself, so the column reference isn't ambiguous.
+     */
+    protected function scopeSalesToBusinessType($query, ?string $businessType, ?string $table = null)
+    {
+        if (! $businessType) {
+            return $query;
+        }
+        $column = $table ? "{$table}.business_type" : 'business_type';
+        return $query->where(fn($q) => $q->where($column, $businessType)->orWhereNull($column));
+    }
+
+    /**
+     * Restricts a Product query to the given business type via its category —
+     * a product without its own category is never hidden by a mode switch,
+     * only one whose category is explicitly tagged for the *other* mode.
+     */
+    protected function scopeProductsToBusinessType($query, ?string $businessType)
+    {
+        if (! $businessType) {
+            return $query;
+        }
+        return $query->where(function ($q) use ($businessType) {
+            $q->whereHas('category', fn($c) => $c->whereIn('business_type', [$businessType, 'both']))
+              ->orWhereNull('category_id');
+        });
+    }
+
+    /**
      * Drop the cached dashboard payload (see ReportController::dashboard) for a
      * branch and for the "all branches" admin view, so the next request rebuilds
      * it instead of serving numbers from before whatever just changed. Call this
@@ -40,10 +94,15 @@ abstract class BaseApiController extends Controller
      */
     protected function bustDashboardCache(?int $branchId): void
     {
-        if ($branchId) {
-            Cache::forget('dashboard:' . $branchId);
+        // Cache key is now 'dashboard:{branch}:{business_type}' — business_type
+        // is a fixed, small set (not user input), so enumerating every
+        // combination here is simpler and safer than trying to pattern-match
+        // cache keys (which Laravel's cache stores don't support uniformly).
+        foreach ([$branchId, null] as $branch) {
+            foreach (['restaurant', 'supermarket', null] as $type) {
+                Cache::forget('dashboard:' . ($branch ?: 'all') . ':' . ($type ?: 'all'));
+            }
         }
-        Cache::forget('dashboard:all');
     }
 
     protected function success(mixed $data = null, string $message = 'Success', int $code = 200): \Illuminate\Http\JsonResponse

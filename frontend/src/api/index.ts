@@ -130,7 +130,7 @@ export const settingsApi = {
 };
 
 export const categoriesApi = {
-  list: () => api.get('/categories'),
+  list: (params?: object) => api.get('/categories', { params }),
   create: (data: object) => api.post('/categories', data),
   update: (id: number, data: object) => api.put(`/categories/${id}`, data),
   delete: (id: number) => api.delete(`/categories/${id}`),

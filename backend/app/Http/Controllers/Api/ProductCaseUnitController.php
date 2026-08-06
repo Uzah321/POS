@@ -26,9 +26,12 @@ class ProductCaseUnitController extends BaseApiController
     public function pendingBreaks(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         $productIds = GoodsReceiptItem::where('is_bulk', true)
-            ->whereHas('product', fn($q) => $q->when($branchId, fn($qq) => $qq->where('branch_id', $branchId)))
+            ->whereHas('product', fn($q) => $q
+                ->when($branchId, fn($qq) => $qq->where('branch_id', $branchId))
+                ->when($businessType, fn($qq) => $this->scopeProductsToBusinessType($qq, $businessType)))
             ->distinct()
             ->pluck('product_id');
 

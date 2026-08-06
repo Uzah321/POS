@@ -16,6 +16,14 @@ class IngredientController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        // Ingredients only exist to cost out made-to-order recipes (a restaurant
+        // concept — "e.g. a pizza") — a pure supermarket doesn't have recipes, so
+        // its ingredient list (and the low/out-of-stock alerts derived from it)
+        // stays empty rather than showing restaurant-only data while switched over.
+        if ($this->effectiveBusinessType($request) === 'supermarket') {
+            return $this->paginated(Ingredient::whereRaw('1 = 0')->paginate($request->per_page ?? 20));
+        }
+
         $query = Ingredient::with('unit')
             ->withSum('stocks', 'quantity')
             ->when($request->search, function ($q) use ($request) {

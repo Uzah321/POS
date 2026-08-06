@@ -27,6 +27,7 @@ class InventoryController extends BaseApiController
         $search   = $request->search ? mb_strtolower($request->search) : null;
         $filter   = $request->filter;
         $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
 
         // A made-to-order product (e.g. a pizza) never has its own `stocks` rows —
         // its availability comes from its recipe's ingredients instead, which needs
@@ -36,6 +37,7 @@ class InventoryController extends BaseApiController
         if (in_array($filter, ['low', 'out'], true)) {
             $madeToOrderIds = Product::where('made_to_order', true)
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
                 ->get()
                 ->filter(function (Product $p) use ($filter) {
                     $available = $p->total_stock;
@@ -49,6 +51,7 @@ class InventoryController extends BaseApiController
         $query = Product::with('category')
             ->withSum('stocks', 'quantity')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->when($request->warehouse_id, fn($q) => $q->whereHas('stocks', fn($s) =>
                 $s->where('warehouse_id', $request->warehouse_id)
             ))
@@ -329,12 +332,16 @@ class InventoryController extends BaseApiController
                     $sellingPrice = $parseNumber($row['selling_price'] ?? $row['unit_selling_price'] ?? $row['price'] ?? null);
                     $quantity = $parseNumber($row['quantity'] ?? $row['in_stock'] ?? null);
 
-                    // Resolve or create category
+                    // Resolve or create category — a newly-created one is tagged
+                    // with whichever mode is active during the import (matching
+                    // CategoryController::store()'s default), not left at a bare
+                    // null, since scopeProductsToBusinessType() only treats an
+                    // explicit 'both'/matching type as visible.
                     $categoryId = null;
                     if ($categoryName !== '') {
                         $cat = Category::firstOrCreate(
                             ['name' => $categoryName],
-                            ['slug' => Str::slug($categoryName)]
+                            ['slug' => Str::slug($categoryName), 'business_type' => $this->effectiveBusinessType($request) ?? 'both']
                         );
                         $categoryId = $cat->id;
                     }

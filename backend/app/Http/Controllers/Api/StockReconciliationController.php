@@ -14,6 +14,7 @@ class StockReconciliationController extends BaseApiController
     {
         $branchId    = $request->branch_id;
         $warehouseId = $request->warehouse_id;
+        $businessType = $this->effectiveBusinessType($request);
 
         // Default to current ISO week (Monday to today)
         $dateFrom = $request->date_from ?? now()->startOfWeek()->toDateString();
@@ -84,7 +85,11 @@ class StockReconciliationController extends BaseApiController
         $daysSinceLast = $lastStocktake ? now()->diffInDays($lastStocktake->created_at) : null;
 
         // Build reconciliation rows
-        $products = Product::with('category:id,name')->where('is_active', true)->get();
+        $products = Product::with('category:id,name')
+            ->where('is_active', true)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
+            ->get();
         $rows     = [];
 
         foreach ($products as $product) {

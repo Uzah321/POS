@@ -51,7 +51,9 @@ export default function BusinessTypeModal({ onSelect }: Props) {
     onSuccess: (_, type) => {
       // Instantly update every ['settings'] observer (AppLayout nav) without waiting for a refetch
       qc.setQueryData(['settings'], (old: any) => old ? { ...old, business_type: type } : { business_type: type });
-      qc.invalidateQueries({ queryKey: ['settings'] });
+      // Everything scoped by business_type (products, categories, reports,
+      // notifications) needs to refetch under the newly-chosen mode too.
+      qc.invalidateQueries();
       onSelect(type);
     },
     onError: (e: any) => {

@@ -22,7 +22,13 @@ export default function DashboardPage() {
     onSuccess: (_, type) => {
       // Instantly update nav without waiting for a round-trip refetch
       qc.setQueryData(['settings'], (old: any) => old ? { ...old, business_type: type } : { business_type: type });
-      qc.invalidateQueries({ queryKey: ['settings'] });
+      // The backend scopes products/categories/reports/notifications to
+      // whichever mode is active, but every one of those queries was cached
+      // under the old mode — without a full-cache invalidation here, the
+      // rest of the app keeps showing pre-switch data until the page is
+      // manually reloaded. Invalidating everything (not just ['settings'])
+      // is what actually makes the switch take effect immediately.
+      qc.invalidateQueries();
     },
   });
 

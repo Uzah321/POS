@@ -51,19 +51,26 @@ class ProductController extends BaseApiController
         $branchId = ($user->hasRole('admin') && $request->filled('branch_id'))
             ? (int) $request->branch_id
             : $user->branch_id;
+        // Whichever business type this product will actually be saved under —
+        // an explicit choice on the request, else whatever mode is active.
+        // Uniqueness (name/sku/barcode) is checked against this, not just the
+        // branch, so the restaurant and supermarket sides of the same branch's
+        // catalog don't collide with each other over a shared name/SKU.
+        $businessType = $request->input('business_type') ?: ($this->effectiveBusinessType($request) ?? 'both');
 
         $data = $request->validate([
             'name'            => [
                 'required', 'string', 'max:255',
-                function ($attribute, $value, $fail) use ($branchId) {
+                function ($attribute, $value, $fail) use ($branchId, $businessType) {
                     $exists = Product::where('branch_id', $branchId)
+                        ->where('business_type', $businessType)
                         ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($value))])
                         ->exists();
                     if ($exists) $fail('Stock item name already exists.');
                 },
             ],
-            'sku'             => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
-            'barcode'         => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
+            'sku'             => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId)->where('business_type', $businessType))],
+            'barcode'         => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId)->where('business_type', $businessType))],
             'category_id'     => 'nullable|exists:categories,id',
             'business_type'   => 'nullable|in:restaurant,supermarket,both',
             'brand_id'        => 'nullable|exists:brands,id',
@@ -92,10 +99,11 @@ class ProductController extends BaseApiController
 
         $data['slug'] = Str::slug($data['name']) . '-' . uniqid();
         $data['branch_id'] = $branchId;
-        // Stamped from whichever mode is active when the product is created —
-        // this is what stops a restaurant-mode product from leaking into the
-        // supermarket catalog just because it has no category assigned.
-        $data['business_type'] = $data['business_type'] ?? ($this->effectiveBusinessType($request) ?? 'both');
+        // Same value the uniqueness checks above ran against — stamped from
+        // whichever mode is active when the product is created, which is what
+        // stops a restaurant-mode product from leaking into the supermarket
+        // catalog just because it has no category assigned.
+        $data['business_type'] = $businessType;
 
         $product = DB::transaction(function () use ($data, $initialQty, $branchId) {
             $product = Product::create($data);
@@ -143,19 +151,26 @@ class ProductController extends BaseApiController
             return $this->error('Product not found.', 404);
         }
 
+        // Whichever business type this product will end up with after saving —
+        // the request's new value if it's changing type, else what it already
+        // has. Uniqueness is checked against that, so renaming/retagging a
+        // product can't collide with the *other* side's catalog.
+        $businessType = $request->input('business_type') ?: $product->business_type;
+
         $data = $request->validate([
             'name'           => [
                 'sometimes', 'string', 'max:255',
-                function ($attribute, $value, $fail) use ($product) {
+                function ($attribute, $value, $fail) use ($product, $businessType) {
                     $exists = Product::where('branch_id', $product->branch_id)
+                        ->where('business_type', $businessType)
                         ->where('id', '!=', $product->id)
                         ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($value))])
                         ->exists();
                     if ($exists) $fail('Stock item name already exists.');
                 },
             ],
-            'sku'            => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
-            'barcode'        => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
+            'sku'            => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id)->where('business_type', $businessType))->ignore($product->id)],
+            'barcode'        => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id)->where('business_type', $businessType))->ignore($product->id)],
             'category_id'    => 'nullable|exists:categories,id',
             'business_type'  => 'sometimes|in:restaurant,supermarket,both',
             'brand_id'       => 'nullable|exists:brands,id',

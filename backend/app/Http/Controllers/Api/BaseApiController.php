@@ -70,9 +70,14 @@ abstract class BaseApiController extends Controller
     }
 
     /**
-     * Restricts a Product query to the given business type via its category —
-     * a product without its own category is never hidden by a mode switch,
-     * only one whose category is explicitly tagged for the *other* mode.
+     * Restricts a Product query to the given business type. A product's own
+     * `business_type` (stamped at creation from whichever mode was active)
+     * is authoritative — this is what stops a restaurant-mode product with
+     * no category assigned from leaking into the supermarket catalog, which
+     * is exactly what happened when this only ever checked the category.
+     * The category-based fallback only matters for the rare product whose
+     * own tag is somehow still null (shouldn't happen for anything created
+     * after this column existed, but is a safe default for it regardless).
      */
     protected function scopeProductsToBusinessType($query, ?string $businessType)
     {
@@ -80,8 +85,14 @@ abstract class BaseApiController extends Controller
             return $query;
         }
         return $query->where(function ($q) use ($businessType) {
-            $q->whereHas('category', fn($c) => $c->whereIn('business_type', [$businessType, 'both']))
-              ->orWhereNull('category_id');
+            $q->whereIn('products.business_type', [$businessType, 'both'])
+              ->orWhere(function ($q2) use ($businessType) {
+                  $q2->whereNull('products.business_type')
+                     ->where(function ($q3) use ($businessType) {
+                         $q3->whereHas('category', fn($c) => $c->whereIn('business_type', [$businessType, 'both']))
+                            ->orWhereNull('products.category_id');
+                     });
+              });
         });
     }
 

@@ -183,6 +183,7 @@ class StockTransferController extends BaseApiController
             'sku'              => $sourceProduct->sku,
             'barcode'          => $sourceProduct->barcode,
             'category_id'      => $sourceProduct->category_id,
+            'business_type'    => $sourceProduct->business_type,
             'brand_id'         => $sourceProduct->brand_id,
             'tax_rate_id'      => $sourceProduct->tax_rate_id,
             'unit_id'          => $sourceProduct->unit_id,

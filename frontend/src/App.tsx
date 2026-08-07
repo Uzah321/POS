@@ -54,10 +54,15 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 0,
-      staleTime: 5 * 60 * 1000,       // 5 min — avoid re-fetching on every navigation
+      // 30s, not 5 min — a page revisited after a short while (or another
+      // till/device changing data) should show current data on its own
+      // instead of serving a stale cache until someone manually reloads.
+      // Individual queries that need something fresher already set their
+      // own shorter staleTime; this just lowers the "do nothing" default.
+      staleTime: 30 * 1000,
       gcTime: 15 * 60 * 1000,          // keep cached data for 15 min
-      refetchOnWindowFocus: false,      // don't refetch when user alt-tabs back
-      refetchOnReconnect: false,        // not useful in a local POS context
+      refetchOnWindowFocus: true,       // catch changes made elsewhere while this tab was in the background
+      refetchOnReconnect: true,         // catch up once connectivity comes back after being offline
       networkMode: 'offlineFirst',
     },
   },

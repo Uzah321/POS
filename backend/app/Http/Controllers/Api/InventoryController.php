@@ -389,6 +389,10 @@ class InventoryController extends BaseApiController
                         $product->update($updateable);
                         $updated++;
                     } else {
+                        // Only stamped on brand-new rows — re-importing to update an
+                        // existing product must never silently retag it into
+                        // whichever mode happens to be active during that import.
+                        $attrs['business_type'] = $this->effectiveBusinessType($request) ?? 'both';
                         $product = Product::create($attrs);
                         $created++;
                     }

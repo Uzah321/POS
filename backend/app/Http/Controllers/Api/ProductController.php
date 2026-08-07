@@ -65,6 +65,7 @@ class ProductController extends BaseApiController
             'sku'             => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
             'barcode'         => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId))],
             'category_id'     => 'nullable|exists:categories,id',
+            'business_type'   => 'nullable|in:restaurant,supermarket,both',
             'brand_id'        => 'nullable|exists:brands,id',
             'tax_rate_id'     => 'nullable|exists:tax_rates,id',
             'unit_id'         => 'nullable|exists:units,id',
@@ -91,6 +92,10 @@ class ProductController extends BaseApiController
 
         $data['slug'] = Str::slug($data['name']) . '-' . uniqid();
         $data['branch_id'] = $branchId;
+        // Stamped from whichever mode is active when the product is created —
+        // this is what stops a restaurant-mode product from leaking into the
+        // supermarket catalog just because it has no category assigned.
+        $data['business_type'] = $data['business_type'] ?? ($this->effectiveBusinessType($request) ?? 'both');
 
         $product = DB::transaction(function () use ($data, $initialQty, $branchId) {
             $product = Product::create($data);
@@ -152,6 +157,7 @@ class ProductController extends BaseApiController
             'sku'            => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
             'barcode'        => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id))->ignore($product->id)],
             'category_id'    => 'nullable|exists:categories,id',
+            'business_type'  => 'sometimes|in:restaurant,supermarket,both',
             'brand_id'       => 'nullable|exists:brands,id',
             'tax_rate_id'    => 'nullable|exists:tax_rates,id',
             'unit_id'        => 'nullable|exists:units,id',

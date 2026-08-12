@@ -19,6 +19,10 @@ return [
 
     'default' => env('DB_CONNECTION', 'sqlite'),
 
+    // Captured at config-cache time so AppServiceProvider can detect a missing
+    // DB_CONNECTION without calling env() itself (unsafe once config:cache runs).
+    'connection_env_set' => env('DB_CONNECTION') !== null,
+
     /*
     |--------------------------------------------------------------------------
     | Database Connections

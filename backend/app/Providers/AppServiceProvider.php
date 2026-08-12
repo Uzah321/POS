@@ -56,6 +56,11 @@ class AppServiceProvider extends ServiceProvider
      * 'sqlite' when DB_CONNECTION is missing from .env, which can point the
      * app at an empty/stale local database instead of the real one. Fail
      * loudly instead so a lost/broken .env is caught immediately at boot.
+     *
+     * Note: this must read config('database.connection_env_set') rather than
+     * env('DB_CONNECTION') directly — once config:cache has run, env() is
+     * null everywhere outside config files, which would make this guard
+     * fire on every request regardless of the real .env contents.
      */
     private function guardDatabaseConnection(): void
     {
@@ -63,7 +68,7 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
-        if (env('DB_CONNECTION') === null) {
+        if (! config('database.connection_env_set')) {
             throw new \RuntimeException(
                 'DB_CONNECTION is not set in .env — refusing to silently fall back to sqlite in production.'
             );

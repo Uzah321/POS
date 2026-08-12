@@ -20,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->guardDatabaseConnection();
+
         // Every model here gets created/updated/deleted rows in the audit log
         // automatically via AuditObserver — no per-controller instrumentation
         // needed, Eloquent's own save/delete lifecycle drives it. Deliberately
@@ -46,6 +48,25 @@ class AppServiceProvider extends ServiceProvider
         ];
         foreach ($models as $model) {
             $model::observe(AuditObserver::class);
+        }
+    }
+
+    /**
+     * In production, config('database.default') silently falls back to
+     * 'sqlite' when DB_CONNECTION is missing from .env, which can point the
+     * app at an empty/stale local database instead of the real one. Fail
+     * loudly instead so a lost/broken .env is caught immediately at boot.
+     */
+    private function guardDatabaseConnection(): void
+    {
+        if (! $this->app->environment('production')) {
+            return;
+        }
+
+        if (env('DB_CONNECTION') === null) {
+            throw new \RuntimeException(
+                'DB_CONNECTION is not set in .env — refusing to silently fall back to sqlite in production.'
+            );
         }
     }
 }

@@ -17,6 +17,7 @@ function StatCard({ label, value, sub, icon: Icon, color = 'blue' }: {
     orange: 'bg-orange-50 text-orange-600',
     green:  'bg-green-50 text-green-600',
     amber:  'bg-amber-50 text-amber-600',
+    violet: 'bg-violet-50 text-violet-600',
   };
   return (
     <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
@@ -170,9 +171,9 @@ export default function RestaurantDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="blue"   sub={`${d.today?.transactions ?? 0} orders`} />
+        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="green"  sub={`${d.today?.transactions ?? 0} orders`} />
         <StatCard label="Orders Today"   value={d.today?.transactions ?? 0}                  icon={ShoppingCart}  color="orange" sub="Completed" />
-        <StatCard label="Avg Order"      value={formatCurrency(d.today?.avg_sale ?? 0)}      icon={TrendingUp} color="green" sub="Per cover" />
+        <StatCard label="Avg Order"      value={formatCurrency(d.today?.avg_sale ?? 0)}      icon={TrendingUp} color="violet" sub="Per cover" />
         <StatCard label="Active Kitchen" value={totalActive}                                  icon={Clock}         color="amber"  sub="In progress" />
       </div>
 
@@ -189,8 +190,13 @@ export default function RestaurantDashboard() {
             <AreaChart data={trend}>
               <defs>
                 <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#f97316" stopOpacity={0.18} />
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                  <stop offset="5%"  stopColor="#f97316" stopOpacity={0.5} />
+                  <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="orangeLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%"   stopColor="#ef4444" />
+                  <stop offset="100%" stopColor="#f97316" />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -198,7 +204,7 @@ export default function RestaurantDashboard() {
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
               <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
                 contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <Area type="monotone" dataKey="revenue" stroke="#f97316" fill="url(#orangeGrad)" strokeWidth={2.5} dot={false} />
+              <Area type="monotone" dataKey="revenue" stroke="url(#orangeLine)" fill="url(#orangeGrad)" strokeWidth={3} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -208,20 +214,28 @@ export default function RestaurantDashboard() {
           <h2 className="font-semibold text-gray-900 text-base mb-4">Popular Dishes</h2>
           {topProducts.length > 0 ? (
             <div className="space-y-3">
-              {topProducts.slice(0, 7).map((p: any, i: number) => (
+              {topProducts.slice(0, 7).map((p: any, i: number) => {
+                const RANK_STYLES = [
+                  { badge: 'bg-amber-100 text-amber-700',  bar: 'bg-gradient-to-r from-amber-400 to-orange-500' },
+                  { badge: 'bg-slate-200 text-slate-600',  bar: 'bg-gradient-to-r from-slate-400 to-slate-500' },
+                  { badge: 'bg-orange-100 text-orange-700', bar: 'bg-gradient-to-r from-orange-400 to-red-400' },
+                ];
+                const rank = RANK_STYLES[i] ?? { badge: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400' };
+                return (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center text-xs font-bold text-orange-600 flex-shrink-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${rank.badge}`}>
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{p.product?.name ?? 'Unknown item'}</p>
                     <div className="mt-0.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div className="h-full bg-orange-400 rounded-full" style={{ width: `${Math.min(100, (p.total_qty / (topProducts[0]?.total_qty || 1)) * 100)}%` }} />
+                      <div className={`h-full rounded-full ${rank.bar}`} style={{ width: `${Math.min(100, (p.total_qty / (topProducts[0]?.total_qty || 1)) * 100)}%` }} />
                     </div>
                   </div>
                   <span className="text-xs font-semibold text-gray-500 flex-shrink-0">{p.total_qty}x</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex items-center justify-center h-40 text-gray-400 text-sm flex-col gap-2">
@@ -280,15 +294,27 @@ export default function RestaurantDashboard() {
       {/* Month summary */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0) },
-          { label: 'Month Orders',   value: `${d.month?.transactions ?? 0} orders` },
-          { label: 'Month Customers', value: d.month?.customers ?? 0 },
-        ].map(({ label, value }) => (
-          <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-            <p className="text-xs text-gray-400 mb-1">{label}</p>
-            <p className="text-lg font-bold text-gray-900">{value}</p>
+          { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0),  icon: DollarSign,   color: 'green' },
+          { label: 'Month Orders',   value: `${d.month?.transactions ?? 0} orders`, icon: ShoppingCart, color: 'orange' },
+          { label: 'Month Customers', value: d.month?.customers ?? 0,               icon: TrendingUp,   color: 'violet' },
+        ].map(({ label, value, icon: Icon, color }) => {
+          const iconColors: Record<string, string> = {
+            green:  'bg-green-50 text-green-600',
+            orange: 'bg-orange-50 text-orange-600',
+            violet: 'bg-violet-50 text-violet-600',
+          };
+          return (
+          <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-md flex items-center justify-center flex-shrink-0 ${iconColors[color]}`}>
+              <Icon size={18} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+              <p className="text-lg font-bold text-gray-900">{value}</p>
+            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

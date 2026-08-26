@@ -12,14 +12,23 @@ import { format } from 'date-fns';
 
 const PIE_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
 
-function StatCard({ label, value, sub, icon: Icon, iconBg, trend }: {
-  label: string; value: string | number; sub?: string; icon: any; iconBg: string; trend?: string;
+const STAT_COLORS: Record<string, { icon: string; iconBg: string; value: string }> = {
+  emerald: { icon: 'text-emerald-600', iconBg: 'bg-emerald-50', value: 'text-emerald-700' },
+  blue:    { icon: 'text-blue-600',    iconBg: 'bg-blue-50',    value: 'text-gray-900' },
+  violet:  { icon: 'text-violet-600',  iconBg: 'bg-violet-50',  value: 'text-gray-900' },
+  orange:  { icon: 'text-orange-600',  iconBg: 'bg-orange-50',  value: 'text-gray-900' },
+  red:     { icon: 'text-red-600',     iconBg: 'bg-red-50',     value: 'text-red-700' },
+};
+
+function StatCard({ label, value, sub, icon: Icon, color = 'blue', trend }: {
+  label: string; value: string | number; sub?: string; icon: any; color?: string; trend?: string;
 }) {
+  const c = STAT_COLORS[color] ?? STAT_COLORS.blue;
   return (
     <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
       <div className="flex items-start justify-between mb-4">
-        <div className={`w-10 h-10 rounded-md flex items-center justify-center ${iconBg}`}>
-          <Icon size={18} className="text-blue-600" />
+        <div className={`w-10 h-10 rounded-md flex items-center justify-center ${c.iconBg}`}>
+          <Icon size={18} className={c.icon} />
         </div>
         {trend && (
           <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
@@ -27,7 +36,7 @@ function StatCard({ label, value, sub, icon: Icon, iconBg, trend }: {
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-gray-900 mb-0.5">{value}</p>
+      <p className={`text-2xl font-bold mb-0.5 ${c.value}`}>{value}</p>
       <p className="text-sm text-gray-500">{label}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
@@ -154,11 +163,11 @@ export default function SupermarketDashboard() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
-        <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${d.today?.transactions ?? 0} transactions`} icon={DollarSign}    iconBg="bg-blue-50"   trend="+12%" />
-        <StatCard label="Transactions" value={d.today?.transactions ?? 0}              sub="Today"               icon={ShoppingCart}  iconBg="bg-blue-50"   trend="+8%" />
-        <StatCard label="Avg Basket"   value={formatCurrency(d.today?.avg_sale ?? 0)}  sub="Per transaction" icon={TrendingUp} iconBg="bg-blue-50" />
-        <StatCard label="Low Stock"    value={d.low_stock_count ?? 0}                  sub="Items need reorder"  icon={AlertTriangle}  iconBg={d.low_stock_count > 0 ? 'bg-orange-50' : 'bg-blue-50'} />
-        <StatCard label="Out of Stock" value={d.out_of_stock_count ?? 0}               sub="Items at zero"       icon={PackageX}        iconBg={d.out_of_stock_count > 0 ? 'bg-red-50' : 'bg-blue-50'} />
+        <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${d.today?.transactions ?? 0} transactions`} icon={DollarSign}    color="emerald" trend="+12%" />
+        <StatCard label="Transactions" value={d.today?.transactions ?? 0}              sub="Today"               icon={ShoppingCart}  color="blue"   trend="+8%" />
+        <StatCard label="Avg Basket"   value={formatCurrency(d.today?.avg_sale ?? 0)}  sub="Per transaction" icon={TrendingUp} color="violet" />
+        <StatCard label="Low Stock"    value={d.low_stock_count ?? 0}                  sub="Items need reorder"  icon={AlertTriangle}  color={d.low_stock_count > 0 ? 'orange' : 'blue'} />
+        <StatCard label="Out of Stock" value={d.out_of_stock_count ?? 0}               sub="Items at zero"       icon={PackageX}        color={d.out_of_stock_count > 0 ? 'red' : 'blue'} />
       </div>
 
       {/* Sales trend + Top products */}
@@ -172,8 +181,13 @@ export default function SupermarketDashboard() {
             <AreaChart data={trend}>
               <defs>
                 <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.45} />
+                  <stop offset="55%" stopColor="#2563eb" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="blueLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%"   stopColor="#7c3aed" />
+                  <stop offset="100%" stopColor="#06b6d4" />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -181,7 +195,7 @@ export default function SupermarketDashboard() {
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
               <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
                 contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <Area type="monotone" dataKey="revenue" stroke="#2563eb" fill="url(#blueGrad)" strokeWidth={2.5} dot={false} />
+              <Area type="monotone" dataKey="revenue" stroke="url(#blueLine)" fill="url(#blueGrad)" strokeWidth={3} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -190,9 +204,16 @@ export default function SupermarketDashboard() {
           <h2 className="font-semibold text-gray-900 text-base mb-4">Top Selling Items</h2>
           {topProducts.length > 0 ? (
             <div className="space-y-3">
-              {topProducts.slice(0, 6).map((p: any, i: number) => (
+              {topProducts.slice(0, 6).map((p: any, i: number) => {
+                const RANK_STYLES = [
+                  'bg-amber-100 text-amber-700',
+                  'bg-slate-200 text-slate-600',
+                  'bg-orange-100 text-orange-700',
+                ];
+                const rankStyle = RANK_STYLES[i] ?? 'bg-blue-50 text-blue-600';
+                return (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${rankStyle}`}>
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -201,7 +222,8 @@ export default function SupermarketDashboard() {
                   </div>
                   <span className="text-sm font-semibold text-gray-700">{formatCurrency(p.total_revenue ?? 0)}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex items-center justify-center h-40 text-gray-400 text-sm flex-col gap-2">
@@ -219,8 +241,10 @@ export default function SupermarketDashboard() {
           {paymentBreakdown.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={paymentBreakdown} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="total" nameKey="method">
-                  {paymentBreakdown.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                <Pie data={paymentBreakdown} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="total" nameKey="method"
+                  paddingAngle={3}
+                  label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
+                  {paymentBreakdown.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="#fff" strokeWidth={2} />)}
                 </Pie>
                 <Legend formatter={(v: string) => v.replace('_', ' ')} iconSize={10} />
                 <Tooltip formatter={v => formatCurrency(v as number)} contentStyle={{ borderRadius: '10px', fontSize: '12px' }} />
@@ -240,20 +264,28 @@ export default function SupermarketDashboard() {
           </div>
           {openOrders.length > 0 ? (
             <div className="space-y-2">
-              {openOrders.slice(0, 5).map((order: any) => (
+              {openOrders.slice(0, 5).map((order: any, i: number) => {
+                const HELD_ACCENTS = [
+                  { bg: 'bg-violet-100', icon: 'text-violet-600', pill: 'bg-violet-100 text-violet-700' },
+                  { bg: 'bg-cyan-100',   icon: 'text-cyan-600',   pill: 'bg-cyan-100 text-cyan-700' },
+                  { bg: 'bg-amber-100',  icon: 'text-amber-600',  pill: 'bg-amber-100 text-amber-700' },
+                ];
+                const accent = HELD_ACCENTS[i % HELD_ACCENTS.length];
+                return (
                 <div key={order.id} className="flex items-center gap-3 p-3 rounded-md bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <ShoppingCart size={14} className="text-blue-600" />
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${accent.bg}`}>
+                    <ShoppingCart size={14} className={accent.icon} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800">{order.reference}</p>
                     <p className="text-xs text-gray-400">{order.cart_data?.items?.length ?? 0} items</p>
                   </div>
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${accent.pill}`}>
                     {order.order_status ?? 'held'}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex items-center justify-center h-32 text-gray-400 text-sm flex-col gap-2">
@@ -267,20 +299,23 @@ export default function SupermarketDashboard() {
       {/* Month summary */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Month Revenue',   value: formatCurrency(d.month?.revenue ?? 0),      icon: TrendingUp },
-          { label: 'Month Sales',     value: `${d.month?.transactions ?? 0} sales`,      icon: ShoppingCart },
-          { label: 'Month Customers', value: d.month?.customers ?? 0,                    icon: Users },
-        ].map(({ label, value, icon: Icon }) => (
+          { label: 'Month Revenue',   value: formatCurrency(d.month?.revenue ?? 0),      icon: TrendingUp,   color: 'emerald' },
+          { label: 'Month Sales',     value: `${d.month?.transactions ?? 0} sales`,      icon: ShoppingCart, color: 'blue' },
+          { label: 'Month Customers', value: d.month?.customers ?? 0,                    icon: Users,        color: 'violet' },
+        ].map(({ label, value, icon: Icon, color }) => {
+          const c = STAT_COLORS[color] ?? STAT_COLORS.blue;
+          return (
           <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0">
-              <Icon size={18} className="text-blue-600" />
+            <div className={`w-10 h-10 rounded-md flex items-center justify-center flex-shrink-0 ${c.iconBg}`}>
+              <Icon size={18} className={c.icon} />
             </div>
             <div>
               <p className="text-xs text-gray-400">{label}</p>
               <p className="text-lg font-bold text-gray-900">{value}</p>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

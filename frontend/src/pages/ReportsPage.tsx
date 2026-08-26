@@ -325,15 +325,33 @@ export default function ReportsPage() {
       {tab === 'Sales' && salesData && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[['Total Revenue', `${fmt(salesData.summary?.total_revenue || 0)}`], ['Total Sales', salesData.summary?.total_transactions || 0], ['Avg Order Value', `${fmt(salesData.summary?.total_transactions ? salesData.summary.total_revenue / salesData.summary.total_transactions : 0)}`]].map(([label, val]) => (
-              <div key={label} className="bg-white rounded-md p-5 shadow-sm border border-gray-100"><p className="text-sm text-gray-500">{label}</p><p className="text-2xl font-bold text-gray-900 mt-1">{val}</p></div>
+            {[
+              ['Total Revenue', `${fmt(salesData.summary?.total_revenue || 0)}`, 'text-emerald-600', 'bg-emerald-500'],
+              ['Total Sales', salesData.summary?.total_transactions || 0, 'text-blue-600', 'bg-blue-500'],
+              ['Avg Order Value', `${fmt(salesData.summary?.total_transactions ? salesData.summary.total_revenue / salesData.summary.total_transactions : 0)}`, 'text-violet-600', 'bg-violet-500'],
+            ].map(([label, val, textColor, dotColor]) => (
+              <div key={label as string} className="bg-white rounded-md p-5 shadow-sm border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                  <p className="text-sm text-gray-500">{label}</p>
+                </div>
+                <p className={`text-2xl font-bold mt-1 ${textColor}`}>{val}</p>
+              </div>
             ))}
           </div>
           {salesData.daily_breakdown && (
             <div className="bg-white rounded-md p-5 shadow-sm border border-gray-100">
               <h3 className="font-semibold text-gray-800 mb-4">Daily Sales</h3>
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={salesData.daily_breakdown}><CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v?.slice(5)} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => [`${fmt(v as number)}`]} /><Bar dataKey="revenue" fill="#f59e0b" name="Revenue" radius={[4, 4, 0, 0]} /></BarChart>
+                <BarChart data={salesData.daily_breakdown}>
+                  <defs>
+                    <linearGradient id="salesBarGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fb923c" />
+                      <stop offset="100%" stopColor="#f59e0b" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v?.slice(5)} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => [`${fmt(v as number)}`]} /><Bar dataKey="revenue" fill="url(#salesBarGrad)" name="Revenue" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
@@ -471,7 +489,7 @@ export default function ReportsPage() {
             </div>
             {monthlyData.daily_breakdown?.length > 0 && (
               <div className="bg-white rounded-md p-5 border border-gray-200">
-                <ResponsiveContainer width="100%" height={240}><BarChart data={monthlyData.daily_breakdown}><CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v?.slice(8)} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="revenue" fill="#7c3aed" name="Revenue" radius={[3,3,0,0]} /></BarChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={240}><BarChart data={monthlyData.daily_breakdown}><defs><linearGradient id="monthlyBarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v?.slice(8)} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="revenue" fill="url(#monthlyBarGrad)" name="Revenue" radius={[3,3,0,0]} /></BarChart></ResponsiveContainer>
               </div>
             )}
           </div>

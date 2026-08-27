@@ -347,15 +347,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell flex h-screen bg-slate-50 overflow-hidden">
-      {/* Persistent sidebar on large touch/desktop screens — cashiers are
-          kiosk-locked to their register, no sidebar at all for that role. */}
-      {!isCashier && (
-        <aside className="hidden lg:block w-60 h-full flex-shrink-0"><SidebarContent /></aside>
-      )}
-
-      {/* Overlay drawer on smaller screens, opened via the hamburger below */}
+      {/* Sidebar drawer — collapsed by default, opened via the hamburger
+          icon in the top bar. Cashiers are kiosk-locked to their register,
+          no sidebar at all for that role. */}
       {!isCashier && sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-60 h-full z-50"><SidebarContent /></aside>
         </div>
@@ -365,7 +361,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-5 gap-4 flex-shrink-0">
           {!isCashier && (
-            <button className="text-gray-500 hover:text-gray-800 lg:hidden" onClick={() => setSidebarOpen(true)} title="Menu">
+            <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
             </button>
           )}

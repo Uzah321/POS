@@ -63,12 +63,12 @@ export default function ProductCard({
         ${highlighted ? 'outline outline-[3px] outline-blue-500 outline-offset-1 z-10' : ''}`}
     >
       {/* Image / color-fallback area */}
-      <div ref={applyImageAreaStyle} className={`relative w-full h-[86px] flex items-center justify-center overflow-hidden ${product.image || solidColor || categoryColor ? '' : 'bg-gray-50'}`}>
+      <div ref={applyImageAreaStyle} className={`relative w-full h-[72px] flex items-center justify-center overflow-hidden ${product.image || solidColor || categoryColor ? '' : 'bg-gray-50'}`}>
         {product.image ? (
           <img src={product.image} alt="" className="w-full h-full object-cover" />
         ) : (
           <span
-            className="text-4xl font-black select-none"
+            className="text-3xl font-black select-none"
             style={{ color: accentText ?? (categoryColor ?? '#94a3b8'), opacity: solidColor ? 0.35 : 0.5 }}
           >
             {product.name?.[0]?.toUpperCase() ?? '?'}
@@ -76,13 +76,13 @@ export default function ProductCard({
         )}
 
         {product.made_to_order && (
-          <span title="Made on Order — prepared fresh from its recipe" className="absolute top-1 right-1 flex items-center justify-center w-6 h-6 rounded-none bg-orange-500 text-white shadow">
-            <ChefHat size={13} />
+          <span title="Made on Order — prepared fresh from its recipe" className="absolute top-1 right-1 flex items-center justify-center w-5 h-5 rounded-none bg-orange-500 text-white shadow">
+            <ChefHat size={11} />
           </span>
         )}
         {product.sold_by_weight && (
-          <span title="Sold by weight — reads from the scale" className="absolute top-1 left-1 flex items-center justify-center w-6 h-6 rounded-none bg-blue-500 text-white shadow">
-            <ScaleIcon size={13} />
+          <span title="Sold by weight — reads from the scale" className="absolute top-1 left-1 flex items-center justify-center w-5 h-5 rounded-none bg-blue-500 text-white shadow">
+            <ScaleIcon size={11} />
           </span>
         )}
         {isOutOfStock && (
@@ -93,14 +93,14 @@ export default function ProductCard({
       </div>
 
       {/* Label strip */}
-      <div className="flex-1 flex flex-col gap-0.5 px-2.5 py-1.5 pr-8 min-h-[46px] justify-center">
-        <span className="text-[12.5px] font-bold leading-tight text-gray-800 line-clamp-2">{product.name}</span>
-        <span className="text-[13px] font-black tabular-nums leading-none" style={{ color: priceColor }}>{priceLabel}</span>
+      <div className="flex-1 flex flex-col gap-0.5 px-2 py-1 pr-7 min-h-[40px] justify-center">
+        <span className="text-[11.5px] font-bold leading-tight text-gray-800 line-clamp-2">{product.name}</span>
+        <span className="text-[12px] font-black tabular-nums leading-none" style={{ color: priceColor }}>{priceLabel}</span>
       </div>
 
       {/* Floating add badge — whole card is the tap target already */}
-      <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-none bg-emerald-500 text-white flex items-center justify-center shadow-md pointer-events-none">
-        <Plus size={16} strokeWidth={3} />
+      <span className="absolute bottom-1 right-1 w-6 h-6 rounded-none bg-emerald-500 text-white flex items-center justify-center shadow-md pointer-events-none">
+        <Plus size={14} strokeWidth={3} />
       </span>
     </button>
   );

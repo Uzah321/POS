@@ -1438,9 +1438,9 @@ export default function ProductsPage() {
                     {catEdit?.id === c.id ? (
                       <InlineColorPicker
                         value={catEdit!.color}
-                        onChange={(color) => setCatEdit({ ...catEdit!, color })}
+                        onChange={(color) => setCatEdit((prev) => prev && { ...prev, color })}
                         image={catEdit!.image}
-                        onImageChange={(image) => setCatEdit({ ...catEdit!, image })}
+                        onImageChange={(image) => setCatEdit((prev) => prev && { ...prev, image })}
                       />
                     ) : c.image ? (
                       <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">

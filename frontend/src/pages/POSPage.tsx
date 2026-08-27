@@ -744,7 +744,7 @@ export default function POSPage() {
                   <p className="text-sm">No products found</p>
                 </div>
               ) : (
-                <div className="flex-1 grid content-start gap-2.5 overflow-y-auto min-h-0" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
+                <div className="flex-1 grid content-start gap-2 overflow-y-auto min-h-0" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))' }}>
                   {pagedProducts.map((product: any, tileIndex: number) => {
                     // A color chosen directly on the product renders as a solid card — the
                     // shade should show exactly as picked. A colored category (no explicit

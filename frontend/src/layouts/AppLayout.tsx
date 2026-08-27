@@ -240,39 +240,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     to: string; label: string; icon: React.ElementType; indent?: boolean; external?: boolean;
   }) => {
     const active = !external && (location.pathname === to || (to !== '/' && location.pathname.startsWith(to)));
-    const cls = `flex items-center gap-3 rounded-md transition-all text-sm font-medium
-      ${indent ? 'pl-9 pr-3 py-1.5' : 'px-3 py-2'}
+    const cls = `flex items-center gap-3 rounded-xl transition-all text-sm font-medium
+      ${indent ? 'pl-9 pr-3 py-2' : 'px-3 py-2.5'}
       ${active
-        ? 'bg-blue-600 text-white shadow-sm shadow-blue-300'
-        : 'text-slate-600 hover:bg-blue-50 hover:text-blue-800'}`;
+        ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+        : 'text-slate-300 hover:bg-white/10 hover:text-white'}`;
     return (
       <Link to={to} onClick={() => setSidebarOpen(false)} className={cls}>
-        <Icon size={15} className="flex-shrink-0" />
+        <Icon size={18} className="flex-shrink-0" />
         <span className="truncate">{label}</span>
-        {external && <span className="ml-auto text-gray-300 text-[10px]">Open</span>}
+        {external && <span className="ml-auto text-slate-400 text-[10px]">Open</span>}
       </Link>
     );
   };
 
   const SidebarContent = () => (
-    <div className="app-sidebar flex flex-col h-full bg-white border-r border-gray-100 shadow-sm">
+    <div className="app-sidebar flex flex-col h-full shadow-xl">
       {/* Logo */}
-      <div className="app-titlebar flex items-center gap-3 px-4 h-16 border-b border-gray-100 flex-shrink-0">
+      <div className="app-titlebar flex items-center gap-3 px-4 h-16 flex-shrink-0">
         <div className="w-9 h-9 flex-shrink-0">
           <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
-            <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
+            <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#3b82f6"/>
             <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
             <circle cx="18" cy="18" r="4" fill="white"/>
           </svg>
         </div>
         <div>
-          <span className="font-bold text-slate-950 text-base leading-tight block">Core</span>
-          <span className="text-xs text-slate-500 truncate block">{user?.branch?.name ?? 'Main Branch'}</span>
+          <span className="font-bold text-white text-base leading-tight block">Core</span>
+          <span className="text-xs text-slate-400 truncate block">{user?.branch?.name ?? 'Main Branch'}</span>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-1">
         {/* Top flat items */}
         {topItems
           .filter(item => {
@@ -283,7 +283,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Dropdown groups " hidden for cashiers */}
         {!isCashier && (
-          <div className="pt-2 space-y-0.5">
+          <div className="pt-2 space-y-1">
             {navGroups.map(group => {
               const visibleItems = group.items.filter(i => canSee(i.perm));
               if (visibleItems.length === 0) return null;
@@ -299,18 +299,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {/* Group trigger button */}
                   <button
                     onClick={() => toggleGroup(group.id)}
-                    className={`w-full flex items-center justify-between rounded-md text-sm font-semibold transition-all px-3 py-2
-                      ${groupActive && !isOpen ? 'bg-blue-50 text-blue-800 shadow-sm'
-                        : isOpen ? 'bg-slate-200 text-slate-900 shadow-inner'
-                        : 'text-slate-700 hover:bg-blue-50 hover:text-blue-800'}`}
+                    className={`w-full flex items-center justify-between rounded-xl text-sm font-semibold transition-all px-3 py-2.5
+                      ${groupActive && !isOpen ? 'bg-white/10 text-white'
+                        : isOpen ? 'bg-white/15 text-white'
+                        : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-3">
-                      <GroupIcon size={16} className="flex-shrink-0" />
+                      <GroupIcon size={18} className="flex-shrink-0" />
                       <span>{group.label}</span>
                     </span>
                     <ChevronDown
                       size={14}
-                      className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                      className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
                     />
                   </button>
 
@@ -328,16 +328,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* User */}
-      <div className="border-t border-slate-300 p-3 flex-shrink-0 bg-slate-100/65">
+      <div className="border-t border-white/10 p-3 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-md bg-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-inner">
+          <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow">
             {userInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-950 truncate">{user?.name}</p>
-            <p className="text-xs text-slate-500 capitalize truncate">{user?.roles?.[0] ?? 'user'}</p>
+            <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+            <p className="text-xs text-slate-400 capitalize truncate">{user?.roles?.[0] ?? 'user'}</p>
           </div>
-          <button type="button" onClick={handleLogout} title="Logout" className="text-gray-400 hover:text-red-500 transition-colors">
+          <button type="button" onClick={handleLogout} title="Logout" className="text-slate-400 hover:text-red-400 transition-colors">
             <LogOut size={16} />
           </button>
         </div>
@@ -347,12 +347,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell flex h-screen bg-slate-50 overflow-hidden">
-      {/* Sidebar drawer — pops up over the page when the hamburger icon is clicked.
-          Cashiers are kiosk-locked to their register, no sidebar at all. */}
+      {/* Persistent sidebar on large touch/desktop screens — cashiers are
+          kiosk-locked to their register, no sidebar at all for that role. */}
+      {!isCashier && (
+        <aside className="hidden lg:block w-60 h-full flex-shrink-0"><SidebarContent /></aside>
+      )}
+
+      {/* Overlay drawer on smaller screens, opened via the hamburger below */}
       {!isCashier && sidebarOpen && (
-        <div className="fixed inset-0 z-40">
+        <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-56 h-full z-50"><SidebarContent /></aside>
+          <aside className="relative w-60 h-full z-50"><SidebarContent /></aside>
         </div>
       )}
 
@@ -360,7 +365,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-5 gap-4 flex-shrink-0">
           {!isCashier && (
-            <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
+            <button className="text-gray-500 hover:text-gray-800 lg:hidden" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
             </button>
           )}
@@ -475,7 +480,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NotificationBell />
 
           <div className="flex items-center gap-2.5 pl-1">
-            <div className="w-8 h-8 rounded-md bg-blue-700 flex items-center justify-center text-white font-bold text-xs shadow-inner">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow">
               {userInitials}
             </div>
             <div className="hidden sm:block">

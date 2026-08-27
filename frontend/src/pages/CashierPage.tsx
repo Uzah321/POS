@@ -18,14 +18,16 @@ import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
+import ProductCard from '../components/pos/ProductCard';
+import CategoryChip from '../components/pos/CategoryChip';
 import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
-import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Layers, Scale as ScaleIcon } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, ChevronLeft, ChevronRight, Scale as ScaleIcon, Banknote, CreditCard, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
-  { value: 'cash',         label: 'CASH',   key: 'F1', activeClass: 'bg-emerald-600 border-emerald-700 text-white' },
-  { value: 'card',         label: 'CARD',   key: 'F2', activeClass: 'bg-blue-600    border-blue-700    text-white' },
-  { value: 'mobile_money', label: 'MOBILE', key: 'F3', activeClass: 'bg-purple-600  border-purple-700  text-white' },
+  { value: 'cash',         label: 'CASH',   key: 'F1', icon: Banknote,    activeClass: 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' },
+  { value: 'card',         label: 'CARD',   key: 'F2', icon: CreditCard,  activeClass: 'bg-blue-600    border-blue-600    text-white shadow-md shadow-blue-200' },
+  { value: 'mobile_money', label: 'MOBILE', key: 'F3', icon: Smartphone,  activeClass: 'bg-purple-600  border-purple-600  text-white shadow-md shadow-purple-200' },
 ] as const;
 
 type PayMethod = typeof PAY_METHODS[number]['value'];
@@ -165,12 +167,12 @@ export default function CashierPage() {
     return tileTheme[Math.abs(p.id) % tileTheme.length];
   };
 
-  // Regular stock browser under the Scan/PLU box — shows every product before
-  // the cashier types anything, and narrows live as they type (name/sku/barcode),
-  // so a till doesn't require memorizing codes to find something. A tapped
-  // category chip narrows the same list further, so browsing by aisle/section
-  // works the same way scanning/typing does.
-  const BROWSE_LIMIT = 60;
+  // Product browser under the Scan/PLU box — always visible (a modern,
+  // image-led grid, not just a fallback that appears once the cashier types),
+  // and narrows live as they type (name/sku/barcode) or tap a category chip,
+  // so a till doesn't require memorizing codes to find something.
+  const [browsePage, setBrowsePage] = useState(0);
+  const BROWSE_PER_PAGE = 24;
   const browseQuery = codeInput.trim().toLowerCase();
   const browseMatches = allProducts.filter(p => {
     const matchesCategory = categoryFilter === 'All' || p.category?.name === categoryFilter;
@@ -180,14 +182,15 @@ export default function CashierPage() {
       (p.barcode ?? '').toLowerCase().includes(browseQuery);
     return matchesCategory && matchesQuery;
   });
-  const browsingActive = !!browseQuery || categoryFilter !== 'All';
   const browseSorted = [...browseMatches].sort((a, b) => a.name.localeCompare(b.name));
-  const browseProducts = browseSorted.slice(0, BROWSE_LIMIT);
-  const browseOverflow = browseSorted.length - browseProducts.length;
+  const browsePageCount = Math.max(1, Math.ceil(browseSorted.length / BROWSE_PER_PAGE));
+  const clampedBrowsePage = Math.min(browsePage, browsePageCount - 1);
+  const browseProducts = browseSorted.slice(clampedBrowsePage * BROWSE_PER_PAGE, (clampedBrowsePage + 1) * BROWSE_PER_PAGE);
 
-  // A fresh keystroke or category tap starts with nothing arrow-highlighted —
-  // the cashier presses ArrowDown to start navigating the new result list.
-  useEffect(() => { setHighlightIndex(-1); }, [browseQuery, categoryFilter]);
+  // A fresh keystroke or category tap starts with nothing arrow-highlighted
+  // and back at page 1 — the cashier presses ArrowDown to start navigating
+  // the new result set.
+  useEffect(() => { setHighlightIndex(-1); setBrowsePage(0); }, [browseQuery, categoryFilter]);
 
   // Keep the highlighted row visible as the cashier arrows past the edge of the scroll area
   useEffect(() => {
@@ -676,88 +679,84 @@ export default function CashierPage() {
           </form>
 
           {/* Category chips — colored per Settings → "Product Tile Colour Theme"
-              (or the category's own color), same palette as the restaurant POS
-              grid, so cashiers can browse by aisle/section without typing. */}
+              (or the category's own color), same palette and component as the
+              restaurant POS grid, so cashiers can browse by aisle/section
+              without typing. */}
           {categories.length > 1 && (
-            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto">
-              <Layers size={13} className="text-gray-300 flex-shrink-0" />
+            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 overflow-x-auto">
               {categories.map(cat => {
                 const catColor = cat === 'All' ? undefined : (categoryColors.get(cat) ?? tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length]);
-                const isActive = categoryFilter === cat;
-                const catText = catColor ? contrastText(catColor) : undefined;
                 return (
-                  <button key={cat} type="button"
+                  <CategoryChip
+                    key={cat}
+                    label={cat}
+                    displayLabel={cat === 'All' ? 'All Items' : cat}
+                    active={categoryFilter === cat}
+                    color={catColor}
                     onClick={() => { setCategoryFilter(cat); codeRef.current?.focus(); }}
-                    style={isActive && catColor ? { backgroundColor: catColor, borderColor: catColor, color: catText } : catColor ? { borderColor: `${catColor}80`, color: catColor } : undefined}
-                    className={`flex-shrink-0 px-3 py-1 rounded-full border-2 text-xs font-bold whitespace-nowrap transition-all touch-manipulation
-                      ${!catColor && isActive ? 'bg-blue-600 border-blue-600 text-white' : ''}
-                      ${!catColor && !isActive ? 'border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600' : ''}
-                      ${catColor && !isActive ? 'bg-white hover:opacity-80' : ''}`}
-                  >
-                    {cat}
-                  </button>
+                    title={cat === 'All' ? 'All Products' : cat}
+                  />
                 );
               })}
             </div>
           )}
 
-          {/* Stock search results — appears once the cashier starts typing or
-              taps a category chip; narrows live by name/sku/barcode as they
-              keep typing, or by category as they tap another chip. */}
-          {browsingActive && (
-            <div className="mt-2 border-t border-gray-100 pt-2">
-              <div className="flex items-center justify-between px-1 pb-1.5">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  {browseSorted.length} match{browseSorted.length !== 1 ? 'es' : ''}
-                </span>
+          {/* Product grid — always visible (not just once the cashier types),
+              image-led and colorful, same ProductCard component as the
+              restaurant POS so both tills feel like one system. Scanning or
+              typing an exact code above still adds instantly; this is the
+              visual/browse path. */}
+          <div className="mt-2 border-t border-gray-100 pt-2">
+            <div className="flex items-center justify-between px-1 pb-1.5">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {browseSorted.length} product{browseSorted.length !== 1 ? 's' : ''}
+              </span>
+              {(browseQuery || categoryFilter !== 'All') && (
                 <button type="button" onClick={() => { setCodeInput(''); setCategoryFilter('All'); codeRef.current?.focus(); }}
                   className="text-xs text-gray-400 hover:text-gray-600 font-semibold">
                   Clear
                 </button>
-              </div>
-              <div className="max-h-56 overflow-y-auto rounded-md border border-gray-100">
-                {browseProducts.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-6">
-                    {browseQuery ? `No products match "${codeInput}"` : `No products in "${categoryFilter}"`}
-                  </p>
-                ) : (
-                  browseProducts.map((p, rowIndex) => {
-                    const accent = productAccent(p);
-                    return (
-                    <button key={p.id} type="button" onClick={() => addProduct(p)}
-                      ref={(el) => { rowRefs.current[rowIndex] = el; }}
-                      // A plain Tailwind bg-* class can't win here — index.css's
-                      // skeuomorphic button theme paints every bordered button
-                      // with its own background/box-shadow (see the `[class*="border"]`
-                      // rule there), and only an inline style beats a non-!important
-                      // stylesheet rule regardless of class specificity.
-                      style={{
-                        borderLeft: accent ? `4px solid ${accent}` : undefined,
-                        ...(rowIndex === highlightIndex ? { background: '#bfdbfe', boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.15)' } : undefined),
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex items-center justify-between text-sm touch-manipulation">
-                      <span className="flex items-center min-w-0">
-                        <span className="text-gray-400 mr-3 text-xs flex-shrink-0">{p.sku}</span>
-                        <span className="font-semibold text-gray-900 truncate">{p.name}</span>
-                        {p.sold_by_weight && (
-                          <span className="ml-2 flex items-center gap-0.5 text-[10px] font-bold text-blue-500 flex-shrink-0" title="Sold by weight">
-                            <ScaleIcon size={10} />/kg
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-blue-700 font-bold flex-shrink-0 ml-3">{formatCurrency(parseFloat(p.selling_price))}{p.sold_by_weight ? '/kg' : ''}</span>
-                    </button>
-                    );
-                  })
-                )}
-                {browseOverflow > 0 && (
-                  <p className="text-center text-gray-400 text-xs py-1.5 bg-gray-50 border-t border-gray-100">
-                    +{browseOverflow} more — keep typing to narrow
-                  </p>
-                )}
-              </div>
+              )}
             </div>
-          )}
+            {browseProducts.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-6">
+                {browseQuery ? `No products match "${codeInput}"` : `No products in "${categoryFilter}"`}
+              </p>
+            ) : (
+              <div className="grid gap-2.5 max-h-[320px] overflow-y-auto content-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
+                {browseProducts.map((p, rowIndex) => {
+                  const accent = productAccent(p);
+                  const textColor = accent ? contrastText(accent) : undefined;
+                  return (
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      onClick={() => addProduct(p)}
+                      solidColor={accent}
+                      textColor={textColor}
+                      isOutOfStock={false}
+                      highlighted={rowIndex === highlightIndex}
+                      priceLabel={`${formatCurrency(parseFloat(p.selling_price))}${p.sold_by_weight ? '/kg' : ''}`}
+                      innerRef={(el) => { rowRefs.current[rowIndex] = el; }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            {browsePageCount > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-2.5">
+                <button type="button" onClick={() => setBrowsePage(p => Math.max(0, p - 1))} disabled={clampedBrowsePage === 0}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
+                  <ChevronLeft size={15} />
+                </button>
+                <span className="text-xs font-semibold text-gray-500 tabular-nums">Page {clampedBrowsePage + 1} of {browsePageCount}</span>
+                <button type="button" onClick={() => setBrowsePage(p => Math.min(browsePageCount - 1, p + 1))} disabled={clampedBrowsePage >= browsePageCount - 1}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -832,26 +831,27 @@ export default function CashierPage() {
         <div className="w-[40%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[560px] max-w-[640px] flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
 
           {/* Total box */}
-          <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-lg shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-2xl shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
             <span className="text-white/70 font-semibold text-base tracking-wide">TOTAL</span>
             <span className="text-white font-bold text-4xl tabular-nums font-mono">{formatCurrency(total)}</span>
           </div>
 
           {/* Payment method card */}
-          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex-shrink-0">
             <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Payment Method</p>
-            <div className="grid grid-cols-3 gap-2">
-              {PAY_METHODS.map(({ value, label, key, activeClass }) => (
+            <div className="grid grid-cols-3 gap-2.5">
+              {PAY_METHODS.map(({ value, label, key, icon: Icon, activeClass }) => (
                 <button key={value} type="button"
                   onClick={() => setPayMethod(value)}
-                  className={`flex flex-col items-center py-3 rounded-md border-2 font-bold text-base transition-all touch-manipulation
+                  className={`flex flex-col items-center gap-1 py-4 rounded-xl border-2 font-bold text-base transition-all touch-manipulation
                     ${payMethod === value
                       ? activeClass
                       : 'border-gray-200 text-gray-500 bg-white hover:border-blue-200 hover:bg-blue-50'
                     }`}
                 >
-                  <span className="text-sm opacity-50 mb-1">{key}</span>
+                  <Icon size={22} />
                   {label}
+                  <span className="text-[10px] font-semibold opacity-50">{key}</span>
                 </button>
               ))}
             </div>
@@ -878,7 +878,7 @@ export default function CashierPage() {
           </div>
 
           {/* Action buttons card */}
-          <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-2 flex-shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-2.5 flex-shrink-0">
             {/* For cash, CashNotesPad above already has its own confirm/process
                 button — showing a second "Process Order" button here just
                 duplicates it and pushes the column past the viewport, forcing
@@ -887,7 +887,7 @@ export default function CashierPage() {
               <button type="button"
                 onClick={handleProcessSale}
                 disabled={!canProcess}
-                className="w-full py-6 rounded-md font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 touch-manipulation"
+                className="w-full py-6 rounded-xl font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 touch-manipulation"
               >
                 {saleMutation.isPending
                   ? <span className="flex items-center justify-center gap-2">
@@ -902,18 +902,18 @@ export default function CashierPage() {
               <button type="button"
                 onClick={() => { cart.clearCart(); setCashTendered(''); setTimeout(() => codeRef.current?.focus(), 40); }}
                 disabled={cart.items.length === 0}
-                className="py-4 rounded-md border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
+                className="py-4 rounded-xl border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
                 F5 Clear
               </button>
               <button type="button"
                 onClick={handleHoldOrder}
                 disabled={cart.items.length === 0 || holdMutation.isPending}
-                className="py-4 rounded-md border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
+                className="py-4 rounded-xl border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
                 {holdMutation.isPending ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'F8 Hold'}
               </button>
               <button type="button"
                 onClick={() => window.location.reload()}
-                className="py-4 rounded-md border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
+                className="py-4 rounded-xl border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
                 <RefreshCw size={14} /> Refresh
               </button>
             </div>

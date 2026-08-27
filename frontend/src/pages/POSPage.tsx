@@ -18,19 +18,21 @@ import { effectiveTaxRate } from '../lib/taxSettings';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
+import ProductCard from '../components/pos/ProductCard';
+import CategoryChip from '../components/pos/CategoryChip';
 import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
   User, Award,
-  ChevronLeft, ChevronRight, ChefHat, Scale as ScaleIcon,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAYMENT_METHODS = [
-  { value: 'cash', label: 'Cash', icon: Banknote },
-  { value: 'card', label: 'Card', icon: CreditCard },
-  { value: 'mobile_money', label: 'Mobile', icon: Smartphone },
+  { value: 'cash', label: 'Cash', icon: Banknote, activeClass: 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' },
+  { value: 'card', label: 'Card', icon: CreditCard, activeClass: 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200' },
+  { value: 'mobile_money', label: 'Mobile', icon: Smartphone, activeClass: 'bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-200' },
 ];
 
 function CartRow({ item, format }: { item: CartItem; format: (v: number) => string }) {
@@ -680,15 +682,11 @@ export default function POSPage() {
       <div className="-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
       {/* Main content — ticket + payment always visible alongside the product grid */}
-      <div className="flex-1 flex flex-col overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
+      <div className="flex-1 flex overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
 
-      <div className="flex-1 flex overflow-hidden gap-3 min-h-0">
-
-        {/* Left: products only — categories now live in the full-width strip below */}
-        <div className="w-1/2 min-w-0 flex flex-col gap-2 min-h-0">
-          {/* Products card — search bar as its header, matching the theme of the
-              categories card and the ticket card on the right */}
-          <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+        {/* Left: products — search, colorful category row, image-led product grid */}
+        <div className="flex-[1.65] min-w-0 flex flex-col gap-2 min-h-0">
+          <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
             <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
               <form onSubmit={(e) => { e.preventDefault(); handleSearchEnter(); }} className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -697,8 +695,8 @@ export default function POSPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
-                  placeholder="Search product"
-                  className="w-full pl-9 pr-9 py-2 border border-gray-200 focus:border-blue-400 rounded-lg text-sm bg-white focus:outline-none transition-colors"
+                  placeholder="Search product by name or SKU"
+                  className="w-full pl-9 pr-9 py-2.5 border border-gray-200 focus:border-blue-400 rounded-xl text-sm bg-white focus:outline-none transition-colors"
                 />
                 <button
                   type="button"
@@ -711,7 +709,27 @@ export default function POSPage() {
               </form>
             </div>
 
-            <div className="flex-1 p-2 flex flex-col gap-2 min-h-0">
+            {/* Category row — big colorful icon chips, mirrors the reference layout */}
+            <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 flex items-center gap-2 overflow-x-auto">
+              {categories.map((cat) => {
+                const ownCatColor = cat === 'All' ? undefined : categoryColors.get(cat);
+                const themeCatColor = cat === 'All' || ownCatColor ? undefined : tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length];
+                const catColor = ownCatColor || themeCatColor;
+                return (
+                  <CategoryChip
+                    key={cat}
+                    label={cat}
+                    displayLabel={cat === 'All' ? 'All Items' : cat}
+                    active={activeCategory === cat}
+                    color={catColor}
+                    onClick={() => setActiveCategory(cat)}
+                    title={cat === 'All' ? 'All Products' : cat}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="flex-1 p-2.5 flex flex-col gap-2 min-h-0">
               {productsLoading ? (
                 <div className="flex-1 flex items-center justify-center">
                   <Loader2 size={28} className="animate-spin text-blue-500" />
@@ -722,94 +740,38 @@ export default function POSPage() {
                   <p className="text-sm">No products found</p>
                 </div>
               ) : (
-                <div className="flex-1 flex flex-wrap content-start gap-1 overflow-y-auto min-h-0">
+                <div className="flex-1 grid content-start gap-2.5 overflow-y-auto min-h-0" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
                   {pagedProducts.map((product: any, tileIndex: number) => {
-                    // A color chosen directly on the product renders as a solid tile — the
+                    // A color chosen directly on the product renders as a solid card — the
                     // shade should show exactly as picked. A colored category (no explicit
                     // product color) stays a soft tint instead, since that's a grouping cue
                     // rather than a deliberate per-product choice. With neither, the active
                     // tile-color theme fills in a solid color instead of plain white, picked
                     // deterministically per product id so it stays stable across re-renders.
-                    // An image is just a small accent thumbnail under the name, not the
-                    // tile background, so it never fights with the color or the price text.
                     const ownColor = product.color;
                     const categoryColor = !ownColor && product.category?.name ? categoryColors.get(product.category.name) : undefined;
                     const themeColor = !ownColor && !categoryColor ? tileTheme[Math.abs(product.id) % tileTheme.length] : undefined;
                     const solidColor = ownColor || themeColor;
                     const textColor = solidColor ? contrastText(solidColor) : undefined;
-                    // Same "out of stock" rule handleAddProduct blocks on — grey the tile out
+                    // Same "out of stock" rule handleAddProduct blocks on — grey the card out
                     // to match, so it reads as unavailable before the cashier even taps it.
                     const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
                     const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
                     const isOutOfStock = blockNegStock && product.track_stock !== false && stock !== null && stock <= 0;
-                    // Some browsers/extensions (confirmed on a Brave till this session)
-                    // repaint an element's background-color/background-image after the
-                    // fact — even one forced with !important — while leaving border-color
-                    // untouched (this is what Chromium's "force dark mode for web content"
-                    // does: flatten arbitrary backgrounds, but leave borders/text alone).
-                    // Forcing background-color a second, harder way doesn't help since it's
-                    // the same property being repainted. An inset box-shadow paints an
-                    // identical solid fill but isn't the property that gets touched, so it
-                    // survives where background-color doesn't.
-                    const applyTileStyle = (el: HTMLButtonElement | null) => {
-                      if (!el) return;
-                      if (solidColor) {
-                        el.style.setProperty('box-shadow', `inset 0 0 0 100px ${solidColor}`, 'important');
-                        el.style.setProperty('border-color', solidColor, 'important');
-                      } else if (categoryColor) {
-                        el.style.setProperty('box-shadow', `inset 0 0 0 100px ${categoryColor}1f`, 'important');
-                        el.style.setProperty('border-color', categoryColor, 'important');
-                      } else {
-                        el.style.removeProperty('box-shadow');
-                        el.style.removeProperty('border-color');
-                      }
-                      if (isOutOfStock) {
-                        el.style.setProperty('filter', 'grayscale(1)', 'important');
-                        el.style.setProperty('opacity', '0.5', 'important');
-                      } else {
-                        el.style.removeProperty('filter');
-                        el.style.removeProperty('opacity');
-                      }
-                    };
                     const isHighlighted = tileIndex === highlightIndex;
                     return (
-                      <button
-                        type="button"
+                      <ProductCard
                         key={product.id}
-                        ref={(el) => { tileRefs.current[tileIndex] = el; applyTileStyle(el); }}
-                        title={isOutOfStock ? `${product.name} — Out of stock` : `${product.name} — ${formatCurrency(parseFloat(product.selling_price))}`}
+                        product={product}
                         onClick={() => handleAddProduct(product)}
-                        style={{ width: '1.7cm', height: '1.7cm' }}
-                        className={`relative hover:border-blue-300 hover:shadow-sm border rounded p-1 flex flex-col items-center justify-center gap-0.5 transition-all touch-manipulation flex-shrink-0 overflow-hidden ${solidColor || categoryColor ? '' : 'bg-white border-gray-200'} ${isOutOfStock ? 'hover:border-gray-200 cursor-not-allowed' : ''} ${isHighlighted ? 'outline outline-2 outline-blue-500 outline-offset-1 z-10' : ''}`}
-                      >
-                        {product.made_to_order && (
-                          <span
-                            title="Made on Order — prepared fresh from its recipe"
-                            className="absolute top-0.5 right-0.5 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-orange-500 text-white shadow-sm"
-                          >
-                            <ChefHat size={9} />
-                          </span>
-                        )}
-                        {product.sold_by_weight && (
-                          <span
-                            title="Sold by weight — reads from the scale"
-                            className="absolute top-0.5 left-0.5 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-blue-500 text-white shadow-sm"
-                          >
-                            <ScaleIcon size={9} />
-                          </span>
-                        )}
-                        <span
-                          className={`w-full text-[9px] font-semibold text-center leading-none ${product.image ? 'line-clamp-1' : 'line-clamp-2'} ${textColor ? '' : 'text-gray-800'}`}
-                          style={textColor ? { color: textColor } : undefined}
-                        >{product.name}</span>
-                        {product.image && (
-                          <img src={product.image} alt="" className="w-5 h-5 rounded-sm object-cover flex-shrink-0 border border-black/5" />
-                        )}
-                        <span
-                          className={`text-[10px] font-black tabular-nums leading-none ${textColor ? '' : 'text-blue-700'}`}
-                          style={textColor ? { color: textColor } : undefined}
-                        >{formatCurrency(parseFloat(product.selling_price))}{product.sold_by_weight ? '/kg' : ''}</span>
-                      </button>
+                        solidColor={solidColor}
+                        categoryColor={categoryColor}
+                        textColor={textColor}
+                        isOutOfStock={isOutOfStock}
+                        highlighted={isHighlighted}
+                        priceLabel={`${formatCurrency(parseFloat(product.selling_price))}${product.sold_by_weight ? '/kg' : ''}`}
+                        innerRef={(el) => { tileRefs.current[tileIndex] = el; }}
+                      />
                     );
                   })}
                 </div>
@@ -842,8 +804,9 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Right: ticket + payment (persistent, no separate screen) */}
-        <div className="w-1/2 min-w-[300px] flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+        {/* Right: ticket + payment (persistent, no separate screen) — narrower
+            now so the product grid gets the extra room. */}
+        <div className="flex-1 min-w-[340px] max-w-[420px] flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
           <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -984,28 +947,28 @@ export default function POSPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-1.5 mb-1">
-                  {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => (
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {PAYMENT_METHODS.map(({ value, label, icon: Icon, activeClass }, idx) => (
                     <button
                       type="button"
                       key={value}
                       onClick={() => setPaymentMethod(value)}
                       aria-label={`Pay by ${label} (${idx + 1})`}
                       aria-pressed={paymentMethod === value}
-                      className={`min-h-[50px] flex flex-col items-center justify-center gap-0.5 py-1 rounded text-xs font-semibold border transition-all touch-manipulation ${
+                      className={`min-h-[64px] flex flex-col items-center justify-center gap-1 py-1.5 rounded-xl text-xs font-bold border-2 transition-all touch-manipulation ${
                         paymentMethod === value
-                          ? 'bg-blue-600 text-white border-blue-600'
+                          ? activeClass
                           : 'bg-white border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
                       }`}
                     >
-                      <Icon size={14} />
+                      <Icon size={20} />
                       {label}
                     </button>
                   ))}
                 </div>
 
                 {paymentMethod === 'cash' && (
-                  <div className="mb-1">
+                  <div className="mb-2">
                     <CashNotesPad
                       value={cashTendered}
                       onChange={setCashTendered}
@@ -1028,100 +991,47 @@ export default function POSPage() {
               </>
             )}
 
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom: full-width category strip + a compact numeric keypad for fast
-          PLU/barcode entry, mirroring the reference layout — categories span
-          under both the product grid and the ticket panel instead of being
-          scoped to one column. */}
-      <div className="flex-shrink-0 flex gap-3" style={{ height: '200px' }}>
-        <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 overflow-y-auto">
-          <div className="flex flex-wrap gap-1.5">
-            {categories.map((cat) => {
-              const ownCatColor = cat === 'All' ? undefined : categoryColors.get(cat);
-              const themeCatColor = cat === 'All' || ownCatColor ? undefined : tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length];
-              const catColor = ownCatColor || themeCatColor;
-              const isActive = activeCategory === cat;
-              const catTextColor = catColor ? contrastText(catColor) : undefined;
-              // Same reasoning as product tiles (see applyTileStyle below) — a
-              // plain inline background-color can silently fail to paint on
-              // some browsers; box-shadow forced via !important survives it.
-              const applyCatStyle = (el: HTMLButtonElement | null) => {
-                if (!el) return;
-                if (catColor) {
-                  el.style.setProperty('box-shadow', `inset 0 0 0 100px ${isActive ? catColor : `${catColor}1f`}`, 'important');
-                  el.style.setProperty('border-color', isActive ? 'transparent' : catColor, 'important');
-                } else {
-                  el.style.removeProperty('box-shadow');
-                  el.style.removeProperty('border-color');
-                }
-              };
-              return (
+            {/* Numeric keypad + Process — always visible (both split and
+                non-split payment, same as before). Digits type into Cash
+                Tendered; Process triggers the sale (F9) regardless of method. */}
+            <div className="grid grid-cols-3 gap-2">
+              {['1','2','3','4','5','6','7','8','9'].map((d) => (
                 <button
+                  key={d}
                   type="button"
-                  key={cat}
-                  ref={applyCatStyle}
-                  title={cat === 'All' ? 'All Products' : cat}
-                  onClick={() => setActiveCategory(cat)}
-                  style={{ width: '1.9cm', height: '1.9cm', ...(catTextColor ? { color: catTextColor } : {}) }}
-                  className={`flex-shrink-0 flex items-center justify-center text-center px-1 rounded text-[11px] font-semibold leading-none line-clamp-3 overflow-hidden transition-colors touch-manipulation border
-                    ${isActive
-                      ? `${catColor ? '' : 'bg-blue-600 text-white border-transparent'}`
-                      : `${catColor ? '' : 'bg-white border-gray-200 text-gray-600'} hover:bg-blue-50 hover:text-blue-700`}`}
+                  onClick={() => setCashTendered(cashTendered + d)}
+                  className="py-2.5 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-xl font-bold text-gray-800 text-xl touch-manipulation transition-colors"
                 >
-                  {cat === 'All' ? 'All Products' : cat}
+                  {d}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Numeric keypad — types straight into the Cash Tendered field in
-            the panel above (single source of truth for that value; no
-            separate label/input duplicated down here). Sized up for easier
-            touch targets since it's now the page's only Process trigger. */}
-        <div className="w-96 flex-shrink-0 bg-white rounded-lg border border-gray-100 shadow-sm p-2 flex flex-col gap-2">
-          <div className="flex-1 grid grid-cols-3 gap-2 min-h-0">
-            {['1','2','3','4','5','6','7','8','9'].map((d) => (
+              ))}
               <button
-                key={d}
                 type="button"
-                onClick={() => setCashTendered(cashTendered + d)}
-                className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-2xl touch-manipulation transition-colors"
+                onClick={() => setCashTendered(cashTendered.slice(0, -1))}
+                className="py-2.5 bg-gray-100 hover:bg-red-50 hover:text-red-600 border-2 border-gray-100 rounded-xl font-bold text-gray-600 text-lg touch-manipulation transition-colors"
               >
-                {d}
+                ⌫
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCashTendered(cashTendered.slice(0, -1))}
-              className="bg-gray-100 hover:bg-red-50 hover:text-red-600 border border-gray-200 rounded-md font-bold text-gray-600 text-base touch-manipulation transition-colors"
-            >
-              ⌫
-            </button>
-            <button
-              type="button"
-              onClick={() => setCashTendered(cashTendered + '0')}
-              className="bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-md font-bold text-gray-800 text-2xl touch-manipulation transition-colors"
-            >
-              0
-            </button>
-            <button
-              type="button"
-              onClick={handleProcessSale}
-              disabled={cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
-              aria-label="Process sale (F9)"
-              aria-keyshortcuts="F9"
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold text-base touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
-            >
-              {saleMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : 'Process'}
-            </button>
+              <button
+                type="button"
+                onClick={() => setCashTendered(cashTendered + '0')}
+                className="py-2.5 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-xl font-bold text-gray-800 text-xl touch-manipulation transition-colors"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={handleProcessSale}
+                disabled={cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
+                aria-label="Process sale (F9)"
+                aria-keyshortcuts="F9"
+                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {saleMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : 'Process'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-
       </div>
 
       {/* Footer branding */}

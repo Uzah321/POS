@@ -18,10 +18,8 @@ import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
-import ProductCard from '../components/pos/ProductCard';
-import CategoryChip from '../components/pos/CategoryChip';
-import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
-import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, ChevronLeft, ChevronRight, Scale as ScaleIcon, Banknote, CreditCard, Smartphone } from 'lucide-react';
+import { cartLineAccent } from '../lib/tileColors';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -40,7 +38,6 @@ export default function CashierPage() {
   const [cashTendered, setCashTendered]       = useState('');
   const [currentTime, setCurrentTime]         = useState(new Date());
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [categoryFilter, setCategoryFilter]   = useState('All');
   const [showOpenTables, setShowOpenTables]   = useState(false);
   const [showVoidModal, setShowVoidModal]     = useState(false);
   const [editingQtyItem, setEditingQtyItem]   = useState<CartItem | null>(null);
@@ -50,11 +47,6 @@ export default function CashierPage() {
   const [pendingWeightProduct, setPendingWeightProduct] = useState<any | null>(null);
   const [weightInput, setWeightInput]         = useState('');
   const [voidSearch, setVoidSearch]           = useState('');
-  // Arrow-key highlight over the Scan/PLU results list — -1 means nothing
-  // highlighted (plain Enter still falls back to the exact-code/single-match
-  // lookup below). Row refs let the highlighted row scroll into view.
-  const [highlightIndex, setHighlightIndex]   = useState(-1);
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const codeRef     = useRef<HTMLInputElement>(null);
   const tenderedRef = useRef<HTMLInputElement>(null);
@@ -148,57 +140,17 @@ export default function CashierPage() {
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
 
-  // Category colors — same scheme as the restaurant POS grid, so a color
-  // picked in Products/Categories shows up consistently on every till.
-  const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
-  const categoryColors = new Map<string, string>();
-  const categoryImages = new Map<string, string>();
-  const categoryIds = new Map<string, number>();
-  allProducts.forEach((p: any) => {
-    if (!p.category?.name) return;
-    if (p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color);
-    if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
-    if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
-  });
-  const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
-  // A product's own color wins, then its category's color, then a stable
-  // theme color cycled per product id — same fallback order as the grid tiles.
-  const productAccent = (p: any): string | undefined => {
-    if (p.color) return p.color;
-    if (p.category?.name && categoryColors.has(p.category.name)) return categoryColors.get(p.category.name);
-    return tileTheme[Math.abs(p.id) % tileTheme.length];
-  };
-
-  // Product browser under the Scan/PLU box — always visible (a modern,
-  // image-led grid, not just a fallback that appears once the cashier types),
-  // and narrows live as they type (name/sku/barcode) or tap a category chip,
-  // so a till doesn't require memorizing codes to find something.
-  const [browsePage, setBrowsePage] = useState(0);
-  const BROWSE_PER_PAGE = 24;
+  // Live matches for the Scan/PLU box — feeds the exact-match/single-match
+  // fallback in handleCodeSubmit below and the on-screen-keyboard close
+  // handler. No visible browse list on this screen; typing narrows this
+  // purely to decide what a plain Enter should do.
   const browseQuery = codeInput.trim().toLowerCase();
-  const browseMatches = allProducts.filter(p => {
-    const matchesCategory = categoryFilter === 'All' || p.category?.name === categoryFilter;
-    const matchesQuery = !browseQuery ||
-      p.name.toLowerCase().includes(browseQuery) ||
-      (p.sku ?? '').toLowerCase().includes(browseQuery) ||
-      (p.barcode ?? '').toLowerCase().includes(browseQuery);
-    return matchesCategory && matchesQuery;
-  });
-  const browseSorted = [...browseMatches].sort((a, b) => a.name.localeCompare(b.name));
-  const browsePageCount = Math.max(1, Math.ceil(browseSorted.length / BROWSE_PER_PAGE));
-  const clampedBrowsePage = Math.min(browsePage, browsePageCount - 1);
-  const browseProducts = browseSorted.slice(clampedBrowsePage * BROWSE_PER_PAGE, (clampedBrowsePage + 1) * BROWSE_PER_PAGE);
-
-  // A fresh keystroke or category tap starts with nothing arrow-highlighted
-  // and back at page 1 — the cashier presses ArrowDown to start navigating
-  // the new result set.
-  useEffect(() => { setHighlightIndex(-1); setBrowsePage(0); }, [browseQuery, categoryFilter]);
-
-  // Keep the highlighted row visible as the cashier arrows past the edge of the scroll area
-  useEffect(() => {
-    if (highlightIndex < 0) return;
-    rowRefs.current[highlightIndex]?.scrollIntoView({ block: 'nearest' });
-  }, [highlightIndex]);
+  const browseMatches = allProducts.filter(p =>
+    !browseQuery ||
+    p.name.toLowerCase().includes(browseQuery) ||
+    (p.sku ?? '').toLowerCase().includes(browseQuery) ||
+    (p.barcode ?? '').toLowerCase().includes(browseQuery)
+  );
 
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
@@ -304,13 +256,6 @@ export default function CashierPage() {
   const handleCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // An arrow-highlighted row wins first (cashier navigated the results
-    // with the keyboard) — before falling back to an exact code match.
-    if (highlightIndex >= 0 && browseProducts[highlightIndex]) {
-      addProduct(browseProducts[highlightIndex]);
-      return;
-    }
-
     const q = codeInput.trim();
     if (!q) return;
 
@@ -321,25 +266,14 @@ export default function CashierPage() {
     );
     if (exact) { addProduct(exact); return; }
 
-    // Otherwise fall back to whatever the live name/sku/barcode filter below
-    // the input has already narrowed things down to.
+    // Otherwise fall back to whatever the live name/sku/barcode filter has
+    // already narrowed things down to.
     if (browseMatches.length === 0) {
       toast.error(`"${q}" not found`);
     } else if (browseMatches.length === 1) {
       addProduct(browseMatches[0]);
-    }
-  };
-
-  // ArrowUp/ArrowDown while the Scan/PLU box is focused move the highlight
-  // through the currently visible result list instead of doing nothing.
-  const handleCodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!browseQuery || browseProducts.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightIndex((i) => Math.min(browseProducts.length - 1, i + 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightIndex((i) => Math.max(0, i - 1));
+    } else {
+      toast.error(`Multiple matches for "${q}" — scan the barcode or type more of the name`);
     }
   };
 
@@ -658,7 +592,6 @@ export default function CashierPage() {
                 ref={codeRef}
                 value={codeInput}
                 onChange={e => setCodeInput(e.target.value)}
-                onKeyDown={handleCodeKeyDown}
                 placeholder="Scan barcode, or type to search stock..."
                 className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-none min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
@@ -679,88 +612,6 @@ export default function CashierPage() {
             </button>
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
           </form>
-
-          {/* Category chips — colored per Settings → "Product Tile Colour Theme"
-              (or the category's own color), same palette and component as the
-              restaurant POS grid, so cashiers can browse by aisle/section
-              without typing. */}
-          {categories.length > 1 && (
-            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 overflow-x-auto">
-              {categories.map(cat => {
-                const catImage = cat === 'All' ? undefined : categoryImages.get(cat);
-                const catColor = cat === 'All' || catImage ? undefined : (categoryColors.get(cat) ?? tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length]);
-                return (
-                  <CategoryChip
-                    key={cat}
-                    label={cat}
-                    displayLabel={cat === 'All' ? 'All Items' : cat}
-                    active={categoryFilter === cat}
-                    color={catColor}
-                    image={catImage}
-                    onClick={() => { setCategoryFilter(cat); codeRef.current?.focus(); }}
-                    title={cat === 'All' ? 'All Products' : cat}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          {/* Product grid — always visible (not just once the cashier types),
-              image-led and colorful, same ProductCard component as the
-              restaurant POS so both tills feel like one system. Scanning or
-              typing an exact code above still adds instantly; this is the
-              visual/browse path. */}
-          <div className="mt-2 border-t border-gray-100 pt-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {browseSorted.length} product{browseSorted.length !== 1 ? 's' : ''}
-              </span>
-              {(browseQuery || categoryFilter !== 'All') && (
-                <button type="button" onClick={() => { setCodeInput(''); setCategoryFilter('All'); codeRef.current?.focus(); }}
-                  className="text-xs text-gray-400 hover:text-gray-600 font-semibold">
-                  Clear
-                </button>
-              )}
-            </div>
-            {browseProducts.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-6">
-                {browseQuery ? `No products match "${codeInput}"` : `No products in "${categoryFilter}"`}
-              </p>
-            ) : (
-              <div className="grid gap-2.5 max-h-[320px] overflow-y-auto content-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
-                {browseProducts.map((p, rowIndex) => {
-                  const accent = productAccent(p);
-                  const textColor = accent ? contrastText(accent) : undefined;
-                  return (
-                    <ProductCard
-                      key={p.id}
-                      product={p}
-                      onClick={() => addProduct(p)}
-                      solidColor={accent}
-                      textColor={textColor}
-                      isOutOfStock={false}
-                      highlighted={rowIndex === highlightIndex}
-                      priceLabel={`${formatCurrency(parseFloat(p.selling_price))}${p.sold_by_weight ? '/kg' : ''}`}
-                      innerRef={(el) => { rowRefs.current[rowIndex] = el; }}
-                    />
-                  );
-                })}
-              </div>
-            )}
-            {browsePageCount > 1 && (
-              <div className="flex items-center justify-center gap-3 pt-2.5">
-                <button type="button" onClick={() => setBrowsePage(p => Math.max(0, p - 1))} disabled={clampedBrowsePage === 0}
-                  className="w-11 h-11 flex items-center justify-center rounded-none bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
-                  <ChevronLeft size={15} />
-                </button>
-                <span className="text-xs font-semibold text-gray-500 tabular-nums">Page {clampedBrowsePage + 1} of {browsePageCount}</span>
-                <button type="button" onClick={() => setBrowsePage(p => Math.min(browsePageCount - 1, p + 1))} disabled={clampedBrowsePage >= browsePageCount - 1}
-                  className="w-11 h-11 flex items-center justify-center rounded-none bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

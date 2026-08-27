@@ -590,7 +590,7 @@ export default function CashierPage() {
                   <select
                     value={cart.tableNumber}
                     onChange={(e) => cart.setTableNumber(e.target.value)}
-                    className="text-sm border border-gray-200 rounded-xl min-h-10 px-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                    className="text-sm border border-gray-200 rounded-none min-h-10 px-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                   >
                     {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -598,7 +598,7 @@ export default function CashierPage() {
                 <button
                   type="button"
                   onClick={() => setShowOpenTables(true)}
-                  className="relative flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
+                  className="relative flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-none border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
                 >
                   <LayoutGrid size={14} /> Open Tables
                   {heldOrders.length > 0 && (
@@ -610,7 +610,7 @@ export default function CashierPage() {
             <button
               type="button"
               onClick={() => setShowVoidModal(true)}
-              className="flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors touch-manipulation"
+              className="flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-none border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors touch-manipulation"
             >
               <Ban size={14} /> Void
             </button>
@@ -658,21 +658,21 @@ export default function CashierPage() {
                 onChange={e => setCodeInput(e.target.value)}
                 onKeyDown={handleCodeKeyDown}
                 placeholder="Scan barcode, or type to search stock..."
-                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-xl min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
+                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-none min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
               />
               {/* Touch keyboard button */}
               <button
                 type="button"
                 onClick={() => setShowSearchModal(true)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-lg touch-manipulation"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-none touch-manipulation"
                 title="Open on-screen keyboard"
               >
                 <Keyboard size={15} />
               </button>
             </div>
             <button type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white min-h-11 px-5 rounded-xl font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">
+              className="bg-blue-600 hover:bg-blue-700 text-white min-h-11 px-5 rounded-none font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">
               Enter ↵
             </button>
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
@@ -746,12 +746,12 @@ export default function CashierPage() {
             {browsePageCount > 1 && (
               <div className="flex items-center justify-center gap-3 pt-2.5">
                 <button type="button" onClick={() => setBrowsePage(p => Math.max(0, p - 1))} disabled={clampedBrowsePage === 0}
-                  className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
+                  className="w-11 h-11 flex items-center justify-center rounded-none bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
                   <ChevronLeft size={15} />
                 </button>
                 <span className="text-xs font-semibold text-gray-500 tabular-nums">Page {clampedBrowsePage + 1} of {browsePageCount}</span>
                 <button type="button" onClick={() => setBrowsePage(p => Math.min(browsePageCount - 1, p + 1))} disabled={clampedBrowsePage >= browsePageCount - 1}
-                  className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
+                  className="w-11 h-11 flex items-center justify-center rounded-none bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
                   <ChevronRight size={15} />
                 </button>
               </div>
@@ -793,7 +793,7 @@ export default function CashierPage() {
                       <button type="button"
                         onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
                         title="Tap to set quantity"
-                        className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
+                        className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-none hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
                         {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
                       </button>
                     </div>
@@ -806,7 +806,7 @@ export default function CashierPage() {
                     <button type="button"
                       onClick={() => cart.removeItem(item.line_id)}
                       title="Remove item"
-                      className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation">
+                      className="w-10 h-10 flex items-center justify-center rounded-none text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -843,7 +843,7 @@ export default function CashierPage() {
               {PAY_METHODS.map(({ value, label, key, icon: Icon, activeClass }) => (
                 <button key={value} type="button"
                   onClick={() => setPayMethod(value)}
-                  className={`flex flex-col items-center gap-1 py-4 rounded-xl border-2 font-bold text-base transition-all touch-manipulation
+                  className={`flex flex-col items-center gap-1 py-4 rounded-none border-2 font-bold text-base transition-all touch-manipulation
                     ${payMethod === value
                       ? activeClass
                       : 'border-gray-200 text-gray-500 bg-white hover:border-blue-200 hover:bg-blue-50'
@@ -887,7 +887,7 @@ export default function CashierPage() {
               <button type="button"
                 onClick={handleProcessSale}
                 disabled={!canProcess}
-                className="w-full py-6 rounded-xl font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 touch-manipulation"
+                className="w-full py-6 rounded-none font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 touch-manipulation"
               >
                 {saleMutation.isPending
                   ? <span className="flex items-center justify-center gap-2">
@@ -902,18 +902,18 @@ export default function CashierPage() {
               <button type="button"
                 onClick={() => { cart.clearCart(); setCashTendered(''); setTimeout(() => codeRef.current?.focus(), 40); }}
                 disabled={cart.items.length === 0}
-                className="py-4 rounded-xl border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
+                className="py-4 rounded-none border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
                 F5 Clear
               </button>
               <button type="button"
                 onClick={handleHoldOrder}
                 disabled={cart.items.length === 0 || holdMutation.isPending}
-                className="py-4 rounded-xl border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
+                className="py-4 rounded-none border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
                 {holdMutation.isPending ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'F8 Hold'}
               </button>
               <button type="button"
                 onClick={() => window.location.reload()}
-                className="py-4 rounded-xl border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
+                className="py-4 rounded-none border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
                 <RefreshCw size={14} /> Refresh
               </button>
             </div>
@@ -1020,14 +1020,14 @@ export default function CashierPage() {
                       <button
                         type="button"
                         onClick={() => resumeHeldOrder(held)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md touch-manipulation"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-none touch-manipulation"
                       >
                         <PlayCircle size={13} /> Resume
                       </button>
                       <button
                         type="button"
                         onClick={() => { if (confirm('Clear this table? The held order will be removed.')) deleteHeldMutation.mutate(held.id); }}
-                        className="p-1.5 text-gray-300 hover:text-red-500 rounded-md"
+                        className="p-1.5 text-gray-300 hover:text-red-500 rounded-none"
                         title="Clear table"
                       >
                         <Trash2 size={15} />
@@ -1058,7 +1058,7 @@ export default function CashierPage() {
                 value={voidSearch}
                 onChange={(e) => setVoidSearch(e.target.value)}
                 placeholder="Search by receipt reference..."
-                className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 focus:border-red-400 rounded-lg text-sm focus:outline-none"
+                className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 focus:border-red-400 rounded-none text-sm focus:outline-none"
               />
             </div>
             <div className="max-h-72 overflow-y-auto space-y-2">
@@ -1076,7 +1076,7 @@ export default function CashierPage() {
                     type="button"
                     onClick={() => { if (confirm(`Void sale ${s.reference}? Stock will be restored.`)) voidMutation.mutate(s.id); }}
                     disabled={voidMutation.isPending}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-md disabled:opacity-50 touch-manipulation"
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-none disabled:opacity-50 touch-manipulation"
                   >
                     Void
                   </button>

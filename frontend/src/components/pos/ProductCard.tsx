@@ -57,7 +57,7 @@ export default function ProductCard({
       ref={applyCardStyle}
       title={isOutOfStock ? `${product.name} — Out of stock` : `${product.name} — ${priceLabel}`}
       onClick={onClick}
-      className={`relative flex flex-col text-left rounded-xl border-2 bg-white overflow-hidden transition-all touch-manipulation shadow-sm hover:shadow-md
+      className={`relative flex flex-col text-left rounded-none border-2 bg-white overflow-hidden transition-all touch-manipulation shadow-sm hover:shadow-md
         ${isOutOfStock ? 'cursor-not-allowed' : 'hover:-translate-y-0.5'}
         ${borderColor ? '' : 'border-gray-100'}
         ${highlighted ? 'outline outline-[3px] outline-blue-500 outline-offset-1 z-10' : ''}`}
@@ -76,12 +76,12 @@ export default function ProductCard({
         )}
 
         {product.made_to_order && (
-          <span title="Made on Order — prepared fresh from its recipe" className="absolute top-1 right-1 flex items-center justify-center w-6 h-6 rounded-full bg-orange-500 text-white shadow">
+          <span title="Made on Order — prepared fresh from its recipe" className="absolute top-1 right-1 flex items-center justify-center w-6 h-6 rounded-none bg-orange-500 text-white shadow">
             <ChefHat size={13} />
           </span>
         )}
         {product.sold_by_weight && (
-          <span title="Sold by weight — reads from the scale" className="absolute top-1 left-1 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white shadow">
+          <span title="Sold by weight — reads from the scale" className="absolute top-1 left-1 flex items-center justify-center w-6 h-6 rounded-none bg-blue-500 text-white shadow">
             <ScaleIcon size={13} />
           </span>
         )}
@@ -99,7 +99,7 @@ export default function ProductCard({
       </div>
 
       {/* Floating add badge — whole card is the tap target already */}
-      <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md pointer-events-none">
+      <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-none bg-emerald-500 text-white flex items-center justify-center shadow-md pointer-events-none">
         <Plus size={16} strokeWidth={3} />
       </span>
     </button>

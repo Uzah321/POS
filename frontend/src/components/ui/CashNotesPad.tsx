@@ -41,13 +41,13 @@ const NOTE_DENOMINATIONS: Record<string, number[]> = {
 };
 
 const BTN_BASE_LARGE =
-  'flex items-center justify-center rounded-xl font-bold select-none transition-all ' +
+  'flex items-center justify-center rounded-none font-bold select-none transition-all ' +
   'active:scale-95 active:brightness-90 touch-manipulation cursor-pointer disabled:opacity-50';
 // Compact mode (Advanced POS) matches the flat, single-border tile style used
 // for products/categories/payment-method buttons elsewhere on that screen —
-// same rounded-xl corners and a touch-sized minimum, just a bit shorter.
+// same boxed corners and a touch-sized minimum, just a bit shorter.
 const BTN_BASE_COMPACT =
-  'flex items-center justify-center rounded-xl font-bold select-none transition-colors ' +
+  'flex items-center justify-center rounded-none font-bold select-none transition-colors ' +
   'touch-manipulation cursor-pointer disabled:opacity-50';
 
 const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function CashNotesPad({
@@ -127,7 +127,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
       <div className={`w-full flex items-center gap-1.5 ${large ? 'mb-2' : 'mb-1'}`}>
         {keyboardMode ? (
           <div
-            className={`flex-1 flex items-center justify-between px-3 transition-colors min-h-11 rounded-xl ${
+            className={`flex-1 flex items-center justify-between px-3 transition-colors min-h-11 rounded-none ${
               large
                 ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
                 : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
@@ -152,7 +152,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
             onClick={() => { if (!disabled) setShowKeypad(true); }}
             disabled={disabled}
             title="Tap to type an exact amount"
-            className={`flex-1 flex items-center justify-between px-3 touch-manipulation transition-colors min-h-11 rounded-xl ${
+            className={`flex-1 flex items-center justify-between px-3 touch-manipulation transition-colors min-h-11 rounded-none ${
               large
                 ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
                 : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
@@ -168,14 +168,14 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
           type="button"
           onClick={() => setTouchscreenMode({ touchscreenMode: keyboardMode })}
           title={keyboardMode ? 'Switch to touchscreen popup keypad' : 'Switch to keyboard entry'}
-          className={`flex-shrink-0 flex items-center justify-center rounded-xl border text-gray-500 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition-colors w-11 h-11 border-gray-200 bg-white`}
+          className={`flex-shrink-0 flex items-center justify-center rounded-none border text-gray-500 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition-colors w-11 h-11 border-gray-200 bg-white`}
         >
           {keyboardMode ? <Hand size={large ? 18 : 14} /> : <Keyboard size={large ? 18 : 14} />}
         </button>
       </div>
 
       {change !== undefined && change > 0 && (
-        <div className={`flex items-center justify-between px-3 rounded-xl bg-emerald-50 border-2 border-emerald-300 ${large ? 'py-2.5 mb-2' : 'py-1.5 mb-1'}`}>
+        <div className={`flex items-center justify-between px-3 rounded-none bg-emerald-50 border-2 border-emerald-300 ${large ? 'py-2.5 mb-2' : 'py-1.5 mb-1'}`}>
           <span className={`font-bold text-emerald-700 uppercase tracking-wide ${large ? 'text-xs' : 'text-[10px]'}`}>Change Due</span>
           <span className={`font-black tabular-nums font-mono tracking-tight text-emerald-700 ${large ? 'text-2xl' : 'text-lg'}`}>
             {formatAmount ? formatAmount(change) : change.toFixed(2)}

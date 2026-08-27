@@ -52,7 +52,7 @@ function applyKey(current: string, key: string, allowDecimal: boolean): string {
 }
 
 const BTN_BASE =
-  'flex items-center justify-center rounded-xl font-bold select-none transition-all ' +
+  'flex items-center justify-center rounded-none font-bold select-none transition-all ' +
   'active:scale-95 active:brightness-90 touch-manipulation cursor-pointer';
 
 const BTN_DIGIT = `${BTN_BASE} bg-white border-2 border-gray-200 text-gray-900 text-2xl h-16 hover:bg-gray-50 hover:border-gray-300`;
@@ -118,12 +118,12 @@ export default function NumericKeypad({
       <div className="flex items-center justify-between mb-2">
         {label && <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>}
         {modal && onClose && (
-          <button type="button" onClick={onClose} className="ml-auto p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+          <button type="button" onClick={onClose} className="ml-auto p-1 text-gray-400 hover:text-gray-600 rounded-none hover:bg-gray-100">
             <X size={16} />
           </button>
         )}
       </div>
-      <div className={`flex items-center justify-end px-4 py-3 rounded-xl mb-3 min-h-[56px] ${
+      <div className={`flex items-center justify-end px-4 py-3 rounded-none mb-3 min-h-[56px] ${
         value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200'
       }`}>
         <span className={`text-3xl font-black tabular-nums font-mono tracking-tight ${value ? 'text-blue-700' : 'text-gray-300'}`}>

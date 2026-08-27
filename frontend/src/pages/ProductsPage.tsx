@@ -92,15 +92,15 @@ function InlineColorPicker({ value, onChange, image, onImageChange }: {
     }
   };
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       <span
-        className="w-6 h-6 rounded-full border border-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center"
+        className="w-7 h-7 border border-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center"
         style={!image && value ? { backgroundColor: value } : !image ? { background: 'repeating-conic-gradient(#e5e7eb 0% 25%, #fff 0% 50%) 0 0/8px 8px' } : undefined}
         title={image ? 'Image' : value || 'No color'}
       >
         {image && <img src={image} alt="" className="w-full h-full object-cover" />}
       </span>
-      <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
+      <div className="flex flex-wrap items-center gap-1 max-w-[220px]">
         {COLOR_SWATCHES.slice(0, 8).map((c) => (
           <button
             key={c}
@@ -108,22 +108,23 @@ function InlineColorPicker({ value, onChange, image, onImageChange }: {
             onClick={() => { onChange(c); onImageChange?.(undefined); }}
             title={c}
             style={{ backgroundColor: c }}
-            className={`w-4 h-4 rounded-full border transition-transform hover:scale-110 ${value === c && !image ? 'border-gray-800' : 'border-white shadow-sm'}`}
+            className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 ${value === c && !image ? 'border-gray-800' : 'border-white shadow-sm'}`}
           />
         ))}
-        <label title="Custom color" className="w-4 h-4 rounded-full border border-white shadow-sm cursor-pointer relative overflow-hidden bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]">
+        <label title="Custom color" className="w-5 h-5 rounded-full border border-white shadow-sm cursor-pointer relative overflow-hidden bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]">
           <input type="color" value={value && !image ? value : '#888888'} onChange={(e) => { onChange(e.target.value); onImageChange?.(undefined); }} className="absolute inset-0 opacity-0 cursor-pointer" />
         </label>
+        {(value || image) && (
+          <button type="button" onClick={() => { onChange(undefined); onImageChange?.(undefined); }} title="Clear" className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500">
+            <X size={12} />
+          </button>
+        )}
         {onImageChange && (
-          <label title="Upload image" className="w-4 h-4 rounded-full border border-white shadow-sm cursor-pointer flex items-center justify-center bg-blue-50 text-blue-600">
-            {uploading ? <Loader2 size={9} className="animate-spin" /> : <ImageIcon size={9} />}
+          <label title="Upload a photo instead of a color" className="flex-shrink-0 h-6 px-2 flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-600 text-[11px] font-semibold cursor-pointer hover:bg-blue-100 transition-colors">
+            {uploading ? <Loader2 size={11} className="animate-spin" /> : <ImageIcon size={11} />}
+            Image
             <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
           </label>
-        )}
-        {(value || image) && (
-          <button type="button" onClick={() => { onChange(undefined); onImageChange?.(undefined); }} title="Clear" className="w-4 h-4 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-500">
-            <X size={10} />
-          </button>
         )}
       </div>
     </div>

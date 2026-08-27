@@ -64,7 +64,7 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
         <button
           type="button"
           onClick={openQtyEdit}
-          className="w-9 h-8 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation"
+          className="w-11 h-10 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation"
           title="Tap to set quantity"
         >
           {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
@@ -76,7 +76,7 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
       <div className="w-16 text-right flex-shrink-0">
         <p className="text-sm font-bold text-gray-900 tabular-nums">{format(lineTotal)}</p>
       </div>
-      <button type="button" onClick={() => removeItem(item.line_id)} className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
+      <button type="button" onClick={() => removeItem(item.line_id)} className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
         <Trash2 size={14} />
       </button>
 
@@ -783,7 +783,7 @@ export default function POSPage() {
                     type="button"
                     onClick={() => setProductPage((p) => Math.max(0, p - 1))}
                     disabled={clampedPage === 0}
-                    className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
                     title="Previous page"
                   >
                     <ChevronLeft size={16} />
@@ -793,7 +793,7 @@ export default function POSPage() {
                     type="button"
                     onClick={() => setProductPage((p) => Math.min(pageCount - 1, p + 1))}
                     disabled={clampedPage >= pageCount - 1}
-                    className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
                     title="Next page"
                   >
                     <ChevronRight size={16} />
@@ -808,20 +808,20 @@ export default function POSPage() {
             now so the product grid gets the extra room. */}
         <div className="flex-1 min-w-[340px] max-w-[420px] flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
-          <div className="flex items-center justify-between px-3 py-0.5 border-b border-gray-100 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-900">Current Sale</span>
+          <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-sm font-bold text-gray-900 flex-shrink-0 pr-0.5">Current Sale</span>
               <button
                 type="button"
                 onClick={() => setShowCustomerPicker(true)}
                 title="Select customer"
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold transition-colors touch-manipulation max-w-[140px] ${
+                className={`flex items-center justify-center gap-1 min-h-10 px-2.5 rounded-xl text-xs font-semibold transition-colors touch-manipulation max-w-[120px] ${
                   cart.customerId
                     ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                     : 'bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700'
                 }`}
               >
-                <User size={11} className="flex-shrink-0" />
+                <User size={13} className="flex-shrink-0" />
                 <span className="truncate">{cart.customerId ? cart.customerName : 'Customer'}</span>
               </button>
               <button
@@ -831,40 +831,40 @@ export default function POSPage() {
                 aria-label="Hold order (F8)"
                 aria-keyshortcuts="F8"
                 title="Hold order (F8)"
-                className="flex items-center gap-1 px-2 py-0.5 bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 touch-manipulation"
+                className="flex items-center justify-center gap-1 min-h-10 px-2.5 bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40 touch-manipulation flex-shrink-0"
               >
-                {holdMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <PauseCircle size={11} />}
+                {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />}
                 Hold
               </button>
               {cart.heldOrders.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowHeldOrders(true)}
-                  className="relative flex items-center gap-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-semibold transition-colors touch-manipulation"
+                  className="relative flex items-center justify-center gap-1 min-h-10 px-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-xs font-semibold transition-colors touch-manipulation flex-shrink-0"
                   title="View held orders"
                 >
-                  <PauseCircle size={12} />
+                  <PauseCircle size={13} />
                   {cart.heldOrders.length} held
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="text-gray-400 hover:text-blue-500 flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors touch-manipulation"
+                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors touch-manipulation"
                 title="Refresh page if frozen"
               >
-                <RefreshCw size={12} />
+                <RefreshCw size={14} />
               </button>
               <button
                 type="button"
                 onClick={() => cart.clearCart()}
                 aria-label="Clear sale (F5)"
                 aria-keyshortcuts="F5"
-                className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 px-1.5 py-1 rounded-md transition-colors touch-manipulation"
+                className="flex items-center justify-center gap-1 min-h-10 px-2.5 text-xs font-semibold text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors touch-manipulation"
               >
-                <Trash2 size={12} /> Clear
+                <Trash2 size={13} /> Clear
               </button>
             </div>
           </div>
@@ -915,7 +915,7 @@ export default function POSPage() {
               <button
                 type="button"
                 onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
-                className={`min-h-[30px] text-xs px-3 py-1 rounded border font-medium transition-colors touch-manipulation ${isSplitPayment ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'}`}
+                className={`min-h-10 text-xs px-3 rounded-xl border font-medium transition-colors touch-manipulation ${isSplitPayment ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'}`}
               >
                 Split
               </button>
@@ -929,7 +929,7 @@ export default function POSPage() {
                       {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
                     <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-gray-800" placeholder="0.00" />
-                    <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 touch-manipulation"><X size={14} /></button>
+                    <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl text-red-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation"><X size={14} /></button>
                   </div>
                 ))}
                 {(() => {
@@ -938,7 +938,7 @@ export default function POSPage() {
                   return (
                     <>
                       {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${fmtActive(remaining)}` : `Over by: ${fmtActive(-remaining)}`}</div>}
-                      <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-[40px] py-2 border-2 border-dashed border-gray-200 rounded-md text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
+                      <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-11 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
                         <Plus size={14} /> Add payment method
                       </button>
                     </>
@@ -1000,7 +1000,7 @@ export default function POSPage() {
                   key={d}
                   type="button"
                   onClick={() => setCashTendered(cashTendered + d)}
-                  className="py-2.5 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-xl font-bold text-gray-800 text-xl touch-manipulation transition-colors"
+                  className="min-h-11 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-xl font-bold text-gray-800 text-xl touch-manipulation transition-colors"
                 >
                   {d}
                 </button>
@@ -1008,14 +1008,14 @@ export default function POSPage() {
               <button
                 type="button"
                 onClick={() => setCashTendered(cashTendered.slice(0, -1))}
-                className="py-2.5 bg-gray-100 hover:bg-red-50 hover:text-red-600 border-2 border-gray-100 rounded-xl font-bold text-gray-600 text-lg touch-manipulation transition-colors"
+                className="min-h-11 bg-gray-100 hover:bg-red-50 hover:text-red-600 border-2 border-gray-100 rounded-xl font-bold text-gray-600 text-lg touch-manipulation transition-colors"
               >
                 ⌫
               </button>
               <button
                 type="button"
                 onClick={() => setCashTendered(cashTendered + '0')}
-                className="py-2.5 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-xl font-bold text-gray-800 text-xl touch-manipulation transition-colors"
+                className="min-h-11 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-xl font-bold text-gray-800 text-xl touch-manipulation transition-colors"
               >
                 0
               </button>
@@ -1025,7 +1025,7 @@ export default function POSPage() {
                 disabled={cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
                 aria-label="Process sale (F9)"
                 aria-keyshortcuts="F9"
-                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                className="min-h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {saleMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : 'Process'}
               </button>

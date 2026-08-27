@@ -590,7 +590,7 @@ export default function CashierPage() {
                   <select
                     value={cart.tableNumber}
                     onChange={(e) => cart.setTableNumber(e.target.value)}
-                    className="text-sm border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                    className="text-sm border border-gray-200 rounded-xl min-h-10 px-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                   >
                     {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -598,9 +598,9 @@ export default function CashierPage() {
                 <button
                   type="button"
                   onClick={() => setShowOpenTables(true)}
-                  className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
+                  className="relative flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
                 >
-                  <LayoutGrid size={13} /> Open Tables
+                  <LayoutGrid size={14} /> Open Tables
                   {heldOrders.length > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
                   )}
@@ -610,9 +610,9 @@ export default function CashierPage() {
             <button
               type="button"
               onClick={() => setShowVoidModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors touch-manipulation"
+              className="flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors touch-manipulation"
             >
-              <Ban size={13} /> Void
+              <Ban size={14} /> Void
             </button>
           </div>
           <div className="flex items-center gap-4 text-sm">
@@ -658,7 +658,7 @@ export default function CashierPage() {
                 onChange={e => setCodeInput(e.target.value)}
                 onKeyDown={handleCodeKeyDown}
                 placeholder="Scan barcode, or type to search stock..."
-                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-md px-4 py-2.5 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
+                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-xl min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
               />
               {/* Touch keyboard button */}
@@ -672,7 +672,7 @@ export default function CashierPage() {
               </button>
             </div>
             <button type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-md font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">
+              className="bg-blue-600 hover:bg-blue-700 text-white min-h-11 px-5 rounded-xl font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">
               Enter ↵
             </button>
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
@@ -746,12 +746,12 @@ export default function CashierPage() {
             {browsePageCount > 1 && (
               <div className="flex items-center justify-center gap-3 pt-2.5">
                 <button type="button" onClick={() => setBrowsePage(p => Math.max(0, p - 1))} disabled={clampedBrowsePage === 0}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
+                  className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
                   <ChevronLeft size={15} />
                 </button>
                 <span className="text-xs font-semibold text-gray-500 tabular-nums">Page {clampedBrowsePage + 1} of {browsePageCount}</span>
                 <button type="button" onClick={() => setBrowsePage(p => Math.min(browsePageCount - 1, p + 1))} disabled={clampedBrowsePage >= browsePageCount - 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
+                  className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation">
                   <ChevronRight size={15} />
                 </button>
               </div>
@@ -793,7 +793,7 @@ export default function CashierPage() {
                       <button type="button"
                         onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
                         title="Tap to set quantity"
-                        className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-md hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
+                        className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
                         {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
                       </button>
                     </div>
@@ -806,7 +806,7 @@ export default function CashierPage() {
                     <button type="button"
                       onClick={() => cart.removeItem(item.line_id)}
                       title="Remove item"
-                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors touch-manipulation">
+                      className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation">
                       <Trash2 size={16} />
                     </button>
                   </div>

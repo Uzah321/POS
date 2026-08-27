@@ -44,9 +44,10 @@ const BTN_BASE_LARGE =
   'flex items-center justify-center rounded-xl font-bold select-none transition-all ' +
   'active:scale-95 active:brightness-90 touch-manipulation cursor-pointer disabled:opacity-50';
 // Compact mode (Advanced POS) matches the flat, single-border tile style used
-// for products/categories/payment-method buttons elsewhere on that screen.
+// for products/categories/payment-method buttons elsewhere on that screen —
+// same rounded-xl corners and a touch-sized minimum, just a bit shorter.
 const BTN_BASE_COMPACT =
-  'flex items-center justify-center rounded font-bold select-none transition-colors ' +
+  'flex items-center justify-center rounded-xl font-bold select-none transition-colors ' +
   'touch-manipulation cursor-pointer disabled:opacity-50';
 
 const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function CashNotesPad({
@@ -126,7 +127,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
       <div className={`w-full flex items-center gap-1.5 ${large ? 'mb-2' : 'mb-1'}`}>
         {keyboardMode ? (
           <div
-            className={`flex-1 flex items-center justify-between px-3 transition-colors ${large ? 'min-h-[44px] rounded-lg' : 'min-h-[34px] rounded'} ${
+            className={`flex-1 flex items-center justify-between px-3 transition-colors min-h-11 rounded-xl ${
               large
                 ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
                 : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
@@ -151,7 +152,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
             onClick={() => { if (!disabled) setShowKeypad(true); }}
             disabled={disabled}
             title="Tap to type an exact amount"
-            className={`flex-1 flex items-center justify-between px-3 touch-manipulation transition-colors ${large ? 'min-h-[44px] rounded-lg' : 'min-h-[34px] rounded'} ${
+            className={`flex-1 flex items-center justify-between px-3 touch-manipulation transition-colors min-h-11 rounded-xl ${
               large
                 ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
                 : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
@@ -167,14 +168,14 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
           type="button"
           onClick={() => setTouchscreenMode({ touchscreenMode: keyboardMode })}
           title={keyboardMode ? 'Switch to touchscreen popup keypad' : 'Switch to keyboard entry'}
-          className={`flex-shrink-0 flex items-center justify-center rounded-lg border text-gray-500 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition-colors ${large ? 'w-11 h-11' : 'w-8 h-8'} border-gray-200 bg-white`}
+          className={`flex-shrink-0 flex items-center justify-center rounded-xl border text-gray-500 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition-colors w-11 h-11 border-gray-200 bg-white`}
         >
           {keyboardMode ? <Hand size={large ? 18 : 14} /> : <Keyboard size={large ? 18 : 14} />}
         </button>
       </div>
 
       {change !== undefined && change > 0 && (
-        <div className={`flex items-center justify-between px-3 rounded-lg bg-emerald-50 border-2 border-emerald-300 ${large ? 'py-2.5 mb-2' : 'py-1.5 mb-1'}`}>
+        <div className={`flex items-center justify-between px-3 rounded-xl bg-emerald-50 border-2 border-emerald-300 ${large ? 'py-2.5 mb-2' : 'py-1.5 mb-1'}`}>
           <span className={`font-bold text-emerald-700 uppercase tracking-wide ${large ? 'text-xs' : 'text-[10px]'}`}>Change Due</span>
           <span className={`font-black tabular-nums font-mono tracking-tight text-emerald-700 ${large ? 'text-2xl' : 'text-lg'}`}>
             {formatAmount ? formatAmount(change) : change.toFixed(2)}
@@ -217,7 +218,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
           type="button"
           onPointerDown={(e) => { e.preventDefault(); setExact(); }}
           disabled={disabled || totalDue === undefined}
-          className={`${BTN_BASE} ${large ? 'bg-blue-50 border-2 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-sm h-12' : 'text-xs h-7'}`}
+          className={`${BTN_BASE} ${large ? 'bg-blue-50 border-2 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-sm h-12' : 'text-xs h-10'}`}
         >
           Exact
         </button>
@@ -225,7 +226,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
           type="button"
           onPointerDown={(e) => { e.preventDefault(); undo(); }}
           disabled={disabled || history.length === 0}
-          className={`${BTN_BASE} ${large ? 'bg-gray-100 border-2 border-gray-200 text-gray-700 hover:bg-gray-200' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-sm h-12' : 'text-xs h-7'}`}
+          className={`${BTN_BASE} ${large ? 'bg-gray-100 border-2 border-gray-200 text-gray-700 hover:bg-gray-200' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-sm h-12' : 'text-xs h-10'}`}
         >
           Undo
         </button>
@@ -233,7 +234,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
           type="button"
           onPointerDown={(e) => { e.preventDefault(); clear(); }}
           disabled={disabled}
-          className={`${BTN_BASE} ${large ? 'bg-red-50 border-2 border-red-200 text-red-600 hover:bg-red-100' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-sm h-12' : 'text-xs h-7'}`}
+          className={`${BTN_BASE} ${large ? 'bg-red-50 border-2 border-red-200 text-red-600 hover:bg-red-100' : 'bg-white border border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'} ${large ? 'text-sm h-12' : 'text-xs h-10'}`}
         >
           Clear
         </button>

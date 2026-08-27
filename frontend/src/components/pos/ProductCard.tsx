@@ -57,7 +57,7 @@ export default function ProductCard({
       ref={applyCardStyle}
       title={isOutOfStock ? `${product.name} — Out of stock` : `${product.name} — ${priceLabel}`}
       onClick={onClick}
-      className={`relative flex flex-col text-left rounded-2xl border-2 bg-white overflow-hidden transition-all touch-manipulation shadow-sm hover:shadow-md
+      className={`relative flex flex-col text-left rounded-xl border-2 bg-white overflow-hidden transition-all touch-manipulation shadow-sm hover:shadow-md
         ${isOutOfStock ? 'cursor-not-allowed' : 'hover:-translate-y-0.5'}
         ${borderColor ? '' : 'border-gray-100'}
         ${highlighted ? 'outline outline-[3px] outline-blue-500 outline-offset-1 z-10' : ''}`}
@@ -99,7 +99,7 @@ export default function ProductCard({
       </div>
 
       {/* Floating add badge — whole card is the tap target already */}
-      <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md pointer-events-none">
+      <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md pointer-events-none">
         <Plus size={16} strokeWidth={3} />
       </span>
     </button>

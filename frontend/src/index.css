@@ -36,6 +36,13 @@
 }
 
 @layer components {
+	/* System-wide: square corners everywhere, no exceptions — avatars,
+	   badges, pills, buttons, cards, modals all included. Matches any
+	   Tailwind rounded-* utility regardless of which page it's on. */
+	[class*="rounded"] {
+		border-radius: 0 !important;
+	}
+
 	.app-shell {
 		background: var(--app-bg);
 	}
@@ -61,7 +68,7 @@
 
 	:where(.bg-white.rounded-lg, .bg-white.rounded-md, .bg-white.rounded-xl, .bg-white.rounded-2xl) {
 		background: #ffffff !important;
-		border-color: var(--panel-border) !important;
+		border-color: transparent !important;
 		box-shadow:
 			0 1px 2px rgba(15, 23, 42, 0.04),
 			0 8px 20px rgba(15, 23, 42, 0.06) !important;
@@ -75,9 +82,14 @@
 		font-family: inherit;
 	}
 
+	/* Borderless inputs. The fallback background is deliberately NOT
+	   !important — an element's own Tailwind bg-* class (bg-white,
+	   bg-blue-50, etc., used intentionally on some fields) still wins on
+	   specificity; this only fills in for inputs with no bg class of
+	   their own, so removing the border doesn't leave them invisible. */
 	:where(input, select, textarea) {
-		border-color: #e2e8f0 !important;
-		background: #ffffff !important;
+		border-color: transparent !important;
+		background: #f8fafc;
 		box-shadow: none !important;
 	}
 
@@ -88,7 +100,7 @@
 
 	:where(button[class*="bg-blue-600"], a[class*="bg-blue-600"]) {
 		background: var(--accent-blue) !important;
-		border: 1px solid var(--accent-blue-dark) !important;
+		border-color: transparent !important;
 		box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18) !important;
 	}
 
@@ -102,9 +114,13 @@
 		box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25) !important;
 	}
 
+	/* Secondary/outline buttons — border removed everywhere, a flat neutral
+	   fill (non-!important, so a button's own bg-* / hover:bg-* classes
+	   still win) stands in for the outline so they stay visible against a
+	   white card without a border line. */
 	:where(button[class*="border"], a[class*="border"]):not([class*="bg-blue-600"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-orange"]):not([class*="bg-purple"]):not([class*="bg-emerald"]) {
-		background: #ffffff;
-		border-color: #e2e8f0 !important;
+		background: #f8fafc;
+		border-color: transparent !important;
 		box-shadow: none;
 	}
 

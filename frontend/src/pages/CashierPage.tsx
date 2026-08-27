@@ -152,10 +152,12 @@ export default function CashierPage() {
   // picked in Products/Categories shows up consistently on every till.
   const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
   const categoryColors = new Map<string, string>();
+  const categoryImages = new Map<string, string>();
   const categoryIds = new Map<string, number>();
   allProducts.forEach((p: any) => {
     if (!p.category?.name) return;
     if (p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color);
+    if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
   const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
@@ -685,7 +687,8 @@ export default function CashierPage() {
           {categories.length > 1 && (
             <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 overflow-x-auto">
               {categories.map(cat => {
-                const catColor = cat === 'All' ? undefined : (categoryColors.get(cat) ?? tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length]);
+                const catImage = cat === 'All' ? undefined : categoryImages.get(cat);
+                const catColor = cat === 'All' || catImage ? undefined : (categoryColors.get(cat) ?? tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length]);
                 return (
                   <CategoryChip
                     key={cat}
@@ -693,6 +696,7 @@ export default function CashierPage() {
                     displayLabel={cat === 'All' ? 'All Items' : cat}
                     active={categoryFilter === cat}
                     color={catColor}
+                    image={catImage}
                     onClick={() => { setCategoryFilter(cat); codeRef.current?.focus(); }}
                     title={cat === 'All' ? 'All Products' : cat}
                   />

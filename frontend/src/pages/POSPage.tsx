@@ -258,10 +258,12 @@ export default function POSPage() {
   // name -> color, so the category strip and product tiles can share a
   // product's category tint when the product itself has no color/image set.
   const categoryColors = new Map<string, string>();
+  const categoryImages = new Map<string, string>();
   const categoryIds = new Map<string, number>();
   allProducts.forEach((p: any) => {
     if (!p.category?.name) return;
     if (p.category?.color && !categoryColors.has(p.category.name)) categoryColors.set(p.category.name, p.category.color);
+    if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
   // Settings → "Product Tile Colour Theme" — applied to any tile that has
@@ -712,9 +714,10 @@ export default function POSPage() {
             {/* Category row — big colorful icon chips, mirrors the reference layout */}
             <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 flex items-center gap-2 overflow-x-auto">
               {categories.map((cat) => {
+                const catImage = cat === 'All' ? undefined : categoryImages.get(cat);
                 const ownCatColor = cat === 'All' ? undefined : categoryColors.get(cat);
-                const themeCatColor = cat === 'All' || ownCatColor ? undefined : tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length];
-                const catColor = ownCatColor || themeCatColor;
+                const themeCatColor = cat === 'All' || ownCatColor || catImage ? undefined : tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length];
+                const catColor = catImage ? undefined : (ownCatColor || themeCatColor);
                 return (
                   <CategoryChip
                     key={cat}
@@ -722,6 +725,7 @@ export default function POSPage() {
                     displayLabel={cat === 'All' ? 'All Items' : cat}
                     active={activeCategory === cat}
                     color={catColor}
+                    image={catImage}
                     onClick={() => setActiveCategory(cat)}
                     title={cat === 'All' ? 'All Products' : cat}
                   />

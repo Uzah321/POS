@@ -47,6 +47,9 @@ export default function CashierPage() {
   const [pendingWeightProduct, setPendingWeightProduct] = useState<any | null>(null);
   const [weightInput, setWeightInput]         = useState('');
   const [voidSearch, setVoidSearch]           = useState('');
+  // Live results dropdown under the Scan/PLU box — only while that input is
+  // focused, so it doesn't linger once the cashier taps elsewhere.
+  const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
 
   const codeRef     = useRef<HTMLInputElement>(null);
   const tenderedRef = useRef<HTMLInputElement>(null);
@@ -141,9 +144,8 @@ export default function CashierPage() {
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
 
   // Live matches for the Scan/PLU box — feeds the exact-match/single-match
-  // fallback in handleCodeSubmit below and the on-screen-keyboard close
-  // handler. No visible browse list on this screen; typing narrows this
-  // purely to decide what a plain Enter should do.
+  // fallback in handleCodeSubmit below, the on-screen-keyboard close handler,
+  // and the results dropdown shown under the input while typing.
   const browseQuery = codeInput.trim().toLowerCase();
   const browseMatches = allProducts.filter(p =>
     !browseQuery ||
@@ -592,6 +594,8 @@ export default function CashierPage() {
                 ref={codeRef}
                 value={codeInput}
                 onChange={e => setCodeInput(e.target.value)}
+                onFocus={() => setShowBrowseDropdown(true)}
+                onBlur={() => setShowBrowseDropdown(false)}
                 placeholder="Scan barcode, or type to search stock..."
                 className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-none min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
@@ -605,6 +609,42 @@ export default function CashierPage() {
               >
                 <Keyboard size={15} />
               </button>
+
+              {/* Live results dropdown — shows matches as the cashier types,
+                  so they don't have to press Enter (or narrow to an exact
+                  single match) just to see what's there. onMouseDown here
+                  prevents the input's blur from firing before the click. */}
+              {showBrowseDropdown && browseQuery && browseMatches.length > 0 && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-none shadow-lg max-h-72 overflow-y-auto">
+                  {browseMatches.slice(0, 8).map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => addProduct(p)}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-blue-50 border-b border-gray-50 last:border-b-0 touch-manipulation"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                        <p className="text-xs text-gray-400">{p.sku || p.barcode || '—'}</p>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700 flex-shrink-0 tabular-nums">
+                        {formatCurrency(parseFloat(p.selling_price))}{p.sold_by_weight ? '/kg' : ''}
+                      </span>
+                    </button>
+                  ))}
+                  {browseMatches.length > 8 && (
+                    <p className="px-4 py-2 text-xs text-gray-400 text-center border-t border-gray-50">
+                      +{browseMatches.length - 8} more — keep typing to narrow
+                    </p>
+                  )}
+                </div>
+              )}
+              {showBrowseDropdown && browseQuery && browseMatches.length === 0 && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-none shadow-lg">
+                  <p className="px-4 py-3 text-sm text-gray-400 text-center">No products match "{codeInput.trim()}"</p>
+                </div>
+              )}
             </div>
             <button type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white min-h-11 px-5 rounded-none font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">

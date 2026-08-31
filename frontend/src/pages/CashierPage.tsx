@@ -1,7 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { productsApi, salesApi, settingsApi } from '../api';
 import { useCartStore, type CartItem } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
@@ -102,16 +100,6 @@ export default function CashierPage() {
   const storeAddress = user?.branch?.address || storeSettings?.company_address;
   const storePhone   = user?.branch?.phone   || storeSettings?.company_phone;
   const isRestaurant = storeSettings?.business_type === 'restaurant';
-
-  // Live KDS orders — only when restaurant mode
-  const { data: kdsData } = useQuery({
-    queryKey: ['cashier-kds'],
-    queryFn: () => axios.get('/api/kds/orders').then(r => r.data),
-    refetchInterval: 3000,
-    enabled: isRestaurant,
-    refetchOnWindowFocus: true,
-  });
-  const kdsOrders: any[] = kdsData?.data ?? [];
 
   // Products (IndexedDB fallback when offline)
   const { data: allProductsData, isLoading: productsLoading } = useQuery({
@@ -814,56 +802,11 @@ export default function CashierPage() {
             </div>
           </div>
 
-          {/* Restaurant: live orders panel — grows to fill any remaining height */}
-          {isRestaurant ? (
-            <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 flex-1 flex flex-col min-h-[140px]">
-              <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  {kdsOrders.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block" />}
-                  Live Orders
-                </p>
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <Link to="/kitchen"
-                    className="text-orange-500 hover:text-orange-600 transition-colors">Kitchen</Link>
-                  <span className="text-gray-200">·</span>
-                  <Link to="/queue"
-                    className="text-blue-500 hover:text-blue-600 transition-colors">Queue</Link>
-                </div>
-              </div>
-              {kdsOrders.length === 0 ? (
-                <p className="text-xs text-gray-300 text-center py-3">No active kitchen orders</p>
-              ) : (
-                <div className="space-y-1.5 flex-1 overflow-y-auto">
-                  {kdsOrders.map((o: any) => {
-                    const style: Record<string, string> = {
-                      new:       'bg-blue-50   border-blue-200   text-blue-700',
-                      preparing: 'bg-amber-50  border-amber-200  text-amber-700',
-                      ready:     'bg-green-50  border-green-200  text-green-700',
-                    };
-                    const dot: Record<string, string> = {
-                      new: 'bg-blue-400', preparing: 'bg-amber-400', ready: 'bg-green-400',
-                    };
-                    return (
-                      <div key={o.id}
-                        className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 ${style[o.kds_status] ?? 'bg-gray-50 border-gray-200 text-gray-600'}`}>
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot[o.kds_status] ?? 'bg-gray-400'}`} />
-                        <span className="font-black text-sm tabular-nums w-10 flex-shrink-0">{o.ticket}</span>
-                        <span className="flex-1 text-xs truncate">
-                          {o.items?.map((i: any) => `${i.qty}×${i.name}`).join(', ')}
-                        </span>
-                        <span className="text-xs font-bold capitalize flex-shrink-0">{o.kds_status}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            // No Live Orders panel for a supermarket till — an empty flex-1 filler
-            // keeps the column stretched to the full height instead of leaving a
-            // dead gap under the action buttons.
-            <div className="flex-1" />
-          )}
+          {/* Cashier register has no Live Orders panel — Kitchen/Queue live
+              on their own dedicated pages. Empty flex-1 filler keeps the
+              column stretched to full height instead of a dead gap under
+              the action buttons. */}
+          <div className="flex-1" />
 
         </div>
       </div>

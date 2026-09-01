@@ -73,7 +73,7 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         <form onSubmit={handleSubmit((d: RentalFormData) => mutation.mutate(d))} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Branch *</label>
               <select {...register('branch_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
@@ -90,7 +90,7 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Property Name *</label>
               <input {...register('property_name')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Shop A, Warehouse 1..." />
@@ -106,7 +106,7 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Tenant / Landlord Name *</label>
               <input {...register('tenant_name')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -118,7 +118,7 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Monthly Amount *</label>
               <input type="number" step="0.01" {...register('monthly_amount')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -139,7 +139,7 @@ function RentalModal({ rental, branches, onClose }: { rental?: any; branches: an
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Lease Start *</label>
               <input type="date" {...register('lease_start')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -205,7 +205,7 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
         </div>
         <div className="p-6 space-y-5">
           <form onSubmit={handleSubmit((d: PaymentFormData) => mutation.mutate(d))} className="space-y-4 pb-4 border-b border-gray-100">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700">Rent Period *</label>
                 <input type="month" {...register('period')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -216,7 +216,7 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
                 <input type="number" step="0.01" {...register('amount')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700">Payment Date *</label>
                 <input type="date" {...register('payment_date')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -315,7 +315,7 @@ export default function RentalsPage() {
 
       {/* Summary */}
       {summary && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">Monthly Rental Income</p>
             <p className="text-xl font-bold text-green-600">${Number(summary.total_income_monthly || 0).toFixed(2)}</p>
@@ -361,7 +361,7 @@ export default function RentalsPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-purple-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1000px]">
               <thead className="bg-gray-50">
                 <tr>{['Property', 'Type', 'Tenant / Landlord', 'Phone', 'Monthly', 'Lease Period', 'Total Paid', 'Status', ''].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr>
               </thead>

@@ -406,7 +406,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
           })}
           className="p-6 space-y-4"
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="text-sm font-semibold text-gray-700">Product Name *</label>
               <input {...register('name')} className={field} />
@@ -779,7 +779,8 @@ function ProductHistoryModal({ product, onClose }: { product: any; onClose: () =
           ) : rows.length === 0 ? (
             <div className="text-center py-12 text-gray-400 text-sm">No stock changes recorded yet</div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
               <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase sticky top-0">
                 <tr>
                   <th className="text-left px-4 py-2">Date</th>
@@ -814,6 +815,7 @@ function ProductHistoryModal({ product, onClose }: { product: any; onClose: () =
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
@@ -1171,7 +1173,7 @@ export default function ProductsPage() {
           <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-blue-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-5 py-3.5 text-left w-10">
@@ -1386,7 +1388,8 @@ export default function ProductsPage() {
               </button>
             </div>
           )}
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
@@ -1517,6 +1520,7 @@ export default function ProductsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

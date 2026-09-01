@@ -112,7 +112,8 @@ export default function CommissionsPage() {
           <div className="p-8 text-center text-gray-400"><TrendingUp size={32} className="mx-auto mb-2" /><p>No commissions in this period</p></div>
         ) : (
           <>
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px]">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
                 <th className="px-4 py-3">
@@ -142,6 +143,7 @@ export default function CommissionsPage() {
               ))}
             </tbody>
           </table>
+          </div>
           <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
           </>
         )}

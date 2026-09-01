@@ -89,7 +89,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 max-h-[28rem] overflow-y-auto bg-white rounded-lg border border-gray-200 shadow-xl z-50">
+        <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-16 sm:top-full mt-0 sm:mt-2 w-auto sm:w-80 max-h-[28rem] overflow-y-auto bg-white rounded-lg border border-gray-200 shadow-xl z-50">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900">Notifications</span>
             {loading && <Loader2 size={13} className="animate-spin text-gray-400" />}

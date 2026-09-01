@@ -162,7 +162,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
                 <span className="text-xs text-gray-400">Showing first 10</span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs min-w-[720px]">
                   <thead className="bg-gray-50">
                     <tr>{Object.keys(rows[0]).map(k => <th key={k} className="px-3 py-2 text-left text-gray-500 font-semibold uppercase">{k}</th>)}</tr>
                   </thead>

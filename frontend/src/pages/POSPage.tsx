@@ -681,13 +681,16 @@ export default function POSPage() {
       {/* Fixed height against the viewport (matching CashierPage's approach) rather than
           relying on AppLayout's <main> to propagate a bounded height through flex-1 —
           that element scrolls the whole page instead of just this page's own regions. */}
-      <div className="-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+      <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
-      {/* Main content — ticket + payment always visible alongside the product grid */}
-      <div className="flex-1 flex overflow-hidden gap-3 p-3 bg-gray-50 min-h-0">
+      {/* Main content — ticket + payment always visible alongside the product grid.
+          Stacks vertically below lg (products on top, ticket/payment below, capped
+          height + own scroll) since the row layout needs more width than a handheld
+          portrait viewport has. */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-3 p-2 sm:p-3 bg-gray-50 min-h-0">
 
         {/* Left: products — search, colorful category row, image-led product grid */}
-        <div className="flex-[1.65] min-w-0 flex flex-col gap-2 min-h-0">
+        <div className="flex-1 lg:flex-[1.65] min-w-0 min-h-0 flex flex-col gap-2">
           <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
             <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
               <form onSubmit={(e) => { e.preventDefault(); handleSearchEnter(); }} className="relative">
@@ -809,8 +812,10 @@ export default function POSPage() {
         </div>
 
         {/* Right: ticket + payment (persistent, no separate screen) — narrower
-            now so the product grid gets the extra room. */}
-        <div className="flex-1 min-w-[340px] max-w-[420px] flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+            now so the product grid gets the extra room. Below lg it stacks full-width
+            under the product grid instead, capped to a share of the viewport with its
+            own scroll. */}
+        <div className="w-full lg:w-auto lg:flex-1 flex-shrink-0 lg:min-w-[340px] lg:max-w-[420px] max-h-[55vh] lg:max-h-none bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
           {/* Header row */}
           <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-1.5 min-w-0">

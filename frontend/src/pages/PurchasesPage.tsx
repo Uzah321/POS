@@ -74,7 +74,7 @@ function POProductPicker({ products, value, onSelect }: { products: any[] | unde
     .slice(0, 20);
 
   return (
-    <div ref={ref} className="relative col-span-5">
+    <div ref={ref} className="relative sm:col-span-5">
       <div className="relative">
         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
@@ -217,14 +217,14 @@ function POModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-lg w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b"><h2 className="text-lg font-bold">New Purchase Order</h2><button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button></div>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="text-sm font-medium text-gray-700">Supplier *</label>
               <select {...register('supplier_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="">Select supplier...</option>{suppliers?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>{errors.supplier_id && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
             <div><label className="text-sm font-medium text-gray-700">Order Date *</label><input type="date" {...register('order_date')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />{errors.order_date && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div><label className="text-sm font-medium text-gray-700">Branch *</label>
               <select {...register('branch_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="">Select branch...</option>{branches?.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -238,21 +238,21 @@ function POModal({ onClose }: { onClose: () => void }) {
           <div>
             <div className="flex items-center justify-between mb-2"><label className="text-sm font-semibold text-gray-700">Order Items</label><button type="button" onClick={addItem} className="text-xs text-amber-600 hover:text-amber-800 font-medium">+ Add Item</button></div>
             {/* Column headers */}
-            <div className="grid grid-cols-12 gap-2 mb-1 px-1">
-              <span className="col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</span>
-              <span className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</span>
-              <span className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost ({activeCurrency?.symbol ?? '$'})</span>
-              <span className="col-span-1"></span>
+            <div className="hidden sm:grid sm:grid-cols-12 gap-2 mb-1 px-1">
+              <span className="sm:col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</span>
+              <span className="sm:col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</span>
+              <span className="sm:col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Cost ({activeCurrency?.symbol ?? '$'})</span>
+              <span className="sm:col-span-1"></span>
             </div>
             {items.map((item, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 mb-2">
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-12 gap-2 mb-2">
                 <POProductPicker products={products} value={item.product_id} onSelect={(id) => selectProduct(i, id)} />
-                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', +e.target.value)} placeholder="0" className="col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                <div className="col-span-3 relative">
+                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', +e.target.value)} placeholder="0" className="sm:col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                <div className="sm:col-span-3 relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">{activeCurrency?.symbol ?? '$'}</span>
                   <input type="number" step="0.01" min="0" value={item.unit_cost} onChange={(e) => updateItem(i, 'unit_cost', +e.target.value)} placeholder="0.00" className="w-full border border-gray-300 rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
                 </div>
-                <button type="button" onClick={() => removeItem(i)} className="col-span-1 flex items-center justify-center text-red-400 hover:text-red-600" title="Remove item"><X size={14} /></button>
+                <button type="button" onClick={() => removeItem(i)} className="sm:col-span-1 flex items-center justify-center text-red-400 hover:text-red-600" title="Remove item"><X size={14} /></button>
               </div>
             ))}
             <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
@@ -484,7 +484,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Received Date *</label>
               <input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -497,7 +497,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
 
           <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
             <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5"><FileText size={14} className="text-gray-500" /> Supplier Invoice (optional)</p>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs font-medium text-gray-600">Invoice Number</label>
                 <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="e.g. INV-00231" />
@@ -514,7 +514,8 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
           </div>
 
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[960px]">
               <thead className="bg-gray-50"><tr>
                 <th className="px-3 py-2 text-left text-xs text-gray-500">Product</th>
                 <th className="px-3 py-2 text-right text-xs text-gray-500">Ordered</th>
@@ -565,6 +566,7 @@ function GoodsReceiptModal({ po, onClose }: { po: any; onClose: () => void }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="flex justify-between text-base font-bold border-t pt-3">
@@ -633,7 +635,7 @@ function PODetailModal({ id, onClose, onReceive }: { id: number; onClose: () => 
             <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Supplier:</span> <span className="font-medium">{po.supplier?.name ?? '-'}</span></div>
                 <div><span className="text-gray-500">Status:</span> <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[po.status] || 'bg-gray-100 text-gray-600'}`}>{po.status?.replace('_', ' ')}</span></div>
                 <div><span className="text-gray-500">Branch:</span> <span className="font-medium">{po.branch?.name ?? '-'}</span></div>
@@ -643,7 +645,8 @@ function PODetailModal({ id, onClose, onReceive }: { id: number; onClose: () => 
               </div>
 
               <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[560px]">
                   <thead className="bg-gray-50"><tr>
                     <th className="px-3 py-2 text-left text-xs text-gray-500">Product</th>
                     <th className="px-3 py-2 text-right text-xs text-gray-500">Qty</th>
@@ -663,6 +666,7 @@ function PODetailModal({ id, onClose, onReceive }: { id: number; onClose: () => 
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               <div className="flex justify-between text-base font-bold border-t pt-3">
@@ -673,7 +677,8 @@ function PODetailModal({ id, onClose, onReceive }: { id: number; onClose: () => 
                 <div>
                   <h3 className="font-semibold text-gray-700 mb-2 text-sm">Goods Receipts (GRV)</h3>
                   <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[720px]">
                       <thead className="bg-gray-50"><tr>
                         <th className="px-3 py-2 text-left text-xs text-gray-500">Reference</th>
                         <th className="px-3 py-2 text-left text-xs text-gray-500">Date</th>
@@ -695,6 +700,7 @@ function PODetailModal({ id, onClose, onReceive }: { id: number; onClose: () => 
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -750,7 +756,7 @@ export default function PurchasesPage() {
         </div>
         {isLoading ? <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div> : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50"><tr>{['Reference', 'Date', 'Supplier', 'Items', 'Total', 'Status', 'Actions'].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {orders.length === 0 ? <tr><td colSpan={7} className="text-center py-12 text-gray-400"><Truck size={32} className="mx-auto mb-2" /><p>No purchase orders</p></td></tr>

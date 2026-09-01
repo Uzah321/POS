@@ -48,12 +48,12 @@ function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => v
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
           <div><label className="text-sm font-medium text-gray-700">Supplier Name *</label><input {...register("name")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />{errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
           <div><label className="text-sm font-medium text-gray-700">Contact Person</label><input {...register("contact_person")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="text-sm font-medium text-gray-700">Email</label><input type="email" {...register("email")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
             <div><label className="text-sm font-medium text-gray-700">Phone</label><input {...register("phone")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           </div>
           <div><label className="text-sm font-medium text-gray-700">Address</label><input {...register("address")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="text-sm font-medium text-gray-700">Credit Limit ({activeCurrency?.symbol ?? '$'})</label><input type="number" step="0.01" {...register("credit_limit")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
             <div><label className="text-sm font-medium text-gray-700">Payment Terms (days)</label><input type="number" {...register("payment_terms")} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           </div>
@@ -103,7 +103,7 @@ export default function SuppliersPage() {
         </div>
         {isLoading ? <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div> : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[720px]">
               <thead className="bg-gray-50"><tr>{["Name","Contact","Email","Phone","Balance","Actions"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {suppliers.length === 0 ? <tr><td colSpan={6} className="text-center py-12 text-gray-400"><Store size={32} className="mx-auto mb-2" /><p>No suppliers found</p></td></tr>

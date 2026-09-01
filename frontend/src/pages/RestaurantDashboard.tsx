@@ -158,7 +158,7 @@ export default function RestaurantDashboard() {
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
           )}
         </div>
-        <div className="flex-1 grid grid-cols-3 gap-3">
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <KdsBadge label="New Orders"  count={newOrders}       color="blue"  />
           <KdsBadge label="Preparing"   count={preparingOrders} color="amber" />
           <KdsBadge label="Ready"       count={readyOrders}     color="green" />
@@ -292,7 +292,7 @@ export default function RestaurantDashboard() {
       </div>
 
       {/* Month summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0),  icon: DollarSign,   color: 'green' },
           { label: 'Month Orders',   value: `${d.month?.transactions ?? 0} orders`, icon: ShoppingCart, color: 'orange' },

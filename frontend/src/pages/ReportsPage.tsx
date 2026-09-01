@@ -370,14 +370,14 @@ export default function ReportsPage() {
       {/* Inventory */}
       {tab === 'Inventory' && invData && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[['Total Products', invData.summary?.total_products], ['Stock Value', fmt(invData.summary?.total_stock_value || 0)], ['Low Stock', invData.summary?.low_stock_count]].map(([label, val]) => (
               <div key={label} className="bg-white rounded-md p-5 shadow-sm border border-gray-100"><p className="text-sm text-gray-500">{label}</p><p className="text-2xl font-bold text-gray-900 mt-1">{val}</p></div>
             ))}
           </div>
           <div className="bg-white rounded-md border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[900px]">
                 <thead className="bg-gray-50"><tr>{['Product','SKU','Category','Cost','Sell Price','Stock','Value','Status'].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {invData.products?.map((p: any) => (
@@ -405,7 +405,7 @@ export default function ReportsPage() {
           <h3 className="font-semibold text-gray-800 mb-4">Cashier Activity</h3>
           {cpData.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[900px]">
                 <thead className="bg-gray-50"><tr>{['Cashier','Sales Count','Total Revenue','Avg Sale','Voids','Refunds','Refund Amount','Shifts Closed'].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {cpData.map((c: any) => (
@@ -438,7 +438,7 @@ export default function ReportsPage() {
 
       {/* Daily Summary */}
       {tab === 'Daily Summary' && (
-        loadingDaily ? <div className="grid grid-cols-4 gap-4">{Array.from({length:8}).map((_,i)=><div key={i} className="bg-gray-100 rounded-md h-20 animate-pulse"/>)}</div>
+        loadingDaily ? <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({length:8}).map((_,i)=><div key={i} className="bg-gray-100 rounded-md h-20 animate-pulse"/>)}</div>
         : dailyData ? (
           <div className="space-y-4">
             {/* P&L Summary strip */}
@@ -473,7 +473,7 @@ export default function ReportsPage() {
 
       {/* Monthly Report */}
       {tab === 'Monthly Report' && (
-        loadingMonthly ? <div className="grid grid-cols-4 gap-4">{Array.from({length:8}).map((_,i)=><div key={i} className="bg-gray-100 rounded-md h-20 animate-pulse"/>)}</div>
+        loadingMonthly ? <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({length:8}).map((_,i)=><div key={i} className="bg-gray-100 rounded-md h-20 animate-pulse"/>)}</div>
         : monthlyData ? (
           <div className="space-y-4">
             <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
@@ -501,14 +501,14 @@ export default function ReportsPage() {
         loadingStock ? <div className="bg-gray-100 rounded-md h-32 animate-pulse"/> :
         stockData ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[['Total Stock Value', fmt(stockData.total_stock_value)], ['Low Stock Items', stockData.low_stock_count], ['Out of Stock', stockData.out_of_stock]].map(([label, value]) => (
                 <div key={label} className="bg-white border border-gray-200 rounded-md p-4"><p className="text-xs text-gray-500">{label}</p><p className="text-lg font-bold text-gray-900 mt-1">{value}</p></div>
               ))}
             </div>
             <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[1000px]">
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase"><tr><th className="px-4 py-2 text-left">Product</th><th className="px-4 py-2 text-left">SKU</th><th className="px-4 py-2 text-left">Category</th><th className="px-4 py-2 text-right">Stock</th><th className="px-4 py-2 text-right">Reorder</th><th className="px-4 py-2 text-right">Sold</th><th className="px-4 py-2 text-right">Revenue</th><th className="px-4 py-2 text-right">Value</th><th className="px-4 py-2 text-center">Status</th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {stockData.products?.map((p: any) => (
@@ -560,7 +560,7 @@ export default function ReportsPage() {
                 {/* Table */}
                 <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm min-w-[1200px]">
                       <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                         <tr>
                           <th className="px-4 py-3 text-left">Cashier</th>
@@ -639,7 +639,7 @@ export default function ReportsPage() {
             : (
               <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[1100px]">
                     <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                       <tr>
                         <th className="px-4 py-3 text-left">Date</th>
@@ -701,7 +701,7 @@ export default function ReportsPage() {
                 Branch Performance " {from} to {to}
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[900px]">
                   <thead className="bg-gray-50">
                     <tr>{['Branch','Sales','Cost of Sales','Gross Profit','GP %','Expenses','Net Profit','Transactions'].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>)}</tr>
                   </thead>

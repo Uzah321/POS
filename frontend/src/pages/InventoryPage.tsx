@@ -138,7 +138,7 @@ export default function InventoryPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   {['Product', 'SKU', 'Category', 'Warehouse', 'Qty on Hand', 'Reorder Point', 'Status'].map(h => (
@@ -255,7 +255,7 @@ export default function InventoryPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Quantity to Add *</label>
                   <input

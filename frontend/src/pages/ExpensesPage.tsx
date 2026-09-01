@@ -42,11 +42,11 @@ function ExpenseModal({ expense, categories, onClose }: { expense?: any; categor
         <div className="flex items-center justify-between p-6 border-b"><h2 className="text-lg font-bold">{expense ? 'Edit Expense' : 'Record Expense'}</h2><button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button></div>
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
           <div><label className="text-sm font-medium text-gray-700">Title *</label><input {...register('title')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />{errors.title && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="text-sm font-medium text-gray-700">Amount (R) *</label><input type="number" step="0.01" {...register('amount')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />{errors.amount && <p className="text-red-500 text-xs mt-1">Required</p>}</div>
             <div><label className="text-sm font-medium text-gray-700">Date *</label><input type="date" {...register('expense_date')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="text-sm font-medium text-gray-700">Category</label><select {...register('expense_category_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"><option value="">Select...</option>{categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             <div><label className="text-sm font-medium text-gray-700">Payment Method</label><select {...register('payment_method')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="card">Card</option></select></div>
           </div>
@@ -103,7 +103,7 @@ export default function ExpensesPage() {
         </div>
         {isLoading ? <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div> : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50"><tr>{['Reference', 'Title', 'Date', 'Category', 'Amount', 'Payment', 'Actions'].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {expenses.length === 0 ? <tr><td colSpan={7} className="text-center py-12 text-gray-400"><CreditCard size={32} className="mx-auto mb-2" /><p>No expenses recorded</p></td></tr>

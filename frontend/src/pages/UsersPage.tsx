@@ -144,7 +144,7 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
             <input {...register('name')} className={field} placeholder="e.g. John Doe" />
             {errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-semibold text-gray-700">Username *</label>
               <input {...register('username')} className={field} placeholder="e.g. john_doe" />
@@ -161,7 +161,7 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
             <input type="email" {...register('email')} className={field} placeholder="e.g. john@example.com" />
             {errors.email && <p className="text-red-500 text-xs mt-1">Valid email required</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-semibold text-gray-700">Role *</label>
               <select {...register('role')} className={field}>

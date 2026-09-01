@@ -37,7 +37,7 @@ export default function RefundsPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   {['Reference', 'Sale', 'Date', 'Processed By', 'Reason', 'Amount', ''].map((h) => (
@@ -76,7 +76,7 @@ export default function RefundsPage() {
               <button type="button" onClick={() => setSelected(null)}><X size={20} className="text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Sale:</span> <span className="font-medium">{selected.sale?.reference ?? '-'}</span></div>
                 <div><span className="text-gray-500">Processed by:</span> <span className="font-medium">{selected.user?.name ?? '-'}</span></div>
                 <div><span className="text-gray-500">Date:</span> <span className="font-medium">{format(new Date(selected.created_at), 'dd MMM yyyy HH:mm')}</span></div>
@@ -91,7 +91,8 @@ export default function RefundsPage() {
                 <div>
                   <h3 className="font-semibold text-gray-700 mb-2 text-sm">Items Refunded</h3>
                   <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[480px]">
                       <thead className="bg-gray-50"><tr>
                         <th className="px-3 py-2 text-left text-xs text-gray-500">Product</th>
                         <th className="px-3 py-2 text-right text-xs text-gray-500">Qty</th>
@@ -109,6 +110,7 @@ export default function RefundsPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}

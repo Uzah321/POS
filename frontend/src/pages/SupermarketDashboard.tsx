@@ -297,7 +297,7 @@ export default function SupermarketDashboard() {
       </div>
 
       {/* Month summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Month Revenue',   value: formatCurrency(d.month?.revenue ?? 0),      icon: TrendingUp,   color: 'emerald' },
           { label: 'Month Sales',     value: `${d.month?.transactions ?? 0} sales`,      icon: ShoppingCart, color: 'blue' },

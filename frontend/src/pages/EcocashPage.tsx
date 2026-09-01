@@ -86,7 +86,7 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Branch *</label>
               <select {...register('branch_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
@@ -103,7 +103,7 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Amount *</label>
               <input type="number" step="0.01" {...register('amount')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
@@ -132,7 +132,7 @@ function TransactionModal({ branches, onClose, isCashier }: { branches: any[]; o
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Customer Phone</label>
               <input {...register('customer_phone')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="+263..." />
@@ -226,7 +226,7 @@ export default function EcocashPage() {
 
       {/* Cashier quick-action cards */}
       {isCashier && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button type="button" onClick={() => setModal(true)}
             className="bg-green-50 border-2 border-green-200 hover:border-green-400 rounded-lg p-6 flex flex-col items-center gap-3 transition-all group">
             <div className="w-14 h-14 bg-green-100 group-hover:bg-green-200 rounded-full flex items-center justify-center transition-all">
@@ -303,7 +303,7 @@ export default function EcocashPage() {
                 <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">Today's Transactions ({summary.transaction_count})</div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[800px]">
                       <thead className="bg-gray-50"><tr>{['Reference', 'Type', 'Phone', 'EcoCash Ref', 'Amount', 'Commission', 'Float After'].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
                       <tbody className="divide-y divide-gray-100">
                         {summary.transactions.map((tx: any) => (
@@ -354,7 +354,7 @@ export default function EcocashPage() {
             <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-green-500" /></div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1200px]">
                 <thead className="bg-gray-50">
                   <tr>{['Reference', 'Date', 'Type', 'Phone', 'EcoCash Ref', 'Amount', 'Comm %', 'Commission', 'Float After', 'Status', ''].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr>
                 </thead>

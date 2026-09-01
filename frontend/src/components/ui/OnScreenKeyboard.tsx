@@ -78,11 +78,11 @@ export default function OnScreenKeyboard({
       ref={ref}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/60 p-4 outline-none"
+      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/60 p-2 sm:p-4 outline-none"
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-gray-100">
           <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
           <button
             type="button"
@@ -94,30 +94,30 @@ export default function OnScreenKeyboard({
         </div>
 
         {/* Display */}
-        <div className="p-4 pb-2">
+        <div className="p-2 sm:p-4 pb-2">
           <div className="w-full px-4 py-3 text-lg border-2 border-blue-400 rounded-xl bg-blue-50 min-h-[52px] flex items-center overflow-x-auto whitespace-nowrap">
             {value ? <span>{value}</span> : <span className="text-gray-400">{placeholder}</span>}
           </div>
         </div>
 
         {/* Keyboard */}
-        <div className="px-4 pb-4 space-y-1.5">
-          <div className="grid grid-cols-10 gap-1.5">
+        <div className="px-2 sm:px-4 pb-3 sm:pb-4 space-y-1 sm:space-y-1.5">
+          <div className="grid grid-cols-10 gap-1 sm:gap-1.5">
             {ROW_1.map((k) => (
               <KeyButton key={k} label={k} onPress={() => press(k)} />
             ))}
           </div>
-          <div className="grid grid-cols-10 gap-1.5">
+          <div className="grid grid-cols-10 gap-1 sm:gap-1.5">
             {ROW_2.map((k) => (
               <KeyButton key={k} label={shift ? k.toUpperCase() : k} onPress={() => press(k)} />
             ))}
           </div>
-          <div className="grid grid-cols-9 gap-1.5 px-4">
+          <div className="grid grid-cols-9 gap-1 sm:gap-1.5 px-1 sm:px-4">
             {ROW_3.map((k) => (
               <KeyButton key={k} label={shift ? k.toUpperCase() : k} onPress={() => press(k)} />
             ))}
           </div>
-          <div className="grid grid-cols-11 gap-1.5">
+          <div className="grid grid-cols-11 gap-1 sm:gap-1.5">
             <KeyButton
               label="Shift"
               onPress={() => setShift((s) => !s)}
@@ -132,7 +132,7 @@ export default function OnScreenKeyboard({
               <Delete size={16} />
             </KeyButton>
           </div>
-          <div className="grid grid-cols-6 gap-1.5">
+          <div className="grid grid-cols-6 gap-1 sm:gap-1.5">
             <KeyButton label="Clear" onPress={clear} className="col-span-1 text-red-600" />
             <KeyButton label="Space" onPress={space} className="col-span-3" />
             <KeyButton

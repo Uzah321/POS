@@ -547,7 +547,8 @@ export default function StocktakePage() {
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : stocktakes.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><ClipboardCheck size={32} className="mx-auto mb-2" /><p>No stocktakes</p></div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
                 <th className="text-left px-4 py-3">Reference</th>
@@ -578,6 +579,7 @@ export default function StocktakePage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -703,7 +705,8 @@ export default function StocktakePage() {
                       <p className="text-xs text-amber-700"><strong>{variances.length} variance{variances.length > 1 ? 's' : ''} found.</strong> Review before completing.</p>
                     </div>
                   )}
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
                     <thead><tr className="text-xs text-gray-400 uppercase border-b">
                       <th className="text-left pb-2 w-6"></th>
                       <th className="text-left pb-2">Item</th>
@@ -752,6 +755,7 @@ export default function StocktakePage() {
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </div>

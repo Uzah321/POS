@@ -93,7 +93,7 @@ function CustomerModal({ customer, onClose }: { customer?: any; onClose: () => v
             <input {...register('name')} className={field} />
             {errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Email</label>
               <input type="email" {...register('email')} className={field} />
@@ -317,7 +317,7 @@ export default function CustomersPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[720px]">
               <thead className="bg-gray-50">
                 <tr>{['Name', 'Email', 'Phone', 'Loyalty Points', 'Balance', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>

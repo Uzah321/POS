@@ -91,7 +91,7 @@ export default function BusinessTypeModal({ onSelect }: Props) {
         </div>
 
         {/* Options */}
-        <div className="p-8 grid grid-cols-2 gap-4">
+        <div className="p-4 sm:p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {OPTIONS.map(opt => (
             <button
               key={opt.type}

@@ -278,7 +278,7 @@ export default function DayEndPage() {
   );
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Day End &mdash; EOD</h1>
         <div className="flex items-center gap-2">
@@ -356,34 +356,36 @@ export default function DayEndPage() {
           {(summary.shift_ends?.length ?? 0) > 0 && (
             <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">Shift End Reconciliation</div>
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Cashier</th>
-                    <th className="px-4 py-2 text-right">Expected Cash</th>
-                    <th className="px-4 py-2 text-right">Declared Cash</th>
-                    <th className="px-4 py-2 text-right">Variance</th>
-                    <th className="px-4 py-2 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {summary.shift_ends.map((s, i) => (
-                    <tr key={i}>
-                      <td className="px-4 py-2">{safeStr(s.user?.name ?? s.user)}</td>
-                      <td className="px-4 py-2 text-right">{format(s.expected_cash)}</td>
-                      <td className="px-4 py-2 text-right">{format(s.declared_cash)}</td>
-                      <td className={`px-4 py-2 text-right font-medium ${s.variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {s.variance >= 0 ? '+' : ''}{format(s.variance)}
-                      </td>
-                      <td className="px-4 py-2 text-center">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {s.status}
-                        </span>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Cashier</th>
+                      <th className="px-4 py-2 text-right">Expected Cash</th>
+                      <th className="px-4 py-2 text-right">Declared Cash</th>
+                      <th className="px-4 py-2 text-right">Variance</th>
+                      <th className="px-4 py-2 text-center">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {summary.shift_ends.map((s, i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-2">{safeStr(s.user?.name ?? s.user)}</td>
+                        <td className="px-4 py-2 text-right">{format(s.expected_cash)}</td>
+                        <td className="px-4 py-2 text-right">{format(s.declared_cash)}</td>
+                        <td className={`px-4 py-2 text-right font-medium ${s.variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {s.variance >= 0 ? '+' : ''}{format(s.variance)}
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {s.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
@@ -485,74 +487,76 @@ export default function DayEndPage() {
             End-of-Day Records
             <span className="ml-2 text-xs text-gray-400 font-normal">(stored in <code>end_of_day</code> table)</span>
           </div>
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-              <tr>
-                <th className="px-4 py-2 text-left">Date</th>
-                <th className="px-4 py-2 text-right">Total Sales</th>
-                <th className="px-4 py-2 text-right">Cash</th>
-                <th className="px-4 py-2 text-right">Card</th>
-                <th className="px-4 py-2 text-right">Mobile</th>
-                <th className="px-4 py-2 text-right">Variance</th>
-                <th className="px-4 py-2 text-center">Status</th>
-                <th className="px-4 py-2 text-left">Notes</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {history.map((h) => (
-                <tr key={h.id}>
-                  <td className="px-4 py-2 font-medium">{h.report_date ?? h.date}</td>
-                  <td className="px-4 py-2 text-right">{format(h.total_sales ?? h.total_revenue ?? 0)}</td>
-                  <td className="px-4 py-2 text-right text-emerald-700">{format(h.cash_sales ?? 0)}</td>
-                  <td className="px-4 py-2 text-right text-blue-700">{format(h.card_sales ?? 0)}</td>
-                  <td className="px-4 py-2 text-right text-purple-700">{format(h.mobile_money_sales ?? 0)}</td>
-                  <td className={`px-4 py-2 text-right font-semibold ${(h.difference ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {(h.difference ?? 0) >= 0 ? '+' : ''}{format(h.difference ?? 0)}
-                  </td>
-                  <td className="px-4 py-2 text-center">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${h.status === 'closed' || h.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {h.status ?? 'draft'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-gray-500 truncate max-w-xs">{h.notes ?? '—'}</td>
-                  <td className="px-4 py-2">
-                    <button
-                      type="button"
-                      title="Print this day's PDF"
-                      onClick={() => downloadDayEndPdf({
-                        companyName: storeSettings?.company_name || 'Core POS',
-                        date: h.report_date ?? h.date,
-                        format,
-                        summary: {
-                          date: h.report_date ?? h.date ?? '',
-                          total_sales: h.total_sales ?? h.total_revenue ?? 0,
-                          total_revenue: h.total_revenue ?? h.total_sales ?? 0,
-                          total_transactions: h.total_transactions ?? 0,
-                          cash_sales: h.cash_sales ?? 0,
-                          card_sales: h.card_sales ?? 0,
-                          mobile_money_sales: h.mobile_money_sales ?? 0,
-                          other_sales: h.other_sales ?? 0,
-                          total_expenses: h.total_expenses ?? 0,
-                          total_refunds: h.total_refunds ?? 0,
-                          net_revenue: h.net_revenue ?? h.total_sales ?? 0,
-                          cashier_breakdown: [],
-                          shift_ends: [],
-                        } as EodSummary,
-                        openingCash: h.opening_cash != null ? Number(h.opening_cash) : undefined,
-                        actualCash: h.actual_cash != null ? Number(h.actual_cash) : undefined,
-                        variance: h.difference != null ? Number(h.difference) : undefined,
-                        notes: h.notes,
-                      })}
-                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                    >
-                      <Printer size={14} />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[1000px]">
+              <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                <tr>
+                  <th className="px-4 py-2 text-left">Date</th>
+                  <th className="px-4 py-2 text-right">Total Sales</th>
+                  <th className="px-4 py-2 text-right">Cash</th>
+                  <th className="px-4 py-2 text-right">Card</th>
+                  <th className="px-4 py-2 text-right">Mobile</th>
+                  <th className="px-4 py-2 text-right">Variance</th>
+                  <th className="px-4 py-2 text-center">Status</th>
+                  <th className="px-4 py-2 text-left">Notes</th>
+                  <th className="px-4 py-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {history.map((h) => (
+                  <tr key={h.id}>
+                    <td className="px-4 py-2 font-medium">{h.report_date ?? h.date}</td>
+                    <td className="px-4 py-2 text-right">{format(h.total_sales ?? h.total_revenue ?? 0)}</td>
+                    <td className="px-4 py-2 text-right text-emerald-700">{format(h.cash_sales ?? 0)}</td>
+                    <td className="px-4 py-2 text-right text-blue-700">{format(h.card_sales ?? 0)}</td>
+                    <td className="px-4 py-2 text-right text-purple-700">{format(h.mobile_money_sales ?? 0)}</td>
+                    <td className={`px-4 py-2 text-right font-semibold ${(h.difference ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(h.difference ?? 0) >= 0 ? '+' : ''}{format(h.difference ?? 0)}
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${h.status === 'closed' || h.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {h.status ?? 'draft'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 truncate max-w-xs">{h.notes ?? '—'}</td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        title="Print this day's PDF"
+                        onClick={() => downloadDayEndPdf({
+                          companyName: storeSettings?.company_name || 'Core POS',
+                          date: h.report_date ?? h.date,
+                          format,
+                          summary: {
+                            date: h.report_date ?? h.date ?? '',
+                            total_sales: h.total_sales ?? h.total_revenue ?? 0,
+                            total_revenue: h.total_revenue ?? h.total_sales ?? 0,
+                            total_transactions: h.total_transactions ?? 0,
+                            cash_sales: h.cash_sales ?? 0,
+                            card_sales: h.card_sales ?? 0,
+                            mobile_money_sales: h.mobile_money_sales ?? 0,
+                            other_sales: h.other_sales ?? 0,
+                            total_expenses: h.total_expenses ?? 0,
+                            total_refunds: h.total_refunds ?? 0,
+                            net_revenue: h.net_revenue ?? h.total_sales ?? 0,
+                            cashier_breakdown: [],
+                            shift_ends: [],
+                          } as EodSummary,
+                          openingCash: h.opening_cash != null ? Number(h.opening_cash) : undefined,
+                          actualCash: h.actual_cash != null ? Number(h.actual_cash) : undefined,
+                          variance: h.difference != null ? Number(h.difference) : undefined,
+                          notes: h.notes,
+                        })}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                      >
+                        <Printer size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

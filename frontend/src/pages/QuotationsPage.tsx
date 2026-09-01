@@ -38,7 +38,7 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
     .slice(0, 20);
 
   return (
-    <div ref={ref} className="relative col-span-4">
+    <div ref={ref} className="relative sm:col-span-4">
       <div className="relative">
         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
@@ -302,7 +302,8 @@ export default function QuotationsPage() {
           <div className="p-8 text-center text-gray-400"><FileText size={32} className="mx-auto mb-2" /><p>No quotations found</p></div>
         ) : (
           <>
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px]">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
                 <th className="text-left px-4 py-3">Reference</th>
@@ -339,6 +340,7 @@ export default function QuotationsPage() {
               ))}
             </tbody>
           </table>
+          </div>
           <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
           </>
         )}
@@ -353,7 +355,7 @@ export default function QuotationsPage() {
               <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Valid Until</label>
                   <input type="date" value={form.valid_until} onChange={e => setForm({...form, valid_until: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -363,21 +365,21 @@ export default function QuotationsPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Line Items</label>
                 <div className="mt-2 space-y-2">
-                  <div className="grid grid-cols-12 gap-1 text-xs text-gray-400 font-semibold px-1">
-                    <span className="col-span-4">Item</span><span className="col-span-2">Qty</span><span className="col-span-2">Price</span><span className="col-span-2">Disc</span><span className="col-span-2">Tax</span>
+                  <div className="hidden sm:grid sm:grid-cols-12 gap-1 text-xs text-gray-400 font-semibold px-1">
+                    <span className="sm:col-span-4">Item</span><span className="sm:col-span-2">Qty</span><span className="sm:col-span-2">Price</span><span className="sm:col-span-2">Disc</span><span className="sm:col-span-2">Tax</span>
                   </div>
                   {form.items.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-1 items-center">
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-1 sm:items-center">
                       <QuoteProductPicker
                         products={quoteProducts}
                         name={item.name}
                         onSelect={(p) => selectProduct(idx, p)}
                         onNameChange={(name) => updateItem(idx, 'name', name)}
                       />
-                      <input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <input type="number" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', e.target.value)} className="col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <input type="number" value={item.discount} onChange={e => updateItem(idx, 'discount', e.target.value)} className="col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <div className="col-span-1"><input type="number" value={item.tax_amount} onChange={e => updateItem(idx, 'tax_amount', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                      <input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="sm:col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input type="number" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', e.target.value)} className="sm:col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input type="number" value={item.discount} onChange={e => updateItem(idx, 'discount', e.target.value)} className="sm:col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <div className="sm:col-span-1"><input type="number" value={item.tax_amount} onChange={e => updateItem(idx, 'tax_amount', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
                       {form.items.length > 1 && <button onClick={() => setForm(f => ({...f, items: f.items.filter((_,i) => i!==idx)}))} className="text-red-400 hover:text-red-600"><X size={12} /></button>}
                     </div>
                   ))}
@@ -424,7 +426,8 @@ export default function QuotationsPage() {
               </div>
             </div>
             <div className="p-6 space-y-4">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
                 <thead><tr className="text-xs text-gray-400 uppercase border-b"><th className="text-left pb-2">Item</th><th className="text-right pb-2">Qty</th><th className="text-right pb-2">Price</th><th className="text-right pb-2">Total</th></tr></thead>
                 <tbody>
                   {quotationDetail.items?.map((it: any) => (
@@ -437,6 +440,7 @@ export default function QuotationsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
               <div className="flex justify-between font-bold text-lg"><span>Total</span><span className="text-blue-600">{format(quotationDetail.total)}</span></div>
 
               {quotationDetail.status === 'draft' && (

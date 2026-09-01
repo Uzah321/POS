@@ -75,7 +75,7 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
 
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="p-6 space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="text-sm font-semibold text-gray-700">Ingredient Name *</label>
           <input {...register('name')} className={field} />
@@ -287,7 +287,7 @@ function OrderingTab({ ingredientId }: { ingredientId: number }) {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="text-xs font-semibold text-gray-500 uppercase">Recommended Quantity</label>
           <div className={`${field} bg-gray-100`}>{totalRecommended}</div>
@@ -302,8 +302,8 @@ function OrderingTab({ ingredientId }: { ingredientId: number }) {
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-gray-200 rounded-lg overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
             <tr>
               <th className="text-left px-3 py-2">Store</th>
@@ -544,7 +544,8 @@ function IngredientHistoryModal({ ingredient, onClose }: { ingredient: any; onCl
           ) : rows.length === 0 ? (
             <div className="text-center py-12 text-gray-400 text-sm">No stock changes recorded yet</div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-sm">
               <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase sticky top-0">
                 <tr>
                   <th className="text-left px-4 py-2">Date</th>
@@ -579,6 +580,7 @@ function IngredientHistoryModal({ ingredient, onClose }: { ingredient: any; onCl
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
@@ -706,7 +708,8 @@ export default function IngredientsPage() {
         ) : rows.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">No ingredients found</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
               <tr>
                 <th className="text-left px-4 py-2.5 w-10">
@@ -789,6 +792,7 @@ export default function IngredientsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {meta && <Pagination page={page} lastPage={meta.last_page ?? 1} from={meta.from} to={meta.to} total={meta.total} onPageChange={setPage} />}

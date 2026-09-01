@@ -95,7 +95,8 @@ export default function AttendancePage() {
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : records.length === 0 ? (
           <div className="p-8 text-center text-gray-400"><Clock size={32} className="mx-auto mb-2" /><p>No attendance records</p></div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px]">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
                 <th className="text-left px-4 py-3">Staff</th>
@@ -122,6 +123,7 @@ export default function AttendancePage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

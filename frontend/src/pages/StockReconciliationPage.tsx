@@ -193,7 +193,7 @@ export default function StockReconciliationPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1200px]">
                 <thead className="bg-gray-50">
                   <tr>
                     {['Product', 'SKU', 'Category', 'Opening Stock', '+ Purchases', '- Sales', '= Expected', 'Actual Stock', 'Variance', 'Var. Value', 'Status'].map(h => (

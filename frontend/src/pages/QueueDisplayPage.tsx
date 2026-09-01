@@ -63,7 +63,7 @@ export default function QueueDisplayPage() {
       </div>
 
       {/* Main display */}
-      <div className="flex-1 grid grid-cols-2 gap-0">
+      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-0">
 
         {/* Preparing column */}
         <div className={`border-r ${th.divider} flex flex-col`}>

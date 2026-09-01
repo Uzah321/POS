@@ -58,7 +58,7 @@ function BranchModal({ branch, onClose }: { branch?: any; onClose: () => void })
             <input {...register('name')} className={field} placeholder="e.g. Main Branch" />
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-semibold text-gray-700">City</label>
               <input {...register('city')} className={field} placeholder="e.g. Harare" />
@@ -72,7 +72,7 @@ function BranchModal({ branch, onClose }: { branch?: any; onClose: () => void })
             <label className="text-sm font-semibold text-gray-700">Address</label>
             <input {...register('address')} className={field} placeholder="e.g. 123 Main Street" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-semibold text-gray-700">Phone</label>
               <input {...register('phone')} className={field} placeholder="+263..." />

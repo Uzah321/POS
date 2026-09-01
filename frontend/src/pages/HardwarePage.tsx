@@ -415,7 +415,7 @@ export default function HardwarePage() {
               </Card>
 
               <Card title="Font & Paper">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">Font Family</label>
                     <select value={receipt.fontFamily} onChange={e => setR('fontFamily', e.target.value as ReceiptSettings['fontFamily'])}
@@ -667,8 +667,8 @@ export default function HardwarePage() {
                   Ethernet scales only work inside the Core desktop app — this browser tab can't open a network connection directly.
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
                   <label className="text-xs text-gray-500 mb-1 block">IP Address</label>
                   <input
                     type="text"
@@ -746,7 +746,7 @@ export default function HardwarePage() {
           </Card>
 
           <Card title="Label Size">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Width (mm)</label>
                 <input type="number" min={20} max={200} value={hw.labelWidth}
@@ -876,7 +876,7 @@ export default function HardwarePage() {
           </Card>
 
           <Card title="Configuration">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Display Name</label>
                 <input value={kds.kdsDisplayName} onChange={e => setK('kdsDisplayName', e.target.value)}
@@ -938,7 +938,7 @@ export default function HardwarePage() {
           </Card>
 
           <Card title="Configuration">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Screen Title</label>
                 <input value={kds.queueStoreName} onChange={e => setK('queueStoreName', e.target.value)}
@@ -990,7 +990,7 @@ export default function HardwarePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Page header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
+      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-md bg-purple-100 flex items-center justify-center">
             <Settings2 size={20} className="text-purple-600" />
@@ -1002,14 +1002,16 @@ export default function HardwarePage() {
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-73px)]">
-        {/* Sidebar tabs */}
-        <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-100 py-4">
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-73px)]">
+        {/* Sidebar tabs — a horizontal scrollable tab bar below lg (a 224px fixed
+            column would eat most of a ~360-400px handheld viewport), a normal
+            left column at lg+ */}
+        <aside className="w-full lg:w-56 flex-shrink-0 flex lg:block overflow-x-auto lg:overflow-y-auto bg-white border-b lg:border-b-0 lg:border-r border-gray-100 py-2 lg:py-4">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${tab === id ? 'bg-blue-50 text-blue-700 font-semibold border-r-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
+              className={`flex-shrink-0 lg:w-full flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 text-sm whitespace-nowrap transition-colors ${tab === id ? 'bg-blue-50 text-blue-700 font-semibold border-b-2 lg:border-b-0 lg:border-r-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
             >
               <Icon size={16} />
               {label}
@@ -1018,7 +1020,7 @@ export default function HardwarePage() {
         </aside>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6">
           {renderTab()}
         </main>
       </div>

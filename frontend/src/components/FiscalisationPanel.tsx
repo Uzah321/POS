@@ -44,7 +44,7 @@ function RegisterDeviceForm({ registerId, onDone }: { registerId: number; onDone
       <p className="text-xs text-gray-500">
         Enter the Device ID and Activation Key issued for this till on ZIMRA's registration portal. Use the <b>Test</b> environment until ZIMRA issues live credentials.
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Environment</label>
           <select className={field} value={form.environment} onChange={(e) => setForm(f => ({ ...f, environment: e.target.value as 'test' | 'live' }))}>

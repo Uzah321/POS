@@ -89,7 +89,7 @@ function EntryModal({ entry, branches, onClose }: { entry?: any; branches: any[]
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Branch *</label>
               <select {...register('branch_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
@@ -107,7 +107,7 @@ function EntryModal({ entry, branches, onClose }: { entry?: any; branches: any[]
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Category *</label>
               <select {...register('category')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
@@ -129,7 +129,7 @@ function EntryModal({ entry, branches, onClose }: { entry?: any; branches: any[]
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description.message}</p>}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Date *</label>
               <input type="date" {...register('entry_date')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
@@ -231,7 +231,7 @@ export default function CashflowPage() {
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-md border border-gray-100 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2"><TrendingDown size={18} className="text-green-500" /><span className="text-sm text-gray-500">Total Inflow</span></div>
             <p className="text-2xl font-bold text-green-600">${Number(summary.total_inflow || 0).toFixed(2)}</p>
@@ -280,7 +280,7 @@ export default function CashflowPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-teal-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1100px]">
               <thead className="bg-gray-50">
                 <tr>{['Reference', 'Date', 'Flow', 'Category', 'Description', 'Amount', 'Currency', 'Method', 'Branch', ''].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr>
               </thead>

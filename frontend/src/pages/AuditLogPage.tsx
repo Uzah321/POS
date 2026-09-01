@@ -235,7 +235,8 @@ export default function AuditLogPage() {
           <div className="p-8 text-center text-gray-400"><Shield size={32} className="mx-auto mb-2" /><p>No audit logs found</p></div>
         ) : (
           <>
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr className="text-xs font-semibold text-gray-500 uppercase">
                   <th className="text-left px-4 py-3">Time</th>
@@ -248,6 +249,7 @@ export default function AuditLogPage() {
                 {logs.map((log: any) => <LogRow key={log.id} log={log} />)}
               </tbody>
             </table>
+            </div>
             <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
           </>
         )}

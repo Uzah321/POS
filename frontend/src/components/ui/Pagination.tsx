@@ -28,8 +28,8 @@ export default function Pagination({ page, lastPage, from, to, total, onPageChan
   const pages = pageNumbers(page, lastPage);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-      <p className="text-sm text-gray-500">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-gray-100">
+      <p className="text-xs sm:text-sm text-gray-500">
         {from != null && to != null && total != null
           ? `Showing ${from}–${to} of ${total}`
           : total != null
@@ -47,24 +47,32 @@ export default function Pagination({ page, lastPage, from, to, total, onPageChan
           <ChevronLeft size={15} />
         </button>
 
-        {pages.map((p, i) =>
-          p === '…' ? (
-            <span key={`e${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
-          ) : (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onPageChange(p as number)}
-              className={`min-w-[32px] h-8 rounded-lg text-sm font-medium transition-colors ${
-                p === page
-                  ? 'bg-blue-600 text-white'
-                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {p}
-            </button>
-          )
-        )}
+        {/* Full numbered page list — desktop only. A narrow screen collapses
+            this to a plain "X / Y" readout below so a page with many pages
+            never overflows a ~360px viewport. */}
+        <div className="hidden sm:flex items-center gap-1">
+          {pages.map((p, i) =>
+            p === '…' ? (
+              <span key={`e${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPageChange(p as number)}
+                className={`min-w-[32px] h-8 rounded-lg text-sm font-medium transition-colors ${
+                  p === page
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {p}
+              </button>
+            )
+          )}
+        </div>
+        <span className="sm:hidden text-sm font-medium text-gray-600 px-1.5 tabular-nums">
+          {page} / {lastPage}
+        </span>
 
         <button
           type="button"

@@ -104,7 +104,8 @@ export default function StockTransferPage() {
           <div className="p-8 text-center text-gray-400"><ArrowRightLeft size={32} className="mx-auto mb-2" /><p>No transfers</p></div>
         ) : (
           <>
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-xs font-semibold text-gray-500 uppercase">
                 <th className="text-left px-4 py-3">Reference</th>
@@ -128,6 +129,7 @@ export default function StockTransferPage() {
               ))}
             </tbody>
           </table>
+          </div>
           <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
           </>
         )}
@@ -142,7 +144,7 @@ export default function StockTransferPage() {
               <button onClick={() => setShowNew(false)}><X size={20} className="text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">From Branch</label>
                   <select value={form.from_branch_id} onChange={e => setForm({...form, from_branch_id: e.target.value})} className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">

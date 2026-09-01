@@ -75,7 +75,8 @@ function RefundModal({ sale, onClose, formatAmount }: { sale: any; onClose: () =
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-gray-50"><tr>
                 <th className="px-3 py-2 text-left text-xs text-gray-500">Product</th>
                 <th className="px-3 py-2 text-right text-xs text-gray-500">Sold</th>
@@ -107,6 +108,7 @@ function RefundModal({ sale, onClose, formatAmount }: { sale: any; onClose: () =
                 })}
               </tbody>
             </table>
+            </div>
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="w-4 h-4 accent-red-600" />
@@ -241,7 +243,7 @@ export default function SalesPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50">
                 <tr>
                   {['Reference', 'Date', 'Customer', 'Cashier', 'Items', 'Total', 'Status', 'Actions'].map(h => (
@@ -300,7 +302,7 @@ export default function SalesPage() {
             <div className="p-6 space-y-4">
               {saleDetail ? (
                 <>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div><span className="text-gray-500">Date:</span> <span className="font-medium">{format(new Date(saleDetail.created_at), 'dd MMM yyyy HH:mm')}</span></div>
                     <div><span className="text-gray-500">Status:</span> <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[saleDetail.status]}`}>{saleDetail.status}</span></div>
                     <div><span className="text-gray-500">Customer:</span> <span className="font-medium">{saleDetail.customer?.name || 'Walk-in'}</span></div>
@@ -309,7 +311,8 @@ export default function SalesPage() {
                   <div>
                     <h3 className="font-semibold text-gray-700 mb-2">Items</h3>
                     <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[480px]">
                         <thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left text-xs text-gray-500">Product</th><th className="px-3 py-2 text-right text-xs text-gray-500">Qty</th><th className="px-3 py-2 text-right text-xs text-gray-500">Price</th><th className="px-3 py-2 text-right text-xs text-gray-500">Total</th></tr></thead>
                         <tbody className="divide-y divide-gray-100">
                           {saleDetail.items?.map((item: any) => (
@@ -317,6 +320,7 @@ export default function SalesPage() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-1 text-sm">

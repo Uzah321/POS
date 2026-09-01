@@ -359,7 +359,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-5 gap-4 flex-shrink-0">
+        <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0">
           {!isCashier && (
             <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
@@ -491,7 +491,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             page-level scrolling — actually get that height from their parent. Without it, this
             <main> lets content grow to its natural size and scrolls the whole page instead of
             the page's own internal scroll regions. */}
-        <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto p-5 lg:p-6">
+        <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto p-3 sm:p-5 lg:p-6">
           {children}
         </main>
       </div>

@@ -499,16 +499,16 @@ export default function CashierPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
       {/* ── Header card ────────────────────────────────────────────────────── */}
-      <div className="mx-4 mt-2 mb-2 flex-shrink-0">
+      <div className="mx-2 sm:mx-4 mt-2 mb-2 flex-shrink-0">
         <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
           <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-400" />
-          <div className="px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-5">
+          <div className="px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-5">
             <span className="font-bold text-base bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{storeName}</span>
-            <span className="text-gray-400 text-sm">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
+            <span className="text-gray-400 text-sm hidden sm:inline">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
             {isRestaurant && (
               <>
                 <div className="flex items-center gap-1.5">
@@ -541,7 +541,7 @@ export default function CashierPage() {
               <Ban size={14} /> Void
             </button>
           </div>
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
             {scaleActive && (
               scale.connected ? (
                 <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs" title="Weighing scale connected">
@@ -571,10 +571,10 @@ export default function CashierPage() {
       </div>
 
       {/* ── Scan / PLU card ────────────────────────────────────────────────── */}
-      <div className="mx-4 mb-2 flex-shrink-0">
-        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-4 py-2">
-          <form onSubmit={handleCodeSubmit} className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+      <div className="mx-2 sm:mx-4 mb-2 flex-shrink-0">
+        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-3 sm:px-4 py-2">
+          <form onSubmit={handleCodeSubmit} className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap hidden sm:inline">
               Scan / PLU
             </span>
             <div className="relative flex-1">
@@ -644,10 +644,10 @@ export default function CashierPage() {
       </div>
 
       {/* ── Main area ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden gap-4 px-4 pb-4 min-h-0">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden gap-3 lg:gap-4 px-2 sm:px-4 pb-2 sm:pb-4 min-h-0">
 
         {/* Left: items card */}
-        <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
           {/* Column headers */}
           <div className="flex items-center bg-gray-50 border-b border-gray-100 px-4 py-2.5 flex-shrink-0">
             <span className="w-36 text-center flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wider">QTY</span>
@@ -710,8 +710,11 @@ export default function CashierPage() {
           </div>
         </div>
 
-        {/* Right: payment column — 40% width, stretches to fill the full height with generous touch-sized buttons */}
-        <div className="w-[40%] min-w-[380px] xl:min-w-[440px] 2xl:min-w-[560px] max-w-[640px] flex flex-col gap-3 flex-shrink-0 overflow-y-auto">
+        {/* Right: payment column — 40% width on desktop (lg+), stretches to fill the full
+            height with generous touch-sized buttons. Below lg it stacks under the item
+            list full-width instead, capped to a share of the viewport with its own
+            scroll so a tall payment panel never pushes the cart list off screen. */}
+        <div className="w-full lg:w-[40%] lg:min-w-[380px] xl:min-w-[440px] 2xl:min-w-[560px] max-w-full lg:max-w-[640px] flex flex-col gap-3 flex-shrink-0 max-h-[55vh] lg:max-h-none overflow-y-auto">
 
           {/* Total box */}
           <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-2xl shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">

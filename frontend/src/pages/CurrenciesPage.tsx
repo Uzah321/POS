@@ -70,7 +70,7 @@ export default function CurrenciesPage() {
   const onSubmit = (d: FormData) => save.mutate(d);
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Currencies</h1>
@@ -93,7 +93,8 @@ export default function CurrenciesPage() {
       </div>
 
       <div className="bg-white border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[880px]">
           <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
             <tr>
               <th className="px-4 py-3 text-left">Code</th>
@@ -146,6 +147,7 @@ export default function CurrenciesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Add/Edit Modal */}
@@ -154,7 +156,7 @@ export default function CurrenciesPage() {
           <div className="bg-white w-full max-w-md p-6 shadow-2xl">
             <h2 className="text-lg font-bold mb-4">{editing ? 'Edit Currency' : 'Add Currency'}</h2>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Code *</label>
                   <input {...register('code')} placeholder="USD" className="w-full border border-gray-300 px-3 py-2 text-sm uppercase" />

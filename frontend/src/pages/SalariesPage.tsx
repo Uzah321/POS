@@ -80,7 +80,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
         </div>
         <form onSubmit={handleSubmit((d: FormData) => mutation.mutate(d))} className="p-6 space-y-5">
           {/* Employee & Branch */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Branch *</label>
               <select {...register('branch_id')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -93,7 +93,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
               <input type="month" {...register('pay_month')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700">Employee Name *</label>
               <input {...register('employee_name')} list="emp-list" className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Type name..." />
@@ -109,7 +109,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
           {/* Earnings */}
           <div className="bg-green-50 rounded-md p-4 space-y-3">
             <h3 className="text-sm font-bold text-green-800">Earnings</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-gray-600">Basic Salary *</label>
                 <input type="number" step="0.01" {...register('basic_salary')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -136,7 +136,7 @@ function SalaryModal({ salary, branches, users, onClose }: { salary?: any; branc
           {/* Deductions */}
           <div className="bg-red-50 rounded-md p-4 space-y-3">
             <h3 className="text-sm font-bold text-red-800">Deductions</h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-medium text-gray-600">PAYE (Tax)</label>
                 <input type="number" step="0.01" {...register('paye')} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -319,7 +319,7 @@ export default function SalariesPage() {
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-indigo-500" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1100px]">
               <thead className="bg-gray-50">
                 <tr>{['Employee', 'Position', 'Month', 'Basic', 'Allowances', 'Gross', 'Deductions', 'Net Salary', 'Status', ''].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr>
               </thead>

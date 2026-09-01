@@ -339,7 +339,7 @@ export default function ShiftEndPage() {
   // --- Success screen ---â€â€â€â€â€â€
   if (isCashier && submitted) {
     return (
-      <div className="p-6 max-w-lg mx-auto mt-20 text-center">
+      <div className="p-4 sm:p-6 max-w-lg mx-auto mt-20 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -358,7 +358,7 @@ export default function ShiftEndPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -455,7 +455,7 @@ export default function ShiftEndPage() {
                 </h2>
               </div>
               <div className="overflow-x-auto max-h-72 overflow-y-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0">
                     <tr>
                       <th className="px-4 py-2 text-left">Ref</th>
@@ -614,7 +614,7 @@ export default function ShiftEndPage() {
             <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-700 text-sm">My Previous Shifts</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[900px]">
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                     <tr>
                       <th className="px-4 py-2 text-left">Date</th>
@@ -699,7 +699,7 @@ export default function ShiftEndPage() {
             <span className="text-xs text-gray-400">{history.length} record{history.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[1000px]">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-3 text-left">Cashier</th>

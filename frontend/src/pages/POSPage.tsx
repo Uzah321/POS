@@ -24,7 +24,7 @@ import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
-  User, Award,
+  User, Award, LayoutGrid,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -103,6 +103,11 @@ export default function POSPage() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [productPage, setProductPage] = useState(0);
   const [showHeldOrders, setShowHeldOrders] = useState(false);
+  // Below lg, the product grid and the always-visible payment/ticket panel
+  // can't both fit — showing both squeezed the product grid down to a
+  // sliver. Below that breakpoint only one panel renders at a time, picked
+  // by this tab; at lg+ both render side by side as before, unaffected.
+  const [mobileTab, setMobileTab] = useState<'products' | 'ticket'>('products');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -683,14 +688,47 @@ export default function POSPage() {
           that element scrolls the whole page instead of just this page's own regions. */}
       <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
-      {/* Main content — ticket + payment always visible alongside the product grid.
-          Stacks vertically below lg (products on top, ticket/payment below, capped
-          height + own scroll) since the row layout needs more width than a handheld
-          portrait viewport has. */}
+      {/* Mobile-only Products/Ticket switcher. Below lg there isn't room to show
+          the product grid and the full payment panel at once — showing both
+          squeezed the product grid down to a sliver. Only one panel renders at
+          a time below lg (picked by mobileTab, full height); at lg+ both
+          render side by side as before, this bar is hidden. */}
+      <div className="flex lg:hidden items-stretch gap-2 px-2 sm:px-3 pt-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setMobileTab('products')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-none text-sm font-bold border-2 transition-colors touch-manipulation ${
+            mobileTab === 'products' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-500'
+          }`}
+        >
+          <LayoutGrid size={15} /> Products
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('ticket')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-none text-sm font-bold border-2 transition-colors touch-manipulation ${
+            mobileTab === 'ticket' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-500'
+          }`}
+        >
+          <ShoppingCart size={15} /> Ticket
+          {cart.items.length > 0 && (
+            <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${
+              mobileTab === 'ticket' ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'
+            }`}>
+              {cart.items.length} &middot; {formatCurrency(total)}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Main content — ticket + payment always visible alongside the product grid
+          at lg+. Below lg, only the panel matching mobileTab renders, at full
+          height, since the row layout needs more width than a handheld portrait
+          viewport has. */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-3 p-2 sm:p-3 bg-gray-50 min-h-0">
 
         {/* Left: products — search, colorful category row, image-led product grid */}
-        <div className="flex-1 lg:flex-[1.65] min-w-0 min-h-0 flex flex-col gap-2">
+        <div className={`${mobileTab === 'products' ? 'flex' : 'hidden'} flex-col lg:flex flex-1 lg:flex-[1.65] min-w-0 min-h-0 gap-2`}>
           <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
             <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
               <form onSubmit={(e) => { e.preventDefault(); handleSearchEnter(); }} className="relative">
@@ -812,10 +850,9 @@ export default function POSPage() {
         </div>
 
         {/* Right: ticket + payment (persistent, no separate screen) — narrower
-            now so the product grid gets the extra room. Below lg it stacks full-width
-            under the product grid instead, capped to a share of the viewport with its
-            own scroll. */}
-        <div className="w-full lg:w-auto lg:flex-1 flex-shrink-0 lg:min-w-[340px] lg:max-w-[420px] max-h-[55vh] lg:max-h-none bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-y-auto min-h-0">
+            now so the product grid gets the extra room. Below lg it's shown full-
+            screen instead (see mobileTab above), not squeezed alongside products. */}
+        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} flex-col lg:flex flex-1 w-full lg:w-auto lg:flex-shrink-0 lg:min-w-[340px] lg:max-w-[420px] min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-y-auto`}>
           {/* Header row */}
           <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-1.5 min-w-0">

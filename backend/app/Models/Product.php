@@ -15,7 +15,7 @@ class Product extends Model
     protected $fillable = [
         'name', 'slug', 'sku', 'barcode', 'hs_code', 'branch_id', 'category_id', 'business_type', 'brand_id', 'tax_rate_id', 'unit_id',
         'description', 'cost_price', 'selling_price', 'wholesale_price', 'image', 'color',
-        'has_variants', 'track_stock', 'made_to_order', 'is_active', 'is_taxable', 'sold_by_weight', 'reorder_level', 'reorder_quantity',
+        'has_variants', 'track_stock', 'made_to_order', 'is_active', 'is_taxable', 'sold_by_weight', 'scale_id', 'reorder_level', 'reorder_quantity',
         'expires', 'alert_quantity',
     ];
 
@@ -39,6 +39,7 @@ class Product extends Model
     public function brand(): BelongsTo { return $this->belongsTo(Brand::class); }
     public function taxRate(): BelongsTo { return $this->belongsTo(TaxRate::class); }
     public function unit(): BelongsTo { return $this->belongsTo(Unit::class); }
+    public function scale(): BelongsTo { return $this->belongsTo(WeighingScale::class, 'scale_id'); }
     public function variants(): HasMany { return $this->hasMany(ProductVariant::class); }
     public function stocks(): HasMany { return $this->hasMany(Stock::class); }
     public function ingredients(): HasMany { return $this->hasMany(ProductIngredient::class); }

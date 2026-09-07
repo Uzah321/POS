@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type PrinterMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
-export type ScaleMode = 'webserial' | 'network' | 'none';
 export type CardMachineMode = 'webhook' | 'none';
 
 export interface HardwareConfig {
@@ -27,15 +26,6 @@ export interface HardwareConfig {
 
   // Customer display
   customerDisplayEnabled: boolean;
-
-  // Weighing scale
-  scaleMode: ScaleMode;
-  scaleBaudRate: number;
-  // 'network': the scale's IP address and TCP port (Ethernet scales stream
-  // weight continuously over a raw TCP socket, same as the serial protocol
-  // but over the wire instead of a COM port). Desktop app only.
-  scaleHost: string;
-  scalePort: number;
 
   // Label printer
   labelPrinterMode: PrinterMode;
@@ -69,11 +59,6 @@ const DEFAULTS: HardwareConfig = {
   barcodeAutoAdd: true,
 
   customerDisplayEnabled: false,
-
-  scaleMode: 'none',
-  scaleBaudRate: 9600,
-  scaleHost: '192.168.1.200',
-  scalePort: 4001,
 
   labelPrinterMode: 'browser',
   labelWidth: 50,

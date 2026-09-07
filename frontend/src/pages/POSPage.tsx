@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, salesApi, settingsApi, customersApi } from '../api';
+import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
 import { useCartStore } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
@@ -11,7 +11,7 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
-import { useWeighingScale, toKg } from '../lib/hardware/scale';
+import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, type ScaleDevice } from '../lib/hardware/scale';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { effectiveTaxRate } from '../lib/taxSettings';
@@ -134,16 +134,29 @@ export default function POSPage() {
   const hw = useHardwareStore();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
-  const scale = useWeighingScale({ mode: hw.scaleMode, baudRate: hw.scaleBaudRate, host: hw.scaleHost, port: hw.scalePort });
-  const scaleActive = hw.scaleMode === 'webserial' || hw.scaleMode === 'network';
-  const liveKg = scaleActive && scale.connected && scale.weight ? toKg(scale.weight) : null;
+  // Registered weighing scales — a store can run several (one per
+  // department), each owning its own list of products (product.scale_id).
+  // Connections are managed centrally in lib/hardware/scale.ts; this just
+  // makes sure every active scale gets (re)dialled once the list loads.
+  const { data: scales = [] } = useQuery<ScaleDevice[]>({
+    queryKey: ['weighing-scales'],
+    queryFn: () => weighingScalesApi.list().then(r => r.data?.data || []),
+  });
+  useEffect(() => { if (scales.length) ensureScalesAutoConnected(scales); }, [scales]);
+
   // A weight-priced product tapped with no live scale reading — prompts for
   // a hand-entered weight before anything is added to the cart, so a
   // dismissed prompt never leaves a phantom "1 kg" line behind.
   const [pendingWeightProduct, setPendingWeightProduct] = useState<any | null>(null);
   const [weightInput, setWeightInput] = useState('');
 
-  // Auto-fill the weight prompt the moment the scale settles on a reading —
+  // Live reading for whichever scale the product waiting on the weight
+  // keypad is assigned to (null product/scale just reads back "disconnected").
+  const pendingScaleReading = useScaleReading(pendingWeightProduct?.scale_id ?? null);
+  const liveKg = pendingWeightProduct?.scale_id != null && pendingScaleReading.connected && pendingScaleReading.weight
+    ? toKg(pendingScaleReading.weight) : null;
+
+  // Auto-fill the weight prompt the moment its scale settles on a reading —
   // only while the cashier hasn't started typing a value by hand.
   useEffect(() => {
     if (pendingWeightProduct && weightInput === '' && liveKg && liveKg > 0) {
@@ -472,6 +485,7 @@ export default function POSPage() {
       cost: parseFloat(product.cost_price || 0),
       tax_rate: effectiveTaxRate(product, storeSettings),
       sold_by_weight: soldByWeight,
+      scale_id: soldByWeight ? (product.scale_id ?? null) : undefined,
     }, qty);
     return true;
   };
@@ -479,11 +493,14 @@ export default function POSPage() {
   const handleAddProduct = (product: any) => {
     const soldByWeight = !!product.sold_by_weight;
     if (soldByWeight) {
-      // Use the live scale reading (in kg) if one's available. Otherwise
-      // prompt for a hand-entered weight rather than silently adding "1".
-      const kg = liveKg && liveKg > 0 ? Math.round(liveKg * 1000) / 1000 : null;
+      // Read straight off this product's own assigned scale (not whichever
+      // scale a previous weigh-in left "pending") — every product only ever
+      // weighs on the one scale it's assigned to.
+      const reading = product.scale_id != null ? getScaleReading(product.scale_id) : null;
+      const productLiveKg = reading?.connected && reading.weight ? toKg(reading.weight) : null;
+      const kg = productLiveKg && productLiveKg > 0 ? Math.round(productLiveKg * 1000) / 1000 : null;
       if (kg === null) {
-        if (scaleActive && !scale.connected) toast.error(`${product.name} is sold by weight — scale isn't connected, enter the weight manually`);
+        if (product.scale_id != null && !reading?.connected) toast.error(`${product.name} is sold by weight — its scale isn't connected, enter the weight manually`);
         setPendingWeightProduct(product);
         setWeightInput('');
         return;
@@ -1187,7 +1204,7 @@ export default function POSPage() {
         onChange={setWeightInput}
         onConfirm={confirmPendingWeight}
         onClose={() => setPendingWeightProduct(null)}
-        label={`Weight (kg) — ${pendingWeightProduct.name}${scaleActive ? (scale.connected ? ' — place on scale or type weight' : ' — scale not connected') : ''}`}
+        label={`Weight (kg) — ${pendingWeightProduct.name}${pendingWeightProduct.scale_id != null ? (pendingScaleReading.connected ? ' — place on scale or type weight' : ' — scale not connected') : ''}`}
         allowDecimal
         quickAmounts={liveKg && liveKg > 0 ? [Math.round(liveKg * 1000) / 1000] : undefined}
         confirmLabel="✓ Add to Cart"

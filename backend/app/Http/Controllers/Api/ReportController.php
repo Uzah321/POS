@@ -483,6 +483,78 @@ class ReportController extends BaseApiController
         ]);
     }
 
+    /**
+     * GET /reports/scales — per-scale breakdown of weighed sales, for when the
+     * store runs several weighing scales (one per department) and each needs
+     * its own sales figures rather than one lump "sold by weight" total.
+     * scale_id on sale_items is a snapshot taken at sale time (see the
+     * add_scale_id_to_sale_items_table migration), so this stays accurate even
+     * if a product is later reassigned to a different scale.
+     */
+    public function scalesReport(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'date_from' => 'required|date',
+            'date_to'   => 'required|date|after_or_equal:date_from',
+            'scale_id'  => 'nullable|exists:weighing_scales,id',
+        ]);
+
+        $branchId = $this->effectiveBranchId($request);
+
+        $baseQuery = SaleItem::query()
+            ->whereNotNull('scale_id')
+            ->whereHas('sale', fn ($q) => $q->revenueCounted()
+                ->when($branchId, fn ($sq) => $sq->where('branch_id', $branchId))
+                ->whereDate('completed_at', '>=', $request->date_from)
+                ->whereDate('completed_at', '<=', $request->date_to));
+
+        $perScale = (clone $baseQuery)
+            ->when($request->scale_id, fn ($q) => $q->where('scale_id', $request->scale_id))
+            ->selectRaw('scale_id, COUNT(DISTINCT sale_id) as transactions, COUNT(*) as line_items, SUM(quantity) as total_weight_kg, SUM(total) as revenue')
+            ->groupBy('scale_id')
+            ->with('scale:id,name')
+            ->get()
+            ->map(fn ($row) => [
+                'scale_id'        => $row->scale_id,
+                'scale_name'      => $row->scale?->name ?? 'Unknown scale',
+                'transactions'    => (int) $row->transactions,
+                'line_items'      => (int) $row->line_items,
+                'total_weight_kg' => (float) $row->total_weight_kg,
+                'revenue'         => (float) $row->revenue,
+            ])
+            ->sortByDesc('revenue')
+            ->values();
+
+        $summary = [
+            'total_revenue'      => (float) $perScale->sum('revenue'),
+            'total_weight_kg'    => (float) $perScale->sum('total_weight_kg'),
+            'total_transactions' => (int) $perScale->sum('transactions'),
+            'scales_count'       => $perScale->count(),
+        ];
+
+        // Detail rows for a single scale (only computed when scale_id is passed,
+        // matching how ReportsPage drills from the summary table into one scale).
+        $items = null;
+        if ($request->scale_id) {
+            $items = (clone $baseQuery)
+                ->where('scale_id', $request->scale_id)
+                ->with('product:id,name,sku', 'sale:id,reference,completed_at')
+                ->latest('id')
+                ->limit(500)
+                ->get()
+                ->map(fn ($row) => [
+                    'sale_reference' => $row->sale?->reference,
+                    'completed_at'   => $row->sale?->completed_at,
+                    'product_name'   => $row->product?->name,
+                    'weight_kg'      => (float) $row->quantity,
+                    'unit_price'     => (float) $row->unit_price,
+                    'total'          => (float) $row->total,
+                ]);
+        }
+
+        return $this->success(compact('perScale', 'summary', 'items'));
+    }
+
     /** GET /reports/stock-variances */
     public function stockVariances(Request $request): \Illuminate\Http\JsonResponse
     {

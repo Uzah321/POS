@@ -1,7 +1,8 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi, warehousesApi } from '../api';
+import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi, warehousesApi, weighingScalesApi } from '../api';
+import type { ScaleDevice } from '../lib/hardware/scale';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat, PackagePlus, PackageMinus, History } from 'lucide-react';
@@ -60,6 +61,7 @@ const schema = z.object({
   made_to_order: z.coerce.boolean().default(false),
   is_taxable: z.coerce.boolean().default(true),
   sold_by_weight: z.coerce.boolean().default(false),
+  scale_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
 });
 
 // Preset swatches shown for quick-pick — a small, print-friendly palette that
@@ -245,6 +247,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   const { data: cats }   = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.list().then(r => r.data?.data || []) });
   const { data: brands } = useQuery({ queryKey: ['brands'],    queryFn: () => brandsApi.list().then(r => r.data?.data || []) });
   const { data: units }  = useQuery({ queryKey: ['units'],     queryFn: () => unitsApi.list().then(r => r.data?.data || []) });
+  const { data: scales } = useQuery<ScaleDevice[]>({ queryKey: ['weighing-scales'], queryFn: () => weighingScalesApi.list().then(r => r.data?.data || []) });
 
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -607,9 +610,23 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               </label>
               <p className="text-xs text-gray-400 mt-1">
                 {watchedSoldByWeight
-                  ? 'Priced per kg — Selling Price above is the price per kilogram. On the till, place the item on a connected weighing scale and the live reading fills the quantity automatically (Settings → Hardware → Weighing Scale). Without a scale, the cashier enters the weight by hand.'
+                  ? 'Priced per kg — Selling Price above is the price per kilogram. On the till, place the item on its assigned scale below and the live reading fills the quantity automatically. Without a scale, the cashier enters the weight by hand.'
                   : 'For butchery/deli/produce items priced per kilogram rather than sold as a fixed count.'}
               </p>
+              {watchedSoldByWeight && (
+                <div className="mt-2">
+                  <label className="text-xs text-gray-500 mb-1 block">Weighing Scale</label>
+                  <select {...register('scale_id')} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="">Unassigned</option>
+                    {scales?.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.mode === 'network' ? s.host : 'USB/Serial'})</option>
+                    ))}
+                  </select>
+                  {!scales?.length && (
+                    <p className="text-xs text-amber-600 mt-1">No scales registered yet — add one in Settings → Hardware → Weighing Scales.</p>
+                  )}
+                </div>
+              )}
             </div>
             <ColorImagePicker
               color={watchedColor}

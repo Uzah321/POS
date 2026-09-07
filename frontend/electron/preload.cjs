@@ -10,18 +10,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listPrinters: () => ipcRenderer.invoke('printers:list'),
   printSilent: (html, printerName) => ipcRenderer.invoke('printer:print', { html, printerName }),
 
-  // Ethernet weighing scale — raw TCP socket, main-process only (renderers
-  // can't open TCP sockets). Data/close arrive as push events since this is
-  // a continuous stream, not a request/response call.
-  connectScale: (host, port) => ipcRenderer.invoke('scale:connect', { host, port }),
-  disconnectScale: () => ipcRenderer.invoke('scale:disconnect'),
+  // Ethernet weighing scales — raw TCP sockets, main-process only (renderers
+  // can't open TCP sockets). Data/close arrive as push events since this is a
+  // continuous stream, not a request/response call. The main process can hold
+  // several of these open at once (one per registered scale), so every call
+  // and event is keyed by scaleId — the renderer filters onScaleData/onScaleClosed
+  // to the one instance that cares about that particular scale.
+  connectScale: (scaleId, host, port) => ipcRenderer.invoke('scale:connect', { scaleId, host, port }),
+  disconnectScale: (scaleId) => ipcRenderer.invoke('scale:disconnect', { scaleId }),
   onScaleData: (callback) => {
-    const listener = (_event, chunk) => callback(chunk);
+    const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('scale:data', listener);
     return () => ipcRenderer.removeListener('scale:data', listener);
   },
   onScaleClosed: (callback) => {
-    const listener = () => callback();
+    const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('scale:closed', listener);
     return () => ipcRenderer.removeListener('scale:closed', listener);
   },

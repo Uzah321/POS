@@ -231,25 +231,32 @@ function printSilentHtml(html, printerName) {
 }
 
 // ---------------------------------------------------------------------------
-// Ethernet weighing scale — some butchery/deli scales speak the same
+// Ethernet weighing scales — some butchery/deli scales speak the same
 // continuous "1.250 kg\r\n" protocol as a serial scale, but stream it over a
 // raw TCP socket instead of a COM port. Browsers can't open raw TCP sockets
 // at all (no WebSocket-to-TCP without a bridge), so this only works inside
 // the desktop shell; a plain browser tab stays on Web Serial only.
+//
+// A store can run several of these at once (one per department), each
+// identified by its own weighing_scales.id from the backend registry — so
+// connections are kept in a map keyed by that id rather than a single
+// singleton socket, and every event sent back to the renderer carries the
+// scaleId it came from so the right hook instance picks it up.
 // ---------------------------------------------------------------------------
-let scaleSocket = null;
+const scaleSockets = new Map(); // scaleId -> net.Socket
 
-function scaleDisconnect() {
-  if (scaleSocket) {
-    scaleSocket.removeAllListeners();
-    scaleSocket.destroy();
-    scaleSocket = null;
+function scaleDisconnect(scaleId) {
+  const socket = scaleSockets.get(scaleId);
+  if (socket) {
+    socket.removeAllListeners();
+    socket.destroy();
+    scaleSockets.delete(scaleId);
   }
 }
 
-function scaleConnect(host, port) {
+function scaleConnect(scaleId, host, port) {
   return new Promise((resolve) => {
-    scaleDisconnect();
+    scaleDisconnect(scaleId);
 
     const socket = new net.Socket();
     let settled = false;
@@ -269,14 +276,14 @@ function scaleConnect(host, port) {
       if (settled) return;
       settled = true;
       socket.setTimeout(0);
-      scaleSocket = socket;
+      scaleSockets.set(scaleId, socket);
 
       socket.on('data', (chunk) => {
-        mainWindow?.webContents.send('scale:data', chunk.toString('utf8'));
+        mainWindow?.webContents.send('scale:data', { scaleId, chunk: chunk.toString('utf8') });
       });
       socket.on('close', () => {
-        if (scaleSocket === socket) scaleSocket = null;
-        mainWindow?.webContents.send('scale:closed');
+        if (scaleSockets.get(scaleId) === socket) scaleSockets.delete(scaleId);
+        mainWindow?.webContents.send('scale:closed', { scaleId });
       });
       socket.on('error', () => {
         // 'close' fires right after — let that notify the renderer.
@@ -285,6 +292,10 @@ function scaleConnect(host, port) {
       resolve({ success: true });
     });
   });
+}
+
+function scaleDisconnectAll() {
+  for (const scaleId of Array.from(scaleSockets.keys())) scaleDisconnect(scaleId);
 }
 
 function createWindow() {
@@ -365,8 +376,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('printers:list', () => listSystemPrinters());
   ipcMain.handle('printer:print', (_event, { html, printerName }) => printSilentHtml(html, printerName));
-  ipcMain.handle('scale:connect', (_event, { host, port }) => scaleConnect(host, port));
-  ipcMain.handle('scale:disconnect', () => { scaleDisconnect(); return { success: true }; });
+  ipcMain.handle('scale:connect', (_event, { scaleId, host, port }) => scaleConnect(scaleId, host, port));
+  ipcMain.handle('scale:disconnect', (_event, { scaleId }) => { scaleDisconnect(scaleId); return { success: true }; });
 
   const started = await ensureServerStarted();
 
@@ -387,7 +398,7 @@ app.on('activate', () => {
 });
 
 app.on('window-all-closed', () => {
-  scaleDisconnect();
+  scaleDisconnectAll();
   if (process.platform !== 'darwin') {
     app.quit();
   }

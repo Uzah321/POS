@@ -133,6 +133,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reports/cashier-performance', [ReportController::class, 'cashierPerformance']);
         Route::get('/reports/daily', [ReportController::class, 'dailyReport']);
         Route::get('/reports/monthly', [ReportController::class, 'monthlyReport']);
+        Route::get('/reports/scales', [ReportController::class, 'scalesReport']);
         Route::get('/reports/stock-variances', [ReportController::class, 'stockVariances']);
         Route::get('/reports/daily/pdf', [ReportController::class, 'dailyPdf']);
         Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
@@ -165,6 +166,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('brands', \App\Http\Controllers\Api\BrandController::class);
     Route::apiResource('units', \App\Http\Controllers\Api\UnitController::class);
     Route::apiResource('warehouses', \App\Http\Controllers\Api\WarehouseController::class);
+    Route::apiResource('weighing-scales', \App\Http\Controllers\Api\WeighingScaleController::class);
     Route::get('/tax-rates', [\App\Http\Controllers\Api\TaxRateController::class, 'index']);
 
     // ZIMRA fiscalisation — retry-sync stays open to any authenticated session

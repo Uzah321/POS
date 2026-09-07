@@ -17,7 +17,7 @@ class ProductController extends BaseApiController
         $branchId = $this->effectiveBranchId($request);
         $businessType = $this->effectiveBusinessType($request);
 
-        $query = Product::with('category', 'brand', 'unit', 'taxRate')
+        $query = Product::with('category', 'brand', 'unit', 'taxRate', 'scale:id,name')
             ->withSum('stocks', 'quantity')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
@@ -87,6 +87,7 @@ class ProductController extends BaseApiController
             'made_to_order'   => 'boolean',
             'is_taxable'      => 'boolean',
             'sold_by_weight'  => 'boolean',
+            'scale_id'        => 'nullable|exists:weighing_scales,id',
             'reorder_level'   => 'integer|min:0',
             'reorder_quantity' => 'integer|min:0',
             'expires'         => 'boolean',
@@ -188,6 +189,7 @@ class ProductController extends BaseApiController
             'is_active'      => 'boolean',
             'is_taxable'     => 'boolean',
             'sold_by_weight' => 'boolean',
+            'scale_id'       => 'nullable|exists:weighing_scales,id',
             'reorder_level'  => 'integer|min:0',
             'reorder_quantity'=> 'integer|min:0',
             'expires'        => 'boolean',

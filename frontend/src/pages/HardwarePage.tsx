@@ -1,9 +1,11 @@
 ﻿import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHardwareStore } from '../stores/hardwareStore';
+import { weighingScalesApi } from '../api';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
-  RefreshCw, Star, Bluetooth, Cable
+  RefreshCw, Star, Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
@@ -12,7 +14,10 @@ import {
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
 } from '../lib/hardware/customerDisplay';
-import { useWeighingScale, isNetworkScaleAvailable } from '../lib/hardware/scale';
+import {
+  connectScale, disconnectScale, useScaleReading, isNetworkScaleAvailable, ensureScalesAutoConnected,
+  type ScaleDevice,
+} from '../lib/hardware/scale';
 import { simulateCardPayment } from '../lib/hardware/cardMachine';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -90,6 +95,257 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 }
 
 // ---------------------------------------------------------------------------
+// Weighing scales — a store registers several (one per department), each
+// connected by IP (or USB/Serial for a single legacy setup). Every product
+// marked "Sold by Weight" is assigned to exactly one of these on the
+// Products page, which is what gives each scale its own list of items and
+// its own sales report.
+// ---------------------------------------------------------------------------
+interface ScaleFormState {
+  id?: number;
+  name: string;
+  mode: 'network' | 'webserial';
+  host: string;
+  port: string;
+  baud_rate: string;
+}
+
+const EMPTY_SCALE_FORM: ScaleFormState = { name: '', mode: 'network', host: '', port: '4001', baud_rate: '9600' };
+
+function ScaleForm({ initial, onCancel, onSaved }: { initial: ScaleFormState; onCancel: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<ScaleFormState>(initial);
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => {
+      const payload = {
+        name: form.name.trim(),
+        mode: form.mode,
+        host: form.mode === 'network' ? form.host.trim() : null,
+        port: form.mode === 'network' ? Number(form.port) : null,
+        baud_rate: form.mode === 'webserial' ? Number(form.baud_rate) : null,
+      };
+      return form.id ? weighingScalesApi.update(form.id, payload) : weighingScalesApi.create(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['weighing-scales'] });
+      toast.success(form.id ? 'Scale updated' : 'Scale added');
+      onSaved();
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not save scale'),
+  });
+
+  return (
+    <div className="border border-blue-100 bg-blue-50/40 rounded-lg p-4 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Scale Name</label>
+          <input
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Meat Scale"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Connection</label>
+          <div className="flex gap-2">
+            {(['network', 'webserial'] as const).map((m) => (
+              <button
+                key={m} type="button" onClick={() => setForm((f) => ({ ...f, mode: m }))}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  form.mode === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {m === 'network' ? 'IP / Ethernet' : 'USB / Serial'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {form.mode === 'network' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2">
+            <label className="text-xs text-gray-500 mb-1 block">IP Address</label>
+            <input
+              value={form.host}
+              onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))}
+              placeholder="192.168.1.201"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Port</label>
+            <input
+              type="number"
+              value={form.port}
+              onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
+              placeholder="4001"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Baud Rate</label>
+          <select
+            value={form.baud_rate}
+            onChange={(e) => setForm((f) => ({ ...f, baud_rate: e.target.value }))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          >
+            {[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((b) => (
+              <option key={b} value={b}>{b} baud</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end pt-1">
+        <button type="button" onClick={onCancel} className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+          <X size={14} />Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!form.name.trim() || (form.mode === 'network' && !form.host.trim()) || mutation.isPending}
+          onClick={() => mutation.mutate()}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          Save Scale
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ScaleRow({ scale, onEdit }: { scale: ScaleDevice; onEdit: () => void }) {
+  const reading = useScaleReading(scale.id);
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: () => weighingScalesApi.delete(scale.id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['weighing-scales'] }); toast.success('Scale removed'); },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not delete scale'),
+  });
+
+  const handleDelete = () => {
+    if (!confirm(`Remove "${scale.name}"? Products assigned to it keep selling by weight, just without a scale.`)) return;
+    deleteMutation.mutate();
+  };
+
+  return (
+    <div className="border border-gray-100 rounded-lg p-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-900">{scale.name}</p>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+              {scale.mode === 'network' ? 'IP / Ethernet' : 'USB / Serial'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {scale.mode === 'network' ? `${scale.host}:${scale.port}` : `${scale.baud_rate ?? 9600} baud`}
+            {' · '}{scale.products_count ?? 0} product{scale.products_count === 1 ? '' : 's'} assigned
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Status ok={reading.connected} label={reading.connected ? 'Connected' : 'Disconnected'} />
+          {reading.weight && (
+            <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold">
+              {reading.weight.value} {reading.weight.unit}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {reading.error && (
+        <div className="flex items-center gap-2 text-red-600 text-xs mt-2">
+          <AlertTriangle size={13} />{reading.error}
+        </div>
+      )}
+      {scale.mode === 'network' && !isNetworkScaleAvailable() && (
+        <div className="flex items-center gap-2 text-amber-600 text-xs mt-2 bg-amber-50 border border-amber-100 rounded-md p-2">
+          <AlertTriangle size={13} className="flex-shrink-0" />
+          Ethernet scales only work inside the Core desktop app — this browser tab can't open a network connection directly.
+        </div>
+      )}
+
+      <div className="flex gap-2 mt-3">
+        {!reading.connected
+          ? <button onClick={() => connectScale(scale)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"><Wifi size={13} />Connect</button>
+          : <button onClick={() => disconnectScale(scale)} className="px-3 py-1.5 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200">Disconnect</button>}
+        <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 text-xs rounded-lg hover:bg-gray-100"><Pencil size={13} />Edit</button>
+        <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 text-xs rounded-lg hover:bg-red-50"><Trash2 size={13} />Remove</button>
+      </div>
+    </div>
+  );
+}
+
+function WeighingScalesPanel() {
+  const { data: scales = [], isLoading } = useQuery<ScaleDevice[]>({
+    queryKey: ['weighing-scales'],
+    queryFn: () => weighingScalesApi.list().then((r) => r.data?.data ?? []),
+  });
+  const [formState, setFormState] = useState<ScaleFormState | null>(null);
+
+  useEffect(() => { if (scales.length) ensureScalesAutoConnected(scales); }, [scales]);
+
+  return (
+    <div className="space-y-4">
+      <Card title="Weighing Scales">
+        <p className="text-xs text-gray-500 mb-4">
+          Register each physical scale separately — a butchery or supermarket typically runs one per department (Meat, Deli, Produce). Every product marked "Sold by Weight" gets assigned to one scale on the Products page, so each scale keeps its own list of items and its own sales report.
+        </p>
+
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center"><Loader2 size={16} className="animate-spin" />Loading scales…</div>
+        ) : scales.length === 0 && !formState ? (
+          <p className="text-sm text-gray-400 py-6 text-center">No scales registered yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {scales.map((scale) => (
+              formState?.id === scale.id
+                ? <ScaleForm key={scale.id} initial={formState} onCancel={() => setFormState(null)} onSaved={() => setFormState(null)} />
+                : (
+                  <ScaleRow
+                    key={scale.id}
+                    scale={scale}
+                    onEdit={() => setFormState({
+                      id: scale.id, name: scale.name, mode: scale.mode,
+                      host: scale.host ?? '', port: String(scale.port ?? 4001), baud_rate: String(scale.baud_rate ?? 9600),
+                    })}
+                  />
+                )
+            ))}
+          </div>
+        )}
+
+        {formState && !formState.id && (
+          <div className="mt-3"><ScaleForm initial={formState} onCancel={() => setFormState(null)} onSaved={() => setFormState(null)} /></div>
+        )}
+
+        {!formState && (
+          <button
+            onClick={() => setFormState({ ...EMPTY_SCALE_FORM })}
+            className="mt-4 flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+          >
+            <Plus size={14} />Add Scale
+          </button>
+        )}
+      </Card>
+
+      <Card title="Usage on Register">
+        <div className="space-y-2 text-sm text-gray-600">
+          <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Mark a product "Sold by Weight (kg)" on the Products page and assign it to one of these scales — Selling Price becomes the price per kilogram.</p></div>
+          <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Place the item on its assigned scale, then tap the product tile — the live weight becomes the cart quantity automatically.</p></div>
+          <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>No scale connected, or nothing on it yet? A keypad pops up to type the weight in by hand instead.</p></div>
+          <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>IP/Ethernet scales reconnect automatically every time a till loads. A single USB/Serial scale reconnects automatically too — with two or more registered, reconnect each once per shift.</p></div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 export default function HardwarePage() {
@@ -105,9 +361,6 @@ export default function HardwarePage() {
   const [kds, setKdsRaw] = useState<KdsSettings>(() => loadKdsSettings());
   const setK = <K extends keyof KdsSettings>(key: K, val: KdsSettings[K]) =>
     setKdsRaw(k => { const n = { ...k, [key]: val }; saveKdsSettings(n); return n; });
-
-  // Scale hook
-  const scale = useWeighingScale({ mode: hw.scaleMode, baudRate: hw.scaleBaudRate, host: hw.scaleHost, port: hw.scalePort });
 
   // USB printer connection state
   const [usbConnected, setUsbConnected] = useState(false);
@@ -621,111 +874,7 @@ export default function HardwarePage() {
       );
 
       // ---- Weighing Scale ------------------------------------
-      case 'scale': return (
-        <div className="space-y-4">
-          <Card title="Weighing Scale">
-            <div className="space-y-2">
-              {(['webserial', 'network', 'none'] as const).map((mode) => (
-                <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
-                  <input type="radio" name="scaleMode" value={mode} checked={hw.scaleMode === mode}
-                    onChange={() => hw.update({ scaleMode: mode })} className="accent-blue-600" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {mode === 'webserial' ? 'Web Serial (USB/RS-232)' : mode === 'network' ? 'Ethernet (Network)' : 'Disabled'}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {mode === 'webserial' ? 'Connect via Chrome/Edge Web Serial API'
-                        : mode === 'network' ? 'Connect over the LAN via IP address — Core desktop app only'
-                        : 'No scale integration'}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </Card>
-
-          {hw.scaleMode === 'webserial' && (
-            <Card title="Baud Rate">
-              <select
-                value={hw.scaleBaudRate}
-                onChange={(e) => hw.update({ scaleBaudRate: Number(e.target.value) })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-              >
-                {[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((b) => (
-                  <option key={b} value={b}>{b} baud</option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-400 mt-1">Check your scale's manual for the correct baud rate (usually 9600).</p>
-            </Card>
-          )}
-
-          {hw.scaleMode === 'network' && (
-            <Card title="Network Address">
-              {!isNetworkScaleAvailable() && (
-                <div className="flex items-center gap-2 text-amber-600 text-xs mb-3 bg-amber-50 border border-amber-100 rounded-md p-2">
-                  <AlertTriangle size={13} className="flex-shrink-0" />
-                  Ethernet scales only work inside the Core desktop app — this browser tab can't open a network connection directly.
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="text-xs text-gray-500 mb-1 block">IP Address</label>
-                  <input
-                    type="text"
-                    value={hw.scaleHost}
-                    onChange={(e) => hw.update({ scaleHost: e.target.value })}
-                    placeholder="192.168.1.200"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Port</label>
-                  <input
-                    type="number"
-                    value={hw.scalePort}
-                    onChange={(e) => hw.update({ scalePort: Number(e.target.value) })}
-                    placeholder="4001"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">Check your scale's network setup menu for its IP address and TCP port (often 4001 or 23).</p>
-            </Card>
-          )}
-
-          {(hw.scaleMode === 'webserial' || hw.scaleMode === 'network') && (
-            <Card title="Connection">
-              <div className="flex items-center gap-3 flex-wrap mb-3">
-                <Status ok={scale.connected} label={scale.connected ? 'Connected' : 'Disconnected'} />
-                {scale.weight && (
-                  <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold">
-                    {scale.weight.value} {scale.weight.unit}
-                  </span>
-                )}
-              </div>
-              {scale.error && (
-                <div className="flex items-center gap-2 text-red-600 text-xs mb-3">
-                  <AlertTriangle size={13} />{scale.error}
-                </div>
-              )}
-              <div className="flex gap-3">
-                {!scale.connected
-                  ? <button onClick={scale.connect} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Wifi size={14} />Connect Scale</button>
-                  : <button onClick={scale.disconnect} className="px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">Disconnect</button>}
-              </div>
-            </Card>
-          )}
-
-          <Card title="Usage on Register">
-            <div className="space-y-2 text-sm text-gray-600">
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Mark a product "Sold by Weight (kg)" on the Products page — Selling Price becomes the price per kilogram.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Place the item on the scale, then tap the product tile — the live weight becomes the cart quantity automatically.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>No scale, or nothing on it yet? A keypad pops up to type the weight in by hand instead.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Once connected here, the scale reconnects automatically every time the till loads — no need to revisit this page each shift.</p></div>
-            </div>
-          </Card>
-        </div>
-      );
+      case 'scale': return <WeighingScalesPanel />;
 
       // ---- Label Printer ------------------------------------
       case 'label': return (

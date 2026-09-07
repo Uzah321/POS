@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
-const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Branch Consolidation', 'Cashup History', 'Day End History'];
+const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History', 'Day End History'];
 
 function printCashupReport(records: any[], from: string, to: string, fmt: (n: number) => string) {
   const statusColor = (s: string) => ({ pending: '#b45309', approved: '#16a34a', rejected: '#dc2626' }[s] ?? '#6b7280');
@@ -93,6 +93,7 @@ export default function ReportsPage() {
   const [monthlyMonth, setMonthlyMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [categoryId, setCategoryId] = useState('');
   const [branchId, setBranchId] = useState('');
+  const [selectedScaleId, setSelectedScaleId] = useState<number | null>(null);
   const { format: fmt } = useCurrencyStore();
   const { user } = useAuthStore();
   const isAdmin = user?.roles?.includes('admin');
@@ -125,6 +126,12 @@ export default function ReportsPage() {
   const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth, branchId], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Monthly Report', staleTime: 0 });
   const { data: stockData, isLoading: loadingStock }   = useQuery({ queryKey: ['report-stock-variances', from, to, categoryId, branchId], queryFn: () => api.get('/reports/stock-variances', { params: { ...rangeParams, ...categoryParams } }).then(r => r.data?.data), enabled: tab === 'Stock Variances', staleTime: 0 });
   const { data: consolidationData, isLoading: loadingConsolidation } = useQuery({ queryKey: ['report-consolidation', from, to], queryFn: () => api.get('/reports/branch-consolidation', { params: { date_from: from, date_to: to } }).then(r => r.data?.data), enabled: tab === 'Branch Consolidation', staleTime: 0 });
+  const { data: scalesData, isLoading: loadingScales } = useQuery({
+    queryKey: ['report-scales', from, to, branchId, selectedScaleId],
+    queryFn: () => reportsApi.scales({ date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}), ...(selectedScaleId ? { scale_id: selectedScaleId } : {}) }).then(r => r.data?.data),
+    enabled: tab === 'Weighing Scales',
+    staleTime: 0,
+  });
   const { data: cashupRaw, isLoading: loadingCashup } = useQuery({
     queryKey: ['report-cashup', from, to, branchId],
     queryFn: () => api.get('/shift-end', { params: { date_from: from, date_to: to, ...(branchId ? { branch_id: Number(branchId) } : {}), per_page: 200 } }).then(r => r.data?.data),
@@ -252,7 +259,7 @@ export default function ReportsPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-md p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
-        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Stock Variances', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
+        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
           <>
             <label className="text-sm text-gray-600">From:</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
@@ -314,7 +321,7 @@ export default function ReportsPage() {
       {/* Tabs */}
       <div className="flex flex-wrap border-b border-gray-200">
         {tabs.map((t) => (
-          <button type="button" key={t} onClick={() => setTab(t)}
+          <button type="button" key={t} onClick={() => { setTab(t); setSelectedScaleId(null); }}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${tab === t ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             {t}
           </button>
@@ -678,6 +685,115 @@ export default function ReportsPage() {
                 </div>
               </div>
             )
+      )}
+
+      {/* Weighing Scales — per-scale breakdown, since a store can run several
+          (one per department) and each keeps its own list of items and its
+          own figures rather than one lump "sold by weight" total. */}
+      {tab === 'Weighing Scales' && (
+        loadingScales ? <div className="bg-gray-100 rounded-md h-32 animate-pulse"/> :
+        scalesData ? (
+          <div className="space-y-4">
+            {selectedScaleId && (
+              <button
+                type="button"
+                onClick={() => setSelectedScaleId(null)}
+                className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+              >
+                &larr; Back to all scales
+              </button>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                ['Total Revenue', fmt(scalesData.summary?.total_revenue || 0), 'text-emerald-600', 'bg-emerald-500'],
+                ['Total Weight Sold', `${Number(scalesData.summary?.total_weight_kg || 0).toFixed(2)} kg`, 'text-blue-600', 'bg-blue-500'],
+                ['Scales Reporting', scalesData.summary?.scales_count || 0, 'text-violet-600', 'bg-violet-500'],
+              ].map(([label, val, textColor, dotColor]) => (
+                <div key={label as string} className="bg-white rounded-md p-5 shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                    <p className="text-sm text-gray-500">{label}</p>
+                  </div>
+                  <p className={`text-2xl font-bold mt-1 ${textColor}`}>{val}</p>
+                </div>
+              ))}
+            </div>
+
+            {!selectedScaleId ? (
+              <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[800px]">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Scale</th>
+                        <th className="px-4 py-3 text-right">Transactions</th>
+                        <th className="px-4 py-3 text-right">Line Items</th>
+                        <th className="px-4 py-3 text-right">Weight Sold</th>
+                        <th className="px-4 py-3 text-right">Revenue</th>
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(scalesData.perScale || []).map((row: any) => (
+                        <tr key={row.scale_id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.scale_name}</td>
+                          <td className="px-4 py-3 text-right">{row.transactions}</td>
+                          <td className="px-4 py-3 text-right">{row.line_items}</td>
+                          <td className="px-4 py-3 text-right">{Number(row.total_weight_kg).toFixed(3)} kg</td>
+                          <td className="px-4 py-3 text-right font-medium text-emerald-700">{fmt(row.revenue)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <button type="button" onClick={() => setSelectedScaleId(row.scale_id)} className="text-xs font-medium text-amber-600 hover:text-amber-700">
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {(!scalesData.perScale || scalesData.perScale.length === 0) && (
+                        <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No weighed sales in this period.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
+                <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-800">
+                  {scalesData.perScale?.[0]?.scale_name ?? 'Scale'} " {from} to {to}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[800px]">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Date</th>
+                        <th className="px-4 py-3 text-left">Sale Ref</th>
+                        <th className="px-4 py-3 text-left">Product</th>
+                        <th className="px-4 py-3 text-right">Weight</th>
+                        <th className="px-4 py-3 text-right">Unit Price</th>
+                        <th className="px-4 py-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(scalesData.items || []).map((row: any, i: number) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{row.completed_at ? new Date(row.completed_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '-'}</td>
+                          <td className="px-4 py-3 text-gray-600">{row.sale_reference ?? '-'}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.product_name ?? '-'}</td>
+                          <td className="px-4 py-3 text-right">{Number(row.weight_kg).toFixed(3)} kg</td>
+                          <td className="px-4 py-3 text-right">{fmt(row.unit_price)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-emerald-700">{fmt(row.total)}</td>
+                        </tr>
+                      ))}
+                      {(!scalesData.items || scalesData.items.length === 0) && (
+                        <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No weighed sales for this scale in this period.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : <p className="text-gray-400 text-center py-12">Select a date range and the report will load automatically.</p>
       )}
 
       {/* Branch Consolidation */}

@@ -218,10 +218,15 @@ class SaleController extends BaseApiController
 
             // Create line items & deduct stock
             foreach ($lineItems as $item) {
+                // Snapshot which scale weighed this line (if any) straight from the
+                // product's own assignment — the client never sends this, since a
+                // product's scale is configured once in Products, not per-sale.
+                $product = $productsById->get($item['product_id']);
                 SaleItem::create([
                     'sale_id'            => $sale->id,
                     'product_id'         => $item['product_id'],
                     'product_variant_id' => $item['product_variant_id'] ?? null,
+                    'scale_id'           => $product?->scale_id,
                     'quantity'           => $item['quantity'],
                     'unit_price'         => $item['unit_price'],
                     'cost_price'         => (float) ($costPrices[$item['product_id']] ?? 0),

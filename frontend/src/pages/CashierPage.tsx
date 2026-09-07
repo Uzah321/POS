@@ -1,6 +1,6 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, salesApi, settingsApi } from '../api';
+import { productsApi, salesApi, settingsApi, weighingScalesApi } from '../api';
 import { useCartStore, type CartItem } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -8,7 +8,7 @@ import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
-import { useWeighingScale, toKg } from '../lib/hardware/scale';
+import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, useConnectedScaleCount, type ScaleDevice } from '../lib/hardware/scale';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { effectiveTaxRate } from '../lib/taxSettings';
@@ -60,11 +60,30 @@ export default function CashierPage() {
   const hw           = useHardwareStore();
   const currency     = activeCurrency?.symbol ?? '$';
   const branchId     = user?.branch?.id ?? 1;
-  const scale        = useWeighingScale({ mode: hw.scaleMode, baudRate: hw.scaleBaudRate, host: hw.scaleHost, port: hw.scalePort });
-  const scaleActive  = hw.scaleMode === 'webserial' || hw.scaleMode === 'network';
-  // A reading counts as "live" only while the scale is actually connected —
-  // once disconnected, stop trusting whatever the last value happened to be.
-  const liveKg       = scaleActive && scale.connected && scale.weight ? toKg(scale.weight) : null;
+  // Registered weighing scales — a store can run several (one per
+  // department), each owning its own list of products (product.scale_id).
+  // Connections are managed centrally in lib/hardware/scale.ts; this just
+  // makes sure every active scale gets (re)dialled once the list loads.
+  const { data: scales = [] } = useQuery<ScaleDevice[]>({
+    queryKey: ['weighing-scales'],
+    queryFn: () => weighingScalesApi.list().then(r => r.data?.data || []),
+  });
+  useEffect(() => { if (scales.length) ensureScalesAutoConnected(scales); }, [scales]);
+  const connectedScaleCount = useConnectedScaleCount(scales.map((s) => s.id));
+
+  // Live reading for whichever scale the product waiting on the weight
+  // keypad is assigned to — a reading counts as "live" only while that
+  // specific scale is actually connected.
+  const pendingScaleReading = useScaleReading(pendingWeightProduct?.scale_id ?? null);
+  const liveKg = pendingWeightProduct?.scale_id != null && pendingScaleReading.connected && pendingScaleReading.weight
+    ? toKg(pendingScaleReading.weight) : null;
+
+  // Same idea, but for re-weighing a line already in the cart (tapping an
+  // existing weighed item to correct its quantity) — its own scale, not
+  // whichever one a fresh weigh-in happens to have pending.
+  const editingScaleReading = useScaleReading(editingQtyItem?.scale_id ?? null);
+  const editingLiveKg = editingQtyItem?.scale_id != null && editingScaleReading.connected && editingScaleReading.weight
+    ? toKg(editingScaleReading.weight) : null;
 
   const { isServerUp: isOnline } = useServerHealth();
 
@@ -204,6 +223,7 @@ export default function CashierPage() {
       cost:       parseFloat(product.cost_price || 0),
       tax_rate:   effectiveTaxRate(product, storeSettings),
       sold_by_weight: soldByWeight,
+      scale_id:   soldByWeight ? (product.scale_id ?? null) : undefined,
     }, qty);
     return true;
   };
@@ -211,13 +231,17 @@ export default function CashierPage() {
   const addProduct = (product: any) => {
     const soldByWeight = !!product.sold_by_weight;
     if (soldByWeight) {
-      // Use the live scale reading (in kg) if one's available. Otherwise
-      // prompt for a hand-entered weight — nothing is added to the cart
-      // until a real weight is confirmed, so a dismissed prompt never
-      // leaves a phantom "1 kg" line behind.
-      const kg = liveKg && liveKg > 0 ? Math.round(liveKg * 1000) / 1000 : null;
+      // Read straight off this product's own assigned scale (not whichever
+      // scale a previous weigh-in left "pending") — every product only ever
+      // weighs on the one scale it's assigned to. Otherwise prompt for a
+      // hand-entered weight — nothing is added to the cart until a real
+      // weight is confirmed, so a dismissed prompt never leaves a phantom
+      // "1 kg" line behind.
+      const reading = product.scale_id != null ? getScaleReading(product.scale_id) : null;
+      const productLiveKg = reading?.connected && reading.weight ? toKg(reading.weight) : null;
+      const kg = productLiveKg && productLiveKg > 0 ? Math.round(productLiveKg * 1000) / 1000 : null;
       if (kg === null) {
-        if (scaleActive && !scale.connected) toast.error(`${product.name} is sold by weight — scale isn't connected, enter the weight manually`);
+        if (product.scale_id != null && !reading?.connected) toast.error(`${product.name} is sold by weight — its scale isn't connected, enter the weight manually`);
         setPendingWeightProduct(product);
         setWeightInput('');
         return;
@@ -369,7 +393,7 @@ export default function CashierPage() {
     cart.clearCart();
     const data = held.cart_data ?? {};
     (data.items ?? []).forEach((it: any) => {
-      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0, sold_by_weight: !!it.sold_by_weight }, it.quantity);
+      cart.addItem({ product_id: it.product_id, name: it.name, sku: it.sku, price: it.price, cost: it.cost ?? 0, tax_rate: it.tax_rate ?? 0, sold_by_weight: !!it.sold_by_weight, scale_id: it.scale_id ?? null }, it.quantity);
     });
     cart.setTableNumber(held.table_number || 'Walk-in');
     deleteHeldMutation.mutate(held.id);
@@ -542,15 +566,15 @@ export default function CashierPage() {
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
-            {scaleActive && (
-              scale.connected ? (
-                <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs" title="Weighing scale connected">
+            {scales.length > 0 && (
+              connectedScaleCount > 0 ? (
+                <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs" title={`${connectedScaleCount} of ${scales.length} weighing scale${scales.length === 1 ? '' : 's'} connected`}>
                   <ScaleIcon size={13} />
-                  {liveKg !== null ? `${liveKg.toFixed(3)} kg` : 'Scale ready'}
+                  {liveKg !== null ? `${liveKg.toFixed(3)} kg` : `${connectedScaleCount}/${scales.length} scale${scales.length === 1 ? '' : 's'}`}
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 text-gray-300 font-semibold text-xs" title="Weighing scale not connected — connect it under Settings → Hardware">
-                  <ScaleIcon size={13} /> Scale off
+                <span className="flex items-center gap-1.5 text-gray-300 font-semibold text-xs" title="No weighing scales connected — connect them under Settings → Hardware">
+                  <ScaleIcon size={13} /> Scales off
                 </span>
               )
             )}
@@ -938,7 +962,7 @@ export default function CashierPage() {
         onClose={() => setEditingQtyItem(null)}
         label={editingQtyItem.sold_by_weight ? `Weight (kg) — ${editingQtyItem.name}` : `Quantity — ${editingQtyItem.name}`}
         allowDecimal={!!editingQtyItem.sold_by_weight}
-        quickAmounts={editingQtyItem.sold_by_weight && liveKg && liveKg > 0 ? [Math.round(liveKg * 1000) / 1000] : undefined}
+        quickAmounts={editingQtyItem.sold_by_weight && editingLiveKg && editingLiveKg > 0 ? [Math.round(editingLiveKg * 1000) / 1000] : undefined}
         confirmLabel="✓ Set Qty"
         confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
       />
@@ -951,7 +975,7 @@ export default function CashierPage() {
         onChange={setWeightInput}
         onConfirm={confirmPendingWeight}
         onClose={() => setPendingWeightProduct(null)}
-        label={`Weight (kg) — ${pendingWeightProduct.name}${scaleActive ? (scale.connected ? ' — place on scale or type weight' : ' — scale not connected') : ''}`}
+        label={`Weight (kg) — ${pendingWeightProduct.name}${pendingWeightProduct.scale_id != null ? (pendingScaleReading.connected ? ' — place on scale or type weight' : ' — scale not connected') : ''}`}
         allowDecimal
         quickAmounts={liveKg && liveKg > 0 ? [Math.round(liveKg * 1000) / 1000] : undefined}
         confirmLabel="✓ Add to Cart"

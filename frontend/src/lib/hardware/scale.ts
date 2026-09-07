@@ -1,30 +1,39 @@
 /**
- * Weighing Scale Service — Web Serial API + Ethernet (TCP)
+ * Weighing Scale Service — Web Serial API + Ethernet (TCP), multi-scale
  *
- * Reads weight from a connected scale, the kind used at a butchery/deli
- * counter to price meat by weight. Most scales output something like
- * "    1.250 kg\r\n" repeatedly, whichever transport carries it:
+ * Reads weight from one or more connected scales, the kind used at a
+ * butchery/deli counter to price meat by weight. Most scales output
+ * something like "    1.250 kg\r\n" repeatedly, whichever transport carries
+ * it:
  *  - webserial: RS-232 / USB-to-serial, via the browser's Web Serial API.
  *  - network:   Ethernet scales that stream the same text protocol over a
  *               raw TCP socket. Browsers can't open raw TCP sockets, so this
  *               mode only works inside the Core desktop app (Electron main
- *               process owns the socket; see electron/main.cjs) — a plain
+ *               process owns each socket; see electron/main.cjs) — a plain
  *               browser tab falls back to Web Serial only.
  *
- * Usage:
- *   const { connect, disconnect, weight, connected } = useWeighingScale({ mode: 'webserial', baudRate: 9600 });
+ * A store can register several scales (one per department, e.g. "Meat
+ * Scale", "Deli Scale") — each is a row from the backend's weighing_scales
+ * table, identified by its own numeric id. Every product assigned to a
+ * scale (products.scale_id) is only ever weighed on that scale, and sales
+ * are reported back per scale — so this module manages a *map* of live
+ * connections keyed by scale id, rather than one global connection.
  *
- * Auto-reconnect (webserial): once the user has granted serial permission
- * once (via `connect()`, which must run from a real click), the browser
- * remembers that grant for this origin. Every later mount of this hook —
- * e.g. navigating from Settings to the till, or reloading the till —
- * silently reacquires the same port via `navigator.serial.getPorts()` with
- * no new prompt, so the cashier doesn't have to reconnect the scale every
- * shift. Auto-reconnect (network): the last host/port is simply redialed on
- * mount, since there's no browser permission grant involved.
+ * Usage:
+ *   connectScale(scale);              // scale: ScaleDevice, from weighingScalesApi.list()
+ *   const reading = useScaleReading(scale.id);  // reactive: { connected, weight, error }
+ *   disconnectScale(scale.id);
+ *
+ * Auto-reconnect (network): every active network-mode scale is redialed once
+ * via ensureScaleAutoConnected(), since there's no browser permission grant
+ * involved. Auto-reconnect (webserial): only attempted when exactly one
+ * webserial-mode scale is registered and exactly one serial port was
+ * previously granted — Web Serial has no stable id to safely match more than
+ * one physical scale back to a specific registry row across a reload, so
+ * with 2+ serial scales the cashier reconnects each manually once per shift.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { create } from 'zustand';
 
 export interface ScaleReading {
   value: number;
@@ -32,18 +41,25 @@ export interface ScaleReading {
   raw: string;
 }
 
-export interface ScaleConfig {
-  mode: 'webserial' | 'network' | 'none';
-  baudRate?: number;
-  host?: string;
-  port?: number;
+export type ScaleConnectionMode = 'network' | 'webserial';
+
+/** Mirrors a row from the backend's weighing_scales table. */
+export interface ScaleDevice {
+  id: number;
+  name: string;
+  mode: ScaleConnectionMode;
+  host: string | null;
+  port: number | null;
+  baud_rate: number | null;
+  is_active: boolean;
+  products_count?: number;
 }
 
 interface ElectronScaleBridge {
-  connectScale: (host: string, port: number) => Promise<{ success: boolean; error?: string }>;
-  disconnectScale: () => Promise<{ success: boolean }>;
-  onScaleData: (callback: (chunk: string) => void) => () => void;
-  onScaleClosed: (callback: () => void) => () => void;
+  connectScale: (scaleId: number, host: string, port: number) => Promise<{ success: boolean; error?: string }>;
+  disconnectScale: (scaleId: number) => Promise<{ success: boolean }>;
+  onScaleData: (callback: (payload: { scaleId: number; chunk: string }) => void) => () => void;
+  onScaleClosed: (callback: (payload: { scaleId: number }) => void) => () => void;
 }
 
 function electronScaleBridge(): ElectronScaleBridge | undefined {
@@ -75,188 +91,207 @@ export function toKg(reading: ScaleReading): number {
   }
 }
 
-export function useWeighingScale(config: ScaleConfig) {
-  const { mode, baudRate = 9600, host, port } = config;
-  const [connected, setConnected]   = useState(false);
-  const [weight, setWeight]         = useState<ScaleReading | null>(null);
-  const [error, setError]           = useState<string | null>(null);
-  const portRef                     = useRef<any>(null);
-  const readerRef                   = useRef<ReadableStreamDefaultReader | null>(null);
-  // Guards against two overlapping connect calls (e.g. the auto-reconnect
-  // effect and a manual Connect click racing each other on mount).
-  const openingRef                  = useRef(false);
-  const netBufferRef                = useRef('');
-  const netUnsubRef                 = useRef<(() => void)[] | null>(null);
+// ---------------------------------------------------------------------------
+// Reactive connection state — one entry per scale id, shared by every
+// component that asks about that scale (Hardware page's row, the till
+// looking up whichever scale a product is assigned to, etc).
+// ---------------------------------------------------------------------------
+interface ConnectionState {
+  connected: boolean;
+  weight: ScaleReading | null;
+  error: string | null;
+}
 
-  const feedLine = useCallback((line: string) => {
-    const reading = parseScaleOutput(line);
-    if (reading) setWeight(reading);
-  }, []);
+const EMPTY_STATE: ConnectionState = { connected: false, weight: null, error: null };
 
-  // ---------------------------------------------------------------------
-  // Web Serial (RS-232 / USB-to-serial)
-  // ---------------------------------------------------------------------
-  const startReading = useCallback((port: any) => {
-    const decoder = new TextDecoderStream();
-    port.readable.pipeTo(decoder.writable).catch(() => {});
-    const reader = decoder.readable.getReader();
-    readerRef.current = reader;
+const useScaleConnectionsStore = create<{ byId: Record<number, ConnectionState> }>(() => ({ byId: {} }));
 
-    let buffer = '';
-    (async () => {
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += value;
-          const lines = buffer.split(/[\r\n]+/);
-          buffer = lines.pop() ?? '';
-          for (const line of lines) feedLine(line);
-        }
-      } catch {
-        // Read loop ends on disconnect/close — reflect that in the UI.
-        setConnected(false);
-      }
-    })();
-  }, [feedLine]);
+function patchState(scaleId: number, patch: Partial<ConnectionState>) {
+  useScaleConnectionsStore.setState((s) => ({
+    byId: { ...s.byId, [scaleId]: { ...EMPTY_STATE, ...s.byId[scaleId], ...patch } },
+  }));
+}
 
-  const openSerialPort = useCallback(async (port: any) => {
-    if (openingRef.current) return;
-    openingRef.current = true;
+/** Reactive live state for one scale — re-renders the caller as weight/connection updates arrive. */
+export function useScaleReading(scaleId: number | null | undefined): ConnectionState {
+  return useScaleConnectionsStore((s) => (scaleId != null ? s.byId[scaleId] : undefined) ?? EMPTY_STATE);
+}
+
+export function getScaleReading(scaleId: number): ConnectionState {
+  return useScaleConnectionsStore.getState().byId[scaleId] ?? EMPTY_STATE;
+}
+
+/** How many of the given scales are currently connected — for a compact header badge summarising every registered scale at once, rather than one specific reading. */
+export function useConnectedScaleCount(scaleIds: number[]): number {
+  return useScaleConnectionsStore((s) => scaleIds.filter((id) => s.byId[id]?.connected).length);
+}
+
+function feedLine(scaleId: number, line: string) {
+  const reading = parseScaleOutput(line);
+  if (reading) patchState(scaleId, { weight: reading });
+}
+
+// ---------------------------------------------------------------------------
+// Web Serial (RS-232 / USB-to-serial) — one physical port per scale.
+// ---------------------------------------------------------------------------
+const serialPorts = new Map<number, any>();
+const serialReaders = new Map<number, ReadableStreamDefaultReader>();
+const openingIds = new Set<number>();
+
+function startSerialReading(scaleId: number, port: any) {
+  const decoder = new TextDecoderStream();
+  port.readable.pipeTo(decoder.writable).catch(() => {});
+  const reader = decoder.readable.getReader();
+  serialReaders.set(scaleId, reader);
+
+  let buffer = '';
+  (async () => {
     try {
-      await port.open({ baudRate });
-      portRef.current = port;
-      setConnected(true);
-      setError(null);
-      startReading(port);
-    } finally {
-      openingRef.current = false;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+        const lines = buffer.split(/[\r\n]+/);
+        buffer = lines.pop() ?? '';
+        for (const line of lines) feedLine(scaleId, line);
+      }
+    } catch {
+      // Read loop ends on disconnect/close — reflect that in the UI.
+      patchState(scaleId, { connected: false });
     }
-  }, [baudRate, startReading]);
+  })();
+}
 
-  const connectSerial = useCallback(async () => {
-    setError(null);
-    if (!('serial' in navigator)) {
-      setError('Web Serial API not supported. Use Chrome/Edge 89+.');
+async function openSerialPort(scale: ScaleDevice, port: any) {
+  if (openingIds.has(scale.id)) return;
+  openingIds.add(scale.id);
+  try {
+    await port.open({ baudRate: scale.baud_rate ?? 9600 });
+    serialPorts.set(scale.id, port);
+    patchState(scale.id, { connected: true, error: null });
+    startSerialReading(scale.id, port);
+  } finally {
+    openingIds.delete(scale.id);
+  }
+}
+
+async function connectSerialScale(scale: ScaleDevice) {
+  patchState(scale.id, { error: null });
+  if (!('serial' in navigator)) {
+    patchState(scale.id, { error: 'Web Serial API not supported. Use Chrome/Edge 89+.' });
+    return;
+  }
+  try {
+    const port = await (navigator as any).serial.requestPort();
+    await openSerialPort(scale, port);
+  } catch (e: any) {
+    patchState(scale.id, { error: e?.message ?? 'Failed to connect to scale' });
+  }
+}
+
+async function disconnectSerialScale(scaleId: number) {
+  try { serialReaders.get(scaleId)?.cancel(); } catch {}
+  try { await serialPorts.get(scaleId)?.close(); } catch {}
+  serialPorts.delete(scaleId);
+  serialReaders.delete(scaleId);
+  patchState(scaleId, { connected: false, weight: null });
+}
+
+// Only safe to auto-reconnect a webserial scale when there's exactly one of
+// them and exactly one previously-granted port — see module docblock.
+async function autoReconnectSerialScales(scales: ScaleDevice[]) {
+  const serialScales = scales.filter((s) => s.mode === 'webserial' && s.is_active);
+  if (serialScales.length !== 1 || !('serial' in navigator)) return;
+  const scale = serialScales[0];
+  if (serialPorts.has(scale.id)) return;
+  try {
+    const ports = await (navigator as any).serial.getPorts();
+    if (ports.length === 1) await openSerialPort(scale, ports[0]);
+  } catch {
+    // No prior grant, or the port is busy elsewhere — stay disconnected
+    // and let the cashier connect manually from Settings.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ethernet (raw TCP, via the Electron main process — see electron/main.cjs)
+// ---------------------------------------------------------------------------
+const networkUnsubs = new Map<number, Array<() => void>>();
+
+function teardownNetworkListeners(scaleId: number) {
+  networkUnsubs.get(scaleId)?.forEach((fn) => fn());
+  networkUnsubs.delete(scaleId);
+}
+
+async function connectNetworkScale(scale: ScaleDevice) {
+  patchState(scale.id, { error: null });
+  const bridge = electronScaleBridge();
+  if (!bridge) {
+    patchState(scale.id, { error: "Ethernet scales require the Core desktop app — a browser tab can't open a network connection directly." });
+    return;
+  }
+  if (!scale.host || !scale.port) {
+    patchState(scale.id, { error: "This scale has no IP address/port configured." });
+    return;
+  }
+  if (openingIds.has(scale.id)) return;
+  openingIds.add(scale.id);
+  try {
+    const result = await bridge.connectScale(scale.id, scale.host, scale.port);
+    if (!result.success) {
+      patchState(scale.id, { error: result.error ?? 'Failed to connect to scale' });
       return;
     }
-    try {
-      const port = await (navigator as any).serial.requestPort();
-      await openSerialPort(port);
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to connect to scale');
-    }
-  }, [openSerialPort]);
+    teardownNetworkListeners(scale.id);
+    networkUnsubs.set(scale.id, [
+      bridge.onScaleData(({ scaleId, chunk }) => {
+        if (scaleId !== scale.id) return;
+        for (const line of chunk.split(/[\r\n]+/)) feedLine(scale.id, line);
+      }),
+      bridge.onScaleClosed(({ scaleId }) => {
+        if (scaleId !== scale.id) return;
+        patchState(scale.id, { connected: false });
+        teardownNetworkListeners(scale.id);
+      }),
+    ]);
+    patchState(scale.id, { connected: true });
+  } catch (e: any) {
+    patchState(scale.id, { error: e?.message ?? 'Failed to connect to scale' });
+  } finally {
+    openingIds.delete(scale.id);
+  }
+}
 
-  const disconnectSerial = useCallback(async () => {
-    try { readerRef.current?.cancel(); } catch {}
-    try { await portRef.current?.close(); } catch {}
-    portRef.current = null;
-    setConnected(false);
-    setWeight(null);
-  }, []);
+async function disconnectNetworkScale(scaleId: number) {
+  teardownNetworkListeners(scaleId);
+  try { await electronScaleBridge()?.disconnectScale(scaleId); } catch {}
+  patchState(scaleId, { connected: false, weight: null });
+}
 
-  // Silently reacquire a previously-granted port on mount, so the scale
-  // stays "connected" across page navigation and reloads without the
-  // cashier having to visit Settings again.
-  useEffect(() => {
-    if (mode !== 'webserial' || !('serial' in navigator)) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const ports = await (navigator as any).serial.getPorts();
-        if (cancelled || ports.length === 0 || portRef.current) return;
-        await openSerialPort(ports[0]);
-      } catch {
-        // No prior grant, or the port is busy elsewhere — stay disconnected
-        // and let the cashier connect manually from Settings.
-      }
-    })();
+// ---------------------------------------------------------------------------
+// Public API — dispatches to the right transport per scale.
+// ---------------------------------------------------------------------------
+export function connectScale(scale: ScaleDevice): Promise<void> {
+  return scale.mode === 'network' ? connectNetworkScale(scale) : connectSerialScale(scale);
+}
 
-    const onDisconnect = (e: any) => {
-      if (e?.target && portRef.current && e.target !== portRef.current) return;
-      setConnected(false);
-      setWeight(null);
-      portRef.current = null;
-    };
-    (navigator as any).serial.addEventListener?.('disconnect', onDisconnect);
+export function disconnectScale(scale: ScaleDevice): Promise<void> {
+  return scale.mode === 'network' ? disconnectNetworkScale(scale.id) : disconnectSerialScale(scale.id);
+}
 
-    return () => {
-      cancelled = true;
-      (navigator as any).serial.removeEventListener?.('disconnect', onDisconnect);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  // ---------------------------------------------------------------------
-  // Ethernet (raw TCP, via the Electron main process — see electron/main.cjs)
-  // ---------------------------------------------------------------------
-  const connectNetwork = useCallback(async () => {
-    setError(null);
-    const bridge = electronScaleBridge();
-    if (!bridge) {
-      setError("Ethernet scales require the Core desktop app — a browser tab can't open a network connection directly.");
-      return;
-    }
-    if (!host || !port) {
-      setError("Enter the scale's IP address and port.");
-      return;
-    }
-    if (openingRef.current) return;
-    openingRef.current = true;
-    try {
-      const result = await bridge.connectScale(host, port);
-      if (!result.success) {
-        setError(result.error ?? 'Failed to connect to scale');
-        return;
-      }
-      netBufferRef.current = '';
-      netUnsubRef.current = [
-        bridge.onScaleData((chunk) => {
-          netBufferRef.current += chunk;
-          const lines = netBufferRef.current.split(/[\r\n]+/);
-          netBufferRef.current = lines.pop() ?? '';
-          for (const line of lines) feedLine(line);
-        }),
-        bridge.onScaleClosed(() => {
-          setConnected(false);
-          netUnsubRef.current?.forEach((fn) => fn());
-          netUnsubRef.current = null;
-        }),
-      ];
-      setConnected(true);
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to connect to scale');
-    } finally {
-      openingRef.current = false;
-    }
-  }, [host, port, feedLine]);
-
-  const disconnectNetwork = useCallback(async () => {
-    netUnsubRef.current?.forEach((fn) => fn());
-    netUnsubRef.current = null;
-    try { await electronScaleBridge()?.disconnectScale(); } catch {}
-    setConnected(false);
-    setWeight(null);
-  }, []);
-
-  // Auto-reconnect on mount — same rationale as the Web Serial path above,
-  // just without a browser permission grant, so it's safe to just redial.
-  useEffect(() => {
-    if (mode !== 'network' || !host || !port) return;
-    connectNetwork();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  // Tear down any live network subscriptions on unmount (the underlying
-  // socket itself stays open in the main process, same as a serial port
-  // stays open across page navigation, and gets redialed on next mount).
-  useEffect(() => {
-    return () => { netUnsubRef.current?.forEach((fn) => fn()); };
-  }, []);
-
-  const connect    = mode === 'network' ? connectNetwork    : connectSerial;
-  const disconnect = mode === 'network' ? disconnectNetwork : disconnectSerial;
-
-  return { connect, disconnect, connected, weight, error };
+/**
+ * Call once the registered scales list loads (Hardware page, and any till
+ * screen that weighs items) — redials every active network scale, and
+ * attempts the single-serial-scale auto-reconnect described above. Safe to
+ * call repeatedly/from multiple screens: already-connected or in-flight
+ * scales are skipped.
+ */
+export function ensureScalesAutoConnected(scales: ScaleDevice[]): void {
+  for (const scale of scales) {
+    if (!scale.is_active || scale.mode !== 'network') continue;
+    if (getScaleReading(scale.id).connected || openingIds.has(scale.id)) continue;
+    if (!scale.host || !scale.port) continue;
+    connectNetworkScale(scale);
+  }
+  autoReconnectSerialScales(scales);
 }

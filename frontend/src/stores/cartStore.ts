@@ -19,6 +19,9 @@ export interface CartItem {
   // reading (fractional kg) instead of a unit count, and the qty keypad
   // allows decimals for this line.
   sold_by_weight?: boolean;
+  // Which registered scale this line is weighed on (products.scale_id) — lets
+  // the qty-edit keypad keep suggesting live readings from the right scale.
+  scale_id?: number | null;
 }
 
 let lineIdCounter = 0;

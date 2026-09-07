@@ -114,6 +114,14 @@ export const reportsApi = {
   inventory: (params?: object) => api.get('/reports/inventory', { params }),
   profitLoss: (params?: object) => api.get('/reports/profit-loss', { params }),
   cashierPerformance: (params?: object) => api.get('/reports/cashier-performance', { params }),
+  scales: (params?: object) => api.get('/reports/scales', { params }),
+};
+
+export const weighingScalesApi = {
+  list: () => api.get('/weighing-scales'),
+  create: (data: object) => api.post('/weighing-scales', data),
+  update: (id: number, data: object) => api.put(`/weighing-scales/${id}`, data),
+  delete: (id: number) => api.delete(`/weighing-scales/${id}`),
 };
 
 export const usersApi = {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, branchesApi, refundsApi } from '../api';
-import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, MoreVertical, Calendar } from 'lucide-react';
+import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, MoreVertical, Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
@@ -9,6 +9,9 @@ import { useAuthStore } from '../stores/authStore';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { exportToExcel } from '../utils/excel';
 
 const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 text-green-700',
@@ -148,6 +151,9 @@ export default function SalesPage() {
   const [refundSale, setRefundSale] = useState<any>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const { hasPermission, hasRole } = useAuthStore();
   const canRefund = hasPermission('process_refunds') || hasRole('admin');
   const hw = useHardwareStore();
@@ -166,25 +172,135 @@ export default function SalesPage() {
     staleTime: 120000,
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['sales', search, page, branchId, dateFrom, dateTo],
-    queryFn: () => salesApi.list({
-      search, page, per_page: 20,
-      ...(branchId ? { branch_id: Number(branchId) } : {}),
-      ...(dateFrom ? { date_from: dateFrom } : {}),
-      ...(dateTo ? { date_to: dateTo } : {}),
-    }).then(r => r.data?.data),
+  // Shared by the paginated list query and the "export everything currently
+  // filtered" actions below, so the two never drift apart.
+  const salesFilterParams = (extra: Record<string, unknown> = {}) => ({
+    search,
+    ...(branchId ? { branch_id: Number(branchId) } : {}),
+    ...(dateFrom ? { date_from: dateFrom } : {}),
+    ...(dateTo ? { date_to: dateTo } : {}),
+    ...extra,
   });
 
-  // Close the row's "..." actions menu on an outside click.
+  const { data, isLoading } = useQuery({
+    queryKey: ['sales', search, page, branchId, dateFrom, dateTo],
+    queryFn: () => salesApi.list(salesFilterParams({ page, per_page: 20 })).then(r => r.data?.data),
+  });
+
+  // Close the row's "..." actions menu, or the export menu, on an outside click.
   useEffect(() => {
-    if (openMenuId === null) return;
+    if (openMenuId === null && !showExportMenu) return;
     const onClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenuId(null);
+      if (openMenuId !== null && menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenuId(null);
+      if (showExportMenu && exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false);
     };
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
-  }, [openMenuId]);
+  }, [openMenuId, showExportMenu]);
+
+  const branchName = branchId ? (branchData as any[] || []).find((b: any) => String(b.id) === branchId)?.name : null;
+  const dateRangeLabel = dateFrom || dateTo ? `${dateFrom || 'earliest'} to ${dateTo || 'today'}` : 'All dates';
+
+  // Pulls every sale matching the current filters (not just the visible page)
+  // so an export reflects what the user has filtered for, not one page of it.
+  const fetchAllFilteredSales = async (): Promise<any[]> => {
+    const res = await salesApi.list(salesFilterParams({ page: 1, per_page: 5000 })).then(r => r.data?.data);
+    return res?.data || [];
+  };
+
+  const saleExportRow = (s: any) => {
+    const items: any[] = s.items || [];
+    const itemNames = items.map((it: any) => it.product?.name).filter(Boolean).join(', ') || `${s.items_count || items.length || 0} items`;
+    return [
+      s.reference,
+      format(new Date(s.created_at), 'dd MMM yyyy HH:mm'),
+      itemNames,
+      s.customer?.name || 'Walk-in',
+      s.cashier?.name || '',
+      formatAmount(parseFloat(s.total)),
+      s.status,
+    ];
+  };
+
+  const handleExportExcel = async () => {
+    setShowExportMenu(false);
+    setExporting(true);
+    try {
+      const sales = await fetchAllFilteredSales();
+      exportToExcel(
+        [['Reference', 'Date', 'Items', 'Customer', 'Cashier', 'Total', 'Status'], ...sales.map(saleExportRow)],
+        `sales-history-${format(new Date(), 'yyyy-MM-dd')}`
+      );
+      toast.success(`Exported ${sales.length} sale${sales.length !== 1 ? 's' : ''}`);
+    } catch {
+      toast.error('Could not export sales — check the local server is reachable');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setShowExportMenu(false);
+    setExporting(true);
+    try {
+      const sales = await fetchAllFilteredSales();
+      const companyName = storeSettings?.company_name || 'Core POS';
+      const generatedAt = new Date();
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 40;
+
+      autoTable(doc, {
+        head: [['Reference', 'Date', 'Items', 'Customer', 'Cashier', 'Total', 'Status']],
+        body: sales.map(saleExportRow),
+        startY: 90,
+        margin: { left: margin, right: margin, bottom: 50 },
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, lineColor: [225, 228, 232], lineWidth: 0.5 },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', halign: 'left' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 90, font: 'courier', fontSize: 8 },
+          5: { cellWidth: 90, halign: 'right', fontStyle: 'bold' },
+          6: { cellWidth: 80 },
+        },
+        didDrawPage: () => {
+          doc.setFillColor(30, 41, 59);
+          doc.rect(0, 0, pageWidth, 70, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(18);
+          doc.text(companyName, margin, 32);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(203, 213, 225);
+          doc.text(`Sales History Report  ·  ${dateRangeLabel}${branchName ? `  ·  ${branchName}` : ''}`, margin, 50);
+
+          doc.setFontSize(9);
+          doc.text(`Generated: ${generatedAt.toLocaleDateString()} ${generatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, pageWidth - margin, 32, { align: 'right' });
+          doc.text(`${sales.length} sale${sales.length !== 1 ? 's' : ''}`, pageWidth - margin, 46, { align: 'right' });
+
+          const pageCount = doc.getNumberOfPages();
+          const pageHeight = doc.internal.pageSize.getHeight();
+          doc.setDrawColor(225, 228, 232);
+          doc.line(margin, pageHeight - 40, pageWidth - margin, pageHeight - 40);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(`Page ${doc.getCurrentPageInfo().pageNumber} of ${pageCount}`, pageWidth - margin, pageHeight - 24, { align: 'right' });
+          doc.text('Generated by Core POS', margin, pageHeight - 24);
+        },
+      });
+
+      doc.save(`sales-history-${format(generatedAt, 'yyyy-MM-dd')}.pdf`);
+      toast.success(`Exported ${sales.length} sale${sales.length !== 1 ? 's' : ''}`);
+    } catch {
+      toast.error('Could not export sales — check the local server is reachable');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const { data: saleDetail } = useQuery({
     queryKey: ['sale', selectedSale?.id],
@@ -232,6 +348,35 @@ export default function SalesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sales History</h1>
           <p className="text-gray-500 text-sm">View and manage all transactions</p>
+        </div>
+        <div className="relative" ref={exportMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowExportMenu((v) => !v)}
+            disabled={exporting}
+            className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-semibold px-4 py-2.5 rounded-md text-sm disabled:opacity-60"
+          >
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            Export
+          </button>
+          {showExportMenu && (
+            <div className="absolute z-20 right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <FileText size={14} className="text-gray-400" /> Download as PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <FileSpreadsheet size={14} className="text-gray-400" /> Download as Excel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

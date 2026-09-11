@@ -16,8 +16,9 @@ import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
-import { cartLineAccent } from '../lib/tileColors';
-import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone } from 'lucide-react';
+import { cartLineAccent, contrastText, TILE_THEMES } from '../lib/tileColors';
+import { iconForCategory } from '../lib/categoryIcons';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Plus, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -48,6 +49,10 @@ export default function CashierPage() {
   // Live results dropdown under the Scan/PLU box — only while that input is
   // focused, so it doesn't linger once the cashier taps elsewhere.
   const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
+  // Category tab selected in the browse grid — UI-only filter, defaults to
+  // the "Popular" tab (all products; there's no per-product popularity data
+  // to rank by yet, so it's just the default landing view).
+  const [activeCategory, setActiveCategory] = useState('Popular');
   // Which row of that dropdown the keyboard (arrow keys) has highlighted —
   // reset to the top whenever the search text changes so it doesn't keep
   // pointing at a row that no longer matches.
@@ -180,6 +185,18 @@ export default function CashierPage() {
   useEffect(() => {
     browseItemRefs.current[browseHighlight]?.scrollIntoView({ block: 'nearest' });
   }, [browseHighlight]);
+
+  // ── Browse grid (category tabs + tiles) ──────────────────────────────────
+  // Store-defined categories, same source POSPage uses so both tills stay
+  // visually and behaviorally consistent. "Popular" is the default tab —
+  // there's no per-product popularity ranking yet, so it just shows everything.
+  const categoryTabs = ['Popular', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
+  const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
+  const blockNegStockForGrid = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
+  const gridProducts = allProducts.filter((p: any) =>
+    (activeCategory === 'Popular' || p.category?.name === activeCategory) &&
+    (!browseQuery || p.name.toLowerCase().includes(browseQuery) || (p.sku ?? '').toLowerCase().includes(browseQuery) || (p.barcode ?? '').toLowerCase().includes(browseQuery))
+  );
 
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
@@ -533,6 +550,7 @@ export default function CashierPage() {
   const fmtTime = (d: Date) => d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const fmtDate = (d: Date) => d.toLocaleDateString('en-ZA');
   const itemCount = cart.items.reduce((s, i) => s + i.quantity, 0);
+  const cashierInitials = (user?.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   const confirmQtyEdit = () => {
     if (!editingQtyItem) return;
@@ -553,22 +571,30 @@ export default function CashierPage() {
     <>
     <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
-      {/* ── Header card ────────────────────────────────────────────────────── */}
+      {/* Header card */}
       <div className="mx-2 sm:mx-4 mt-2 mb-2 flex-shrink-0">
-        <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-          <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-400" />
-          <div className="px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <div className="flex flex-wrap items-center gap-3 sm:gap-5">
-            <span className="font-bold text-base bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{storeName}</span>
-            <span className="text-gray-400 text-sm hidden sm:inline">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></span>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+              <CartIcon size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-gray-900 text-base leading-tight truncate">
+                {storeName}{user?.branch?.name ? ` · ${user.branch.name}` : ''}
+              </p>
+              <p className="text-xs text-gray-400 truncate">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {isRestaurant && (
               <>
-                <div className="flex items-center gap-1.5">
-                  <TableProperties size={14} className="text-gray-400 flex-shrink-0" />
+                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 flex-shrink-0">
+                  <TableProperties size={13} className="text-gray-400 flex-shrink-0" />
                   <select
                     value={cart.tableNumber}
                     onChange={(e) => cart.setTableNumber(e.target.value)}
-                    className="text-sm border border-gray-200 rounded-none min-h-10 px-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                    className="text-xs font-semibold bg-transparent border-0 focus:outline-none pr-1"
                   >
                     {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -576,9 +602,9 @@ export default function CashierPage() {
                 <button
                   type="button"
                   onClick={() => setShowOpenTables(true)}
-                  className="relative flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-none border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold transition-colors touch-manipulation"
+                  className="relative flex items-center gap-1.5 rounded-full border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold px-3 py-1.5 transition-colors touch-manipulation flex-shrink-0"
                 >
-                  <LayoutGrid size={14} /> Open Tables
+                  <LayoutGrid size={13} /> Open Tables
                   {heldOrders.length > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
                   )}
@@ -588,214 +614,318 @@ export default function CashierPage() {
             <button
               type="button"
               onClick={() => setShowVoidModal(true)}
-              className="flex items-center justify-center gap-1.5 min-h-10 px-3 rounded-none border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors touch-manipulation"
+              className="flex items-center gap-1.5 rounded-full border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold px-3 py-1.5 transition-colors touch-manipulation flex-shrink-0"
             >
-              <Ban size={14} /> Void
+              <Ban size={13} /> Void
             </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
+
             {scales.length > 0 && (
               connectedScaleCount > 0 ? (
-                <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs" title={`${connectedScaleCount} of ${scales.length} weighing scale${scales.length === 1 ? '' : 's'} connected`}>
+                <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs bg-blue-50 rounded-full px-3 py-1.5 flex-shrink-0" title={`${connectedScaleCount} of ${scales.length} weighing scale${scales.length === 1 ? '' : 's'} connected`}>
                   <ScaleIcon size={13} />
                   {liveKg !== null ? `${liveKg.toFixed(3)} kg` : `${connectedScaleCount}/${scales.length} scale${scales.length === 1 ? '' : 's'}`}
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 text-gray-300 font-semibold text-xs" title="No weighing scales connected — connect them under Settings → Hardware">
+                <span className="flex items-center gap-1.5 text-gray-300 font-semibold text-xs flex-shrink-0" title="No weighing scales connected -- connect them under Settings -> Hardware">
                   <ScaleIcon size={13} /> Scales off
                 </span>
               )
             )}
-            {!isOnline ? (
-              <span className="flex items-center gap-1.5 text-amber-500 font-semibold text-xs">
-                Server starting...
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-emerald-500 font-medium text-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span> Ready
-              </span>
-            )}
-            <span className="text-gray-400">{fmtDate(currentTime)}</span>
-            <span className="text-gray-900 font-bold tabular-nums">{fmtTime(currentTime)}</span>
-          </div>
+
+            <span className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold flex-shrink-0 ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full inline-block ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+              {isOnline ? 'Online & synced' : 'Server starting...'}
+            </span>
+
+            <div className="text-right leading-tight pl-1 flex-shrink-0">
+              <p className="text-[11px] text-gray-400">{fmtDate(currentTime)}</p>
+              <p className="text-sm font-bold text-gray-900 tabular-nums">{fmtTime(currentTime)}</p>
+            </div>
+
+            <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0" title={user?.roles?.[0] ?? 'Cashier'}>
+              {cashierInitials}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Scan / PLU card ────────────────────────────────────────────────── */}
+      {/* Search bar */}
       <div className="mx-2 sm:mx-4 mb-2 flex-shrink-0">
-        <div className="bg-white rounded-lg border border-gray-100 shadow-sm px-3 sm:px-4 py-2">
-          <form onSubmit={handleCodeSubmit} className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap hidden sm:inline">
-              Scan / PLU
-            </span>
-            <div className="relative flex-1">
-              <input
-                ref={codeRef}
-                value={codeInput}
-                onChange={e => setCodeInput(e.target.value)}
-                onFocus={() => setShowBrowseDropdown(true)}
-                onBlur={() => setShowBrowseDropdown(false)}
-                onKeyDown={(e) => {
-                  if (!showBrowseDropdown || visibleBrowseMatches.length === 0) return;
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setBrowseHighlight((i) => Math.min(i + 1, visibleBrowseMatches.length - 1));
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setBrowseHighlight((i) => Math.max(i - 1, 0));
-                  } else if (e.key === 'Escape') {
-                    setShowBrowseDropdown(false);
-                  }
-                }}
-                placeholder="Scan barcode, or type to search stock..."
-                className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-none min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
-                autoComplete="off"
-              />
-              {/* Touch keyboard button */}
-              <button
-                type="button"
-                onClick={() => setShowSearchModal(true)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-none touch-manipulation"
-                title="Open on-screen keyboard"
-              >
-                <Keyboard size={15} />
-              </button>
+        <form onSubmit={handleCodeSubmit} className="relative">
+          <div className="flex items-center gap-2 bg-white border-2 border-gray-200 focus-within:border-blue-400 rounded-2xl shadow-sm pl-4 pr-2 py-1 transition-colors">
+            <Barcode size={17} className="text-gray-300 flex-shrink-0" />
+            <div className="w-px h-6 bg-gray-100 flex-shrink-0" />
+            <input
+              ref={codeRef}
+              value={codeInput}
+              onChange={e => setCodeInput(e.target.value)}
+              onFocus={() => setShowBrowseDropdown(true)}
+              onBlur={() => setShowBrowseDropdown(false)}
+              onKeyDown={(e) => {
+                if (!showBrowseDropdown || visibleBrowseMatches.length === 0) return;
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setBrowseHighlight((i) => Math.min(i + 1, visibleBrowseMatches.length - 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setBrowseHighlight((i) => Math.max(i - 1, 0));
+                } else if (e.key === 'Escape') {
+                  setShowBrowseDropdown(false);
+                }
+              }}
+              placeholder="Scan barcode or search products..."
+              className="flex-1 min-w-0 bg-transparent px-2 py-2.5 text-sm focus:outline-none"
+              autoComplete="off"
+            />
+            {productsLoading && <Loader2 size={16} className="animate-spin text-gray-300 flex-shrink-0" />}
+            <button
+              type="button"
+              onClick={() => setShowSearchModal(true)}
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full touch-manipulation"
+              title="Open on-screen keyboard"
+            >
+              <Keyboard size={16} />
+            </button>
+            <button
+              type="submit"
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full touch-manipulation transition-colors"
+              title="Search / Enter"
+            >
+              <Search size={16} />
+            </button>
+          </div>
 
-              {/* Live results dropdown — shows matches as the cashier types,
-                  so they don't have to press Enter (or narrow to an exact
-                  single match) just to see what's there. onMouseDown here
-                  prevents the input's blur from firing before the click. */}
-              {showBrowseDropdown && browseQuery && browseMatches.length > 0 && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-none shadow-lg max-h-72 overflow-y-auto">
-                  {visibleBrowseMatches.map((p, i) => (
-                    <button
-                      key={p.id}
-                      ref={(el) => { browseItemRefs.current[i] = el; }}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseEnter={() => setBrowseHighlight(i)}
-                      onClick={() => addProduct(p)}
-                      className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left border-b border-gray-50 last:border-b-0 touch-manipulation ${i === browseHighlight ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                        <p className="text-xs text-gray-400">{p.sku || p.barcode || '—'}</p>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-700 flex-shrink-0 tabular-nums">
-                        {formatCurrency(parseFloat(p.selling_price))}{p.sold_by_weight ? '/kg' : ''}
-                      </span>
-                    </button>
-                  ))}
-                  {browseMatches.length > 8 && (
-                    <p className="px-4 py-2 text-xs text-gray-400 text-center border-t border-gray-50">
-                      +{browseMatches.length - 8} more — keep typing to narrow
-                    </p>
-                  )}
-                </div>
-              )}
-              {showBrowseDropdown && browseQuery && browseMatches.length === 0 && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-none shadow-lg">
-                  <p className="px-4 py-3 text-sm text-gray-400 text-center">No products match "{codeInput.trim()}"</p>
-                </div>
+          {/* Live results dropdown -- shows matches as the cashier types, so they
+              don't have to press Enter (or narrow to an exact single match) just
+              to see what's there. onMouseDown here prevents the input's blur from
+              firing before the click. */}
+          {showBrowseDropdown && browseQuery && browseMatches.length > 0 && (
+            <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white border border-gray-100 rounded-2xl shadow-lg max-h-72 overflow-y-auto">
+              {visibleBrowseMatches.map((p, i) => (
+                <button
+                  key={p.id}
+                  ref={(el) => { browseItemRefs.current[i] = el; }}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setBrowseHighlight(i)}
+                  onClick={() => addProduct(p)}
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left border-b border-gray-50 last:border-b-0 touch-manipulation first:rounded-t-2xl last:rounded-b-2xl ${i === browseHighlight ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                    <p className="text-xs text-gray-400">{p.sku || p.barcode || '—'}</p>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 flex-shrink-0 tabular-nums">
+                    {formatCurrency(parseFloat(p.selling_price))}{p.sold_by_weight ? '/kg' : ''}
+                  </span>
+                </button>
+              ))}
+              {browseMatches.length > 8 && (
+                <p className="px-4 py-2 text-xs text-gray-400 text-center border-t border-gray-50">
+                  +{browseMatches.length - 8} more -- keep typing to narrow
+                </p>
               )}
             </div>
-            <button type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white min-h-11 px-5 rounded-none font-semibold text-sm transition-colors flex-shrink-0 shadow-sm shadow-blue-100">
-              Enter ↵
-            </button>
-            {productsLoading && <Loader2 size={16} className="animate-spin text-gray-400 flex-shrink-0" />}
-          </form>
-        </div>
+          )}
+          {showBrowseDropdown && browseQuery && browseMatches.length === 0 && (
+            <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white border border-gray-100 rounded-2xl shadow-lg">
+              <p className="px-4 py-3 text-sm text-gray-400 text-center">No products match "{codeInput.trim()}"</p>
+            </div>
+          )}
+        </form>
       </div>
 
-      {/* ── Main area ──────────────────────────────────────────────────────── */}
+      {/* Category tabs */}
+      <div className="mx-2 sm:mx-4 mb-2 flex-shrink-0 flex items-center gap-2 overflow-x-auto pb-0.5">
+        {categoryTabs.map((cat) => {
+          const TabIcon = cat === 'Popular' ? Star : iconForCategory(cat);
+          const active = activeCategory === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setActiveCategory(cat)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
+                active ? 'bg-blue-600 text-white shadow-sm shadow-blue-200' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+              }`}
+            >
+              <TabIcon size={15} /> {cat}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Main area */}
       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden gap-3 lg:gap-4 px-2 sm:px-4 pb-2 sm:pb-4 min-h-0">
 
-        {/* Left: items card */}
-        <div className="flex-1 min-w-0 min-h-0 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-          {/* Column headers */}
-          <div className="flex items-center bg-gray-50 border-b border-gray-100 px-4 py-2.5 flex-shrink-0">
-            <span className="w-36 text-center flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wider">QTY</span>
-            <span className="flex-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</span>
-            <span className="w-28 text-right pr-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</span>
-            <span className="w-8"></span>
-          </div>
+        {/* Left: product grid + current order */}
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-3 overflow-hidden">
 
-          {/* Items */}
-          <div className="flex-1 overflow-y-auto">
-            {cart.items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-blue-200 select-none gap-3">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="opacity-60">
-                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
-                  <path d="M16 10a4 4 0 0 1-8 0"/>
-                </svg>
-                <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Scan a product to start</p>
+          {/* Product grid */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex-shrink-0 overflow-y-auto" style={{ maxHeight: '38%' }}>
+            {productsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-blue-500" />
+              </div>
+            ) : gridProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-300 gap-1.5">
+                <Search size={24} />
+                <p className="text-xs text-gray-400">No products in this category</p>
               </div>
             ) : (
-              cart.items.map((item, idx) => {
-                const lineTotal = (item.price - item.discount) * item.quantity;
-                return (
-                  <div key={item.line_id}
-                    className={`flex items-center pl-3 pr-4 py-3.5 border-b border-l-4 border-gray-50 text-base ${cartLineAccent(item.product_id)} ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                    <div className="w-36 flex items-center justify-center flex-shrink-0">
-                      <button type="button"
-                        onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
-                        title="Tap to set quantity"
-                        className="w-14 h-10 text-center font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-none hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
-                        {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
-                      </button>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-gray-900 truncate block">{item.name}</span>
-                    </div>
-                    <span className="w-28 text-right pr-3 font-bold text-gray-900 tabular-nums font-mono">
-                      {formatCurrency(lineTotal)}
-                    </span>
-                    <button type="button"
-                      onClick={() => cart.removeItem(item.line_id)}
-                      title="Remove item"
-                      className="w-10 h-10 flex items-center justify-center rounded-none text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation">
-                      <Trash2 size={16} />
+              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
+                {gridProducts.map((product: any) => {
+                  const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
+                  const isOutOfStock = blockNegStockForGrid && product.track_stock !== false && stock !== null && stock <= 0;
+                  const solidColor = product.color || tileTheme[Math.abs(product.id) % tileTheme.length];
+                  const textColor = contrastText(solidColor);
+                  const priceLabel = `${formatCurrency(parseFloat(product.selling_price))}${product.sold_by_weight ? '/kg' : ''}`;
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => { if (!isOutOfStock) addProduct(product); }}
+                      disabled={isOutOfStock}
+                      title={isOutOfStock ? `${product.name} -- Out of stock` : `${product.name} -- ${priceLabel}`}
+                      className={`relative flex flex-col text-left bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden transition-all touch-manipulation hover:shadow-md hover:-translate-y-0.5 ${isOutOfStock ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+                    >
+                      <div className="w-full h-16 flex items-center justify-center overflow-hidden" style={product.image ? undefined : { backgroundColor: solidColor }}>
+                        {product.image ? (
+                          <img src={product.image} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-2xl font-black select-none" style={{ color: textColor, opacity: 0.55 }}>
+                            {product.name?.[0]?.toUpperCase() ?? '?'}
+                          </span>
+                        )}
+                        {product.sold_by_weight && (
+                          <span title="Sold by weight" className="absolute top-1 left-1 flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white shadow">
+                            <ScaleIcon size={9} />
+                          </span>
+                        )}
+                      </div>
+                      <div className="px-2.5 py-2 flex-1 flex flex-col gap-0.5 pr-7">
+                        <span className="text-xs font-bold text-gray-900 leading-tight line-clamp-2">{product.name}</span>
+                        {product.unit?.name && <span className="text-[10px] text-gray-400">1 {product.unit.name}</span>}
+                        <span className="text-sm font-black text-blue-600 tabular-nums mt-0.5">{priceLabel}</span>
+                      </div>
+                      <span className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md pointer-events-none">
+                        <Plus size={14} strokeWidth={3} />
+                      </span>
                     </button>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex-shrink-0 flex justify-between items-center">
-            <span className="text-xs font-semibold text-gray-400">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
-            {cart.items.length > 0 && (
-              <button type="button" onClick={() => cart.clearCart()}
-                className="text-xs font-semibold text-red-400 hover:text-red-600 transition-colors">
-                Clear all
-              </button>
-            )}
+          {/* Current order */}
+          <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <CartIcon size={17} className="text-gray-700 flex-shrink-0" />
+                <span className="font-bold text-gray-900">Current order</span>
+                <span className="text-xs font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => cart.clearCart()}
+                  disabled={cart.items.length === 0}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 border border-red-100 rounded-lg px-3 py-1.5 disabled:opacity-40 transition-colors touch-manipulation"
+                >
+                  <Trash2 size={13} /> Clear all
+                </button>
+                <button
+                  type="button"
+                  onClick={handleHoldOrder}
+                  disabled={cart.items.length === 0 || holdMutation.isPending}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 disabled:opacity-40 transition-colors touch-manipulation"
+                >
+                  {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PlayCircle size={13} />} Save order
+                </button>
+              </div>
+            </div>
+
+            {/* Column headers */}
+            <div className="flex items-center px-4 py-2 border-b border-gray-100 flex-shrink-0 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              <span className="w-7 flex-shrink-0">#</span>
+              <span className="flex-1">Product</span>
+              <span className="w-20 text-right flex-shrink-0">Price</span>
+              <span className="w-16 text-center flex-shrink-0">Qty</span>
+              <span className="w-24 text-right flex-shrink-0">Total</span>
+              <span className="w-8 flex-shrink-0"></span>
+            </div>
+
+            {/* Items */}
+            <div className="flex-1 overflow-y-auto">
+              {cart.items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-blue-200 select-none gap-3">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="opacity-60">
+                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
+                    <path d="M16 10a4 4 0 0 1-8 0"/>
+                  </svg>
+                  <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Scan or tap a product to start</p>
+                </div>
+              ) : (
+                cart.items.map((item, idx) => {
+                  const lineTotal = (item.price - item.discount) * item.quantity;
+                  return (
+                    <div key={item.line_id}
+                      className={`flex items-center px-4 py-3 border-b border-l-4 border-gray-50 ${cartLineAccent(item.product_id)} ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                      <span className="w-7 flex-shrink-0 text-xs text-gray-400">{idx + 1}</span>
+                      <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate pr-2">{item.name}</span>
+                      <span className="w-20 text-right flex-shrink-0 text-sm text-gray-500 tabular-nums">{formatCurrency(item.price)}</span>
+                      <span className="w-16 flex justify-center flex-shrink-0">
+                        <button type="button"
+                          onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
+                          title="Tap to set quantity"
+                          className="min-w-[44px] h-8 px-2 text-center text-sm font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-full hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
+                          {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
+                        </button>
+                      </span>
+                      <span className="w-24 text-right flex-shrink-0 font-bold text-gray-900 tabular-nums text-sm">
+                        {formatCurrency(lineTotal)}
+                      </span>
+                      <span className="w-8 flex justify-center flex-shrink-0">
+                        <button type="button"
+                          onClick={() => cart.removeItem(item.line_id)}
+                          title="Remove item"
+                          className="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation">
+                          <Trash2 size={14} />
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right: payment column — 40% width on desktop (lg+), stretches to fill the full
-            height with generous touch-sized buttons. Below lg it stacks under the item
-            list full-width instead, capped to a share of the viewport with its own
-            scroll so a tall payment panel never pushes the cart list off screen. */}
-        <div className="w-full lg:w-[40%] lg:min-w-[380px] xl:min-w-[440px] 2xl:min-w-[560px] max-w-full lg:max-w-[640px] flex flex-col gap-3 flex-shrink-0 max-h-[55vh] lg:max-h-none overflow-y-auto">
+        {/* Right: payment column -- 38% width on desktop (lg+), stretches to fill the
+            full height with generous touch-sized buttons. Below lg it stacks under
+            the item list full-width instead, capped to a share of the viewport with
+            its own scroll so a tall payment panel never pushes the cart list off
+            screen. */}
+        <div className="w-full lg:w-[38%] lg:min-w-[360px] xl:min-w-[420px] 2xl:min-w-[520px] max-w-full lg:max-w-[600px] flex flex-col gap-3 flex-shrink-0 max-h-[55vh] lg:max-h-none overflow-y-auto">
 
-          {/* Total box */}
-          <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-2xl shadow-lg shadow-blue-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-            <span className="text-white/70 font-semibold text-base tracking-wide">TOTAL</span>
-            <span className="text-white font-bold text-4xl tabular-nums font-mono">{formatCurrency(total)}</span>
+          {/* Amount due */}
+          <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-2xl shadow-lg shadow-blue-200 px-6 py-5 flex items-center justify-between flex-shrink-0">
+            <div>
+              <span className="text-white/70 font-semibold text-sm tracking-wide uppercase">Amount due</span>
+              <p className="text-white font-bold text-4xl tabular-nums font-mono mt-1">{formatCurrency(total)}</p>
+            </div>
+            <ShoppingBag size={40} className="text-white/25 flex-shrink-0" />
           </div>
 
           {/* Payment method card */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex-shrink-0">
-            <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Payment Method</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2.5">Payment Method</p>
             <div className="grid grid-cols-3 gap-2.5">
               {PAY_METHODS.map(({ value, label, key, icon: Icon, activeClass }) => (
                 <button key={value} type="button"
                   onClick={() => setPayMethod(value)}
-                  className={`flex flex-col items-center gap-1 py-4 rounded-none border-2 font-bold text-base transition-all touch-manipulation
+                  className={`flex flex-col items-center gap-1 py-4 rounded-xl border-2 font-bold text-base transition-all touch-manipulation
                     ${payMethod === value
                       ? activeClass
                       : 'border-gray-200 text-gray-500 bg-white hover:border-blue-200 hover:bg-blue-50'
@@ -832,46 +962,40 @@ export default function CashierPage() {
           {/* Action buttons card */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-2.5 flex-shrink-0">
             {/* For cash, CashNotesPad above already has its own confirm/process
-                button — showing a second "Process Order" button here just
+                button -- showing a second "Process Order" button here just
                 duplicates it and pushes the column past the viewport, forcing
                 a scroll. Only show it for card/mobile, which have no pad. */}
             {payMethod !== 'cash' && (
               <button type="button"
                 onClick={handleProcessSale}
                 disabled={!canProcess}
-                className="w-full py-6 rounded-none font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 touch-manipulation"
+                className="w-full py-6 rounded-xl font-bold text-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 touch-manipulation"
               >
                 {saleMutation.isPending
                   ? <span className="flex items-center justify-center gap-2">
                       <Loader2 size={20} className="animate-spin" /> Processing...
                     </span>
-                  : <span>F9 — Process Order {formatCurrency(total)}</span>
+                  : <span>F9 -- Complete Sale {formatCurrency(total)}</span>
                 }
               </button>
             )}
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button type="button"
                 onClick={() => { cart.clearCart(); setCashTendered(''); setTimeout(() => codeRef.current?.focus(), 40); }}
                 disabled={cart.items.length === 0}
-                className="py-4 rounded-none border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
+                className="py-4 rounded-xl border-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
                 F5 Clear
               </button>
               <button type="button"
-                onClick={handleHoldOrder}
-                disabled={cart.items.length === 0 || holdMutation.isPending}
-                className="py-4 rounded-none border-2 border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold text-sm uppercase disabled:opacity-30 transition-colors touch-manipulation">
-                {holdMutation.isPending ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'F8 Hold'}
-              </button>
-              <button type="button"
                 onClick={() => window.location.reload()}
-                className="py-4 rounded-none border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
+                className="py-4 rounded-xl border-2 border-gray-200 text-gray-400 hover:bg-gray-50 font-semibold text-sm uppercase transition-colors touch-manipulation flex items-center justify-center gap-1">
                 <RefreshCw size={14} /> Refresh
               </button>
             </div>
           </div>
 
-          {/* Cashier register has no Live Orders panel — Kitchen/Queue live
+          {/* Cashier register has no Live Orders panel -- Kitchen/Queue live
               on their own dedicated pages. Empty flex-1 filler keeps the
               column stretched to full height instead of a dead gap under
               the action buttons. */}

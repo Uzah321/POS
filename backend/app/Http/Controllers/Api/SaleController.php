@@ -23,7 +23,7 @@ class SaleController extends BaseApiController
     {
         $branchId = $this->effectiveBranchId($request);
         $businessType = $this->effectiveBusinessType($request);
-        $query = Sale::with('customer', 'cashier', 'branch')
+        $query = Sale::with('customer', 'cashier', 'branch', 'items.product:id,name')
             ->withCount('items')
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))

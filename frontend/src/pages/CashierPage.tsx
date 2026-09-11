@@ -48,10 +48,15 @@ export default function CashierPage() {
   // Live results dropdown under the Scan/PLU box — only while that input is
   // focused, so it doesn't linger once the cashier taps elsewhere.
   const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
+  // Which row of that dropdown the keyboard (arrow keys) has highlighted —
+  // reset to the top whenever the search text changes so it doesn't keep
+  // pointing at a row that no longer matches.
+  const [browseHighlight, setBrowseHighlight] = useState(0);
 
-  const codeRef     = useRef<HTMLInputElement>(null);
-  const tenderedRef = useRef<HTMLInputElement>(null);
-  const kbRef       = useRef<any>({});
+  const codeRef      = useRef<HTMLInputElement>(null);
+  const tenderedRef  = useRef<HTMLInputElement>(null);
+  const kbRef        = useRef<any>({});
+  const browseItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const qc           = useQueryClient();
   const cart         = useCartStore();
@@ -160,6 +165,21 @@ export default function CashierPage() {
     (p.sku ?? '').toLowerCase().includes(browseQuery) ||
     (p.barcode ?? '').toLowerCase().includes(browseQuery)
   );
+  // Only the first 8 are rendered in the dropdown — arrow-key navigation
+  // below is scoped to this same slice.
+  const visibleBrowseMatches = browseMatches.slice(0, 8);
+
+  // Keep the highlighted row in range (and reset to the top) whenever the
+  // list of matches changes underneath it.
+  useEffect(() => {
+    setBrowseHighlight(0);
+  }, [browseQuery]);
+
+  // Scroll the highlighted row into view as arrow keys move past the edge
+  // of the dropdown's visible area.
+  useEffect(() => {
+    browseItemRefs.current[browseHighlight]?.scrollIntoView({ block: 'nearest' });
+  }, [browseHighlight]);
 
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
@@ -279,6 +299,14 @@ export default function CashierPage() {
       (p.barcode ?? '').toLowerCase() === ql
     );
     if (exact) { addProduct(exact); return; }
+
+    // Arrow keys may have highlighted a row in the live dropdown — Enter
+    // adds that one rather than requiring the search to narrow to exactly
+    // one match.
+    if (showBrowseDropdown && visibleBrowseMatches.length > 0) {
+      addProduct(visibleBrowseMatches[Math.min(browseHighlight, visibleBrowseMatches.length - 1)]);
+      return;
+    }
 
     // Otherwise fall back to whatever the live name/sku/barcode filter has
     // already narrowed things down to.
@@ -608,6 +636,18 @@ export default function CashierPage() {
                 onChange={e => setCodeInput(e.target.value)}
                 onFocus={() => setShowBrowseDropdown(true)}
                 onBlur={() => setShowBrowseDropdown(false)}
+                onKeyDown={(e) => {
+                  if (!showBrowseDropdown || visibleBrowseMatches.length === 0) return;
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setBrowseHighlight((i) => Math.min(i + 1, visibleBrowseMatches.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setBrowseHighlight((i) => Math.max(i - 1, 0));
+                  } else if (e.key === 'Escape') {
+                    setShowBrowseDropdown(false);
+                  }
+                }}
                 placeholder="Scan barcode, or type to search stock..."
                 className="w-full border-2 border-blue-500 focus:border-blue-600 rounded-none min-h-11 px-4 text-sm bg-blue-50 focus:bg-white focus:outline-none transition-colors pr-10"
                 autoComplete="off"
@@ -628,13 +668,15 @@ export default function CashierPage() {
                   prevents the input's blur from firing before the click. */}
               {showBrowseDropdown && browseQuery && browseMatches.length > 0 && (
                 <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-none shadow-lg max-h-72 overflow-y-auto">
-                  {browseMatches.slice(0, 8).map(p => (
+                  {visibleBrowseMatches.map((p, i) => (
                     <button
                       key={p.id}
+                      ref={(el) => { browseItemRefs.current[i] = el; }}
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setBrowseHighlight(i)}
                       onClick={() => addProduct(p)}
-                      className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-blue-50 border-b border-gray-50 last:border-b-0 touch-manipulation"
+                      className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left border-b border-gray-50 last:border-b-0 touch-manipulation ${i === browseHighlight ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>

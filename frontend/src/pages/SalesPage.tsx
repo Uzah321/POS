@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, branchesApi, refundsApi } from '../api';
-import { Search, Eye, Loader2, Printer, Receipt, Undo2, X } from 'lucide-react';
+import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, MoreVertical, Calendar } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
@@ -142,8 +142,12 @@ export default function SalesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [branchId, setBranchId] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [refundSale, setRefundSale] = useState<any>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { hasPermission, hasRole } = useAuthStore();
   const canRefund = hasPermission('process_refunds') || hasRole('admin');
   const hw = useHardwareStore();
@@ -163,9 +167,24 @@ export default function SalesPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales', search, page, branchId],
-    queryFn: () => salesApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
+    queryKey: ['sales', search, page, branchId, dateFrom, dateTo],
+    queryFn: () => salesApi.list({
+      search, page, per_page: 20,
+      ...(branchId ? { branch_id: Number(branchId) } : {}),
+      ...(dateFrom ? { date_from: dateFrom } : {}),
+      ...(dateTo ? { date_to: dateTo } : {}),
+    }).then(r => r.data?.data),
   });
+
+  // Close the row's "..." actions menu on an outside click.
+  useEffect(() => {
+    if (openMenuId === null) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenuId(null);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [openMenuId]);
 
   const { data: saleDetail } = useQuery({
     queryKey: ['sale', selectedSale?.id],
@@ -237,6 +256,31 @@ export default function SalesPage() {
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
+          <div className="flex items-center gap-1.5">
+            <Calendar size={14} className="text-gray-400" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-gray-400 text-sm">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+                className="text-xs text-gray-400 hover:text-gray-600 px-1"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -246,43 +290,73 @@ export default function SalesPage() {
             <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Reference', 'Date', 'Customer', 'Cashier', 'Items', 'Total', 'Status', 'Actions'].map(h => (
+                  {['Item', 'Date', 'Customer', 'Cashier', 'Total', 'Status', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sales.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
-                ) : sales.map((s: any) => (
+                  <tr><td colSpan={7} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
+                ) : sales.map((s: any) => {
+                  const items: any[] = s.items || [];
+                  const firstItemName = items[0]?.product?.name;
+                  const itemCount = s.items_count || items.length || 0;
+                  const extraCount = itemCount - 1;
+                  return (
                   <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-sm font-mono font-medium text-gray-900">{s.reference}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {firstItemName ? (
+                        <>
+                          {firstItemName}
+                          {extraCount > 0 && <span className="text-gray-400"> +{extraCount} more</span>}
+                        </>
+                      ) : (
+                        <span className="text-gray-400">{itemCount} items</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(s.created_at), 'dd MMM yyyy HH:mm')}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.customer?.name || 'Walk-in'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.cashier?.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{s.items_count || s.items?.length || '-'}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-amber-600">{formatAmount(parseFloat(s.total))}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[s.status] || 'bg-gray-100 text-gray-600'}`}>
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => reprintMutation.mutate(s.id)}
-                          disabled={reprintMutation.isPending && reprintMutation.variables === s.id}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg disabled:opacity-50"
-                          title="Reprint receipt"
-                        >
-                          {reprintMutation.isPending && reprintMutation.variables === s.id ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
-                        </button>
-                        <button type="button" onClick={() => setSelectedSale(s)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Eye size={14} /></button>
-                      </div>
+                    <td className="px-4 py-3 text-right relative">
+                      <button
+                        type="button"
+                        onClick={() => setOpenMenuId(openMenuId === s.id ? null : s.id)}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                        title="Options"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {openMenuId === s.id && (
+                        <div ref={menuRef} className="absolute z-20 right-4 top-full mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-left">
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Eye size={14} className="text-gray-400" /> View Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { reprintMutation.mutate(s.id); setOpenMenuId(null); }}
+                            disabled={reprintMutation.isPending && reprintMutation.variables === s.id}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            {reprintMutation.isPending && reprintMutation.variables === s.id ? <Loader2 size={14} className="animate-spin text-gray-400" /> : <Printer size={14} className="text-gray-400" />}
+                            Reprint Receipt
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

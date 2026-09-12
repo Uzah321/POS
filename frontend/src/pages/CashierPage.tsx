@@ -170,9 +170,11 @@ export default function CashierPage() {
     (p.sku ?? '').toLowerCase().includes(browseQuery) ||
     (p.barcode ?? '').toLowerCase().includes(browseQuery)
   );
-  // Only the first 8 are rendered in the dropdown — arrow-key navigation
-  // below is scoped to this same slice.
-  const visibleBrowseMatches = browseMatches.slice(0, 8);
+  // Capped so a one-letter query doesn't render the whole catalog, but high
+  // enough that arrow-down keyboard navigation can actually reach most real
+  // search results instead of stalling after a handful of rows. Arrow-key
+  // navigation below is scoped to this same slice.
+  const visibleBrowseMatches = browseMatches.slice(0, 25);
 
   // Keep the highlighted row in range (and reset to the top) whenever the
   // list of matches changes underneath it.
@@ -709,10 +711,10 @@ export default function CashierPage() {
                   onMouseDown={(e) => e.preventDefault()}
                   onMouseEnter={() => setBrowseHighlight(i)}
                   onClick={() => addProduct(p)}
-                  className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left border-b border-gray-50 last:border-b-0 touch-manipulation first:rounded-t-2xl last:rounded-b-2xl ${i === browseHighlight ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
+                  className={`w-full flex items-center justify-between gap-3 pr-4 py-2.5 text-left border-b border-l-4 last:border-b-0 touch-manipulation first:rounded-t-2xl last:rounded-b-2xl transition-colors ${i === browseHighlight ? 'bg-blue-50 border-l-blue-500 border-b-blue-100 pl-3' : 'border-l-transparent border-b-gray-50 hover:bg-gray-50 pl-4'}`}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                    <p className={`text-sm truncate ${i === browseHighlight ? 'font-semibold text-blue-700' : 'font-medium text-gray-900'}`}>{p.name}</p>
                     <p className="text-xs text-gray-400">{p.sku || p.barcode || '—'}</p>
                   </div>
                   <span className="text-sm font-semibold text-gray-700 flex-shrink-0 tabular-nums">
@@ -720,9 +722,9 @@ export default function CashierPage() {
                   </span>
                 </button>
               ))}
-              {browseMatches.length > 8 && (
+              {browseMatches.length > visibleBrowseMatches.length && (
                 <p className="px-4 py-2 text-xs text-gray-400 text-center border-t border-gray-50">
-                  +{browseMatches.length - 8} more -- keep typing to narrow
+                  +{browseMatches.length - visibleBrowseMatches.length} more -- keep typing to narrow
                 </p>
               )}
             </div>

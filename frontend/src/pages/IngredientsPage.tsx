@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { ingredientsApi, unitsApi, suppliersApi, warehousesApi } from '../api';
 import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered, PackageX, PackagePlus, PackageMinus, History } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -764,29 +765,16 @@ export default function IngredientsPage() {
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Out of Stock</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <button type="button" onClick={() => setAdjustFor({ ingredient: ing, mode: 'add' })} className="p-1.5 text-gray-400 hover:text-green-600 rounded-md hover:bg-green-50" title="Add Stock">
-                        <PackagePlus size={15} />
-                      </button>
-                      <button type="button" onClick={() => setAdjustFor({ ingredient: ing, mode: 'subtract' })} className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50" title="Remove Stock (Wastage)">
-                        <PackageMinus size={15} />
-                      </button>
-                      <button type="button" onClick={() => setHistoryFor(ing)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-md hover:bg-gray-100" title="Stock History">
-                        <History size={15} />
-                      </button>
-                      <button type="button" onClick={() => setModal({ open: true, ingredient: ing })} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50" title="Edit">
-                        <Edit size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { if (confirm(`Delete "${ing.name}"?`)) deleteMutation.mutate(ing.id); }}
-                        className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                  <td className="px-4 py-2.5 text-right">
+                    <RowActionsMenu
+                      actions={[
+                        { label: 'Add Stock', icon: <PackagePlus size={14} />, onClick: () => setAdjustFor({ ingredient: ing, mode: 'add' }) },
+                        { label: 'Remove Stock (Wastage)', icon: <PackageMinus size={14} />, onClick: () => setAdjustFor({ ingredient: ing, mode: 'subtract' }) },
+                        { label: 'Stock History', icon: <History size={14} />, onClick: () => setHistoryFor(ing) },
+                        { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, ingredient: ing }) },
+                        { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm(`Delete "${ing.name}"?`)) deleteMutation.mutate(ing.id); } },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { currenciesApi } from '../api';
 import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 
 const schema = z.object({
   code:          z.string().min(2).max(10).toUpperCase(),
@@ -133,15 +134,18 @@ export default function CurrenciesPage() {
                   </button>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => openEdit(c)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={14} /></button>
-                    <button
-                      type="button"
-                      onClick={() => { if (!c.is_default && confirm(`Delete ${c.code}?`)) remove.mutate(c.id); }}
-                      disabled={c.is_default}
-                      className="text-gray-400 hover:text-red-600 p-1 disabled:opacity-30"
-                    ><Trash2 size={14} /></button>
-                  </div>
+                  <RowActionsMenu
+                    actions={[
+                      { label: 'Edit', icon: <Pencil size={14} />, onClick: () => openEdit(c) },
+                      {
+                        label: 'Delete',
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        disabled: c.is_default,
+                        onClick: () => { if (!c.is_default && confirm(`Delete ${c.code}?`)) remove.mutate(c.id); },
+                      },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { suppliersApi } from "../api";
 import { Plus, Search, Edit, Trash2, Loader2, X, Store } from "lucide-react";
 import Pagination from "../components/ui/Pagination";
+import RowActionsMenu from "../components/ui/RowActionsMenu";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -114,7 +115,14 @@ export default function SuppliersPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{s.email || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.phone || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{formatAmount(parseFloat(s.balance || 0))}</td>
-                      <td className="px-4 py-3"><div className="flex gap-2"><button type="button" onClick={() => setModal({ open: true, supplier: s })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button><button type="button" onClick={() => { if (confirm(`Delete ${s.name}?`)) deleteMutation.mutate(s.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button></div></td>
+                      <td className="px-4 py-3 text-right">
+                        <RowActionsMenu
+                          actions={[
+                            { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, supplier: s }) },
+                            { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm(`Delete ${s.name}?`)) deleteMutation.mutate(s.id); } },
+                          ]}
+                        />
+                      </td>
                     </tr>
                   ))}
               </tbody>

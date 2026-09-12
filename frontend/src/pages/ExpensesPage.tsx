@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { expensesApi, branchesApi } from '../api';
 import { Plus, Search, Edit, Trash2, Loader2, X, CreditCard } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -115,7 +116,14 @@ export default function ExpensesPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{e.category?.name || '-'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-red-600">R {parseFloat(e.amount).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 capitalize">{e.payment_method?.replace('_', ' ')}</td>
-                      <td className="px-4 py-3"><div className="flex gap-2"><button type="button" onClick={() => setModal({ open: true, expense: e })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button><button type="button" onClick={() => { if (confirm('Delete this expense?')) deleteMutation.mutate(e.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button></div></td>
+                      <td className="px-4 py-3 text-right">
+                        <RowActionsMenu
+                          actions={[
+                            { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, expense: e }) },
+                            { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm('Delete this expense?')) deleteMutation.mutate(e.id); } },
+                          ]}
+                        />
+                      </td>
                     </tr>
                   ))}
               </tbody>

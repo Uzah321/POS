@@ -8,6 +8,7 @@ import { db } from '../lib/db';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import NumericKeypad from '../components/ui/NumericKeypad';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Download, Trash2, Pencil, Check, X, Loader2 } from 'lucide-react';
@@ -664,19 +665,18 @@ export default function ShiftEndPage() {
                               </button>
                             </div>
                           ) : s.status === 'pending' ? (
-                            <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => startEdit(s)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                onClick={() => { if (window.confirm('Delete this cash-up? You can close the shift again afterward.')) deleteMutation.mutate(s.id); }}
-                                disabled={deleteMutation.isPending}
-                                title="Delete"
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
+                            <RowActionsMenu
+                              actions={[
+                                { label: 'Edit', icon: <Pencil size={14} />, onClick: () => startEdit(s) },
+                                {
+                                  label: 'Delete',
+                                  icon: <Trash2 size={14} />,
+                                  danger: true,
+                                  disabled: deleteMutation.isPending,
+                                  onClick: () => { if (window.confirm('Delete this cash-up? You can close the shift again afterward.')) deleteMutation.mutate(s.id); },
+                                },
+                              ]}
+                            />
                           ) : (
                             <span className="text-gray-300 text-xs">"</span>
                           )}
@@ -776,20 +776,22 @@ export default function ShiftEndPage() {
                                 >
                                   Reject
                                 </button>
-                                <button onClick={() => startEdit(s)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                                  <Pencil size={13} />
-                                </button>
                               </>
                             )}
                             {s.status !== 'approved' && (
-                              <button
-                                onClick={() => { if (window.confirm('Delete this cash-up record?')) deleteMutation.mutate(s.id); }}
-                                disabled={deleteMutation.isPending}
-                                title="Delete"
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              <RowActionsMenu
+                                actions={[
+                                  { label: 'Edit', icon: <Pencil size={14} />, hidden: s.status !== 'pending', onClick: () => startEdit(s) },
+                                  {
+                                    label: 'Delete',
+                                    icon: <Trash2 size={14} />,
+                                    danger: true,
+                                    hidden: s.status === 'approved',
+                                    disabled: deleteMutation.isPending,
+                                    onClick: () => { if (window.confirm('Delete this cash-up record?')) deleteMutation.mutate(s.id); },
+                                  },
+                                ]}
+                              />
                             )}
                             {s.status === 'approved' && <span className="text-gray-300 text-xs">"</span>}
                           </div>

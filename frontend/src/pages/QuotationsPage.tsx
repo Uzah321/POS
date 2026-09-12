@@ -6,6 +6,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
 import { Plus, X, FileText, Send, Check, XCircle, Eye, Download, Search } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import toast from 'react-hot-toast';
 import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 import jsPDF from 'jspdf';
@@ -324,17 +325,13 @@ export default function QuotationsPage() {
                   <td className="px-4 py-3 text-xs text-gray-500">{q.valid_until ?? '-'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[q.status]}`}>{q.status}</span></td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={e => { e.stopPropagation(); setSelected(q); }}
-                        title="View"
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                      >
-                        <Eye size={14} />
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); deleteMutation.mutate(q.id); }} title="Delete" className="p-1 text-gray-300 hover:text-red-500 transition-colors"><X size={14} /></button>
-                    </div>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <RowActionsMenu
+                      actions={[
+                        { label: 'View', icon: <Eye size={14} />, onClick: () => setSelected(q) },
+                        { label: 'Delete', icon: <X size={14} />, danger: true, onClick: () => deleteMutation.mutate(q.id) },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

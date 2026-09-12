@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rentalsApi, branchesApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Building2, Edit, Trash2, CreditCard } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -392,11 +393,13 @@ export default function RentalsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setPayModal(r)} title="Record payment" className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg"><CreditCard size={13} /></button>
-                          <button type="button" onClick={() => setModal({ open: true, rental: r })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={13} /></button>
-                          <button type="button" onClick={() => { if (confirm('Delete rental?')) deleteMutation.mutate(r.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
-                        </div>
+                        <RowActionsMenu
+                          actions={[
+                            { label: 'Record Payment', icon: <CreditCard size={14} />, onClick: () => setPayModal(r) },
+                            { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, rental: r }) },
+                            { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm('Delete rental?')) deleteMutation.mutate(r.id); } },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );

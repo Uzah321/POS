@@ -7,6 +7,7 @@ import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat, PackagePlus, PackageMinus, History } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1300,57 +1301,43 @@ export default function ProductsPage() {
                           {status.label}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1">
-                          {/* Made-to-order products carry no stock of their own (it's
-                              derived from their recipe's ingredients — see the
-                              Ingredients page instead), and untracked items don't
-                              carry a meaningful quantity either. */}
-                          {!p.made_to_order && p.track_stock !== false && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setAdjustFor({ product: p, mode: 'add' })}
-                                title="Add Stock"
-                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              >
-                                <PackagePlus size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setAdjustFor({ product: p, mode: 'subtract' })}
-                                title="Remove Stock (Wastage)"
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              >
-                                <PackageMinus size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setHistoryFor(p)}
-                                title="Stock History"
-                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                              >
-                                <History size={14} />
-                              </button>
-                            </>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setModal({ open: true, product: p })}
-                            title="Edit"
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/stock-production?tab=recipes&product=${p.id}`)}
-                            title="Recipe"
-                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                          >
-                            <BookOpen size={14} />
-                          </button>
-                        </div>
+                      <td className="px-5 py-3.5 text-right">
+                        {/* Made-to-order products carry no stock of their own (it's
+                            derived from their recipe's ingredients — see the
+                            Ingredients page instead), and untracked items don't
+                            carry a meaningful quantity either. */}
+                        <RowActionsMenu
+                          actions={[
+                            {
+                              label: 'Add Stock',
+                              icon: <PackagePlus size={14} />,
+                              onClick: () => setAdjustFor({ product: p, mode: 'add' }),
+                              hidden: p.made_to_order || p.track_stock === false,
+                            },
+                            {
+                              label: 'Remove Stock (Wastage)',
+                              icon: <PackageMinus size={14} />,
+                              onClick: () => setAdjustFor({ product: p, mode: 'subtract' }),
+                              hidden: p.made_to_order || p.track_stock === false,
+                            },
+                            {
+                              label: 'Stock History',
+                              icon: <History size={14} />,
+                              onClick: () => setHistoryFor(p),
+                              hidden: p.made_to_order || p.track_stock === false,
+                            },
+                            {
+                              label: 'Edit',
+                              icon: <Edit size={14} />,
+                              onClick: () => setModal({ open: true, product: p }),
+                            },
+                            {
+                              label: 'Recipe',
+                              icon: <BookOpen size={14} />,
+                              onClick: () => navigate(`/stock-production?tab=recipes&product=${p.id}`),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );
@@ -1513,24 +1500,21 @@ export default function ProductsPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => { setCatEdit({ id: c.id, name: c.name, color: c.color, image: c.image, business_type: c.business_type ?? 'both' }); setAddingCat(false); }}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { if (window.confirm(`Delete category "${c.name}"? Products in this category will be unassigned.`)) deleteCatMut.mutate(c.id); }}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <RowActionsMenu
+                        actions={[
+                          {
+                            label: 'Edit',
+                            icon: <Edit size={14} />,
+                            onClick: () => { setCatEdit({ id: c.id, name: c.name, color: c.color, image: c.image, business_type: c.business_type ?? 'both' }); setAddingCat(false); },
+                          },
+                          {
+                            label: 'Delete',
+                            icon: <Trash2 size={14} />,
+                            danger: true,
+                            onClick: () => { if (window.confirm(`Delete category "${c.name}"? Products in this category will be unassigned.`)) deleteCatMut.mutate(c.id); },
+                          },
+                        ]}
+                      />
                     )}
                   </td>
                 </tr>
@@ -1625,24 +1609,21 @@ export default function ProductsPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => { setBrandEdit({ id: b.id, name: b.name }); setAddingBrand(false); }}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { if (window.confirm(`Delete brand "${b.name}"? Products with this brand will be unassigned.`)) deleteBrandMut.mutate(b.id); }}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <RowActionsMenu
+                        actions={[
+                          {
+                            label: 'Edit',
+                            icon: <Edit size={14} />,
+                            onClick: () => { setBrandEdit({ id: b.id, name: b.name }); setAddingBrand(false); },
+                          },
+                          {
+                            label: 'Delete',
+                            icon: <Trash2 size={14} />,
+                            danger: true,
+                            onClick: () => { if (window.confirm(`Delete brand "${b.name}"? Products with this brand will be unassigned.`)) deleteBrandMut.mutate(b.id); },
+                          },
+                        ]}
+                      />
                     )}
                   </td>
                 </tr>
@@ -1759,24 +1740,21 @@ export default function ProductsPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => { setUnitEdit({ id: u.id, name: u.name, abbreviation: u.abbreviation }); setAddingUnit(false); }}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { if (window.confirm(`Delete unit "${u.name}"? Products using this unit will be unassigned.`)) deleteUnitMut.mutate(u.id); }}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <RowActionsMenu
+                        actions={[
+                          {
+                            label: 'Edit',
+                            icon: <Edit size={14} />,
+                            onClick: () => { setUnitEdit({ id: u.id, name: u.name, abbreviation: u.abbreviation }); setAddingUnit(false); },
+                          },
+                          {
+                            label: 'Delete',
+                            icon: <Trash2 size={14} />,
+                            danger: true,
+                            onClick: () => { if (window.confirm(`Delete unit "${u.name}"? Products using this unit will be unassigned.`)) deleteUnitMut.mutate(u.id); },
+                          },
+                        ]}
+                      />
                     )}
                   </td>
                 </tr>

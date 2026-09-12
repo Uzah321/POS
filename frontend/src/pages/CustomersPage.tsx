@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customersApi } from '../api';
 import { Plus, Search, Edit, Trash2, Users, Loader2, X, WifiOff, Gift, Minus } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -346,10 +347,12 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{formatAmount(parseFloat(c.balance || 0))}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => setModal({ open: true, customer: c })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14} /></button>
-                        <button type="button" onClick={() => { if (confirm(`Delete ${c.name}?`)) deleteMutation.mutate(c.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                      </div>
+                      <RowActionsMenu
+                        actions={[
+                          { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, customer: c }) },
+                          { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm(`Delete ${c.name}?`)) deleteMutation.mutate(c.id); } },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

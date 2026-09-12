@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { purchaseOrdersApi, suppliersApi, branchesApi, warehousesApi, productsApi, settingsApi } from '../api';
 import { Plus, Search, CheckCircle, Loader2, X, Truck, Eye, Printer, PackageCheck, FileText } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -768,16 +769,24 @@ export default function PurchasesPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{o.items_count || o.items?.length || '-'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-amber-600">{formatAmount(parseFloat(o.total || 0))}</td>
                       <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[o.status] || 'bg-gray-100 text-gray-600'}`}>{o.status?.replace('_', ' ')}</span></td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button type="button" onClick={() => setViewingId(o.id)} title="View / Print" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Eye size={14} /></button>
-                          {(o.status === 'draft' || o.status === 'pending' || o.status === 'pending_approval') && (
-                            <button type="button" onClick={() => { if (confirm('Approve this PO?')) approveMutation.mutate(o.id); }} title="Approve" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"><CheckCircle size={14} /></button>
-                          )}
-                          {RECEIVABLE_STATUSES.includes(o.status) && (
-                            <button type="button" onClick={() => setViewingId(o.id)} title="Receive Goods" className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><PackageCheck size={14} /></button>
-                          )}
-                        </div>
+                      <td className="px-4 py-3 text-right">
+                        <RowActionsMenu
+                          actions={[
+                            { label: 'View / Print', icon: <Eye size={14} />, onClick: () => setViewingId(o.id) },
+                            {
+                              label: 'Approve',
+                              icon: <CheckCircle size={14} />,
+                              hidden: !(o.status === 'draft' || o.status === 'pending' || o.status === 'pending_approval'),
+                              onClick: () => { if (confirm('Approve this PO?')) approveMutation.mutate(o.id); },
+                            },
+                            {
+                              label: 'Receive Goods',
+                              icon: <PackageCheck size={14} />,
+                              hidden: !RECEIVABLE_STATUSES.includes(o.status),
+                              onClick: () => setViewingId(o.id),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))}

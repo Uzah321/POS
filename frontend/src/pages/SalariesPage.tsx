@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salariesApi, branchesApi, usersApi } from '../api';
 import { Plus, Search, Download, Loader2, X, Users, CheckCircle, Edit, Trash2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -344,13 +345,13 @@ export default function SalariesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1">
-                          {s.status === 'pending' && (
-                            <button type="button" onClick={() => setPaidModal(s)} title="Mark paid" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg"><CheckCircle size={13} /></button>
-                          )}
-                          <button type="button" onClick={() => setModal({ open: true, salary: s })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={13} /></button>
-                          <button type="button" onClick={() => { if (confirm('Delete record?')) deleteMutation.mutate(s.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
-                        </div>
+                        <RowActionsMenu
+                          actions={[
+                            { label: 'Mark Paid', icon: <CheckCircle size={14} />, hidden: s.status !== 'pending', onClick: () => setPaidModal(s) },
+                            { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, salary: s }) },
+                            { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm('Delete record?')) deleteMutation.mutate(s.id); } },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 
 const schema = z.object({
   name:     z.string().min(1, 'Branch name is required'),
@@ -197,15 +198,13 @@ export default function BranchesPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-1 pt-3 mt-3 border-t border-gray-50">
-                <button type="button" onClick={() => setModal({ open: true, branch: b })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                  <Edit size={14} />
-                </button>
-                {!b.is_main && (
-                  <button type="button" onClick={() => { if (confirm(`Remove branch "${b.name}"?`)) deleteMutation.mutate(b.id); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                )}
+              <div className="flex items-center justify-end pt-3 mt-3 border-t border-gray-50">
+                <RowActionsMenu
+                  actions={[
+                    { label: 'Edit', icon: <Edit size={14} />, onClick: () => setModal({ open: true, branch: b }) },
+                    { label: 'Remove', icon: <Trash2 size={14} />, danger: true, hidden: b.is_main, onClick: () => { if (confirm(`Remove branch "${b.name}"?`)) deleteMutation.mutate(b.id); } },
+                  ]}
+                />
               </div>
             </div>
           ))}

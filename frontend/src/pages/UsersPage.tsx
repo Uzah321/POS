@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, branchesApi, departmentsApi } from '../api';
 import { Plus, Search, Edit, Trash2, Loader2, X, Users, WifiOff, Building2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -249,14 +250,12 @@ function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; 
 
       <div className="flex items-center justify-between text-xs text-gray-400 pt-3 border-t border-gray-50">
         <span>Shift: <span className="text-gray-600 font-medium">{shift}</span></span>
-        <div className="flex items-center gap-1">
-          <button type="button" onClick={onEdit} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-            <Edit size={13} />
-          </button>
-          <button type="button" onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-            <Trash2 size={13} />
-          </button>
-        </div>
+        <RowActionsMenu
+          actions={[
+            { label: 'Edit', icon: <Edit size={14} />, onClick: onEdit },
+            { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: onDelete },
+          ]}
+        />
       </div>
     </div>
   );
@@ -367,10 +366,12 @@ function DepartmentsModal({ departments, onClose }: { departments: any[]; onClos
                       <button type="button" onClick={() => setEditing(null)} className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:bg-gray-50"><X size={12} /></button>
                     </>
                   ) : (
-                    <>
-                      <button type="button" onClick={() => setEditing({ id: dep.id, name: dep.name })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={13} /></button>
-                      <button type="button" onClick={() => { if (confirm(`Delete "${dep.name}"?`)) deleteMut.mutate(dep.id); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
-                    </>
+                    <RowActionsMenu
+                      actions={[
+                        { label: 'Edit', icon: <Edit size={14} />, onClick: () => setEditing({ id: dep.id, name: dep.name }) },
+                        { label: 'Delete', icon: <Trash2 size={14} />, danger: true, onClick: () => { if (confirm(`Delete "${dep.name}"?`)) deleteMut.mutate(dep.id); } },
+                      ]}
+                    />
                   )}
                 </div>
               </div>

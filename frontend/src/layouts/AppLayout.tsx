@@ -488,6 +488,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <NotificationBell />
 
+          {/* Cashier Register already names the logged-in cashier in its own
+              header content (portaled in above), so this avatar+name would
+              just repeat it — skip it there. */}
+          {!isCashierRegisterPage && (
           <div className="flex items-center gap-2.5 pl-1">
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow">
               {userInitials}
@@ -497,6 +501,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-slate-500 capitalize leading-tight">{user?.roles?.[0]}</p>
             </div>
           </div>
+          )}
         </header>
 
         {/* flex flex-col here (not just flex-1) is required so pages like POSPage/CashierPage

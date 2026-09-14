@@ -18,6 +18,7 @@ import { useServerHealth } from '../hooks/useServerHealth';
 import { useDBSync } from '../hooks/useDBSync';
 import { authApi, currenciesApi, settingsApi } from '../api';
 import NotificationBell from '../components/ui/NotificationBell';
+import { TopbarSlotContext } from './TopbarSlot';
 import toast from 'react-hot-toast';
 
 type NavItem = { to: string; label: string; icon: React.ElementType; perm: string; external?: boolean };
@@ -26,6 +27,10 @@ type NavGroup = { id: string; label: string; icon: React.ElementType; items: Nav
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  // Portal target inside the topbar that CashierPage renders its own header
+  // controls into, so the two rows appear as a single line. useState (not a
+  // plain ref) so setting it re-renders and the portal actually attaches.
+  const [topbarSlotEl, setTopbarSlotEl] = useState<HTMLDivElement | null>(null);
   const { user, clearAuth, hasPermission, hasRole } = useAuthStore();
   const { isServerUp } = useServerHealth();
   const isCashier = hasRole('cashier');
@@ -392,7 +397,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="font-bold text-xs leading-tight mt-0.5 tabular-nums">{currentTime.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               </div>
             </div>
-          ) : isCashierRegisterPage ? null : (
+          ) : isCashierRegisterPage ? (
+            // CashierPage portals its store/cashier name, held-orders/void
+            // controls, online status, and clock in here via TopbarSlotContext.
+            <div ref={setTopbarSlotEl} className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-x-auto" />
+          ) : (
             <>
               {!isCashier && (
                 <div className={`hidden sm:flex items-center gap-2 rounded-md px-3 py-1.5 border ${
@@ -417,7 +426,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </>
           )}
 
-          <div className="flex-1 sm:flex-none" />
+          {!isCashierRegisterPage && <div className="flex-1 sm:flex-none" />}
 
           <button
             type="button"
@@ -470,7 +479,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             ))}
           </select>
 
-          {!isServerUp && (
+          {!isServerUp && !isCashierRegisterPage && (
             <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
               <WifiOff size={11} />
               Server starting...
@@ -496,7 +505,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <main> lets content grow to its natural size and scrolls the whole page instead of
             the page's own internal scroll regions. */}
         <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto p-3 sm:p-5 lg:p-6">
-          {children}
+          <TopbarSlotContext.Provider value={topbarSlotEl}>
+            {children}
+          </TopbarSlotContext.Provider>
         </main>
       </div>
     </div>

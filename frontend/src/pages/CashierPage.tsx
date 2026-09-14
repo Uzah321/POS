@@ -1,6 +1,8 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, salesApi, settingsApi, weighingScalesApi } from '../api';
+import { useTopbarSlot } from '../layouts/TopbarSlot';
 import { useCartStore, type CartItem } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -32,6 +34,7 @@ type PayMethod = typeof PAY_METHODS[number]['value'];
 const TABLES = ['Walk-in', ...Array.from({ length: 20 }, (_, i) => `T-${i + 1}`)];
 
 export default function CashierPage() {
+  const topbarSlot = useTopbarSlot();
   const [codeInput, setCodeInput]             = useState('');
   const [payMethod, setPayMethod]             = useState<PayMethod>('cash');
   const [cashTendered, setCashTendered]       = useState('');
@@ -572,23 +575,25 @@ export default function CashierPage() {
     <>
     <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
-      {/* Header row — sits flush under the app topbar so the two read as one
-          continuous toolbar instead of two separate cards. */}
-      <div className="flex-shrink-0">
-        <div className="bg-white border-b border-gray-100 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
-              <CartIcon size={18} />
+      {/* Header controls — portaled into AppLayout's topbar (via TopbarSlotContext)
+          so this page's row and the app's global topbar render as one single
+          line instead of two stacked bars. Falls back to its own row here if
+          the slot isn't mounted yet (e.g. very first render). */}
+      {(() => {
+        const content = (
+          <>
+            <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+                <CartIcon size={15} />
+              </div>
+              <div className="min-w-0 hidden md:block">
+                <p className="font-bold text-gray-900 text-sm leading-tight truncate max-w-[16ch]">
+                  {storeName}{user?.branch?.name ? ` · ${user.branch.name}` : ''}
+                </p>
+                <p className="text-[11px] text-gray-400 truncate max-w-[16ch]">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="font-bold text-gray-900 text-base leading-tight truncate">
-                {storeName}{user?.branch?.name ? ` · ${user.branch.name}` : ''}
-              </p>
-              <p className="text-xs text-gray-400 truncate">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></p>
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {isRestaurant && (
               <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 flex-shrink-0">
                 <TableProperties size={13} className="text-gray-400 flex-shrink-0" />
@@ -626,7 +631,7 @@ export default function CashierPage() {
                   {liveKg !== null ? `${liveKg.toFixed(3)} kg` : `${connectedScaleCount}/${scales.length} scale${scales.length === 1 ? '' : 's'}`}
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 text-gray-300 font-semibold text-xs flex-shrink-0" title="No weighing scales connected -- connect them under Settings -> Hardware">
+                <span className="hidden lg:flex items-center gap-1.5 text-gray-300 font-semibold text-xs flex-shrink-0" title="No weighing scales connected -- connect them under Settings -> Hardware">
                   <ScaleIcon size={13} /> Scales off
                 </span>
               )
@@ -637,13 +642,20 @@ export default function CashierPage() {
               {isOnline ? 'Online & synced' : 'Server starting...'}
             </span>
 
-            <div className="text-right leading-tight pl-1 flex-shrink-0">
+            <div className="text-right leading-tight pl-1 flex-shrink-0 hidden sm:block">
               <p className="text-[11px] text-gray-400">{fmtDate(currentTime)}</p>
               <p className="text-sm font-bold text-gray-900 tabular-nums">{fmtTime(currentTime)}</p>
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        );
+        return topbarSlot
+          ? createPortal(content, topbarSlot)
+          : (
+            <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 overflow-x-auto">
+              {content}
+            </div>
+          );
+      })()}
 
       {/* Search bar */}
       <div className="mx-2 sm:mx-4 mb-2 flex-shrink-0">

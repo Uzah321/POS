@@ -143,6 +143,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // The GAAP-style merged info bar is scoped to Advanced POS only —
   // Cashier Register keeps its own simpler inline table selector.
   const isPosPage = location.pathname === '/pos';
+  // Cashier Register renders its own online-status pill + user avatar in its
+  // header card right below this bar — skip the topbar's copies here so the
+  // two bars read as one continuous toolbar instead of repeating the same info.
+  const isCashierRegisterPage = location.pathname === '/cashier';
 
   // Live clock for the POS info strip merged into the top nav
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -388,7 +392,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="font-bold text-xs leading-tight mt-0.5 tabular-nums">{currentTime.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               </div>
             </div>
-          ) : (
+          ) : isCashierRegisterPage ? null : (
             <>
               {!isCashier && (
                 <div className={`hidden sm:flex items-center gap-2 rounded-md px-3 py-1.5 border ${

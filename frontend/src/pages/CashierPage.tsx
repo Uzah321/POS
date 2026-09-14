@@ -552,7 +552,6 @@ export default function CashierPage() {
   const fmtTime = (d: Date) => d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const fmtDate = (d: Date) => d.toLocaleDateString('en-ZA');
   const itemCount = cart.items.reduce((s, i) => s + i.quantity, 0);
-  const cashierInitials = (user?.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   const confirmQtyEdit = () => {
     if (!editingQtyItem) return;
@@ -573,9 +572,10 @@ export default function CashierPage() {
     <>
     <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
 
-      {/* Header card */}
-      <div className="mx-2 sm:mx-4 mt-2 mb-2 flex-shrink-0">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+      {/* Header row — sits flush under the app topbar so the two read as one
+          continuous toolbar instead of two separate cards. */}
+      <div className="flex-shrink-0">
+        <div className="bg-white border-b border-gray-100 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
               <CartIcon size={18} />
@@ -590,29 +590,27 @@ export default function CashierPage() {
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {isRestaurant && (
-              <>
-                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 flex-shrink-0">
-                  <TableProperties size={13} className="text-gray-400 flex-shrink-0" />
-                  <select
-                    value={cart.tableNumber}
-                    onChange={(e) => cart.setTableNumber(e.target.value)}
-                    className="text-xs font-semibold bg-transparent border-0 focus:outline-none pr-1"
-                  >
-                    {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowOpenTables(true)}
-                  className="relative flex items-center gap-1.5 rounded-full border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold px-3 py-1.5 transition-colors touch-manipulation flex-shrink-0"
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 flex-shrink-0">
+                <TableProperties size={13} className="text-gray-400 flex-shrink-0" />
+                <select
+                  value={cart.tableNumber}
+                  onChange={(e) => cart.setTableNumber(e.target.value)}
+                  className="text-xs font-semibold bg-transparent border-0 focus:outline-none pr-1"
                 >
-                  <LayoutGrid size={13} /> Open Tables
-                  {heldOrders.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
-                  )}
-                </button>
-              </>
+                  {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
             )}
+            <button
+              type="button"
+              onClick={() => setShowOpenTables(true)}
+              className="relative flex items-center gap-1.5 rounded-full border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold px-3 py-1.5 transition-colors touch-manipulation flex-shrink-0"
+            >
+              <LayoutGrid size={13} /> {isRestaurant ? 'Open Tables' : 'Held Orders'}
+              {heldOrders.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
+              )}
+            </button>
             <button
               type="button"
               onClick={() => setShowVoidModal(true)}
@@ -642,10 +640,6 @@ export default function CashierPage() {
             <div className="text-right leading-tight pl-1 flex-shrink-0">
               <p className="text-[11px] text-gray-400">{fmtDate(currentTime)}</p>
               <p className="text-sm font-bold text-gray-900 tabular-nums">{fmtTime(currentTime)}</p>
-            </div>
-
-            <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0" title={user?.roles?.[0] ?? 'Cashier'}>
-              {cashierInitials}
             </div>
           </div>
         </div>
@@ -1028,17 +1022,17 @@ export default function CashierPage() {
       />
     )}
 
-    {/* Open Tables — currently held/parked orders (restaurant mode only) */}
-    {isRestaurant && showOpenTables && (
+    {/* Open Tables / Held Orders — currently held/parked orders */}
+    {showOpenTables && (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
         <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
-            <h2 className="text-lg font-bold flex items-center gap-2"><LayoutGrid size={18} className="text-amber-600" /> Open Tables</h2>
+            <h2 className="text-lg font-bold flex items-center gap-2"><LayoutGrid size={18} className="text-amber-600" /> {isRestaurant ? 'Open Tables' : 'Held Orders'}</h2>
             <button type="button" onClick={() => setShowOpenTables(false)}><X size={20} className="text-gray-400" /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-2">
             {heldOrders.length === 0 ? (
-              <p className="text-center text-gray-400 py-10 text-sm">No open tables — held orders will show up here</p>
+              <p className="text-center text-gray-400 py-10 text-sm">{isRestaurant ? 'No open tables — held orders will show up here' : 'No held orders yet'}</p>
             ) : (
               heldOrders.map((held: any) => {
                 const itemsCount = (held.cart_data?.items ?? []).length;
@@ -1046,7 +1040,7 @@ export default function CashierPage() {
                 return (
                   <div key={held.id} className="flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3">
                     <div>
-                      <p className="font-semibold text-gray-900 text-sm">{held.table_number || 'Walk-in'}</p>
+                      <p className="font-semibold text-gray-900 text-sm">{isRestaurant ? (held.table_number || 'Walk-in') : (held.customer_id ? (held.customer?.name ?? 'Customer') : (held.table_number || 'Walk-in'))}</p>
                       <p className="text-xs text-gray-400">{itemsCount} item{itemsCount !== 1 ? 's' : ''} · {formatCurrency(total)}</p>
                     </div>
                     <div className="flex items-center gap-2">

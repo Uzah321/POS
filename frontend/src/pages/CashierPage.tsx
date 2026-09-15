@@ -18,9 +18,9 @@ import { useServerHealth } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
-import { cartLineAccent, contrastText, TILE_THEMES } from '../lib/tileColors';
+import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
-import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Plus, Barcode } from 'lucide-react';
+import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAY_METHODS = [
@@ -52,7 +52,7 @@ export default function CashierPage() {
   // Live results dropdown under the Scan/PLU box — only while that input is
   // focused, so it doesn't linger once the cashier taps elsewhere.
   const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
-  // Category tab selected in the browse grid — UI-only filter, defaults to
+  // Category tab selected in the browse bar — UI-only filter, defaults to
   // the "Popular" tab (all products; there's no per-product popularity data
   // to rank by yet, so it's just the default landing view).
   const [activeCategory, setActiveCategory] = useState('Popular');
@@ -191,17 +191,9 @@ export default function CashierPage() {
     browseItemRefs.current[browseHighlight]?.scrollIntoView({ block: 'nearest' });
   }, [browseHighlight]);
 
-  // ── Browse grid (category tabs + tiles) ──────────────────────────────────
   // Store-defined categories, same source POSPage uses so both tills stay
-  // visually and behaviorally consistent. "Popular" is the default tab —
-  // there's no per-product popularity ranking yet, so it just shows everything.
+  // visually and behaviorally consistent.
   const categoryTabs = ['Popular', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
-  const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
-  const blockNegStockForGrid = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-  const gridProducts = allProducts.filter((p: any) =>
-    (activeCategory === 'Popular' || p.category?.name === activeCategory) &&
-    (!browseQuery || p.name.toLowerCase().includes(browseQuery) || (p.sku ?? '').toLowerCase().includes(browseQuery) || (p.barcode ?? '').toLowerCase().includes(browseQuery))
-  );
 
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
@@ -766,65 +758,8 @@ export default function CashierPage() {
       {/* Main area */}
       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden gap-3 lg:gap-4 px-2 sm:px-4 pb-2 sm:pb-4 min-h-0">
 
-        {/* Left: product grid + current order */}
+        {/* Left: current order */}
         <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-3 overflow-hidden">
-
-          {/* Product grid */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex-shrink-0 overflow-y-auto" style={{ maxHeight: '38%' }}>
-            {productsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-blue-500" />
-              </div>
-            ) : gridProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-gray-300 gap-1.5">
-                <Search size={24} />
-                <p className="text-xs text-gray-400">No products in this category</p>
-              </div>
-            ) : (
-              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
-                {gridProducts.map((product: any) => {
-                  const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
-                  const isOutOfStock = blockNegStockForGrid && product.track_stock !== false && stock !== null && stock <= 0;
-                  const solidColor = product.color || tileTheme[Math.abs(product.id) % tileTheme.length];
-                  const textColor = contrastText(solidColor);
-                  const priceLabel = `${formatCurrency(parseFloat(product.selling_price))}${product.sold_by_weight ? '/kg' : ''}`;
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => { if (!isOutOfStock) addProduct(product); }}
-                      disabled={isOutOfStock}
-                      title={isOutOfStock ? `${product.name} -- Out of stock` : `${product.name} -- ${priceLabel}`}
-                      className={`relative flex flex-col text-left bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden transition-all touch-manipulation hover:shadow-md hover:-translate-y-0.5 ${isOutOfStock ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
-                    >
-                      <div className="w-full h-16 flex items-center justify-center overflow-hidden" style={product.image ? undefined : { backgroundColor: solidColor }}>
-                        {product.image ? (
-                          <img src={product.image} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-2xl font-black select-none" style={{ color: textColor, opacity: 0.55 }}>
-                            {product.name?.[0]?.toUpperCase() ?? '?'}
-                          </span>
-                        )}
-                        {product.sold_by_weight && (
-                          <span title="Sold by weight" className="absolute top-1 left-1 flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white shadow">
-                            <ScaleIcon size={9} />
-                          </span>
-                        )}
-                      </div>
-                      <div className="px-2.5 py-2 flex-1 flex flex-col gap-0.5 pr-7">
-                        <span className="text-xs font-bold text-gray-900 leading-tight line-clamp-2">{product.name}</span>
-                        {product.unit?.name && <span className="text-[10px] text-gray-400">1 {product.unit.name}</span>}
-                        <span className="text-sm font-black text-blue-600 tabular-nums mt-0.5">{priceLabel}</span>
-                      </div>
-                      <span className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md pointer-events-none">
-                        <Plus size={14} strokeWidth={3} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
           {/* Current order */}
           <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -928,18 +863,18 @@ export default function CashierPage() {
 
           {/* Payment method card */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex-shrink-0">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2.5">Payment Method</p>
-            <div className="grid grid-cols-3 gap-2.5">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Payment Method</p>
+            <div className="grid grid-cols-3 gap-2">
               {PAY_METHODS.map(({ value, label, key, icon: Icon, activeClass }) => (
                 <button key={value} type="button"
                   onClick={() => setPayMethod(value)}
-                  className={`flex flex-col items-center gap-1 py-4 rounded-xl border-2 font-bold text-base transition-all touch-manipulation
+                  className={`flex flex-col items-center gap-0.5 py-2 rounded-xl border-2 font-bold text-sm transition-all touch-manipulation
                     ${payMethod === value
                       ? activeClass
                       : 'border-gray-200 text-gray-500 bg-white hover:border-blue-200 hover:bg-blue-50'
                     }`}
                 >
-                  <Icon size={22} />
+                  <Icon size={16} />
                   {label}
                   <span className="text-[10px] font-semibold opacity-50">{key}</span>
                 </button>

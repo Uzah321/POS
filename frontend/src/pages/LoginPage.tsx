@@ -122,7 +122,7 @@ export default function LoginPage() {
         </p>
 
         <a
-          href="/download/core-shortcut.url"
+          href="/api/download/core-shortcut.url"
           className="block text-center text-xs text-blue-600 hover:text-blue-700 hover:underline mt-3"
         >
           Download desktop shortcut

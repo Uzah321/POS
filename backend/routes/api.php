@@ -35,6 +35,17 @@ use App\Http\Controllers\Api\ProductCaseUnitController;
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
 
+// Downloadable desktop shortcut (.url) that cashiers can save to their
+// Desktop to open this Core POS site directly in their browser. Routed
+// under /api since the production nginx config only proxies /api (and
+// /sanctum) to PHP-FPM — every other path falls through to the static SPA.
+Route::get('/download/core-shortcut.url', function () {
+    $content = "[InternetShortcut]\r\nURL=" . url('/') . "\r\n";
+    return response($content)
+        ->header('Content-Type', 'application/internet-shortcut')
+        ->header('Content-Disposition', 'attachment; filename="Core POS.url"');
+});
+
 // KDS — public so kitchen/queue screens don't need to log in
 Route::get('/kds/orders', [\App\Http\Controllers\Api\KdsController::class, 'orders']);
 Route::patch('/kds/orders/{sale}/status', [\App\Http\Controllers\Api\KdsController::class, 'updateStatus']);

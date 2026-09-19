@@ -120,6 +120,13 @@ export default function LoginPage() {
         <p className="text-xs text-center text-gray-400 mt-6">
           Core - Point of Sale
         </p>
+
+        <a
+          href="/download/core-shortcut.url"
+          className="block text-center text-xs text-blue-600 hover:text-blue-700 hover:underline mt-3"
+        >
+          Download desktop shortcut
+        </a>
       </div>
     </div>
   );

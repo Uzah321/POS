@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
-const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History', 'Day End History'];
+const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Category Report', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History', 'Day End History'];
 
 function printCashupReport(records: any[], from: string, to: string, fmt: (n: number) => string) {
   const statusColor = (s: string) => ({ pending: '#b45309', approved: '#16a34a', rejected: '#dc2626' }[s] ?? '#6b7280');
@@ -121,6 +121,7 @@ export default function ReportsPage() {
   const { data: salesData } = useQuery({ queryKey: ['report-sales', from, to, branchId], queryFn: () => reportsApi.sales(rangeParams).then(r => r.data?.data), enabled: tab === 'Sales', staleTime: 0 });
   const { data: plData }    = useQuery({ queryKey: ['report-pl', from, to, branchId], queryFn: () => reportsApi.profitLoss(rangeParams).then(r => r.data?.data), enabled: tab === 'Profit & Loss', staleTime: 0 });
   const { data: invData }   = useQuery({ queryKey: ['report-inventory', categoryId], queryFn: () => reportsApi.inventory(categoryParams).then(r => r.data?.data), enabled: tab === 'Inventory', staleTime: 0 });
+  const { data: catData }   = useQuery({ queryKey: ['report-categories', from, to, branchId], queryFn: () => reportsApi.categories(rangeParams).then(r => r.data?.data), enabled: tab === 'Category Report', staleTime: 0 });
   const { data: cpData }    = useQuery({ queryKey: ['report-cp', from, to, branchId], queryFn: () => reportsApi.cashierPerformance(rangeParams).then(r => r.data?.data), enabled: tab === 'Cashier Performance', staleTime: 0 });
   const { data: dailyData, isLoading: loadingDaily }   = useQuery({ queryKey: ['report-daily', dailyDate, branchId], queryFn: () => api.get('/reports/daily', { params: { date: dailyDate, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Daily Summary', staleTime: 0 });
   const { data: monthlyData, isLoading: loadingMonthly } = useQuery({ queryKey: ['report-monthly', monthlyMonth, branchId], queryFn: () => api.get('/reports/monthly', { params: { month: monthlyMonth, ...(branchId ? { branch_id: Number(branchId) } : {}) } }).then(r => r.data?.data), enabled: tab === 'Monthly Report', staleTime: 0 });
@@ -189,6 +190,12 @@ export default function ReportsPage() {
         [['Cashier', 'Transactions', 'Total Revenue', 'Avg Sale', 'Voids', 'Refunds', 'Refund Amount', 'Shifts Closed', 'Shifts Pending Approval'],
          ...cpData.map((c: any) => [c.name, c.transactions, c.revenue, c.avg_sale, c.voids, c.refund_count, c.refund_amount, c.shifts_closed, c.shifts_pending_approval])],
         `cashier-activity-${from}-${to}`
+      );
+    } else if (tab === 'Category Report' && Array.isArray(catData)) {
+      exportToExcel(
+        [['Category', 'Transactions', 'Units Sold', 'Revenue', 'Cost', 'Profit', 'Margin %', 'Share %'],
+         ...catData.map((c: any) => [c.name, c.transactions, c.units, c.revenue, c.cost, c.profit, c.margin_pct, c.share_pct])],
+        `category-report-${from}-${to}`
       );
     } else if (tab === 'Daily Summary' && dailyData) {
       exportToExcel(
@@ -259,7 +266,7 @@ export default function ReportsPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-md p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
-        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
+        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Category Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
           <>
             <label className="text-sm text-gray-600">From:</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
@@ -434,6 +441,34 @@ export default function ReportsPage() {
                           <span className="ml-1.5 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">{c.shifts_pending_approval} pending</span>
                         )}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="text-gray-400 text-center py-8">No data for selected period</p>}
+        </div>
+      )}
+
+      {/* Category Report */}
+      {tab === 'Category Report' && catData && (
+        <div className="bg-white rounded-md p-5 shadow-sm border border-gray-100">
+          <h3 className="font-semibold text-gray-800 mb-4">Sales by Category</h3>
+          {catData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[800px]">
+                <thead className="bg-gray-50"><tr>{['Category','Transactions','Units Sold','Revenue','Cost','Profit','Margin','Share'].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {catData.map((c: any) => (
+                    <tr key={c.category_id ?? 'none'} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium">{c.name}</td>
+                      <td className="px-4 py-3">{c.transactions}</td>
+                      <td className="px-4 py-3">{c.units}</td>
+                      <td className="px-4 py-3 font-semibold text-amber-600">{fmt(c.revenue)}</td>
+                      <td className="px-4 py-3">{fmt(c.cost)}</td>
+                      <td className={`px-4 py-3 font-semibold ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(c.profit)}</td>
+                      <td className="px-4 py-3">{c.margin_pct}%</td>
+                      <td className="px-4 py-3">{c.share_pct}%</td>
                     </tr>
                   ))}
                 </tbody>

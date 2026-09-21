@@ -650,6 +650,51 @@ class ReportController extends BaseApiController
     }
 
     /**
+     * Category report: revenue, units, cost and margin per product category
+     * for a date range, from completed sale lines. Products with no category
+     * are grouped under "Uncategorised".
+     */
+    public function categoryReport(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date|after_or_equal:date_from']);
+        $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
+
+        $rows = DB::table('sale_items')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->join('products', 'products.id', '=', 'sale_items.product_id')
+            ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            ->whereIn('sales.status', Sale::REVENUE_STATUSES)
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
+            ->whereDate('sales.completed_at', '>=', $request->date_from)
+            ->whereDate('sales.completed_at', '<=', $request->date_to)
+            ->groupBy('products.category_id', 'categories.name')
+            ->selectRaw('products.category_id, categories.name, COUNT(DISTINCT sales.id) as transactions, SUM(sale_items.quantity) as units, SUM(sale_items.total) as revenue, SUM(sale_items.quantity * sale_items.cost_price) as cost')
+            ->get();
+
+        $totalRevenue = (float) $rows->sum('revenue');
+
+        $data = $rows->map(function ($r) use ($totalRevenue) {
+            $revenue = (float) $r->revenue;
+            $cost    = (float) $r->cost;
+            return [
+                'category_id'  => $r->category_id,
+                'name'         => $r->name ?? 'Uncategorised',
+                'transactions' => (int) $r->transactions,
+                'units'        => (float) $r->units,
+                'revenue'      => $revenue,
+                'cost'         => $cost,
+                'profit'       => round($revenue - $cost, 2),
+                'margin_pct'   => $revenue > 0 ? round(($revenue - $cost) / $revenue * 100, 1) : 0,
+                'share_pct'    => $totalRevenue > 0 ? round($revenue / $totalRevenue * 100, 1) : 0,
+            ];
+        })->sortByDesc('revenue')->values();
+
+        return $this->success($data);
+    }
+
+    /**
      * Cashier Activity report: completed-sale revenue plus refunds, voids, and
      * shift-end closures per cashier for a date range — so admins can see the
      * full picture, not just revenue.

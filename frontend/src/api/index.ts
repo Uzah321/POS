@@ -114,6 +114,7 @@ export const reportsApi = {
   inventory: (params?: object) => api.get('/reports/inventory', { params }),
   profitLoss: (params?: object) => api.get('/reports/profit-loss', { params }),
   cashierPerformance: (params?: object) => api.get('/reports/cashier-performance', { params }),
+  categories: (params?: object) => api.get('/reports/categories', { params }),
   scales: (params?: object) => api.get('/reports/scales', { params }),
 };
 

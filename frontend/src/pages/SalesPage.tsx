@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, branchesApi, refundsApi } from '../api';
 import RowActionsMenu from '../components/ui/RowActionsMenu';
-import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, MoreVertical, Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';

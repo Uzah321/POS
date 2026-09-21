@@ -8,11 +8,10 @@ import {
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
-  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, ShoppingBag, CalendarDays, User
+  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, CalendarDays
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
-import { usePosUIStore } from '../stores/posUIStore';
 import { useCartStore, TABLES } from '../stores/cartStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useServerHealth } from '../hooks/useServerHealth';
@@ -419,19 +418,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </select>
               </label>
 
-              <button type="button" onClick={() => usePosUIStore.getState().setShowCustomerPicker(true)} title="Select customer"
-                className="flex items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0 text-left" style={{ background: '#16305e' }}>
-                <User size={18} className="text-blue-200" />
-                <span className="leading-tight">
-                  <span className="flex items-center gap-1 text-[10px] text-blue-200/80">Customer <ChevronDown size={10} /></span>
-                  <span className="block text-xs font-bold whitespace-nowrap max-w-[110px] truncate">{cart.customerName || 'Walk-in'}</span>
-                </span>
-              </button>
-
               {[
                 { icon: ListChecks, label: 'CV / TN', value: `${cart.covers} / ${user?.branch?.id ?? 1}`, cls: 'hidden xl:flex' },
                 { icon: FileText, label: 'Invoice No', value: cart.ticketNum.replace('#', '') },
-                { icon: ShoppingBag, label: 'Order Type', value: cart.orderType === 'delivery' ? 'Delivery' : cart.orderType === 'takeaway' ? 'Takeaway' : 'Walk-in', cls: 'hidden xl:flex' },
               ].map(({ icon: Icon, label, value, cls }: { icon: any; label: string; value: string; cls?: string }) => (
                 <div key={label} className={`${cls ?? 'flex'} items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0`} style={{ background: '#16305e' }}>
                   <Icon size={18} className="text-blue-200" />

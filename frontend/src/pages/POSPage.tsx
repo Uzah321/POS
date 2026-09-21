@@ -18,6 +18,7 @@ import { effectiveTaxRate } from '../lib/taxSettings';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import PosProductTile from '../components/pos/PosProductTile';
+import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useNavigate } from 'react-router-dom';
@@ -734,6 +735,10 @@ export default function POSPage() {
   const subtotalNow = cart.subtotal();
   const taxPct = subtotalNow > 0 ? Math.round((cart.taxTotal() / subtotalNow) * 1000) / 10 : 0;
 
+  const railRef = useRef<HTMLElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const railScroll = useScrollState(railRef, [categories.length]);
+  const gridScroll = useScrollState(gridRef, [pagedProducts.length, productsLoading, mobileTab]);
   const NAVY = '#0d2350';
   const NAVY_TILE = '#173463';
   const BLUE = '#2f6df6';
@@ -777,7 +782,8 @@ export default function POSPage() {
       <div className="flex-1 flex min-h-0 overflow-hidden">
 
         {/* Category rail — big icon tiles on navy (lg+) */}
-        <aside className="hidden lg:flex flex-col gap-2.5 w-[156px] flex-shrink-0 overflow-y-auto p-2.5" style={{ background: NAVY }}>
+        <div className="hidden lg:flex flex-col w-[156px] flex-shrink-0 min-h-0" style={{ background: NAVY }}>
+        <aside ref={railRef} className="flex-1 min-h-0 flex flex-col gap-2.5 overflow-y-auto p-2.5">
           {categories.map((cat) => {
             const Icon = iconForCategory(cat);
             const active = activeCategory === cat;
@@ -796,6 +802,8 @@ export default function POSPage() {
             );
           })}
         </aside>
+        <ScrollArrows targetRef={railRef} state={railScroll} variant="rail" />
+        </div>
 
         {/* Products: search + scan, then the grid */}
         <div className={`${mobileTab === 'products' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 min-h-0 gap-3 p-3`}>
@@ -854,7 +862,7 @@ export default function POSPage() {
                 <p className="text-sm">No products found</p>
               </div>
             ) : (
-              <div className="flex-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 auto-rows-max content-start gap-2.5 overflow-y-auto min-h-0 pr-1">
+              <div ref={gridRef} className="flex-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 auto-rows-max content-start gap-2.5 overflow-y-auto min-h-0 pr-1">
                 {pagedProducts.map((product: any, tileIndex: number) => {
                   // A product's own colour wins, then its category's colour — used only as
                   // the backdrop when there's no photo to show.
@@ -881,6 +889,8 @@ export default function POSPage() {
                 })}
               </div>
             )}
+
+            <ScrollArrows targetRef={gridRef} state={gridScroll} variant="grid" />
 
             {pageCount > 1 && (
               <div className="flex items-center justify-center gap-3 flex-shrink-0">

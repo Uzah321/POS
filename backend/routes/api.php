@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\StockReconciliationController;
 use App\Http\Controllers\Api\ProductIngredientController;
 use App\Http\Controllers\Api\IngredientController;
 use App\Http\Controllers\Api\ProductCaseUnitController;
+use App\Http\Controllers\Api\LicenseController;
 
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
@@ -54,8 +55,21 @@ Route::get('/network-info', [\App\Http\Controllers\Api\KdsController::class, 'ne
 // Protected routes
 Route::post('/auth/login', [AuthController::class, 'login']);
 
+// License check-in — clients call this on the vendor's server (LICENSE_SERVER=true). Public but throttled; answers are signed.
+Route::post('/license/check', [LicenseController::class, 'check'])->middleware('throttle:30,1');
+
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'license'])->group(function () {
+    // License — status is visible to everyone signed in; changing it is admin-only.
+    Route::get('/license/status', [LicenseController::class, 'status']);
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::post('/license/activate', [LicenseController::class, 'activate']);
+        Route::get('/licenses', [LicenseController::class, 'index']);
+        Route::post('/licenses', [LicenseController::class, 'store']);
+        Route::post('/licenses/{license}/renew', [LicenseController::class, 'renew']);
+        Route::post('/licenses/{license}/revoke', [LicenseController::class, 'revoke']);
+    });
+
     // Auth
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);

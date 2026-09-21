@@ -46,6 +46,7 @@ import SalariesPage from './pages/SalariesPage';
 import RentalsPage from './pages/RentalsPage';
 import StockReconciliationPage from './pages/StockReconciliationPage';
 import BranchesPage from './pages/BranchesPage';
+import LicensePage from './pages/LicensePage';
 import StockProductionPage from './pages/StockProductionPage';
 import BarcodeLabelsPage from './pages/BarcodeLabelsPage';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -126,6 +127,7 @@ export default function App() {
               <Route path="/stock-reconciliation" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockReconciliationPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/stock-production" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockProductionPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/barcode-labels" element={<RequirePermission perm="view_products"><LayoutWrapper><BarcodeLabelsPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/license" element={<RequirePermission perm="manage_settings"><LayoutWrapper><LicensePage /></LayoutWrapper></RequirePermission>} />
               <Route path="/branches" element={<RequirePermission perm="manage_settings"><LayoutWrapper><BranchesPage /></LayoutWrapper></RequirePermission>} />
             </Route>
           </Route>

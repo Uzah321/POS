@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 // Desktop/offline builds use the bundled local Laravel server under /api.
 // Development may set VITE_API_URL=http://localhost:8080/api if needed.
@@ -22,6 +23,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (error) => {
+    // Expired license: the server keeps the app read-only. Say so once, rather than
+    // letting every blocked save look like a random failure.
+    if (error.response?.status === 402 && error.response?.data?.code === 'LICENSE_EXPIRED') {
+      toast.error(error.response.data.message, { id: 'license-expired' });
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');

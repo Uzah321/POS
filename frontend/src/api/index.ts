@@ -266,3 +266,13 @@ export const financialReportApi = {
   monthlyCsv:   (params?: object) =>
     api.get('/reports/monthly/csv', { params, responseType: 'blob' }),
 };
+
+export const licenseApi = {
+  status: () => api.get('/license/status'),
+  activate: (key: string) => api.post('/license/activate', { key }),
+  // Vendor server only (LICENSE_SERVER=true)
+  list: () => api.get('/licenses'),
+  issue: (data: { client_name: string; months?: number; notes?: string }) => api.post('/licenses', data),
+  renew: (id: number, months = 1) => api.post(`/licenses/${id}/renew`, { months }),
+  revoke: (id: number) => api.post(`/licenses/${id}/revoke`),
+};

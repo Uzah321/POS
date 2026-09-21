@@ -156,8 +156,8 @@ if [ -z "${APP_HOST}" ] || [ "${APP_HOST}" = "${APP_URL}" ]; then
 fi
 
 info "Running health checks..."
-FRONTEND_STATUS="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_HOST}" http://127.0.0.1/)"
-API_STATUS="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_HOST}" http://127.0.0.1/api/currencies)"
+FRONTEND_STATUS="$(curl -skL -o /dev/null -w '%{http_code}' --resolve "${APP_HOST}:80:127.0.0.1" --resolve "${APP_HOST}:443:127.0.0.1" "http://${APP_HOST}/")"
+API_STATUS="$(curl -skL -o /dev/null -w '%{http_code}' --resolve "${APP_HOST}:80:127.0.0.1" --resolve "${APP_HOST}:443:127.0.0.1" "http://${APP_HOST}/api/currencies")"
 
 if [ "${FRONTEND_STATUS}" != "200" ]; then
   error "Frontend health check failed (HTTP ${FRONTEND_STATUS})"

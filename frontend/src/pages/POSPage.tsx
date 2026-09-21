@@ -16,17 +16,20 @@ import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { effectiveTaxRate } from '../lib/taxSettings';
 import NumericKeypad from '../components/ui/NumericKeypad';
-import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
-import ProductCard from '../components/pos/ProductCard';
-import CategoryChip from '../components/pos/CategoryChip';
-import { contrastText, TILE_THEMES, cartLineAccent } from '../lib/tileColors';
+import PosProductTile from '../components/pos/PosProductTile';
+import { iconForCategory } from '../lib/categoryIcons';
+import { useServerHealth } from '../hooks/useServerHealth';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
-  X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard, RefreshCw,
+  X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard,
   User, Award, LayoutGrid,
   ChevronLeft, ChevronRight,
+  Minus, ScanLine, ArrowLeftRight, XCircle, Delete, Settings, HelpCircle,
 } from 'lucide-react';
+
+const APP_VERSION = '1.2.0';
 import toast from 'react-hot-toast';
 
 const PAYMENT_METHODS = [
@@ -35,7 +38,7 @@ const PAYMENT_METHODS = [
   { value: 'mobile_money', label: 'Mobile', icon: Smartphone, activeClass: 'bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-200' },
 ];
 
-function CartRow({ item, format }: { item: CartItem; format: (v: number) => string }) {
+function CartRow({ item, format, image }: { item: CartItem; format: (v: number) => string; image?: string }) {
   const { updateQty, removeItem } = useCartStore();
   const [editingQty, setEditingQty] = useState(false);
   const [qtyInput, setQtyInput] = useState('');
@@ -55,29 +58,43 @@ function CartRow({ item, format }: { item: CartItem; format: (v: number) => stri
     setEditingQty(false);
   };
 
+  const stepBtn = 'w-8 h-9 flex items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-white touch-manipulation';
+
   return (
-    <div className={`flex items-center gap-2 py-2 pl-3 border-l-4 border-b border-gray-50 last:border-b-0 ${cartLineAccent(item.product_id)}`}>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+    <div className="flex items-center gap-2 py-2.5 px-4 border-b border-slate-100 last:border-b-0">
+      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center">
+        {image
+          ? <img src={image} alt="" className="w-full h-full object-cover" />
+          : <span className="text-sm font-bold text-slate-400">{item.name?.[0]?.toUpperCase() ?? '?'}</span>}
       </div>
-      <div className="flex items-center flex-shrink-0">
-        <button
-          type="button"
-          onClick={openQtyEdit}
-          className="w-11 h-10 text-center text-sm font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-none hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation"
-          title="Tap to set quantity"
-        >
-          {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
-        </button>
+      <p className="flex-1 min-w-0 text-[13px] font-semibold text-slate-800 leading-tight line-clamp-2">{item.name}</p>
+
+      <div className="w-[112px] flex items-center justify-center flex-shrink-0">
+        {item.sold_by_weight ? (
+          <button type="button" onClick={openQtyEdit} title="Tap to set weight"
+            className="h-9 px-2 min-w-[72px] text-center text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg hover:bg-blue-50 touch-manipulation">
+            {item.quantity.toFixed(3)}kg
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={() => updateQty(item.line_id, item.quantity - 1)} disabled={item.quantity <= 1} aria-label="Decrease quantity" className={`${stepBtn} rounded-l-lg`}>
+              <Minus size={14} />
+            </button>
+            <button type="button" onClick={openQtyEdit} title="Tap to set quantity"
+              className="w-10 h-9 text-center text-sm font-bold text-slate-900 border-y border-slate-200 bg-white hover:bg-blue-50 touch-manipulation">
+              {item.quantity}
+            </button>
+            <button type="button" onClick={() => updateQty(item.line_id, item.quantity + 1)} aria-label="Increase quantity" className={`${stepBtn} rounded-r-lg`}>
+              <Plus size={14} />
+            </button>
+          </>
+        )}
       </div>
-      <div className="w-14 text-right flex-shrink-0">
-        <p className="text-xs text-gray-400 tabular-nums">{format(item.price)}</p>
-      </div>
-      <div className="w-16 text-right flex-shrink-0">
-        <p className="text-sm font-bold text-gray-900 tabular-nums">{format(lineTotal)}</p>
-      </div>
-      <button type="button" onClick={() => removeItem(item.line_id)} className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-none text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
-        <Trash2 size={14} />
+
+      <p className="w-[62px] text-right text-[13px] text-slate-600 tabular-nums flex-shrink-0">{format(item.price)}</p>
+      <p className="w-[66px] text-right text-[13px] font-bold text-slate-900 tabular-nums flex-shrink-0">{format(lineTotal)}</p>
+      <button type="button" onClick={() => removeItem(item.line_id)} className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
+        <Trash2 size={16} />
       </button>
 
       {/* Qty keypad modal */}
@@ -119,7 +136,9 @@ export default function POSPage() {
   const tileRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const qc = useQueryClient();
   const cart = useCartStore();
-  const { user } = useAuthStore();
+  const { user, hasPermission, hasRole } = useAuthStore();
+  const navigate = useNavigate();
+  const { isServerUp } = useServerHealth();
   const { format: formatCurrency } = useCurrencyStore();
   const {
     showCustomerPicker, setShowCustomerPicker,
@@ -284,12 +303,6 @@ export default function POSPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
-  // Settings → "Product Tile Colour Theme" — applied to any tile that has
-  // neither its own color nor a colored category to fall back on. Categories
-  // with no explicit color of their own get the same theme treatment,
-  // cycling deterministically per category id (same idea as product tiles).
-  const tileTheme = TILE_THEMES[storeSettings?.pos_tile_theme] || TILE_THEMES.rainbow;
-
   // Filter products
   const filteredProducts = allProducts.filter((p: any) => {
     const matchCat = activeCategory === 'All' || p.category?.name === activeCategory;
@@ -698,193 +711,209 @@ export default function POSPage() {
     ? parseFloat(cashTendered) - totalDue : 0;
   const fmtActive = (n: number) => `${activeCurrency?.symbol ?? '$'}${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
 
+  // Keypad for Cash Tendered. Every change first pushes the previous value so "Undo" can step back.
+  const tenderHistory = useRef<string[]>([]);
+  const tender = (key: string) => {
+    const cur = cashTendered ?? '';
+    const push = () => { tenderHistory.current.push(cur); if (tenderHistory.current.length > 30) tenderHistory.current.shift(); };
+    if (key === 'undo') {
+      const prev = tenderHistory.current.pop();
+      if (prev !== undefined) setCashTendered(prev);
+      return;
+    }
+    push();
+    if (key === 'clear') setCashTendered('');
+    else if (key === 'back') setCashTendered(cur.slice(0, -1));
+    else if (key === 'exact') setCashTendered(totalDue > 0 ? totalDue.toFixed(2) : '');
+    else if (key === '.') { if (!cur.includes('.')) setCashTendered((cur || '0') + '.'); }
+    else if (!/\.\d{2}$/.test(cur)) setCashTendered(cur + key);
+  };
+
+  const productImages = new Map<number, string>();
+  allProducts.forEach((p: any) => { if (p.image) productImages.set(p.id, p.image); });
+  const subtotalNow = cart.subtotal();
+  const taxPct = subtotalNow > 0 ? Math.round((cart.taxTotal() / subtotalNow) * 1000) / 10 : 0;
+
+  const NAVY = '#0d2350';
+  const NAVY_TILE = '#173463';
+  const BLUE = '#2f6df6';
+  const KEY_CLS = 'rounded-xl font-semibold text-[22px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
+  const KEY_H = 'clamp(38px, 5.6vh, 62px)';
+  const canProcess = !(cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
+
   return (
     <>
       {/* Fixed height against the viewport (matching CashierPage's approach) rather than
           relying on AppLayout's <main> to propagate a bounded height through flex-1 —
           that element scrolls the whole page instead of just this page's own regions. */}
-      <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+      <div className="pos-screen -m-3 sm:-m-5 lg:-m-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)', background: '#eef2f8' }}>
 
-      {/* Mobile-only Products/Ticket switcher. Below lg there isn't room to show
-          the product grid and the full payment panel at once — showing both
-          squeezed the product grid down to a sliver. Only one panel renders at
-          a time below lg (picked by mobileTab, full height); at lg+ both
-          render side by side as before, this bar is hidden. */}
+      {/* Below lg only one of products / ticket fits at a time — this tab picks which. */}
       <div className="flex lg:hidden items-stretch gap-2 px-2 sm:px-3 pt-2 flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => setMobileTab('products')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-none text-sm font-bold border-2 transition-colors touch-manipulation ${
-            mobileTab === 'products' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-500'
-          }`}
-        >
-          <LayoutGrid size={15} /> Products
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileTab('ticket')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-none text-sm font-bold border-2 transition-colors touch-manipulation ${
-            mobileTab === 'ticket' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-500'
-          }`}
-        >
-          <ShoppingCart size={15} /> Ticket
-          {cart.items.length > 0 && (
-            <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${
-              mobileTab === 'ticket' ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'
-            }`}>
-              {cart.items.length} &middot; {formatCurrency(total)}
-            </span>
-          )}
-        </button>
+        {(['products', 'ticket'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setMobileTab(tab)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-colors touch-manipulation ${
+              mobileTab === tab ? 'text-white' : 'bg-white text-slate-500 border border-slate-200'
+            }`}
+            style={mobileTab === tab ? { background: BLUE } : undefined}
+          >
+            {tab === 'products' ? <><LayoutGrid size={15} /> Products</> : (
+              <>
+                <ShoppingCart size={15} /> Ticket
+                {cart.items.length > 0 && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${mobileTab === 'ticket' ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'}`}>
+                    {cart.items.length} &middot; {formatCurrency(total)}
+                  </span>
+                )}
+              </>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Main content — ticket + payment always visible alongside the product grid
-          at lg+. Below lg, only the panel matching mobileTab renders, at full
-          height, since the row layout needs more width than a handheld portrait
-          viewport has. */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-3 p-2 sm:p-3 bg-gray-50 min-h-0">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
 
-        {/* Left: products — search, colorful category row, image-led product grid */}
-        <div className={`${mobileTab === 'products' ? 'flex' : 'hidden'} flex-col lg:flex flex-1 lg:flex-[1.65] min-w-0 min-h-0 gap-2`}>
-          <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-            <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-              <form onSubmit={(e) => { e.preventDefault(); handleSearchEnter(); }} className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  ref={searchRef}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                  placeholder="Search product by name or SKU"
-                  className="w-full pl-9 pr-9 py-2.5 border border-gray-200 focus:border-blue-400 rounded-none text-sm bg-white focus:outline-none transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSearchModal(true)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-700 touch-manipulation"
-                  title="Open on-screen keyboard"
-                >
-                  <Keyboard size={14} />
+        {/* Category rail — big icon tiles on navy (lg+) */}
+        <aside className="hidden lg:flex flex-col gap-2.5 w-[156px] flex-shrink-0 overflow-y-auto p-2.5" style={{ background: NAVY }}>
+          {categories.map((cat) => {
+            const Icon = iconForCategory(cat);
+            const active = activeCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveCategory(cat)}
+                title={cat === 'All' ? 'All Products' : cat}
+                className="flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl min-h-[92px] px-2 py-3 text-white text-[15px] font-semibold leading-tight text-center transition-colors touch-manipulation hover:brightness-125"
+                style={{ background: active ? BLUE : NAVY_TILE, boxShadow: active ? '0 6px 16px rgba(47,109,246,.35)' : undefined }}
+              >
+                <Icon size={30} strokeWidth={1.6} />
+                <span className="line-clamp-2">{cat === 'All' ? 'All Items' : cat}</span>
+              </button>
+            );
+          })}
+        </aside>
+
+        {/* Products: search + scan, then the grid */}
+        <div className={`${mobileTab === 'products' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 min-h-0 gap-3 p-3`}>
+          <div className="flex items-stretch gap-3 flex-shrink-0">
+            <form onSubmit={(e) => { e.preventDefault(); handleSearchEnter(); }} className="relative flex-1">
+              <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search product by name or SKU..."
+                className="w-full h-[52px] pl-12 pr-14 bg-white border border-slate-200 focus:border-blue-400 rounded-xl text-[15px] focus:outline-none transition-colors shadow-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSearchModal(true)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
+                title="Open on-screen keyboard"
+              >
+                <Keyboard size={20} />
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={() => { searchRef.current?.focus(); searchRef.current?.select(); }}
+              title="Scan a barcode — the scanner types into the search box"
+              className="flex items-center gap-2 px-5 h-[52px] rounded-xl bg-white border border-slate-200 text-[15px] font-semibold hover:bg-blue-50 transition-colors shadow-sm touch-manipulation flex-shrink-0"
+              style={{ color: '#173463' }}
+            >
+              <ScanLine size={20} /> Scan
+            </button>
+          </div>
+
+          {/* Category pills — small screens only; the rail above takes over at lg+ */}
+          <div className="flex lg:hidden items-center gap-2 overflow-x-auto flex-shrink-0">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveCategory(cat)}
+                className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold touch-manipulation ${activeCategory === cat ? 'text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                style={activeCategory === cat ? { background: BLUE } : undefined}
+              >
+                {cat === 'All' ? 'All Items' : cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 min-h-0 flex flex-col gap-2">
+            {productsLoading ? (
+              <div className="flex-1 flex items-center justify-center"><Loader2 size={28} className="animate-spin text-blue-500" /></div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Search size={32} className="text-slate-300" />
+                <p className="text-sm">No products found</p>
+              </div>
+            ) : (
+              <div className="flex-1 grid auto-rows-max content-start gap-3 overflow-y-auto min-h-0 pr-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))' }}>
+                {pagedProducts.map((product: any, tileIndex: number) => {
+                  // A product's own colour wins, then its category's colour — used only as
+                  // the backdrop when there's no photo to show.
+                  const tint = product.color
+                    || (product.category?.name ? categoryColors.get(product.category.name) : undefined)
+                    || undefined;
+                  // Same "out of stock" rule handleAddProduct blocks on — grey the card out
+                  // to match, so it reads as unavailable before the cashier even taps it.
+                  const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
+                  const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
+                  const isOutOfStock = blockNegStock && product.track_stock !== false && stock !== null && stock <= 0;
+                  return (
+                    <PosProductTile
+                      key={product.id}
+                      product={product}
+                      onClick={() => handleAddProduct(product)}
+                      tint={tint ? `${tint}33` : undefined}
+                      isOutOfStock={isOutOfStock}
+                      highlighted={tileIndex === highlightIndex}
+                      priceLabel={`${formatCurrency(parseFloat(product.selling_price))}${product.sold_by_weight ? '/kg' : ''}`}
+                      innerRef={(el) => { tileRefs.current[tileIndex] = el; }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {pageCount > 1 && (
+              <div className="flex items-center justify-center gap-3 flex-shrink-0">
+                <button type="button" onClick={() => setProductPage((p) => Math.max(0, p - 1))} disabled={clampedPage === 0}
+                  className="w-11 h-11 flex items-center justify-center rounded-xl text-white disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation" style={{ background: BLUE }} title="Previous page">
+                  <ChevronLeft size={16} />
                 </button>
-              </form>
-            </div>
-
-            {/* Category row — big colorful icon chips, mirrors the reference layout */}
-            <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 flex items-center gap-2 overflow-x-auto">
-              {categories.map((cat) => {
-                const catImage = cat === 'All' ? undefined : categoryImages.get(cat);
-                const ownCatColor = cat === 'All' ? undefined : categoryColors.get(cat);
-                const themeCatColor = cat === 'All' || ownCatColor || catImage ? undefined : tileTheme[Math.abs(categoryIds.get(cat) ?? 0) % tileTheme.length];
-                const catColor = catImage ? undefined : (ownCatColor || themeCatColor);
-                return (
-                  <CategoryChip
-                    key={cat}
-                    label={cat}
-                    displayLabel={cat === 'All' ? 'All Items' : cat}
-                    active={activeCategory === cat}
-                    color={catColor}
-                    image={catImage}
-                    onClick={() => setActiveCategory(cat)}
-                    title={cat === 'All' ? 'All Products' : cat}
-                  />
-                );
-              })}
-            </div>
-
-            <div className="flex-1 p-2.5 flex flex-col gap-2 min-h-0">
-              {productsLoading ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <Loader2 size={28} className="animate-spin text-blue-500" />
-                </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
-                  <Search size={32} className="text-gray-200" />
-                  <p className="text-sm">No products found</p>
-                </div>
-              ) : (
-                <div className="flex-1 grid content-start gap-2 overflow-y-auto min-h-0" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))' }}>
-                  {pagedProducts.map((product: any, tileIndex: number) => {
-                    // A color chosen directly on the product renders as a solid card — the
-                    // shade should show exactly as picked. A colored category (no explicit
-                    // product color) stays a soft tint instead, since that's a grouping cue
-                    // rather than a deliberate per-product choice. With neither, the active
-                    // tile-color theme fills in a solid color instead of plain white, picked
-                    // deterministically per product id so it stays stable across re-renders.
-                    const ownColor = product.color;
-                    const categoryColor = !ownColor && product.category?.name ? categoryColors.get(product.category.name) : undefined;
-                    const themeColor = !ownColor && !categoryColor ? tileTheme[Math.abs(product.id) % tileTheme.length] : undefined;
-                    const solidColor = ownColor || themeColor;
-                    const textColor = solidColor ? contrastText(solidColor) : undefined;
-                    // Same "out of stock" rule handleAddProduct blocks on — grey the card out
-                    // to match, so it reads as unavailable before the cashier even taps it.
-                    const stock = product.total_stock ?? product.stock_quantity ?? product.quantity_in_stock ?? null;
-                    const blockNegStock = storeSettings?.block_negative_stock !== 'false' && storeSettings?.block_negative_stock !== false;
-                    const isOutOfStock = blockNegStock && product.track_stock !== false && stock !== null && stock <= 0;
-                    const isHighlighted = tileIndex === highlightIndex;
-                    return (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClick={() => handleAddProduct(product)}
-                        solidColor={solidColor}
-                        categoryColor={categoryColor}
-                        textColor={textColor}
-                        isOutOfStock={isOutOfStock}
-                        highlighted={isHighlighted}
-                        priceLabel={`${formatCurrency(parseFloat(product.selling_price))}${product.sold_by_weight ? '/kg' : ''}`}
-                        innerRef={(el) => { tileRefs.current[tileIndex] = el; }}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-
-              {pageCount > 1 && (
-                <div className="flex items-center justify-center gap-3 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setProductPage((p) => Math.max(0, p - 1))}
-                    disabled={clampedPage === 0}
-                    className="w-11 h-11 flex items-center justify-center rounded-none bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
-                    title="Previous page"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span className="text-xs font-semibold text-gray-500 tabular-nums">Page {clampedPage + 1} of {pageCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => setProductPage((p) => Math.min(pageCount - 1, p + 1))}
-                    disabled={clampedPage >= pageCount - 1}
-                    className="w-11 h-11 flex items-center justify-center rounded-none bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors touch-manipulation"
-                    title="Next page"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
+                <span className="text-xs font-semibold text-slate-500 tabular-nums">Page {clampedPage + 1} of {pageCount}</span>
+                <button type="button" onClick={() => setProductPage((p) => Math.min(pageCount - 1, p + 1))} disabled={clampedPage >= pageCount - 1}
+                  className="w-11 h-11 flex items-center justify-center rounded-xl text-white disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation" style={{ background: BLUE }} title="Next page">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: ticket + payment (persistent, no separate screen) — narrower
-            now so the product grid gets the extra room. Below lg it's shown full-
-            screen instead (see mobileTab above), not squeezed alongside products. */}
-        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} flex-col lg:flex flex-1 w-full lg:w-auto lg:flex-shrink-0 lg:min-w-[340px] lg:max-w-[420px] min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-y-auto`}>
-          {/* Header row */}
-          <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 border-b border-gray-100 flex-shrink-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-sm font-bold text-gray-900 flex-shrink-0 pr-0.5">Current Sale</span>
+        {/* Right: Current Sale card + Payment Method card. Below lg it is shown full-screen instead. */}
+        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col gap-3 w-full lg:w-[470px] xl:w-[500px] lg:flex-shrink-0 min-h-0 p-3 lg:pl-0 overflow-y-auto`}>
+
+          {/* Current Sale */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col flex-1 min-h-[150px] overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0">
+              <ShoppingCart size={22} style={{ color: BLUE }} />
+              <span className="text-[19px] font-bold text-slate-900 mr-auto">Current Sale</span>
               <button
                 type="button"
                 onClick={() => setShowCustomerPicker(true)}
                 title="Select customer"
-                className={`flex items-center justify-center gap-1 min-h-10 px-2.5 rounded-none text-xs font-semibold transition-colors touch-manipulation max-w-[120px] ${
-                  cart.customerId
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                    : 'bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700'
-                }`}
+                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold border border-slate-200 hover:bg-blue-50 touch-manipulation max-w-[130px]"
+                style={{ color: cart.customerId ? BLUE : '#334155', background: cart.customerId ? '#e8f0ff' : undefined }}
               >
-                <User size={13} className="flex-shrink-0" />
+                <User size={16} className="flex-shrink-0" />
                 <span className="truncate">{cart.customerId ? cart.customerName : 'Customer'}</span>
               </button>
               <button
@@ -894,105 +923,126 @@ export default function POSPage() {
                 aria-label="Hold order (F8)"
                 aria-keyshortcuts="F8"
                 title="Hold order (F8)"
-                className="flex items-center justify-center gap-1 min-h-10 px-2.5 bg-white border border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-700 rounded-none text-xs font-semibold transition-colors disabled:opacity-40 touch-manipulation flex-shrink-0"
+                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-blue-50 disabled:opacity-40 touch-manipulation"
               >
-                {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />}
-                Hold
-              </button>
-              {cart.heldOrders.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowHeldOrders(true)}
-                  className="relative flex items-center justify-center gap-1 min-h-10 px-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-none text-xs font-semibold transition-colors touch-manipulation flex-shrink-0"
-                  title="View held orders"
-                >
-                  <PauseCircle size={13} />
-                  {cart.heldOrders.length} held
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-none transition-colors touch-manipulation"
-                title="Refresh page if frozen"
-              >
-                <RefreshCw size={14} />
+                {holdMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />} Hold
               </button>
               <button
                 type="button"
                 onClick={() => cart.clearCart()}
                 aria-label="Clear sale (F5)"
                 aria-keyshortcuts="F5"
-                className="flex items-center justify-center gap-1 min-h-10 px-2.5 text-xs font-semibold text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-none transition-colors touch-manipulation"
+                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 touch-manipulation"
+                style={{ background: '#fdecec' }}
               >
-                <Trash2 size={13} /> Clear
+                <Trash2 size={16} /> Clear
               </button>
             </div>
-          </div>
 
-          {/* Order type selector removed to give the item list more vertical
-              room — orders default to 'sit_in' (Walk-in); cart.orderType is
-              still read by the receipt/KDS/printer, it just no longer has a
-              picker on this screen. */}
-          <div className="px-3 pt-1 flex-shrink-0">
-            <div className="flex items-center text-[10px] font-semibold text-gray-400 uppercase tracking-wide pb-1 border-b border-gray-100">
-              <span className="flex-1">Item</span>
-              <span className="w-[92px] text-center flex-shrink-0">Qty</span>
-              <span className="w-14 text-right flex-shrink-0">Price</span>
-              <span className="w-16 text-right flex-shrink-0">Total</span>
-              <span className="w-7 flex-shrink-0" />
-            </div>
-          </div>
-
-          {/* Item list — the only flexible region; shrinks first so the payment
-              controls below (Process Order in particular) never get pushed
-              past the fold on shorter screens. */}
-          <div className="flex-1 min-h-[36px] overflow-y-auto px-3">
-            {cart.items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-2">
-                <ShoppingCart size={32} />
-                <p className="text-xs">Add items to start</p>
+            {(cart.heldOrders.length > 0) && (
+              <div className="px-4 pb-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowHeldOrders(true)}
+                  className="flex items-center gap-1.5 h-8 px-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-semibold touch-manipulation"
+                  title="View held orders"
+                >
+                  <PauseCircle size={13} /> {cart.heldOrders.length} held
+                </button>
               </div>
-            ) : (
-              cart.items.map((item) => <CartRow key={item.line_id} item={item} format={formatCurrency} />)
             )}
+
+            <div className="flex items-center px-4 pb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
+              <span className="flex-1">Item</span>
+              <span className="w-[112px] text-center">Qty</span>
+              <span className="w-[62px] text-right">Price</span>
+              <span className="w-[66px] text-right">Total</span>
+              <span className="w-9" />
+            </div>
+
+            <div className="flex-1 min-h-[36px] overflow-y-auto border-t border-slate-100">
+              {cart.items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-2 py-6">
+                  <ShoppingCart size={32} />
+                  <p className="text-xs">Add items to start</p>
+                </div>
+              ) : (
+                cart.items.map((item) => <CartRow key={item.line_id} item={item} format={formatCurrency} image={productImages.get(item.product_id)} />)
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-slate-100 flex-shrink-0 space-y-1">
+              <div className="flex justify-between text-[15px] text-slate-500">
+                <span>Subtotal</span><span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.subtotal())}</span>
+              </div>
+              {cart.discount > 0 && (
+                <div className="flex justify-between text-[15px] text-emerald-600">
+                  <span>Discount</span><span className="tabular-nums">-{formatCurrency(cart.discount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[15px] text-slate-500">
+                <span>Tax ({taxPct}%)</span><span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.taxTotal())}</span>
+              </div>
+              <div className="flex justify-between items-baseline pt-2 border-t border-slate-100">
+                <span className="text-[22px] font-bold text-slate-900">Total</span>
+                <span className="text-[34px] font-bold tabular-nums leading-none" style={{ color: '#1f5fe0' }}>{formatCurrency(total)}</span>
+              </div>
+            </div>
           </div>
 
-          {/* Totals */}
-          <div className="px-3 py-0.5 border-t border-gray-100 flex-shrink-0">
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>Subtotal {formatCurrency(cart.subtotal())} · Tax {formatCurrency(cart.taxTotal())}</span>
-              {cart.discount > 0 && <span className="text-emerald-600">-{formatCurrency(cart.discount)}</span>}
-            </div>
-            <div className="flex justify-between text-base font-bold text-gray-900">
-              <span>Total</span><span className="text-blue-600">{formatCurrency(total)}</span>
-            </div>
-          </div>
-
-          {/* Payment */}
-          <div className="px-3 pb-1 border-t border-gray-100 pt-0.5 flex-shrink-0">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</span>
+          {/* Payment Method */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 xl:p-4 flex-shrink-0">
+            <div className="flex items-center justify-between mb-2 xl:mb-3">
+              <span className="text-[18px] font-bold text-slate-900">Payment Method</span>
               <button
                 type="button"
                 onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
-                className={`min-h-10 text-xs px-3 rounded-none border font-medium transition-colors touch-manipulation ${isSplitPayment ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'}`}
+                className={`h-9 px-4 rounded-lg text-sm font-semibold touch-manipulation ${isSplitPayment ? 'text-white' : 'text-blue-700 hover:brightness-95'}`}
+                style={{ background: isSplitPayment ? BLUE : '#e2ecfc' }}
               >
                 Split
               </button>
             </div>
 
+            <div className="grid grid-cols-4 gap-2.5 mb-3">
+              {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => {
+                const active = !isSplitPayment && paymentMethod === value;
+                return (
+                  <button
+                    type="button"
+                    key={value}
+                    onClick={() => { if (isSplitPayment) { setIsSplitPayment(false); setSplitPayments([]); } setPaymentMethod(value); }}
+                    aria-label={`Pay by ${label} (${idx + 1})`}
+                    aria-pressed={active}
+                    className={`h-[clamp(54px,7.2vh,78px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                    style={{ background: active ? '#1f63e6' : '#eef3fb' }}
+                  >
+                    <Icon size={26} strokeWidth={1.7} />
+                    {label}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
+                aria-pressed={isSplitPayment}
+                className={`h-[clamp(54px,7.2vh,78px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                style={{ background: isSplitPayment ? '#1f63e6' : '#eef3fb' }}
+              >
+                <ArrowLeftRight size={26} strokeWidth={1.7} />
+                Split
+              </button>
+            </div>
+
             {isSplitPayment ? (
-              <div className="space-y-2 mb-2">
+              <div className="space-y-2 mb-3">
                 {splitPayments.map((sp, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-md px-3 py-2">
-                    <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-sm border-0 bg-transparent focus:outline-none text-gray-700 font-medium">
+                  <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                    <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-sm border-0 bg-transparent focus:outline-none text-slate-700 font-medium">
                       {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
-                    <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-gray-800" placeholder="0.00" />
-                    <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-none text-red-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation"><X size={14} /></button>
+                    <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-slate-800" placeholder="0.00" />
+                    <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-red-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation"><X size={14} /></button>
                   </div>
                 ))}
                 {(() => {
@@ -1001,111 +1051,89 @@ export default function POSPage() {
                   return (
                     <>
                       {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${fmtActive(remaining)}` : `Over by: ${fmtActive(-remaining)}`}</div>}
-                      <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-11 border-2 border-dashed border-gray-200 rounded-none text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
+                      <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-11 border-2 border-dashed border-slate-200 rounded-xl text-xs text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
                         <Plus size={14} /> Add payment method
                       </button>
                     </>
                   );
                 })()}
               </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {PAYMENT_METHODS.map(({ value, label, icon: Icon, activeClass }, idx) => (
-                    <button
-                      type="button"
-                      key={value}
-                      onClick={() => setPaymentMethod(value)}
-                      aria-label={`Pay by ${label} (${idx + 1})`}
-                      aria-pressed={paymentMethod === value}
-                      className={`min-h-[64px] flex flex-col items-center justify-center gap-1 py-1.5 rounded-none text-xs font-bold border-2 transition-all touch-manipulation ${
-                        paymentMethod === value
-                          ? activeClass
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
-                      }`}
-                    >
-                      <Icon size={20} />
-                      {label}
-                    </button>
-                  ))}
+            ) : paymentMethod === 'cash' ? (
+              <div className="mb-3">
+                <div className="flex items-center h-[clamp(42px,5.5vh,56px)] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
+                  <span className="text-[13px] font-medium text-slate-500 uppercase tracking-wide">Cash tendered</span>
+                  <span className="ml-auto text-[26px] font-medium tabular-nums text-slate-700 pr-3">{cashTendered || '0.00'}</span>
+                  <button type="button" onClick={() => tender('clear')} aria-label="Clear cash tendered" className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-red-500 touch-manipulation">
+                    <XCircle size={24} strokeWidth={1.6} />
+                  </button>
                 </div>
-
-                {paymentMethod === 'cash' && (
-                  <div className="mb-2">
-                    <CashNotesPad
-                      value={cashTendered}
-                      onChange={setCashTendered}
-                      onConfirm={() => {
-                        if (cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue) handleProcessSale();
-                      }}
-                      label="Cash Tendered"
-                      currencyCode={activeCurrency?.code ?? 'USD'}
-                      totalDue={totalDue}
-                      change={change}
-                      formatAmount={fmtActive}
-                      confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process'}
-                      confirmCls={cart.items.length > 0 && cashTendered && parseFloat(cashTendered) >= totalDue ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
-                      disabled={cart.items.length === 0 || saleMutation.isPending}
-                      hideNoteButtons
-                      hideConfirmButton
-                    />
-                  </div>
+                {cashTendered && (
+                  <p className={`text-xs font-semibold text-right mt-1 ${change > 0 ? 'text-emerald-600' : parseFloat(cashTendered) < totalDue ? 'text-amber-600' : 'text-slate-500'}`}>
+                    {parseFloat(cashTendered) < totalDue ? `Short by ${fmtActive(totalDue - parseFloat(cashTendered))}` : `Change: ${fmtActive(change)}`}
+                  </p>
                 )}
-              </>
-            )}
+              </div>
+            ) : null}
 
-            {/* Numeric keypad + Process — always visible (both split and
-                non-split payment, same as before). Digits type into Cash
-                Tendered; Process triggers the sale (F9) regardless of method. */}
-            <div className="grid grid-cols-3 gap-2">
-              {['1','2','3','4','5','6','7','8','9'].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setCashTendered(cashTendered + d)}
-                  className="min-h-11 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-none font-bold text-gray-800 text-xl touch-manipulation transition-colors"
-                >
-                  {d}
-                </button>
+            {/* Keypad — digits type into Cash Tendered; Process runs the sale (F9) for any method */}
+            <div className="grid grid-cols-4 gap-2.5">
+              {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']].map((row, r) => (
+                <div key={r} className="contents">
+                  {row.map((d) => (
+                    <button key={d} type="button" onClick={() => tender(d)} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>{d}</button>
+                  ))}
+                  {(() => {
+                    const side = [
+                      { label: 'Exact', act: () => tender('exact') },
+                      { label: 'Undo', act: () => tender('undo') },
+                      { label: 'Clear', act: () => tender('clear') },
+                    ][r];
+                    return (
+                      <button type="button" onClick={side.act} className={`${KEY_CLS} !text-[17px]`} style={{ height: KEY_H, background: '#cfe0fb', color: '#1b4fbf' }}>{side.label}</button>
+                    );
+                  })()}
+                </div>
               ))}
-              <button
-                type="button"
-                onClick={() => setCashTendered(cashTendered.slice(0, -1))}
-                className="min-h-11 bg-gray-100 hover:bg-red-50 hover:text-red-600 border-2 border-gray-100 rounded-none font-bold text-gray-600 text-lg touch-manipulation transition-colors"
-              >
-                ⌫
-              </button>
-              <button
-                type="button"
-                onClick={() => setCashTendered(cashTendered + '0')}
-                className="min-h-11 bg-gray-50 hover:bg-blue-50 border-2 border-gray-100 rounded-none font-bold text-gray-800 text-xl touch-manipulation transition-colors"
-              >
-                0
-              </button>
+              <button type="button" onClick={() => tender('back')} aria-label="Backspace" className={KEY_CLS} style={{ height: KEY_H, background: '#d9e2ef', color: '#334155' }}><Delete size={24} strokeWidth={1.7} /></button>
+              <button type="button" onClick={() => tender('0')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>0</button>
+              <button type="button" onClick={() => tender('.')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>.</button>
               <button
                 type="button"
                 onClick={handleProcessSale}
-                disabled={cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue))}
+                disabled={!canProcess}
                 aria-label="Process sale (F9)"
                 aria-keyshortcuts="F9"
-                className="min-h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-none font-bold text-sm touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                className={`${KEY_CLS} !text-[20px] gap-1.5 text-white disabled:opacity-40 disabled:cursor-not-allowed`}
+                style={{ height: KEY_H, background: '#10a37f' }}
               >
-                {saleMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : 'Process'}
+                {saleMutation.isPending ? <Loader2 size={22} className="animate-spin" /> : <><ChevronRight size={24} strokeWidth={2.4} /> Process</>}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer branding */}
-      <div className="bg-white border-t border-gray-100 px-4 py-1.5 flex items-center gap-2 flex-shrink-0">
-        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
-          <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb" />
-          <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
-          <circle cx="18" cy="18" r="4" fill="white" />
-        </svg>
-        <span className="font-bold text-blue-700 text-sm tracking-tight">Core</span>
-        <span className="font-bold text-slate-500 text-sm tracking-tight">POS</span>
+      {/* Status bar */}
+      <div className="bg-white border-t border-slate-200 px-5 h-11 flex items-center flex-shrink-0 text-sm">
+        <span className="flex items-center gap-2 font-semibold w-1/3" style={{ color: isServerUp ? '#0f9d6b' : '#d97706' }}>
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: isServerUp ? '#10b981' : '#f59e0b' }} />
+          {isServerUp ? 'Online' : 'Offline'}
+        </span>
+        <span className="w-1/3 text-center text-slate-600"><span className="font-semibold text-slate-800">Core POS</span> &nbsp;v{APP_VERSION}</span>
+        <span className="w-1/3 flex items-center justify-end gap-6 text-slate-600">
+          {(hasPermission('manage_settings') || hasRole('admin')) && (
+            <button type="button" onClick={() => navigate('/settings')} className="flex items-center gap-2 hover:text-blue-700 touch-manipulation">
+              <Settings size={18} /> Settings
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => toast('F2 Search · F5 Clear · F8 Hold · F9 Process · 1/2/3 Cash/Card/Mobile', { icon: '⌨️', duration: 6000 })}
+            className="flex items-center gap-2 hover:text-blue-700 touch-manipulation"
+          >
+            <HelpCircle size={18} /> Help
+          </button>
+        </span>
       </div>
     </div>
 

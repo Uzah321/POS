@@ -8,15 +8,17 @@ import {
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
-  Factory, WifiOff, Tag, Undo2, Wheat
+  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, ShoppingBag, CalendarDays, User
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
+import { usePosUIStore } from '../stores/posUIStore';
 import { useCartStore, TABLES } from '../stores/cartStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useDBSync } from '../hooks/useDBSync';
 import { authApi, currenciesApi, settingsApi } from '../api';
+import LicenseBanner from '../components/LicenseBanner';
 import NotificationBell from '../components/ui/NotificationBell';
 import { TopbarSlotContext } from './TopbarSlot';
 import toast from 'react-hot-toast';
@@ -138,6 +140,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { to: '/hardware',         label: 'Hardware',     icon: Cpu,       perm: 'manage_settings' },
         { to: '/webhooks',         label: 'Webhooks',     icon: Zap,       perm: 'manage_settings' },
         { to: '/backups',          label: 'Backups',      icon: Database,  perm: 'manage_settings' },
+        { to: '/license',          label: 'License',      icon: BadgeCheck,perm: 'manage_settings' },
         { to: '/audit-logs',       label: 'Audit Log',    icon: Shield,    perm: 'manage_settings' },
       ],
     },
@@ -368,6 +371,122 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {isPosPage ? (
+          /* Advanced POS — dark navy brand bar: logo, order info tiles, clock, currency, user, menu */
+          <header className="pos-screen flex items-center gap-2 lg:gap-3 h-16 px-3 sm:px-4 flex-shrink-0 text-white" style={{ background: '#0b1f44' }}>
+            <div className="flex items-center gap-2.5 flex-shrink-0 pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
+              <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
+                <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
+                <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
+                <circle cx="18" cy="18" r="4" fill="white" />
+              </svg>
+              <div className="leading-tight hidden sm:block">
+                <p className="font-bold text-[17px]">Core POS</p>
+                <p className="text-[10px] text-blue-200/80">Simple. Smart. Sales.</p>
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 min-w-0 overflow-x-auto">
+              {/* Table — a real select underneath so choosing/resuming a table still works */}
+              <label className="relative flex items-center gap-2.5 rounded-xl px-3 h-11 cursor-pointer flex-shrink-0" style={{ background: '#16305e' }}>
+                <Utensils size={18} className="text-blue-200" />
+                <span className="leading-tight">
+                  <span className="block text-[10px] text-blue-200/80">Table</span>
+                  <span className="block text-xs font-bold whitespace-nowrap">{cart.tableNumber}</span>
+                </span>
+                <select
+                  value={cart.tableNumber}
+                  onChange={(e) => {
+                    const t = e.target.value;
+                    const held = cart.heldOrders.find((h) => h.tableNumber === t);
+                    if (held) {
+                      if (cart.items.length > 0) cart.holdCurrentCart();
+                      cart.restoreHeldOrder(held.id);
+                      toast.success(`Order resumed — ${t}`);
+                    } else {
+                      cart.setTableNumber(t);
+                    }
+                  }}
+                  title="Select table"
+                  aria-label="Select table"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-slate-900"
+                >
+                  {TABLES.map((t) => {
+                    const held = cart.heldOrders.find((h) => h.tableNumber === t);
+                    const heldTotal = held ? held.items.reduce((s, i) => s + (i.price - i.discount) * i.quantity, 0) : 0;
+                    return <option key={t} value={t}>{t}{held ? ` • Held ${formatCurrency(heldTotal)}` : ''}</option>;
+                  })}
+                </select>
+              </label>
+
+              <button type="button" onClick={() => usePosUIStore.getState().setShowCustomerPicker(true)} title="Select customer"
+                className="flex items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0 text-left" style={{ background: '#16305e' }}>
+                <User size={18} className="text-blue-200" />
+                <span className="leading-tight">
+                  <span className="flex items-center gap-1 text-[10px] text-blue-200/80">Customer <ChevronDown size={10} /></span>
+                  <span className="block text-xs font-bold whitespace-nowrap max-w-[110px] truncate">{cart.customerName || 'Walk-in'}</span>
+                </span>
+              </button>
+
+              {[
+                { icon: ListChecks, label: 'CV / TN', value: `${cart.covers} / ${user?.branch?.id ?? 1}`, cls: 'hidden xl:flex' },
+                { icon: FileText, label: 'Invoice No', value: cart.ticketNum.replace('#', '') },
+                { icon: ShoppingBag, label: 'Order Type', value: cart.orderType === 'delivery' ? 'Delivery' : cart.orderType === 'takeaway' ? 'Takeaway' : 'Walk-in', cls: 'hidden xl:flex' },
+              ].map(({ icon: Icon, label, value, cls }: { icon: any; label: string; value: string; cls?: string }) => (
+                <div key={label} className={`${cls ?? 'flex'} items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0`} style={{ background: '#16305e' }}>
+                  <Icon size={18} className="text-blue-200" />
+                  <span className="leading-tight">
+                    <span className="block text-[10px] text-blue-200/80">{label}</span>
+                    <span className="block text-xs font-bold whitespace-nowrap">{value}</span>
+                  </span>
+                </div>
+              ))}
+
+              <div className="hidden xl:flex items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0" style={{ background: '#16305e' }}>
+                <CalendarDays size={18} className="text-blue-200" />
+                <span className="leading-tight">
+                  <span className="block text-[10px] text-blue-200/80 whitespace-nowrap">{currentTime.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  <span className="block text-xs font-bold tabular-nums">{currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1" />
+
+            <select
+              value={activeCurrency?.code ?? 'USD'}
+              onChange={(e) => {
+                const c = currencies.find(x => x.code === e.target.value);
+                if (c) setActiveCurrency(c);
+              }}
+              className="rounded-xl px-3 h-10 text-sm font-semibold text-white cursor-pointer focus:outline-none border border-white/10"
+              style={{ background: '#16305e' }}
+            >
+              {currencies.filter(c => c.is_active).map(c => (
+                <option key={c.code} value={c.code} className="text-slate-900">{c.symbol} {c.code}</option>
+              ))}
+            </select>
+
+            <div className="text-blue-100 [&_button]:text-blue-100 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></div>
+
+            <div className="flex items-center gap-2.5">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base" style={{ background: '#2f6df6' }}>{userInitials}</div>
+              <div className="hidden xl:block leading-tight">
+                <p className="text-sm font-bold">{user?.name}</p>
+                <p className="text-xs text-blue-200/80 capitalize">{user?.roles?.[0]}</p>
+              </div>
+            </div>
+
+            <button type="button" onClick={handleLogout} title="Logout" className="w-10 h-10 flex items-center justify-center rounded-xl text-blue-100 hover:bg-white/10 hover:text-red-300 transition-colors">
+              <LogOut size={18} />
+            </button>
+            {!isCashier && (
+              <button type="button" onClick={() => setSidebarOpen(true)} title="Menu" className="w-10 h-10 flex items-center justify-center rounded-xl text-white hover:bg-white/10">
+                <Menu size={22} />
+              </button>
+            )}
+          </header>
+        ) : (
         <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0">
           {!isCashier && (
             <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
@@ -503,12 +622,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           )}
         </header>
+        )}
 
         {/* flex flex-col here (not just flex-1) is required so pages like POSPage/CashierPage
             that use `flex-1 overflow-hidden` to fill exactly the available height — instead of
             page-level scrolling — actually get that height from their parent. Without it, this
             <main> lets content grow to its natural size and scrolls the whole page instead of
             the page's own internal scroll regions. */}
+        <LicenseBanner />
         <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto p-3 sm:p-5 lg:p-6">
           <TopbarSlotContext.Provider value={topbarSlotEl}>
             {children}

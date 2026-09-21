@@ -416,10 +416,7 @@ export default function DayEndPage() {
 
       {/* Submit EOD form */}
       <div className="bg-white rounded-md border border-gray-200 p-6">
-        <h2 className="font-semibold text-gray-700 mb-1">Submit End of Day</h2>
-        <p className="text-xs text-gray-400 mb-4">
-          Records are saved to the <strong>end_of_day</strong> table in the local database and can be viewed in the history below.
-        </p>
+        <h2 className="font-semibold text-gray-700 mb-4">Submit End of Day</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {activeCurrencies.length > 1 ? (
             <div className="md:col-span-2">

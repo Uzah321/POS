@@ -209,6 +209,10 @@ export default function SalesPage() {
     return res?.data || [];
   };
 
+  // Total units on a sale (sum of line quantities — weighed items can be fractional).
+  const saleQty = (s: any): number =>
+    Math.round((s.items || []).reduce((sum: number, it: any) => sum + (parseFloat(it.quantity) || 0), 0) * 1000) / 1000;
+
   const saleExportRow = (s: any) => {
     const items: any[] = s.items || [];
     const itemNames = items.map((it: any) => it.product?.name).filter(Boolean).join(', ') || `${s.items_count || items.length || 0} items`;
@@ -216,6 +220,7 @@ export default function SalesPage() {
       s.reference,
       format(new Date(s.created_at), 'dd MMM yyyy HH:mm'),
       itemNames,
+      saleQty(s),
       s.customer?.name || 'Walk-in',
       s.cashier?.name || '',
       formatAmount(parseFloat(s.total)),
@@ -229,7 +234,7 @@ export default function SalesPage() {
     try {
       const sales = await fetchAllFilteredSales();
       exportToExcel(
-        [['Reference', 'Date', 'Items', 'Customer', 'Cashier', 'Total', 'Status'], ...sales.map(saleExportRow)],
+        [['Reference', 'Date', 'Items', 'Qty', 'Customer', 'Cashier', 'Total', 'Status'], ...sales.map(saleExportRow)],
         `sales-history-${format(new Date(), 'yyyy-MM-dd')}`
       );
       toast.success(`Exported ${sales.length} sale${sales.length !== 1 ? 's' : ''}`);
@@ -253,7 +258,7 @@ export default function SalesPage() {
       const margin = 40;
 
       autoTable(doc, {
-        head: [['Reference', 'Date', 'Items', 'Customer', 'Cashier', 'Total', 'Status']],
+        head: [['Reference', 'Date', 'Items', 'Qty', 'Customer', 'Cashier', 'Total', 'Status']],
         body: sales.map(saleExportRow),
         startY: 90,
         margin: { left: margin, right: margin, bottom: 50 },
@@ -263,8 +268,9 @@ export default function SalesPage() {
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
           0: { cellWidth: 90, font: 'courier', fontSize: 8 },
-          5: { cellWidth: 90, halign: 'right', fontStyle: 'bold' },
-          6: { cellWidth: 80 },
+          3: { cellWidth: 40, halign: 'right' },
+          6: { cellWidth: 90, halign: 'right', fontStyle: 'bold' },
+          7: { cellWidth: 80 },
         },
         didDrawPage: () => {
           doc.setFillColor(30, 41, 59);
@@ -436,14 +442,14 @@ export default function SalesPage() {
             <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Item', 'Date', 'Customer', 'Cashier', 'Total', 'Status', ''].map(h => (
+                  {['Item', 'Qty', 'Date', 'Customer', 'Cashier', 'Total', 'Status', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sales.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
                 ) : sales.map((s: any) => {
                   const items: any[] = s.items || [];
                   const firstItemName = items[0]?.product?.name;
@@ -461,6 +467,7 @@ export default function SalesPage() {
                         <span className="text-gray-400">{itemCount} items</span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-700 tabular-nums">{saleQty(s)}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(s.created_at), 'dd MMM yyyy HH:mm')}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.customer?.name || 'Walk-in'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.cashier?.name}</td>

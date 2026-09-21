@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import BranchFilter from '../components/BranchFilter';
 import { reportsApi, salesApi } from '../api';
 import { db } from '../lib/db';
 import { useAuthStore } from '../stores/authStore';
@@ -48,10 +50,13 @@ export default function SupermarketDashboard() {
   const { user } = useAuthStore();
   const currencySymbol = activeCurrency?.symbol ?? 'R';
   const today = format(new Date(), 'EEEE, MMMM d');
-  const branchId = user?.branch?.id;
+  // Admins can switch branches; everyone else is pinned to their own.
+  const isAdmin = user?.roles?.includes('admin') ?? false;
+  const [branchFilter, setBranchFilter] = useState('');
+  const branchId = isAdmin ? (branchFilter ? Number(branchFilter) : undefined) : user?.branch?.id;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard', 'supermarket', branchId],
+    queryKey: ['dashboard', 'supermarket', branchId ?? 'all'],
     // The app-wide query default caches for 5 minutes and skips refetch-on-focus
     // (see App.tsx) — fine for slow-changing lists, but it left this screen
     // showing whatever transaction count was current when it first loaded,
@@ -66,7 +71,7 @@ export default function SupermarketDashboard() {
     refetchOnWindowFocus: true,
     queryFn: async () => {
       try {
-        return await reportsApi.dashboard().then(r => r.data);
+        return await reportsApi.dashboard(isAdmin && branchId ? { branch_id: branchId } : undefined).then(r => r.data);
       } catch {
         // Build dashboard stats from local IndexedDB sales (filtered to this branch)
         const now = new Date();
@@ -149,6 +154,7 @@ export default function SupermarketDashboard() {
           <p className="text-gray-400 text-sm mt-0.5">{today}</p>
         </div>
         <div className="flex items-center gap-3">
+          <BranchFilter value={branchFilter} onChange={setBranchFilter} />
           {isLoading && (
             <span className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
               <Loader2 size={11} className="animate-spin" /> Updating...

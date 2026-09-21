@@ -6,6 +6,7 @@ import { Search, AlertTriangle, Loader2, Plus, X, PackagePlus, FileSpreadsheet, 
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
+import BranchFilter from '../components/BranchFilter';
 import InventoryImportModal from '../components/inventory/InventoryImportModal';
 
 export default function InventoryPage() {
@@ -15,6 +16,7 @@ export default function InventoryPage() {
   // Pre-selects the "low"/"out" filter when arriving from the notification bell
   const [filter, setFilter] = useState(searchParams.get('filter') ?? '');
   const [showImport, setShowImport] = useState(false);
+  const [branchId, setBranchId] = useState('');
 
   // Add Stock modal state
   const [showAddStock, setShowAddStock] = useState(false);
@@ -28,8 +30,8 @@ export default function InventoryPage() {
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory', search, page, filter],
-    queryFn: () => inventoryApi.stockLevels({ search, page, per_page: 30, filter }).then(r => r.data?.data),
+    queryKey: ['inventory', search, page, filter, branchId],
+    queryFn: () => inventoryApi.stockLevels({ search, page, per_page: 30, filter, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then(r => r.data?.data),
   });
 
   const { data: warehousesData } = useQuery({
@@ -98,6 +100,7 @@ export default function InventoryPage() {
           <p className="text-gray-500 text-sm">Monitor stock levels across all warehouses</p>
         </div>
         <div className="flex gap-2">
+          <BranchFilter value={branchId} onChange={(v) => { setBranchId(v); setPage(1); }} />
           <button type="button" onClick={() => setShowImport(true)}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm transition-colors shadow-sm">
             <FileSpreadsheet size={16} /> Import Excel

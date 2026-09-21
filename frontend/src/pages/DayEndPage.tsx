@@ -225,6 +225,14 @@ export default function DayEndPage() {
   });
 
   const history: any[] = Array.isArray(historyData) ? historyData : historyData?.data ?? [];
+  // Live figures — variance is always derived (counted − expected), never typed.
+  const multiCurrency = activeCurrencies.length > 1;
+  const singleActualRaw = watch('actual_cash');
+  const typedActual: number | undefined = multiCurrency
+    ? (Object.values(currencyCash).some((v) => v !== '' && v != null) ? totalActualFromCurrencies : undefined)
+    : (singleActualRaw !== undefined && String(singleActualRaw) !== '' ? Number(singleActualRaw) : undefined);
+  const expectedCashNow = summary?.expected_cash;
+  const liveVariance = typedActual != null && expectedCashNow != null ? typedActual - expectedCashNow : undefined;
   const savedRecord = history.find((h) => String(h.report_date ?? h.date ?? '').slice(0, 10) === selectedDate);
 
   const submitMutation = useMutation({
@@ -298,10 +306,6 @@ export default function DayEndPage() {
               // A day that's already been closed prints what was actually saved.
               // Otherwise print the count typed into the form so far — and leave
               // it blank ("-") if nothing's been entered, rather than a false 0.00.
-              const typedActual = activeCurrencies.length > 1
-                ? (Object.values(currencyCash).some((v) => v !== '' && v != null) ? totalActualFromCurrencies : undefined)
-                : (watch('actual_cash') ? Number(watch('actual_cash')) : undefined);
-              const expected = summary?.expected_cash;
               downloadDayEndPdf({
                 companyName: storeSettings?.company_name || 'Core POS',
                 date: selectedDate,
@@ -309,10 +313,10 @@ export default function DayEndPage() {
                 summary,
                 openingCash: savedRecord ? Number(savedRecord.opening_cash ?? 0) : (watch('opening_cash') ? Number(watch('opening_cash')) : undefined),
                 actualCash: savedRecord ? Number(savedRecord.actual_cash ?? 0) : typedActual,
-                expectedCash: savedRecord?.expected_cash != null ? Number(savedRecord.expected_cash) : expected,
+                expectedCash: savedRecord?.expected_cash != null ? Number(savedRecord.expected_cash) : expectedCashNow,
                 variance: savedRecord?.difference != null
                   ? Number(savedRecord.difference)
-                  : (typedActual != null && expected != null ? typedActual - expected : undefined),
+                  : liveVariance,
                 notes: savedRecord?.notes ?? watch('notes'),
               });
             }}
@@ -471,6 +475,22 @@ export default function DayEndPage() {
               placeholder="0.00"
             />
             {errors.opening_cash && <p className="text-red-500 text-xs mt-1">{errors.opening_cash.message}</p>}
+          </div>
+          <div className="md:col-span-2 grid grid-cols-3 gap-3 text-sm">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-gray-500">Expected Cash (System)</p>
+              <p className="font-bold text-gray-900">{expectedCashNow != null ? format(expectedCashNow) : '—'}</p>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-gray-500">Actual Cash Counted</p>
+              <p className="font-bold text-gray-900">{typedActual != null ? format(typedActual) : '—'}</p>
+            </div>
+            <div className={`rounded-lg px-3 py-2 border ${liveVariance == null ? 'bg-gray-50 border-gray-200' : liveVariance === 0 ? 'bg-green-50 border-green-200' : liveVariance > 0 ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
+              <p className="text-xs text-gray-500">Variance (auto)</p>
+              <p className={`font-bold ${liveVariance == null ? 'text-gray-400' : liveVariance === 0 ? 'text-green-700' : liveVariance > 0 ? 'text-blue-700' : 'text-red-600'}`}>
+                {liveVariance != null ? `${liveVariance >= 0 ? '+' : ''}${format(liveVariance)}` : '—'}
+              </p>
+            </div>
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Manager Notes</label>

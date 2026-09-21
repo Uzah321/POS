@@ -91,7 +91,8 @@ class EndOfDayController extends BaseApiController
             'card_sales'         => $cardSales,
             'mobile_money_sales' => $mobileSales,
             'other_sales'        => $otherSales,
-            'expected_cash'      => $cashSales,
+            // Cash that should be in the drawer: cash taken minus cash refunded.
+            'expected_cash'      => $cashSales - $totalRefunds,
             'total_expenses'     => $expenses,
             'total_refunds'      => $totalRefunds,
             'cogs'               => $cogs,
@@ -146,7 +147,8 @@ class EndOfDayController extends BaseApiController
             ->where('branch_id', $data['branch_id'])
             ->whereDate('expense_date', $data['report_date'])->sum('amount');
 
-        $expectedCash = $data['opening_cash'] + $cashSales - $totalRefunds;
+        // "Opening cash" is the float for the NEXT day, so it isn't part of today's expected cash.
+        $expectedCash = $cashSales - $totalRefunds;
         $difference   = $data['actual_cash'] - $expectedCash;
 
         [$eod, $clearedOrders] = DB::transaction(function () use ($data, $request, $cashSales, $cardSales, $mobileSales, $otherSales, $sales, $totalRefunds, $totalExpenses, $expectedCash, $difference) {

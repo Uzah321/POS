@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
+import { useAuthStore } from '../stores/authStore';
 import BusinessTypeModal from '../components/BusinessTypeModal';
 import RestaurantDashboard from './RestaurantDashboard';
 import SupermarketDashboard from './SupermarketDashboard';
@@ -10,6 +11,7 @@ type BizType = 'restaurant' | 'supermarket';
 
 export default function DashboardPage() {
   const [overrideType, setOverrideType] = useState<BizType | null>(null);
+  const assignedShop = useAuthStore((s) => s.user?.business_type) as BizType | null | undefined;
   const qc = useQueryClient();
 
   const { data: settings, isLoading } = useQuery({
@@ -32,7 +34,7 @@ export default function DashboardPage() {
     },
   });
 
-  const businessType: BizType | null = (overrideType ?? settings?.business_type ?? null) as BizType | null;
+  const businessType: BizType | null = (assignedShop ?? overrideType ?? settings?.business_type ?? null) as BizType | null;
 
   const handleModalSelect = (type: BizType) => {
     setOverrideType(type);
@@ -54,7 +56,7 @@ export default function DashboardPage() {
       )}
 
       {/* Switch business type link — always visible in top-right corner */}
-      {businessType && (
+      {businessType && !assignedShop && (
         <div className="flex justify-end mb-1">
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <span className="capitalize">{businessType} mode</span>

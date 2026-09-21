@@ -191,7 +191,7 @@ class SaleController extends BaseApiController
                 // Stamped from whichever mode was active when this sale was rung
                 // up, so reports can filter by it later without joining through
                 // sale_items -> products -> categories on every query.
-                'business_type'   => \App\Models\Setting::get('business_type'),
+                'business_type'   => $this->activeBusinessType($request),
                 'warehouse_id'    => $data['warehouse_id'],
                 'register_id'     => $data['register_id'] ?? null,
                 'customer_id'     => $data['customer_id'] ?? null,

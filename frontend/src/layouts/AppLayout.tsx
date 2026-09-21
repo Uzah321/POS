@@ -46,7 +46,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     queryKey: ['settings'],
     queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
   });
-  const businessType = (settings?.business_type ?? null) as 'restaurant' | 'supermarket' | null;
+  // A user assigned to a shop always sees that shop; otherwise follow the system-wide mode.
+  const businessType = (user?.business_type ?? settings?.business_type ?? null) as 'restaurant' | 'supermarket' | null;
   const isRestaurant  = businessType === 'restaurant';
   const isSupermarket = businessType === 'supermarket';
 

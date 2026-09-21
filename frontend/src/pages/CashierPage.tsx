@@ -131,7 +131,7 @@ export default function CashierPage() {
   const storeName    = storeSettings?.company_name || 'Core';
   const storeAddress = user?.branch?.address || storeSettings?.company_address;
   const storePhone   = user?.branch?.phone   || storeSettings?.company_phone;
-  const isRestaurant = storeSettings?.business_type === 'restaurant';
+  const isRestaurant = (user?.business_type ?? storeSettings?.business_type) === 'restaurant';
 
   // Products (IndexedDB fallback when offline)
   const { data: allProductsData, isLoading: productsLoading } = useQuery({

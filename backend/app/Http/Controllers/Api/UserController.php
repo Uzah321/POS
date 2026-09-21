@@ -33,6 +33,8 @@ class UserController extends BaseApiController
             'password'      => 'required|string|min:4',
             'branch_id'     => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
+            // Which shop this person works in. Empty = follows the system-wide mode.
+            'business_type' => 'nullable|in:restaurant,supermarket',
             'roles'     => 'required|array',
             'roles.*'   => 'exists:roles,name',
         ]);
@@ -61,6 +63,7 @@ class UserController extends BaseApiController
             'phone'         => 'nullable|string|max:20',
             'branch_id'     => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
+            'business_type' => 'nullable|in:restaurant,supermarket',
             'is_active' => 'sometimes|boolean',
             'roles'     => 'sometimes|array',
             'roles.*'   => 'exists:roles,name',

@@ -32,7 +32,8 @@ export default function LoginPage() {
       setAuth(user, token);
       toast.success(`Welcome back, ${user.name}!`);
       const isCashier = user.roles?.includes('cashier');
-      navigate(isCashier ? '/pos' : '/');
+      // Cashiers go straight to their own shop's till.
+      navigate(isCashier ? (user.business_type === 'supermarket' ? '/cashier' : '/pos') : '/');
     } catch (err: any) {
       if (!err.response) {
         toast.error('Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.');

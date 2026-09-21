@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute, GuestRoute, StaffOnlyRoute } from './components/auth/RouteGuards';
 import RequirePermission from './components/auth/PermissionRoute';
+import ShopGuard from './components/auth/ShopGuard';
 import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -87,8 +88,8 @@ export default function App() {
           <Route path="/kitchen" element={<KitchenDisplayPage />} />
           <Route path="/queue" element={<QueueDisplayPage />} />
           <Route element={<ProtectedRoute />}>
-            <Route path="/pos" element={<LayoutWrapper><POSPage /></LayoutWrapper>} />
-            <Route path="/cashier" element={<LayoutWrapper><CashierPage /></LayoutWrapper>} />
+            <Route path="/pos" element={<LayoutWrapper><ShopGuard shop="restaurant"><POSPage /></ShopGuard></LayoutWrapper>} />
+            <Route path="/cashier" element={<LayoutWrapper><ShopGuard shop="supermarket"><CashierPage /></ShopGuard></LayoutWrapper>} />
             <Route element={<StaffOnlyRoute />}>
               <Route path="/my-sales" element={<LayoutWrapper><MySalesPage /></LayoutWrapper>} />
               <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />

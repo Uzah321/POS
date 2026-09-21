@@ -9,6 +9,8 @@ interface User {
   permissions: string[];
   branch?: { id: number; name: string; address?: string; phone?: string; city?: string };
   avatar?: string;
+  // Which shop this user works in. Null/absent = follows the system-wide mode.
+  business_type?: 'restaurant' | 'supermarket' | null;
 }
 
 interface AuthState {

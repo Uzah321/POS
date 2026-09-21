@@ -36,7 +36,14 @@ const schema = z.object({
   role: z.string().min(1),
   branch_id: z.preprocess(v => (v === '' || v === '0' || v === 0) ? undefined : Number(v), z.number().optional()),
   department_id: z.preprocess(v => (v === '' || v === '0' || v === 0) ? undefined : Number(v), z.number().optional()),
+  business_type: z.enum(['restaurant', 'supermarket']).optional().or(z.literal('')),
   is_active: z.boolean().default(true),
+}).superRefine((d, ctx) => {
+  // A cashier has to be pinned to a branch and a shop, otherwise they'd follow whatever mode the system is in.
+  if (d.role === 'cashier') {
+    if (!d.branch_id) ctx.addIssue({ code: 'custom', path: ['branch_id'], message: 'Branch is required for cashiers' });
+    if (!d.business_type) ctx.addIssue({ code: 'custom', path: ['business_type'], message: 'Shop is required for cashiers' });
+  }
 });
 type FormData = z.infer<typeof schema>;
 
@@ -50,13 +57,13 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: user
-      ? { ...user, role: user.roles?.[0]?.name ?? user.roles?.[0], password: '', branch_id: user.branch?.id, department_id: user.department?.id }
+      ? { ...user, role: user.roles?.[0]?.name ?? user.roles?.[0], password: '', branch_id: user.branch?.id, department_id: user.department?.id, business_type: user.business_type ?? '' }
       : { is_active: true },
   });
 
   const mutation = useMutation({
     mutationFn: async (d: FormData) => {
-      const payload: any = { ...d, roles: [d.role] };
+      const payload: any = { ...d, roles: [d.role], business_type: d.business_type || null };
       if (!payload.password) delete payload.password;
 
       // Try the server first; fall back to IndexedDB when unavailable
@@ -95,6 +102,7 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
             roles: [{ name: d.role }],
             branch_id: d.branch_id ?? null,
             department_id: d.department_id ?? null,
+            business_type: d.business_type || null,
             is_active: d.is_active,
           };
           await db.users.put(tempUser);
@@ -177,14 +185,26 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
                 <option value="">Select branch...</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
+              {errors.branch_id && <p className="text-red-500 text-xs mt-1">{String(errors.branch_id.message ?? 'Required')}</p>}
             </div>
           </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700">Department</label>
-            <select {...register('department_id')} className={field}>
-              <option value="">Select department...</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Shop</label>
+              <select {...register('business_type')} className={field}>
+                <option value="">System default</option>
+                <option value="restaurant">Restaurant</option>
+                <option value="supermarket">Supermarket</option>
+              </select>
+              {errors.business_type && <p className="text-red-500 text-xs mt-1">{String(errors.business_type.message ?? 'Required')}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Department</label>
+              <select {...register('department_id')} className={field}>
+                <option value="">Select department...</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" id="is_active" {...register('is_active')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
@@ -242,6 +262,11 @@ function StaffCard({ user, onEdit, onDelete }: { user: any; onEdit: () => void; 
         </span>
         {user.branch?.name && (
           <span className="text-xs text-gray-400">{user.branch.name}</span>
+        )}
+        {user.business_type && (
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${user.business_type === 'restaurant' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+            {user.business_type}
+          </span>
         )}
         {user.department?.name && (
           <span className="text-xs text-gray-400">· {user.department.name}</span>

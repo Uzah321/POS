@@ -29,6 +29,7 @@ export interface LocalUser {
   roles?: Array<{ name: string } | string>;
   branch?: { id: number; name: string } | null;
   branch_id?: number | null;
+  business_type?: 'restaurant' | 'supermarket' | null;
   is_active: number | boolean;
   [key: string]: unknown;
 }

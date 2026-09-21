@@ -44,12 +44,36 @@ abstract class BaseApiController extends Controller
      */
     protected function effectiveBusinessType(Request $request): ?string
     {
+        // A user assigned to one shop is locked to it, whatever the request says —
+        // except an admin, who may still look at the other side explicitly.
+        $locked = $this->lockedBusinessType($request);
+        if ($locked) {
+            return $locked;
+        }
+
         if ($request->filled('business_type')) {
             $type = $request->string('business_type')->toString();
             return $type === 'all' ? null : $type;
         }
 
-        return \App\Models\Setting::get('business_type') ?: null;
+        return $this->activeBusinessType($request);
+    }
+
+    /** The shop (restaurant/supermarket) a non-admin user was assigned to, or null if not locked to one. */
+    protected function lockedBusinessType(Request $request): ?string
+    {
+        $user = $request->user();
+        if (! $user || $user->hasRole('admin')) {
+            return null;
+        }
+        return $user->business_type ?: null;
+    }
+
+    /** The shop this user works in: their own assignment, else the system-wide mode. */
+    protected function activeBusinessType(Request $request): ?string
+    {
+        return $request->user()?->business_type
+            ?: (\App\Models\Setting::get('business_type') ?: null);
     }
 
     /**

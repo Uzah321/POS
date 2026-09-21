@@ -56,7 +56,9 @@ class ProductController extends BaseApiController
         // Uniqueness (name/sku/barcode) is checked against this, not just the
         // branch, so the restaurant and supermarket sides of the same branch's
         // catalog don't collide with each other over a shared name/SKU.
-        $businessType = $request->input('business_type') ?: ($this->effectiveBusinessType($request) ?? 'both');
+        // A user locked to one shop can only create products for that shop.
+        $businessType = $this->lockedBusinessType($request)
+            ?: ($request->input('business_type') ?: ($this->effectiveBusinessType($request) ?? 'both'));
 
         $data = $request->validate([
             'name'            => [

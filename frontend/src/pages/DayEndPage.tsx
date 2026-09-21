@@ -23,6 +23,7 @@ interface EodSummary {
   total_expenses: number;
   total_refunds: number;
   net_revenue: number;
+  expected_cash?: number;
   cashier_breakdown: { cashier: any; username: any; transactions: number; revenue: number }[];
   shift_ends: { user: { name: string }; declared_cash: number; expected_cash: number; variance: number; status: string }[];
 }
@@ -42,10 +43,11 @@ function downloadDayEndPdf(opts: {
   summary: EodSummary | undefined;
   openingCash?: number;
   actualCash?: number;
+  expectedCash?: number;
   variance?: number;
   notes?: string;
 }) {
-  const { companyName, date, format, summary, openingCash, actualCash, variance, notes } = opts;
+  const { companyName, date, format, summary, openingCash, actualCash, expectedCash, variance, notes } = opts;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
@@ -146,6 +148,7 @@ function downloadDayEndPdf(opts: {
       startY: y + 8,
       margin: { left: margin, right: margin },
       body: [
+        ['Expected Cash (System)', expectedCash != null ? format(expectedCash) : '-'],
         ['Actual Cash Counted', actualCash != null ? format(actualCash) : '-'],
         ['Opening Cash (Next Day)', openingCash != null ? format(openingCash) : '-'],
         ['Variance', variance != null ? `${variance >= 0 ? '+' : ''}${format(variance)}` : '-'],
@@ -222,6 +225,7 @@ export default function DayEndPage() {
   });
 
   const history: any[] = Array.isArray(historyData) ? historyData : historyData?.data ?? [];
+  const savedRecord = history.find((h) => String(h.report_date ?? h.date ?? '').slice(0, 10) === selectedDate);
 
   const submitMutation = useMutation({
     mutationFn: (data: FormData) => {
@@ -290,15 +294,28 @@ export default function DayEndPage() {
           />
           <button
             type="button"
-            onClick={() => downloadDayEndPdf({
-              companyName: storeSettings?.company_name || 'Core POS',
-              date: selectedDate,
-              format,
-              summary,
-              openingCash: watch('opening_cash') ? Number(watch('opening_cash')) : undefined,
-              actualCash: activeCurrencies.length > 1 ? totalActualFromCurrencies : (watch('actual_cash') ? Number(watch('actual_cash')) : undefined),
-              notes: watch('notes'),
-            })}
+            onClick={() => {
+              // A day that's already been closed prints what was actually saved.
+              // Otherwise print the count typed into the form so far — and leave
+              // it blank ("-") if nothing's been entered, rather than a false 0.00.
+              const typedActual = activeCurrencies.length > 1
+                ? (Object.values(currencyCash).some((v) => v !== '' && v != null) ? totalActualFromCurrencies : undefined)
+                : (watch('actual_cash') ? Number(watch('actual_cash')) : undefined);
+              const expected = summary?.expected_cash;
+              downloadDayEndPdf({
+                companyName: storeSettings?.company_name || 'Core POS',
+                date: selectedDate,
+                format,
+                summary,
+                openingCash: savedRecord ? Number(savedRecord.opening_cash ?? 0) : (watch('opening_cash') ? Number(watch('opening_cash')) : undefined),
+                actualCash: savedRecord ? Number(savedRecord.actual_cash ?? 0) : typedActual,
+                expectedCash: savedRecord?.expected_cash != null ? Number(savedRecord.expected_cash) : expected,
+                variance: savedRecord?.difference != null
+                  ? Number(savedRecord.difference)
+                  : (typedActual != null && expected != null ? typedActual - expected : undefined),
+                notes: savedRecord?.notes ?? watch('notes'),
+              });
+            }}
             disabled={!summary}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors disabled:opacity-50"
           >
@@ -544,6 +561,7 @@ export default function DayEndPage() {
                           } as EodSummary,
                           openingCash: h.opening_cash != null ? Number(h.opening_cash) : undefined,
                           actualCash: h.actual_cash != null ? Number(h.actual_cash) : undefined,
+                          expectedCash: h.expected_cash != null ? Number(h.expected_cash) : undefined,
                           variance: h.difference != null ? Number(h.difference) : undefined,
                           notes: h.notes,
                         })}

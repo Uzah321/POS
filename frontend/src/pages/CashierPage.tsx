@@ -565,7 +565,7 @@ export default function CashierPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="pos-screen -m-3 sm:-m-5 lg:-m-6 flex flex-col overflow-hidden pt-3" style={{ height: 'calc(100vh - 64px)', background: '#eef2f8' }}>
 
       {/* Header controls — portaled into AppLayout's topbar (via TopbarSlotContext)
           so this page's row and the app's global topbar render as one single
@@ -575,24 +575,26 @@ export default function CashierPage() {
         const content = (
           <>
             <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
-                <CartIcon size={15} />
-              </div>
-              <div className="min-w-0 hidden md:block">
-                <p className="font-bold text-gray-900 text-sm leading-tight truncate max-w-[16ch]">
+              <svg viewBox="0 0 36 36" fill="none" width="34" height="34" className="flex-shrink-0">
+                <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
+                <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
+                <circle cx="18" cy="18" r="4" fill="white" />
+              </svg>
+              <div className="min-w-0 hidden md:block pr-3 border-r border-white/10">
+                <p className="font-bold text-white text-sm leading-tight truncate max-w-[18ch]">
                   {storeName}{user?.branch?.name ? ` · ${user.branch.name}` : ''}
                 </p>
-                <p className="text-[11px] text-gray-400 truncate max-w-[16ch]">Cashier: <span className="font-semibold text-gray-600">{user?.name}</span></p>
+                <p className="text-[11px] text-blue-200/80 truncate max-w-[18ch]">Cashier: <span className="font-semibold text-white">{user?.name}</span></p>
               </div>
             </div>
 
             {isRestaurant && (
-              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 flex-shrink-0">
-                <TableProperties size={13} className="text-gray-400 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 rounded-xl pl-3 pr-1.5 h-11 flex-shrink-0 text-white" style={{ background: '#16305e' }}>
+                <TableProperties size={15} className="text-blue-200 flex-shrink-0" />
                 <select
                   value={cart.tableNumber}
                   onChange={(e) => cart.setTableNumber(e.target.value)}
-                  className="text-xs font-semibold bg-transparent border-0 focus:outline-none pr-1"
+                  className="text-xs font-semibold bg-transparent border-0 focus:outline-none pr-1 text-white [&>option]:text-slate-900"
                 >
                   {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -601,9 +603,10 @@ export default function CashierPage() {
             <button
               type="button"
               onClick={() => setShowOpenTables(true)}
-              className="relative flex items-center gap-1.5 rounded-full border border-amber-200 text-amber-600 hover:bg-amber-50 text-xs font-semibold px-3 py-1.5 transition-colors touch-manipulation flex-shrink-0"
+              className="relative flex items-center gap-2 rounded-xl h-11 text-white hover:brightness-125 text-xs font-semibold px-3.5 transition touch-manipulation flex-shrink-0"
+              style={{ background: '#16305e' }}
             >
-              <LayoutGrid size={13} /> {isRestaurant ? 'Open Tables' : 'Held Orders'}
+              <LayoutGrid size={16} className="text-amber-300" /> {isRestaurant ? 'Open Tables' : 'Held Orders'}
               {heldOrders.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
               )}
@@ -611,39 +614,40 @@ export default function CashierPage() {
             <button
               type="button"
               onClick={() => setShowVoidModal(true)}
-              className="flex items-center gap-1.5 rounded-full border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold px-3 py-1.5 transition-colors touch-manipulation flex-shrink-0"
+              className="flex items-center gap-2 rounded-xl h-11 text-red-200 hover:text-white hover:bg-red-500/80 text-xs font-semibold px-3.5 transition-colors touch-manipulation flex-shrink-0"
+              style={{ background: '#16305e' }}
             >
-              <Ban size={13} /> Void
+              <Ban size={16} /> Void
             </button>
 
             {scales.length > 0 && (
               connectedScaleCount > 0 ? (
-                <span className="flex items-center gap-1.5 text-blue-600 font-semibold text-xs bg-blue-50 rounded-full px-3 py-1.5 flex-shrink-0" title={`${connectedScaleCount} of ${scales.length} weighing scale${scales.length === 1 ? '' : 's'} connected`}>
+                <span className="flex items-center gap-1.5 text-white font-semibold text-xs rounded-xl px-3 h-11 flex-shrink-0" style={{ background: '#16305e' }} title={`${connectedScaleCount} of ${scales.length} weighing scale${scales.length === 1 ? '' : 's'} connected`}>
                   <ScaleIcon size={13} />
                   {liveKg !== null ? `${liveKg.toFixed(3)} kg` : `${connectedScaleCount}/${scales.length} scale${scales.length === 1 ? '' : 's'}`}
                 </span>
               ) : (
-                <span className="hidden lg:flex items-center gap-1.5 text-gray-300 font-semibold text-xs flex-shrink-0" title="No weighing scales connected -- connect them under Settings -> Hardware">
+                <span className="hidden lg:flex items-center gap-1.5 text-blue-200/50 font-semibold text-xs flex-shrink-0" title="No weighing scales connected -- connect them under Settings -> Hardware">
                   <ScaleIcon size={13} /> Scales off
                 </span>
               )
             )}
 
-            <span className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold flex-shrink-0 ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+            <span className={`flex items-center gap-2 rounded-xl px-3 h-11 text-xs font-semibold flex-shrink-0 ${isOnline ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
               <span className={`w-1.5 h-1.5 rounded-full inline-block ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
               {isOnline ? 'Online & synced' : 'Server starting...'}
             </span>
 
             <div className="text-right leading-tight pl-1 flex-shrink-0 hidden sm:block">
-              <p className="text-[11px] text-gray-400">{fmtDate(currentTime)}</p>
-              <p className="text-sm font-bold text-gray-900 tabular-nums">{fmtTime(currentTime)}</p>
+              <p className="text-[11px] text-blue-200/80">{fmtDate(currentTime)}</p>
+              <p className="text-sm font-bold text-white tabular-nums">{fmtTime(currentTime)}</p>
             </div>
           </>
         );
         return topbarSlot
           ? createPortal(content, topbarSlot)
           : (
-            <div className="flex-shrink-0 bg-white border-b border-gray-100 px-3 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 overflow-x-auto">
+            <div className="flex-shrink-0 text-white px-3 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 overflow-x-auto">
               {content}
             </div>
           );
@@ -652,8 +656,8 @@ export default function CashierPage() {
       {/* Search bar */}
       <div className="mx-2 sm:mx-4 mb-2 flex-shrink-0">
         <form onSubmit={handleCodeSubmit} className="relative">
-          <div className="flex items-center gap-2 bg-white border-2 border-gray-200 focus-within:border-blue-400 rounded-2xl shadow-sm pl-4 pr-2 py-1 transition-colors">
-            <Barcode size={17} className="text-gray-300 flex-shrink-0" />
+          <div className="flex items-center gap-2 bg-white border-2 border-gray-200 focus-within:border-blue-500 rounded-2xl shadow-sm pl-4 pr-2 py-1.5 transition-colors">
+            <Barcode size={22} className="text-blue-500 flex-shrink-0" />
             <div className="w-px h-6 bg-gray-100 flex-shrink-0" />
             <input
               ref={codeRef}
@@ -674,7 +678,7 @@ export default function CashierPage() {
                 }
               }}
               placeholder="Scan barcode or search products..."
-              className="flex-1 min-w-0 bg-transparent px-2 py-2.5 text-sm focus:outline-none"
+              className="flex-1 min-w-0 bg-transparent px-2 py-3 text-base font-medium focus:outline-none"
               autoComplete="off"
             />
             {productsLoading && <Loader2 size={16} className="animate-spin text-gray-300 flex-shrink-0" />}
@@ -688,7 +692,8 @@ export default function CashierPage() {
             </button>
             <button
               type="submit"
-              className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full touch-manipulation transition-colors"
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-white rounded-xl hover:brightness-110 touch-manipulation transition-colors"
+              style={{ background: '#2f6df6' }}
               title="Search / Enter"
             >
               <Search size={16} />
@@ -745,8 +750,9 @@ export default function CashierPage() {
               key={cat}
               type="button"
               onClick={() => setActiveCategory(cat)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
-                active ? 'bg-blue-600 text-white shadow-sm shadow-blue-200' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'
+              style={active ? { background: '#2f6df6' } : undefined}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors touch-manipulation ${
+                active ? 'text-white shadow-sm shadow-blue-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600'
               }`}
             >
               <TabIcon size={15} /> {cat}
@@ -790,7 +796,7 @@ export default function CashierPage() {
             </div>
 
             {/* Column headers */}
-            <div className="flex items-center px-4 py-2 border-b border-gray-100 flex-shrink-0 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="flex items-center px-4 py-2.5 flex-shrink-0 text-[11px] font-bold text-blue-100 uppercase tracking-wider" style={{ background: '#173463' }}>
               <span className="w-7 flex-shrink-0">#</span>
               <span className="flex-1">Product</span>
               <span className="w-20 text-right flex-shrink-0">Price</span>
@@ -814,7 +820,7 @@ export default function CashierPage() {
                   const lineTotal = (item.price - item.discount) * item.quantity;
                   return (
                     <div key={item.line_id}
-                      className={`flex items-center px-4 py-3 border-b border-l-4 border-gray-50 ${cartLineAccent(item.product_id)} ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                      className={`flex items-center px-4 py-3.5 border-b border-l-4 border-slate-100 ${cartLineAccent(item.product_id)} ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}>
                       <span className="w-7 flex-shrink-0 text-xs text-gray-400">{idx + 1}</span>
                       <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate pr-2">{item.name}</span>
                       <span className="w-20 text-right flex-shrink-0 text-sm text-gray-500 tabular-nums">{formatCurrency(item.price)}</span>
@@ -822,7 +828,7 @@ export default function CashierPage() {
                         <button type="button"
                           onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
                           title="Tap to set quantity"
-                          className="min-w-[44px] h-8 px-2 text-center text-sm font-bold text-gray-900 tabular-nums bg-gray-50 border border-gray-200 rounded-full hover:bg-blue-50 hover:border-blue-300 transition-colors touch-manipulation">
+                          className="min-w-[44px] h-8 px-2 text-center text-sm font-bold text-blue-700 tabular-nums bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 hover:border-blue-300 transition-colors touch-manipulation">
                           {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
                         </button>
                       </span>
@@ -853,7 +859,7 @@ export default function CashierPage() {
         <div className="w-full lg:w-[38%] lg:min-w-[360px] xl:min-w-[420px] 2xl:min-w-[520px] max-w-full lg:max-w-[600px] flex flex-col gap-3 flex-shrink-0 max-h-[55vh] lg:max-h-none overflow-y-auto">
 
           {/* Amount due */}
-          <div className="bg-gradient-to-r from-blue-600 via-blue-600 to-purple-600 rounded-2xl shadow-lg shadow-blue-200 px-6 py-5 flex items-center justify-between flex-shrink-0">
+          <div className="rounded-2xl shadow-lg shadow-blue-200 px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0b1f44 0%, #173463 55%, #2f6df6 130%)' }}>
             <div>
               <span className="text-white/70 font-semibold text-sm tracking-wide uppercase">Amount due</span>
               <p className="text-white font-bold text-4xl tabular-nums font-mono mt-1">{formatCurrency(total)}</p>
@@ -895,7 +901,7 @@ export default function CashierPage() {
                   change={change}
                   formatAmount={fmtActive}
                   confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process Sale'}
-                  confirmCls={canProcess ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
+                  confirmCls={canProcess ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
                   disabled={cart.items.length === 0}
                 />
               </div>

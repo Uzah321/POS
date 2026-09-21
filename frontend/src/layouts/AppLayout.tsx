@@ -477,7 +477,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </header>
         ) : (
-        <header className="app-topbar bg-white border-b border-gray-100 h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0">
+        <header
+          className={`app-topbar h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0 ${isCashierRegisterPage ? 'pos-screen text-white' : 'bg-white border-b border-gray-100'}`}
+          style={isCashierRegisterPage ? { background: '#0b1f44' } : undefined}
+        >
           {!isCashier && (
             <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
@@ -540,7 +543,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-red-700 px-3 py-2 rounded-md hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
+            className={`inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-md transition-colors border border-transparent ${isCashierRegisterPage ? 'text-blue-100 hover:text-red-300 hover:bg-white/10 rounded-xl' : 'text-slate-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200'}`}
           >
             <LogOut size={16} />
             <span className="hidden lg:inline">Logout</span>
@@ -581,10 +584,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               const c = currencies.find(x => x.code === e.target.value);
               if (c) setActiveCurrency(c);
             }}
-            className="border border-slate-300 bg-gray-50 text-slate-700 text-xs font-semibold px-3 py-2 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`text-xs font-semibold px-3 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${isCashierRegisterPage ? 'text-white border border-white/10 rounded-xl h-10 text-sm' : 'border border-slate-300 bg-gray-50 text-slate-700 rounded-md'}`}
+            style={isCashierRegisterPage ? { background: '#16305e' } : undefined}
           >
             {currencies.filter(c => c.is_active).map(c => (
-              <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>
+              <option key={c.code} value={c.code} className="text-slate-900">{c.symbol} {c.code}</option>
             ))}
           </select>
 
@@ -595,7 +599,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
-          <NotificationBell />
+          {isCashierRegisterPage
+            ? <div className="text-blue-100 [&_button]:text-blue-100 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></div>
+            : <NotificationBell />}
 
           {/* Cashier Register already names the logged-in cashier in its own
               header content (portaled in above), so this avatar+name would

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, branchesApi, refundsApi } from '../api';
+import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, MoreVertical, Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -469,35 +470,16 @@ export default function SalesPage() {
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right relative">
-                      <button
-                        type="button"
-                        onClick={() => setOpenMenuId(openMenuId === s.id ? null : s.id)}
-                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                        title="Options"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      {openMenuId === s.id && (
-                        <div ref={menuRef} className="absolute z-20 right-4 top-full mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-left">
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedSale(s); setOpenMenuId(null); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Eye size={14} className="text-gray-400" /> View Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { reprintMutation.mutate(s.id); setOpenMenuId(null); }}
-                            disabled={reprintMutation.isPending && reprintMutation.variables === s.id}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            {reprintMutation.isPending && reprintMutation.variables === s.id ? <Loader2 size={14} className="animate-spin text-gray-400" /> : <Printer size={14} className="text-gray-400" />}
-                            Reprint Receipt
-                          </button>
-                        </div>
-                      )}
+                    <td className="px-4 py-3 text-right">
+                      <RowActionsMenu actions={[
+                        { label: 'View Details', icon: <Eye size={14} />, onClick: () => setSelectedSale(s) },
+                        {
+                          label: 'Reprint Receipt',
+                          icon: reprintMutation.isPending && reprintMutation.variables === s.id ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />,
+                          onClick: () => reprintMutation.mutate(s.id),
+                          disabled: reprintMutation.isPending && reprintMutation.variables === s.id,
+                        },
+                      ]} />
                     </td>
                   </tr>
                   );

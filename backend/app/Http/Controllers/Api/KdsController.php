@@ -14,9 +14,11 @@ class KdsController extends Controller
             ->whereNotNull('kds_status')
             ->whereIn('kds_status', ['new', 'preparing', 'ready'])
             ->where('status', 'completed')
+            ->whereHas('items.product', fn ($q) => $q->where('made_to_order', true))
             ->orderBy('completed_at', 'asc')
             ->get()
             ->map(function ($sale) {
+                $sale->setRelation('items', $sale->items->filter(fn ($i) => $i->product?->made_to_order)->values());
                 return [
                     'id'           => $sale->id,
                     'ticket'       => '#' . str_pad($sale->id % 1000, 3, '0', STR_PAD_LEFT),

@@ -211,7 +211,10 @@ class SaleController extends BaseApiController
                 'order_type'      => $data['order_type'] ?? null,
                 'is_offline'      => $data['is_offline'] ?? false,
                 'completed_at'    => now(),
-                'kds_status'      => 'new',
+                // Only sales containing a "Made on Order" product go to the kitchen/queue displays.
+                'kds_status'      => collect($data['items'])->contains(
+                    fn ($i) => $productsById->get($i['product_id'])?->made_to_order
+                ) ? 'new' : null,
             ]);
 
             $costPrices = $productsById->pluck('cost_price', 'id');

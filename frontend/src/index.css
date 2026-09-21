@@ -45,9 +45,9 @@
 
 	/* Exception: the Advanced POS screen (restaurant) follows its own rounded
 	   design. Scoped to .pos-screen so every other page keeps square corners. */
-	.pos-screen .rounded-lg   { border-radius: 0.5rem !important; }
-	.pos-screen .rounded-xl   { border-radius: 0.75rem !important; }
-	.pos-screen .rounded-2xl  { border-radius: 1rem !important; }
+	.pos-screen .rounded-lg   { border-radius: 0.1875rem !important; }
+	.pos-screen .rounded-xl   { border-radius: 0.3125rem !important; }
+	.pos-screen .rounded-2xl  { border-radius: 0.4375rem !important; }
 	.pos-screen .rounded-full { border-radius: 9999px !important; }
 
 	.app-shell {

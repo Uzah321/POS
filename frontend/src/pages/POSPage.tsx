@@ -58,11 +58,11 @@ function CartRow({ item, format, image }: { item: CartItem; format: (v: number) 
     setEditingQty(false);
   };
 
-  const stepBtn = 'w-8 h-9 flex items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-white touch-manipulation';
+  const stepBtn = 'w-8 h-8 flex items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-white touch-manipulation';
 
   return (
-    <div className="flex items-center gap-2 py-2.5 px-4 border-b border-slate-100 last:border-b-0">
-      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center">
+    <div className="flex items-center gap-2 py-1 px-4 border-b border-slate-100 last:border-b-0">
+      <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center">
         {image
           ? <img src={image} alt="" className="w-full h-full object-cover" />
           : <span className="text-sm font-bold text-slate-400">{item.name?.[0]?.toUpperCase() ?? '?'}</span>}
@@ -81,7 +81,7 @@ function CartRow({ item, format, image }: { item: CartItem; format: (v: number) 
               <Minus size={14} />
             </button>
             <button type="button" onClick={openQtyEdit} title="Tap to set quantity"
-              className="w-10 h-9 text-center text-sm font-bold text-slate-900 border-y border-slate-200 bg-white hover:bg-blue-50 touch-manipulation">
+              className="w-10 h-8 text-center text-sm font-bold text-slate-900 border-y border-slate-200 bg-white hover:bg-blue-50 touch-manipulation">
               {item.quantity}
             </button>
             <button type="button" onClick={() => updateQty(item.line_id, item.quantity + 1)} aria-label="Increase quantity" className={`${stepBtn} rounded-r-lg`}>
@@ -737,8 +737,8 @@ export default function POSPage() {
   const NAVY = '#0d2350';
   const NAVY_TILE = '#173463';
   const BLUE = '#2f6df6';
-  const KEY_CLS = 'rounded-xl font-semibold text-[22px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
-  const KEY_H = 'clamp(38px, 5.6vh, 62px)';
+  const KEY_CLS = 'rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
+  const KEY_H = 'clamp(34px, 4.5vh, 58px)';
   const canProcess = !(cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
   return (
@@ -854,7 +854,7 @@ export default function POSPage() {
                 <p className="text-sm">No products found</p>
               </div>
             ) : (
-              <div className="flex-1 grid auto-rows-max content-start gap-3 overflow-y-auto min-h-0 pr-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))' }}>
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 auto-rows-max content-start gap-2.5 overflow-y-auto min-h-0 pr-1">
                 {pagedProducts.map((product: any, tileIndex: number) => {
                   // A product's own colour wins, then its category's colour — used only as
                   // the backdrop when there's no photo to show.
@@ -899,18 +899,18 @@ export default function POSPage() {
         </div>
 
         {/* Right: Current Sale card + Payment Method card. Below lg it is shown full-screen instead. */}
-        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col gap-3 w-full lg:w-[470px] xl:w-[500px] lg:flex-shrink-0 min-h-0 p-3 lg:pl-0 overflow-y-auto`}>
+        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col gap-2 w-full lg:w-[470px] xl:w-[500px] lg:flex-shrink-0 min-h-0 p-2 lg:pl-0 overflow-y-auto`}>
 
           {/* Current Sale */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col flex-1 min-h-[150px] overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col flex-1 min-h-[370px] overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-1.5 flex-shrink-0">
               <ShoppingCart size={22} style={{ color: BLUE }} />
               <span className="text-[19px] font-bold text-slate-900 mr-auto">Current Sale</span>
               <button
                 type="button"
                 onClick={() => setShowCustomerPicker(true)}
                 title="Select customer"
-                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold border border-slate-200 hover:bg-blue-50 touch-manipulation max-w-[130px]"
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold border border-slate-200 hover:bg-blue-50 touch-manipulation max-w-[130px]"
                 style={{ color: cart.customerId ? BLUE : '#334155', background: cart.customerId ? '#e8f0ff' : undefined }}
               >
                 <User size={16} className="flex-shrink-0" />
@@ -923,7 +923,7 @@ export default function POSPage() {
                 aria-label="Hold order (F8)"
                 aria-keyshortcuts="F8"
                 title="Hold order (F8)"
-                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-blue-50 disabled:opacity-40 touch-manipulation"
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-blue-50 disabled:opacity-40 touch-manipulation"
               >
                 {holdMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />} Hold
               </button>
@@ -932,7 +932,7 @@ export default function POSPage() {
                 onClick={() => cart.clearCart()}
                 aria-label="Clear sale (F5)"
                 aria-keyshortcuts="F5"
-                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 touch-manipulation"
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 touch-manipulation"
                 style={{ background: '#fdecec' }}
               >
                 <Trash2 size={16} /> Clear
@@ -971,19 +971,13 @@ export default function POSPage() {
               )}
             </div>
 
-            <div className="px-5 py-3 border-t border-slate-100 flex-shrink-0 space-y-1">
-              <div className="flex justify-between text-[15px] text-slate-500">
-                <span>Subtotal</span><span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.subtotal())}</span>
+            <div className="px-5 pt-1.5 pb-2 border-t border-slate-200 flex-shrink-0">
+              <div className="flex justify-between gap-4 text-[13px] text-slate-500">
+                <span>Subtotal <span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.subtotal())}</span></span>
+                {cart.discount > 0 && <span className="text-emerald-600">Discount <span className="tabular-nums">-{formatCurrency(cart.discount)}</span></span>}
+                <span>Tax ({taxPct}%) <span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.taxTotal())}</span></span>
               </div>
-              {cart.discount > 0 && (
-                <div className="flex justify-between text-[15px] text-emerald-600">
-                  <span>Discount</span><span className="tabular-nums">-{formatCurrency(cart.discount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-[15px] text-slate-500">
-                <span>Tax ({taxPct}%)</span><span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.taxTotal())}</span>
-              </div>
-              <div className="flex justify-between items-baseline pt-2 border-t border-slate-100">
+              <div className="flex justify-between items-baseline mt-1">
                 <span className="text-[22px] font-bold text-slate-900">Total</span>
                 <span className="text-[34px] font-bold tabular-nums leading-none" style={{ color: '#1f5fe0' }}>{formatCurrency(total)}</span>
               </div>
@@ -991,20 +985,8 @@ export default function POSPage() {
           </div>
 
           {/* Payment Method */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 xl:p-4 flex-shrink-0">
-            <div className="flex items-center justify-between mb-2 xl:mb-3">
-              <span className="text-[18px] font-bold text-slate-900">Payment Method</span>
-              <button
-                type="button"
-                onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
-                className={`h-9 px-4 rounded-lg text-sm font-semibold touch-manipulation ${isSplitPayment ? 'text-white' : 'text-blue-700 hover:brightness-95'}`}
-                style={{ background: isSplitPayment ? BLUE : '#e2ecfc' }}
-              >
-                Split
-              </button>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2.5 mb-3">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-2.5 flex-shrink-0">
+            <div className="grid grid-cols-4 gap-2 mb-2">
               {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => {
                 const active = !isSplitPayment && paymentMethod === value;
                 return (
@@ -1014,10 +996,10 @@ export default function POSPage() {
                     onClick={() => { if (isSplitPayment) { setIsSplitPayment(false); setSplitPayments([]); } setPaymentMethod(value); }}
                     aria-label={`Pay by ${label} (${idx + 1})`}
                     aria-pressed={active}
-                    className={`h-[clamp(54px,7.2vh,78px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                    className={`h-[clamp(44px,5.4vh,72px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
                     style={{ background: active ? '#1f63e6' : '#eef3fb' }}
                   >
-                    <Icon size={26} strokeWidth={1.7} />
+                    <Icon size={22} strokeWidth={1.7} />
                     {label}
                   </button>
                 );
@@ -1026,10 +1008,10 @@ export default function POSPage() {
                 type="button"
                 onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
                 aria-pressed={isSplitPayment}
-                className={`h-[clamp(54px,7.2vh,78px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                className={`h-[clamp(44px,5.4vh,72px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
                 style={{ background: isSplitPayment ? '#1f63e6' : '#eef3fb' }}
               >
-                <ArrowLeftRight size={26} strokeWidth={1.7} />
+                <ArrowLeftRight size={22} strokeWidth={1.7} />
                 Split
               </button>
             </div>
@@ -1059,24 +1041,26 @@ export default function POSPage() {
                 })()}
               </div>
             ) : paymentMethod === 'cash' ? (
-              <div className="mb-3">
-                <div className="flex items-center h-[clamp(42px,5.5vh,56px)] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
-                  <span className="text-[13px] font-medium text-slate-500 uppercase tracking-wide">Cash tendered</span>
-                  <span className="ml-auto text-[26px] font-medium tabular-nums text-slate-700 pr-3">{cashTendered || '0.00'}</span>
-                  <button type="button" onClick={() => tender('clear')} aria-label="Clear cash tendered" className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-red-500 touch-manipulation">
-                    <XCircle size={24} strokeWidth={1.6} />
+              <div className="mb-2">
+                <div className="flex items-center h-[clamp(40px,5.2vh,54px)] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
+                  <span className="flex flex-col leading-tight">
+                    <span className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Cash tendered</span>
+                    {cashTendered && (
+                      <span className={`text-[11px] font-semibold ${change > 0 ? 'text-emerald-600' : parseFloat(cashTendered) < totalDue ? 'text-amber-600' : 'text-slate-500'}`}>
+                        {parseFloat(cashTendered) < totalDue ? `Short by ${fmtActive(totalDue - parseFloat(cashTendered))}` : `Change: ${fmtActive(change)}`}
+                      </span>
+                    )}
+                  </span>
+                  <span className="ml-auto text-[24px] font-medium tabular-nums text-slate-700 pr-3">{cashTendered || '0.00'}</span>
+                  <button type="button" onClick={() => tender('clear')} aria-label="Clear cash tendered" className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-500 touch-manipulation">
+                    <XCircle size={22} strokeWidth={1.6} />
                   </button>
                 </div>
-                {cashTendered && (
-                  <p className={`text-xs font-semibold text-right mt-1 ${change > 0 ? 'text-emerald-600' : parseFloat(cashTendered) < totalDue ? 'text-amber-600' : 'text-slate-500'}`}>
-                    {parseFloat(cashTendered) < totalDue ? `Short by ${fmtActive(totalDue - parseFloat(cashTendered))}` : `Change: ${fmtActive(change)}`}
-                  </p>
-                )}
               </div>
             ) : null}
 
             {/* Keypad — digits type into Cash Tendered; Process runs the sale (F9) for any method */}
-            <div className="grid grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-4 gap-2">
               {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']].map((row, r) => (
                 <div key={r} className="contents">
                   {row.map((d) => (
@@ -1114,7 +1098,7 @@ export default function POSPage() {
       </div>
 
       {/* Status bar */}
-      <div className="bg-white border-t border-slate-200 px-5 h-11 flex items-center flex-shrink-0 text-sm">
+      <div className="bg-white border-t border-slate-200 px-5 h-9 flex items-center flex-shrink-0 text-sm">
         <span className="flex items-center gap-2 font-semibold w-1/3" style={{ color: isServerUp ? '#0f9d6b' : '#d97706' }}>
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: isServerUp ? '#10b981' : '#f59e0b' }} />
           {isServerUp ? 'Online' : 'Offline'}

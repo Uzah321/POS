@@ -28,13 +28,13 @@ export default function PosProductTile({
         ${highlighted ? 'outline outline-[3px] outline-blue-500 outline-offset-1 z-10' : ''}`}
     >
       <div
-        className="relative w-full h-[132px] flex items-center justify-center overflow-hidden"
+        className="relative w-full h-[clamp(70px,10.5vh,104px)] flex items-center justify-center overflow-hidden"
         style={!product.image && tint ? { background: tint } : undefined}
       >
         {product.image ? (
           <img src={product.image} alt="" className="w-full h-full object-contain p-1.5" />
         ) : (
-          <span className="text-5xl font-black select-none text-slate-300">{product.name?.[0]?.toUpperCase() ?? '?'}</span>
+          <span className="text-4xl font-black select-none text-slate-300">{product.name?.[0]?.toUpperCase() ?? '?'}</span>
         )}
         {product.made_to_order && (
           <span title="Made on Order — prepared fresh from its recipe" className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-lg bg-orange-500 text-white shadow">
@@ -53,13 +53,13 @@ export default function PosProductTile({
         )}
       </div>
 
-      <div className="px-3 pt-1 pb-3 pr-12 min-h-[64px] flex flex-col justify-center gap-1">
-        <span className="text-[13px] font-semibold leading-tight text-slate-800 line-clamp-2">{product.name}</span>
-        <span className="text-[17px] font-bold tabular-nums leading-none" style={{ color: '#1f5fe0' }}>{priceLabel}</span>
+      <div className="px-2.5 pt-1 pb-2 pr-11 min-h-[52px] flex flex-col justify-center gap-0.5">
+        <span className="text-[12px] font-semibold leading-tight text-slate-800 line-clamp-2">{product.name}</span>
+        <span className="text-[15px] font-bold tabular-nums leading-none" style={{ color: '#1f5fe0' }}>{priceLabel}</span>
       </div>
 
-      <span className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-lg text-white flex items-center justify-center shadow pointer-events-none" style={{ background: '#10a37f' }}>
-        <Plus size={20} strokeWidth={3} />
+      <span className="absolute bottom-2 right-2 w-8 h-8 rounded-lg text-white flex items-center justify-center shadow pointer-events-none" style={{ background: '#10a37f' }}>
+        <Plus size={18} strokeWidth={3} />
       </span>
     </button>
   );

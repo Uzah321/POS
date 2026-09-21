@@ -735,6 +735,13 @@ export default function POSPage() {
   const subtotalNow = cart.subtotal();
   const taxPct = subtotalNow > 0 ? Math.round((cart.taxTotal() / subtotalNow) * 1000) / 10 : 0;
 
+  // External keyboard: land the cursor in Cash tendered whenever cash becomes the
+  // active method, so the cashier can type the amount and press Enter to process.
+  const cashInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (paymentMethod === 'cash' && !isSplitPayment) cashInputRef.current?.focus();
+  }, [paymentMethod, isSplitPayment]);
+
   const railRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const railScroll = useScrollState(railRef, [categories.length]);
@@ -1061,7 +1068,23 @@ export default function POSPage() {
                       </span>
                     )}
                   </span>
-                  <span className="ml-auto text-[24px] font-medium tabular-nums text-slate-700 pr-3">{cashTendered || '0.00'}</span>
+                  <input
+                    ref={cashInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    value={cashTendered}
+                    placeholder="0.00"
+                    aria-label="Cash tendered"
+                    onChange={(e) => {
+                      let v = e.target.value.replace(/[^0-9.]/g, '');
+                      const parts = v.split('.');
+                      if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+                      if (/\.\d{3,}$/.test(v)) v = v.slice(0, v.indexOf('.') + 3);
+                      setCashTendered(v);
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessSale(); } }}
+                    className="ml-auto min-w-0 w-40 text-right bg-transparent text-[24px] font-medium tabular-nums text-slate-700 placeholder:text-slate-300 pr-3 focus:outline-none"
+                  />
                   <button type="button" onClick={() => tender('clear')} aria-label="Clear cash tendered" className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-500 touch-manipulation">
                     <XCircle size={22} strokeWidth={1.6} />
                   </button>

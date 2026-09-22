@@ -9,7 +9,9 @@ class SupplierController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = Supplier::when($request->search, function ($q) use ($request) {
+        $branchId = $this->effectiveBranchId($request);
+        $query = Supplier::when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->whereRaw('LOWER(name) LIKE ?', [$s])
                   ->orWhereRaw('LOWER(email) LIKE ?', [$s])
@@ -34,6 +36,13 @@ class SupplierController extends BaseApiController
             'credit_limit'   => 'nullable|numeric|min:0',
             'notes'          => 'nullable|string',
         ]);
+
+        // Every supplier belongs to exactly one branch — only an admin may
+        // plant one in a branch other than their own.
+        $user = $request->user();
+        $data['branch_id'] = ($user->hasRole('admin') && $request->filled('branch_id'))
+            ? (int) $request->branch_id
+            : $user->branch_id;
 
         $supplier = Supplier::create($data);
         return $this->success($supplier, 'Supplier created', 201);

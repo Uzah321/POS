@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { db, type LocalUser } from '../lib/db';
 import { useOfflineStore } from '../stores/offlineStore';
+import BranchFilter from '../components/BranchFilter';
 
 const ROLES = ['admin', 'manager', 'cashier', 'storekeeper', 'accountant'];
 
@@ -420,16 +421,17 @@ function DepartmentsModal({ departments, onClose }: { departments: any[]; onClos
 export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [branchId, setBranchId] = useState('');
   const [modal, setModal] = useState<{ open: boolean; user?: any }>({ open: false });
   const [showDepartments, setShowDepartments] = useState(false);
   const qc = useQueryClient();
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['users', search, page],
+    queryKey: ['users', search, page, branchId],
     queryFn: async () => {
       try {
-        const r = await usersApi.list({ search, page, per_page: 20 });
+        const r = await usersApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) });
         const users: LocalUser[] = r.data?.data?.data ?? r.data?.data ?? [];
         // Keep IndexedDB in sync (but don't clear pending-only temp entries)
         const serverIds = new Set(users.map((u: LocalUser) => u.id));
@@ -575,14 +577,17 @@ export default function UsersPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Search staff..."
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-        />
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative max-w-sm flex-1 min-w-[200px]">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search staff..."
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          />
+        </div>
+        <BranchFilter value={branchId} onChange={(v) => { setBranchId(v); setPage(1); }} />
       </div>
 
       {/* Staff grid */}

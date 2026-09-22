@@ -963,8 +963,8 @@ export default function ProductsPage() {
   // edit) the supermarket catalog's categories, and vice versa. Switch modes
   // to manage that side's categories instead.
   const { data: categoriesAll } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => categoriesApi.list().then(r => r.data?.data || []),
+    queryKey: ['categories', branchId],
+    queryFn: () => categoriesApi.list(branchId ? { branch_id: Number(branchId) } : undefined).then(r => r.data?.data || []),
     staleTime: 120000,
   });
   // No mutation in the app (stock adjustments, GRV, transfers, stocktakes, sales)

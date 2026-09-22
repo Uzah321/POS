@@ -936,6 +936,56 @@ class ReportController extends BaseApiController
         ]);
     }
 
+    /**
+     * GET /reports/branch-comparison — admin-only (route-gated). Deliberately
+     * does NOT call effectiveBranchId(); it spans every branch on purpose so
+     * an admin can see at a glance which branch is doing well, same style P&L
+     * as financialSummary() above but one row per branch instead of per day.
+     */
+    public function branchComparison(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $from = $request->date_from ?? now()->startOfMonth()->toDateString();
+        $to   = $request->date_to   ?? now()->toDateString();
+
+        $rows = Branch::orderBy('name')->get()->map(function (Branch $branch) use ($from, $to) {
+            $sales = Sale::revenueCounted()
+                ->where('branch_id', $branch->id)
+                ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
+                ->get(['id', 'total']);
+
+            $revenue = (float) $sales->sum('total');
+            $cogs    = $this->calculateCogs($sales->pluck('id'));
+            $expenses = (float) Expense::where('status', 'approved')
+                ->where('branch_id', $branch->id)
+                ->whereBetween('expense_date', [$from, $to])
+                ->sum('amount');
+
+            $grossProfit = $revenue - $cogs;
+            $netProfit   = $grossProfit - $expenses;
+
+            return [
+                'branch_id'          => $branch->id,
+                'branch_name'        => $branch->name,
+                'revenue'            => $revenue,
+                'gross_profit'       => $grossProfit,
+                'gp_percent'         => $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) : 0,
+                'expenses'           => $expenses,
+                'net_profit'         => $netProfit,
+                'transaction_count'  => $sales->count(),
+            ];
+        })->sortByDesc('revenue')->values();
+
+        $totals = [
+            'revenue'           => (float) $rows->sum('revenue'),
+            'gross_profit'      => (float) $rows->sum('gross_profit'),
+            'expenses'          => (float) $rows->sum('expenses'),
+            'net_profit'        => (float) $rows->sum('net_profit'),
+            'transaction_count' => (int) $rows->sum('transaction_count'),
+        ];
+
+        return $this->success(['rows' => $rows, 'totals' => $totals, 'from' => $from, 'to' => $to]);
+    }
+
     /** GET /reports/daily/csv */
     public function dailyCsv(Request $request)
     {

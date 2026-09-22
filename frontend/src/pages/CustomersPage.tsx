@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { db, type LocalCustomer } from '../lib/db';
 import { useOfflineStore } from '../stores/offlineStore';
 import { useCurrencyStore } from '../stores/currencyStore';
+import BranchFilter from '../components/BranchFilter';
 
 const schema = z.object({
   name: z.string().min(1),
@@ -228,16 +229,17 @@ function LoyaltyModal({ customer, onClose }: { customer: any; onClose: () => voi
 export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [branchId, setBranchId] = useState('');
   const [modal, setModal] = useState<{ open: boolean; customer?: any }>({ open: false });
   const [loyaltyCustomer, setLoyaltyCustomer] = useState<any>(null);
   const qc = useQueryClient();
   const { format: formatAmount } = useCurrencyStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', search, page],
+    queryKey: ['customers', search, page, branchId],
     queryFn: async () => {
       try {
-        const r = await customersApi.list({ search, page, per_page: 20 });
+        const r = await customersApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) });
         const customers: LocalCustomer[] = r.data?.data?.data ?? r.data?.data ?? [];
         if (customers.length > 0) await db.customers.bulkPut(customers);
         return r.data?.data;
@@ -307,11 +309,12 @@ export default function CustomersPage() {
       </div>
 
       <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative max-w-sm">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search customers..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </div>
+          <BranchFilter value={branchId} onChange={(v) => { setBranchId(v); setPage(1); }} />
         </div>
 
         {isLoading ? (

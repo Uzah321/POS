@@ -1,56 +1,73 @@
-﻿import { BrowserRouter, Routes, Route } from 'react-router-dom';
+﻿import { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
 import { ProtectedRoute, GuestRoute, StaffOnlyRoute } from './components/auth/RouteGuards';
 import RequirePermission from './components/auth/PermissionRoute';
 import ShopGuard from './components/auth/ShopGuard';
 import AppLayout from './layouts/AppLayout';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import POSPage from './pages/POSPage';
-import CashierPage from './pages/CashierPage';
-import SalesPage from './pages/SalesPage';
-import RefundsPage from './pages/RefundsPage';
-import ProductsPage from './pages/ProductsPage';
-import IngredientsPage from './pages/IngredientsPage';
-import InventoryPage from './pages/InventoryPage';
-import PurchasesPage from './pages/PurchasesPage';
-import SuppliersPage from './pages/SuppliersPage';
-import CustomersPage from './pages/CustomersPage';
-import ExpensesPage from './pages/ExpensesPage';
-import ReportsPage from './pages/ReportsPage';
-import UsersPage from './pages/UsersPage';
-import SettingsPage from './pages/SettingsPage';
-import CurrenciesPage from './pages/CurrenciesPage';
-import OrdersPage from './pages/OrdersPage';
-import MySalesPage from './pages/MySalesPage';
-import ShiftEndPage from './pages/ShiftEndPage';
-import DayEndPage from './pages/DayEndPage';
-import HardwarePage from './pages/HardwarePage';
-import CustomerDisplayPage from './pages/CustomerDisplayPage';
-import KitchenDisplayPage from './pages/KitchenDisplayPage';
-import QueueDisplayPage from './pages/QueueDisplayPage';
-import LaybyPage from './pages/LaybyPage';
-import QuotationsPage from './pages/QuotationsPage';
-import StocktakePage from './pages/StocktakePage';
-import StockTransferPage from './pages/StockTransferPage';
-import AttendancePage from './pages/AttendancePage';
-import CommissionsPage from './pages/CommissionsPage';
-import AuditLogPage from './pages/AuditLogPage';
-import RolePermissionPage from './pages/RolePermissionPage';
-import WebhooksPage from './pages/WebhooksPage';
-import BackupPage from './pages/BackupPage';
-import EcocashPage from './pages/EcocashPage';
-import CashflowPage from './pages/CashflowPage';
-import FinancialReportPage from './pages/FinancialReportPage';
-import SalariesPage from './pages/SalariesPage';
-import RentalsPage from './pages/RentalsPage';
-import StockReconciliationPage from './pages/StockReconciliationPage';
-import BranchesPage from './pages/BranchesPage';
-import LicensePage from './pages/LicensePage';
-import StockProductionPage from './pages/StockProductionPage';
-import BarcodeLabelsPage from './pages/BarcodeLabelsPage';
 import ErrorBoundary from './components/ErrorBoundary';
+
+// Every page is loaded on demand instead of bundled into one ~2.8MB chunk
+// every user downloaded up front (including jsPDF/xlsx/recharts, which most
+// sessions never touch) — this is what made first load slow. Login/POS/
+// Cashier/Dashboard are the screens almost everyone hits first, so they're
+// still worth prefetching eagerly below; everything else loads when routed to.
+const LoginPage               = lazy(() => import('./pages/LoginPage'));
+const DashboardPage           = lazy(() => import('./pages/DashboardPage'));
+const POSPage                 = lazy(() => import('./pages/POSPage'));
+const CashierPage             = lazy(() => import('./pages/CashierPage'));
+const SalesPage                = lazy(() => import('./pages/SalesPage'));
+const RefundsPage              = lazy(() => import('./pages/RefundsPage'));
+const ProductsPage             = lazy(() => import('./pages/ProductsPage'));
+const IngredientsPage          = lazy(() => import('./pages/IngredientsPage'));
+const InventoryPage            = lazy(() => import('./pages/InventoryPage'));
+const PurchasesPage            = lazy(() => import('./pages/PurchasesPage'));
+const SuppliersPage            = lazy(() => import('./pages/SuppliersPage'));
+const CustomersPage            = lazy(() => import('./pages/CustomersPage'));
+const ExpensesPage             = lazy(() => import('./pages/ExpensesPage'));
+const ReportsPage              = lazy(() => import('./pages/ReportsPage'));
+const UsersPage                = lazy(() => import('./pages/UsersPage'));
+const SettingsPage             = lazy(() => import('./pages/SettingsPage'));
+const CurrenciesPage           = lazy(() => import('./pages/CurrenciesPage'));
+const OrdersPage               = lazy(() => import('./pages/OrdersPage'));
+const MySalesPage              = lazy(() => import('./pages/MySalesPage'));
+const ShiftEndPage             = lazy(() => import('./pages/ShiftEndPage'));
+const DayEndPage               = lazy(() => import('./pages/DayEndPage'));
+const HardwarePage             = lazy(() => import('./pages/HardwarePage'));
+const CustomerDisplayPage      = lazy(() => import('./pages/CustomerDisplayPage'));
+const KitchenDisplayPage       = lazy(() => import('./pages/KitchenDisplayPage'));
+const QueueDisplayPage         = lazy(() => import('./pages/QueueDisplayPage'));
+const LaybyPage                = lazy(() => import('./pages/LaybyPage'));
+const QuotationsPage           = lazy(() => import('./pages/QuotationsPage'));
+const StocktakePage            = lazy(() => import('./pages/StocktakePage'));
+const StockTransferPage        = lazy(() => import('./pages/StockTransferPage'));
+const AttendancePage           = lazy(() => import('./pages/AttendancePage'));
+const CommissionsPage          = lazy(() => import('./pages/CommissionsPage'));
+const AuditLogPage             = lazy(() => import('./pages/AuditLogPage'));
+const RolePermissionPage       = lazy(() => import('./pages/RolePermissionPage'));
+const WebhooksPage             = lazy(() => import('./pages/WebhooksPage'));
+const BackupPage               = lazy(() => import('./pages/BackupPage'));
+const EcocashPage              = lazy(() => import('./pages/EcocashPage'));
+const CashflowPage             = lazy(() => import('./pages/CashflowPage'));
+const FinancialReportPage      = lazy(() => import('./pages/FinancialReportPage'));
+const SalariesPage             = lazy(() => import('./pages/SalariesPage'));
+const RentalsPage              = lazy(() => import('./pages/RentalsPage'));
+const StockReconciliationPage  = lazy(() => import('./pages/StockReconciliationPage'));
+const BranchesPage             = lazy(() => import('./pages/BranchesPage'));
+const BranchComparisonPage     = lazy(() => import('./pages/BranchComparisonPage'));
+const LicensePage              = lazy(() => import('./pages/LicensePage'));
+const StockProductionPage      = lazy(() => import('./pages/StockProductionPage'));
+const BarcodeLabelsPage        = lazy(() => import('./pages/BarcodeLabelsPage'));
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center h-screen w-full">
+      <Loader2 size={28} className="animate-spin text-blue-500" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +96,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
       <BrowserRouter>
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route element={<GuestRoute />}>
             <Route path="/login" element={<LoginPage />} />
@@ -130,9 +148,11 @@ export default function App() {
               <Route path="/barcode-labels" element={<RequirePermission perm="view_products"><LayoutWrapper><BarcodeLabelsPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/license" element={<RequirePermission perm="manage_settings"><LayoutWrapper><LicensePage /></LayoutWrapper></RequirePermission>} />
               <Route path="/branches" element={<RequirePermission perm="manage_settings"><LayoutWrapper><BranchesPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/branch-comparison" element={<RequirePermission perm="manage_settings"><LayoutWrapper><BranchComparisonPage /></LayoutWrapper></RequirePermission>} />
             </Route>
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
       </ErrorBoundary>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />

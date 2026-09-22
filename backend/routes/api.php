@@ -165,6 +165,12 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
         Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
     });
 
+    // Branch comparison — admin-only, deliberately spans every branch so an
+    // admin can see at a glance which branch is doing well.
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/reports/branch-comparison', [ReportController::class, 'branchComparison']);
+    });
+
     // Shift End (Cashup)
     Route::get('/shift-end/summary', [\App\Http\Controllers\Api\ShiftEndController::class, 'summary']);
     Route::get('/shift-end', [\App\Http\Controllers\Api\ShiftEndController::class, 'index']);

@@ -133,6 +133,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Settings,
       items: [
         { to: '/branches',         label: 'Branches',     icon: Building2, perm: 'manage_settings' },
+        // Admin-only regardless of who else has manage_settings — every
+        // other role is locked to its own branch, so cross-branch
+        // comparison only makes sense for admin.
+        ...(hasRole('admin') ? [{ to: '/branch-comparison', label: 'Compare Branches', icon: TrendingUp, perm: 'manage_settings' }] : []),
         { to: '/users',            label: 'Staff',        icon: UserCog,   perm: 'manage_users' },
         { to: '/roles-permissions',label: 'Roles & Perms',icon: Key,       perm: 'manage_settings' },
         { to: '/settings',         label: 'Settings',     icon: Settings,  perm: 'manage_settings' },

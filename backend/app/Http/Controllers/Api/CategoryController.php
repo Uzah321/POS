@@ -7,9 +7,11 @@ class CategoryController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId = $this->effectiveBranchId($request);
         $businessType = $this->effectiveBusinessType($request);
         $categories = Category::with('parent', 'children')
             ->withCount('products')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($businessType, fn($q) => $q->whereIn('business_type', [$businessType, 'both']))
             ->orderBy('name')
             ->get();
@@ -30,6 +32,12 @@ class CategoryController extends BaseApiController
         // default — this is what keeps a newly-added "Pizza" category out of
         // the supermarket catalog without the user having to remember to tag it.
         $data['business_type'] = $data['business_type'] ?? ($this->effectiveBusinessType($request) ?? 'both');
+        // Every category belongs to exactly one branch's own catalog, same as
+        // products — only an admin may plant one in a branch other than their own.
+        $user = $request->user();
+        $data['branch_id'] = ($user->hasRole('admin') && $request->filled('branch_id'))
+            ? (int) $request->branch_id
+            : $user->branch_id;
         return $this->success(Category::create($data), 'Category created', 201);
     }
     public function show(Category $category): \Illuminate\Http\JsonResponse { return $this->success($category->load('children')); }

@@ -10,6 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
 import { offlineMutate, handleOfflineSuccess } from "../lib/offlineMutation";
 import { useCurrencyStore } from "../stores/currencyStore";
+import BranchFilter from "../components/BranchFilter";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -73,13 +74,14 @@ function SupplierModal({ supplier, onClose }: { supplier?: any; onClose: () => v
 export default function SuppliersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [branchId, setBranchId] = useState("");
   const [modal, setModal] = useState<{ open: boolean; supplier?: any }>({ open: false });
   const qc = useQueryClient();
   const { format: formatAmount } = useCurrencyStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["suppliers", search, page],
-    queryFn: () => suppliersApi.list({ search, page, per_page: 20 }).then((r) => r.data?.data),
+    queryKey: ["suppliers", search, page, branchId],
+    queryFn: () => suppliersApi.list({ search, page, per_page: 20, ...(branchId ? { branch_id: Number(branchId) } : {}) }).then((r) => r.data?.data),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: number) => offlineMutate(() => suppliersApi.delete(id), 'suppliers', 'delete', {}, id),
@@ -99,8 +101,9 @@ export default function SuppliersPage() {
         <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-md text-sm"><Plus size={16} /> New Supplier</button>
       </div>
       <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative max-w-sm"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search suppliers..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="relative max-w-sm flex-1 min-w-[200px]"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search suppliers..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
+          <BranchFilter value={branchId} onChange={(v) => { setBranchId(v); setPage(1); }} />
         </div>
         {isLoading ? <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div> : (
           <div className="overflow-x-auto">

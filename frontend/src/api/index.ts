@@ -116,6 +116,7 @@ export const reportsApi = {
   cashierPerformance: (params?: object) => api.get('/reports/cashier-performance', { params }),
   categories: (params?: object) => api.get('/reports/categories', { params }),
   scales: (params?: object) => api.get('/reports/scales', { params }),
+  branchComparison: (params?: object) => api.get('/reports/branch-comparison', { params }),
 };
 
 export const weighingScalesApi = {

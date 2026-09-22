@@ -6,12 +6,15 @@ use App\Models\Customer;
 use App\Models\LoyaltyTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class CustomerController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $query = Customer::when($request->search, function ($q) use ($request) {
+        $branchId = $this->effectiveBranchId($request);
+        $query = Customer::when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->whereRaw('LOWER(name) LIKE ?', [$s])
                   ->orWhereRaw('LOWER(email) LIKE ?', [$s])
@@ -24,9 +27,16 @@ class CustomerController extends BaseApiController
 
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
+        // Every customer belongs to exactly one branch — only an admin may
+        // plant one in a branch other than their own.
+        $user = $request->user();
+        $branchId = ($user->hasRole('admin') && $request->filled('branch_id'))
+            ? (int) $request->branch_id
+            : $user->branch_id;
+
         $data = $request->validate([
             'name'         => 'required|string|max:255',
-            'email'        => 'nullable|email|unique:customers',
+            'email'        => ['nullable', 'email', Rule::unique('customers')->where(fn($q) => $q->where('branch_id', $branchId))],
             'phone'        => 'nullable|string|max:20',
             'address'      => 'nullable|string',
             'city'         => 'nullable|string',
@@ -34,6 +44,7 @@ class CustomerController extends BaseApiController
             'credit_limit' => 'nullable|numeric|min:0',
             'notes'        => 'nullable|string',
         ]);
+        $data['branch_id'] = $branchId;
 
         $customer = Customer::create($data);
         return $this->success($customer, 'Customer created', 201);
@@ -48,7 +59,7 @@ class CustomerController extends BaseApiController
     {
         $data = $request->validate([
             'name'         => 'sometimes|string|max:255',
-            'email'        => "nullable|email|unique:customers,email,{$customer->id}",
+            'email'        => ['nullable', 'email', Rule::unique('customers')->where(fn($q) => $q->where('branch_id', $customer->branch_id))->ignore($customer->id)],
             'phone'        => 'nullable|string|max:20',
             'address'      => 'nullable|string',
             'city'         => 'nullable|string',

@@ -11,7 +11,7 @@ class Supplier extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'company_name', 'email', 'phone', 'address', 'city', 'country',
+        'name', 'branch_id', 'company_name', 'email', 'phone', 'address', 'city', 'country',
         'vat_number', 'account_number', 'balance', 'credit_limit', 'is_active', 'notes',
     ];
 

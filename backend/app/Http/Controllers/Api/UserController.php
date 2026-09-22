@@ -10,13 +10,14 @@ class UserController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId = $this->effectiveBranchId($request);
         $query = User::with('roles', 'branch', 'department')
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->whereRaw('LOWER(name) LIKE ?', [$s])
                   ->orWhereRaw('LOWER(email) LIKE ?', [$s]);
             })
-            ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->role, fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $request->role)))
             ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')));
 
@@ -38,6 +39,13 @@ class UserController extends BaseApiController
             'roles'     => 'required|array',
             'roles.*'   => 'exists:roles,name',
         ]);
+
+        // Staff belong to exactly one branch, same as products/categories —
+        // only an admin may place a new hire in a branch other than their own.
+        $caller = $request->user();
+        $data['branch_id'] = ($caller->hasRole('admin') && $request->filled('branch_id'))
+            ? (int) $request->branch_id
+            : $caller->branch_id;
 
         $user = User::create([
             ...\Arr::except($data, ['roles', 'password']),
@@ -72,6 +80,11 @@ class UserController extends BaseApiController
 
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
+        }
+
+        // Only an admin may move a staff member to a different branch.
+        if (! $request->user()->hasRole('admin')) {
+            unset($data['branch_id']);
         }
 
         $user->update(\Arr::except($data, ['roles']));

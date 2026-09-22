@@ -1485,7 +1485,12 @@ export default function ProductsPage() {
                         className="border border-blue-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-xs"
                       />
                     ) : (
-                      <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setCatProductsFor(c)}
+                        className="flex items-center gap-2.5 text-left hover:underline decoration-gray-300 underline-offset-2"
+                        title={`View products in "${c.name}"`}
+                      >
                         <span
                           className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden ${!c.color && !c.image ? 'bg-blue-50' : ''}`}
                           style={!c.image && c.color ? { backgroundColor: `${c.color}22` } : undefined}
@@ -1497,7 +1502,7 @@ export default function ProductsPage() {
                           )}
                         </span>
                         <span className="text-sm font-medium text-gray-900">{c.name}</span>
-                      </div>
+                      </button>
                     )}
                   </td>
                   <td className="px-5 py-3.5">

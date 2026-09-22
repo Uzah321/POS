@@ -841,6 +841,63 @@ function ProductHistoryModal({ product, onClose }: { product: any; onClose: () =
   );
 }
 
+/** Read-only list of every product filed under one category, opened by
+ *  clicking that category in the Categories tab. */
+function CategoryProductsModal({ category, onClose }: { category: any; onClose: () => void }) {
+  const { format: formatCurrency } = useCurrencyStore();
+  const { data, isLoading } = useQuery({
+    queryKey: ['category-products', category.id],
+    queryFn: () => productsApi.list({ category_id: category.id, per_page: 200 }).then(r => r.data?.data),
+  });
+  const products: any[] = data?.data ?? [];
+  const total: number = data?.total ?? products.length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg w-full max-w-2xl shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Tag size={18} className="text-gray-500" />
+            <h2 className="text-base font-bold text-gray-900">{category.name}</h2>
+            <span className="text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+              {isLoading ? '…' : `${total} product${total === 1 ? '' : 's'}`}
+            </span>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex justify-center py-12"><Loader2 size={22} className="animate-spin text-gray-400" /></div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">No products in this category yet</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase sticky top-0">
+                <tr>
+                  <th className="text-left px-4 py-2">Product</th>
+                  <th className="text-left px-4 py-2">SKU</th>
+                  <th className="text-right px-4 py-2">Stock</th>
+                  <th className="text-right px-4 py-2">Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {products.map((p: any) => (
+                  <tr key={p.id}>
+                    <td className="px-4 py-2 font-medium text-gray-900">{p.name}</td>
+                    <td className="px-4 py-2 text-gray-500">{p.sku ?? '-'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-gray-700">{p.stocks_sum_quantity ?? '-'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-gray-700">{formatCurrency(parseFloat(p.selling_price || 0))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -858,6 +915,7 @@ export default function ProductsPage() {
   const [catAddType, setCatAddType] = useState<'restaurant' | 'supermarket' | 'both'>('both');
   const [addingCat, setAddingCat] = useState(false);
   const [catEdit, setCatEdit] = useState<{ id: number; name: string; color?: string; image?: string; business_type?: 'restaurant' | 'supermarket' | 'both' } | null>(null);
+  const [catProductsFor, setCatProductsFor] = useState<any>(null);
   // Brand management
   const [brandAdd, setBrandAdd] = useState('');
   const [addingBrand, setAddingBrand] = useState(false);
@@ -1399,13 +1457,14 @@ export default function ProductsPage() {
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Color / Image</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Shows In</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Products</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {!(categoriesAll as any[])?.length ? (
                 <tr>
-                  <td colSpan={4} className="text-center py-16 text-gray-400">
+                  <td colSpan={5} className="text-center py-16 text-gray-400">
                     <Tag size={36} className="mx-auto mb-3 text-gray-200" />
                     <p className="font-medium">No categories yet</p>
                     <p className="text-sm mt-1">Click "Add Category" to create your first one</p>
@@ -1483,6 +1542,16 @@ export default function ProductsPage() {
                         {c.business_type ?? 'both'}
                       </span>
                     )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <button
+                      type="button"
+                      onClick={() => setCatProductsFor(c)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full px-2.5 py-1 transition-colors"
+                      title={`View products in "${c.name}"`}
+                    >
+                      {c.products_count ?? 0} {c.products_count === 1 ? 'product' : 'products'}
+                    </button>
                   </td>
                   <td className="px-5 py-3.5">
                     {catEdit?.id === c.id ? (
@@ -1767,6 +1836,7 @@ export default function ProductsPage() {
       {modal.open && <ProductModal product={modal.product} onClose={() => setModal({ open: false })} />}
       {adjustFor && <ProductStockAdjustModal product={adjustFor.product} mode={adjustFor.mode} onClose={() => setAdjustFor(null)} />}
       {historyFor && <ProductHistoryModal product={historyFor} onClose={() => setHistoryFor(null)} />}
+      {catProductsFor && <CategoryProductsModal category={catProductsFor} onClose={() => setCatProductsFor(null)} />}
       {showImport && <InventoryImportModal onClose={() => setShowImport(false)} />}
     </div>
   );

@@ -9,6 +9,7 @@ class CategoryController extends BaseApiController
     {
         $businessType = $this->effectiveBusinessType($request);
         $categories = Category::with('parent', 'children')
+            ->withCount('products')
             ->when($businessType, fn($q) => $q->whereIn('business_type', [$businessType, 'both']))
             ->orderBy('name')
             ->get();

@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHardwareStore } from '../stores/hardwareStore';
-import { weighingScalesApi } from '../api';
+import { weighingScalesApi, branchesApi } from '../api';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
@@ -361,6 +361,12 @@ export default function HardwarePage() {
   const [kds, setKdsRaw] = useState<KdsSettings>(() => loadKdsSettings());
   const setK = <K extends keyof KdsSettings>(key: K, val: KdsSettings[K]) =>
     setKdsRaw(k => { const n = { ...k, [key]: val }; saveKdsSettings(n); return n; });
+
+  const { data: kdsBranches = [] } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+  });
 
   // USB printer connection state
   const [usbConnected, setUsbConnected] = useState(false);
@@ -1005,6 +1011,25 @@ export default function HardwarePage() {
       // ---- KDS / Queue Display ----------------------------
       case 'kds': return (
         <div className="space-y-4">
+
+          <Card title="Branch">
+            <p className="text-xs text-gray-500 mb-2">
+              Which branch this screen belongs to. Required — the kitchen and queue displays only ever show this branch's own orders.
+            </p>
+            <select
+              value={kds.kdsBranchId ?? ''}
+              onChange={e => setK('kdsBranchId', e.target.value ? Number(e.target.value) : null)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">Select a branch…</option>
+              {(kdsBranches as any[]).map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            {!kds.kdsBranchId && (
+              <p className="text-xs text-amber-600 mt-2">No branch selected — the KDS/Queue screens won't load orders until one is set.</p>
+            )}
+          </Card>
 
           {/* KDS sub-section */}
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Kitchen Display (KDS)</p>

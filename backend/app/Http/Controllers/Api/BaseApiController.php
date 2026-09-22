@@ -77,6 +77,30 @@ abstract class BaseApiController extends Controller
     }
 
     /**
+     * Resolve the business_type a sale being created right now should be
+     * stamped with. A user locked to one shop is always correct (unchanged).
+     * Otherwise, trust the products actually in the cart — ground truth —
+     * rather than activeBusinessType()'s global `settings` row, which is
+     * shared by every branch and terminal in the whole installation and can
+     * flip mid-shift when an unrelated unassigned user on another screen
+     * switches modes. Only falls back to that global mode when the cart
+     * itself is ambiguous (empty, or every item is business_type 'both'/null).
+     */
+    protected function resolveSaleBusinessType(Request $request, \Illuminate\Support\Collection $productsById): ?string
+    {
+        if ($locked = $this->lockedBusinessType($request)) {
+            return $locked;
+        }
+
+        $types = $productsById->pluck('business_type')->filter()->reject(fn($t) => $t === 'both')->unique();
+        if ($types->count() === 1) {
+            return $types->first();
+        }
+
+        return $this->activeBusinessType($request);
+    }
+
+    /**
      * Restricts a Sale query (or any query joined to `sales`) to the given
      * business type. A sale rung up before this column existed — or synced
      * from an older client — has a null business_type and is left visible in

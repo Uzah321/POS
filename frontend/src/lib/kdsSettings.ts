@@ -1,4 +1,8 @@
 export interface KdsSettings {
+  // Which branch this physical screen belongs to — required so the kitchen/
+  // queue display only ever shows this branch's own orders, never every
+  // branch's tickets mixed together. null = not configured yet.
+  kdsBranchId: number | null;
   // Kitchen Display
   kdsTheme: 'dark' | 'light' | 'high-contrast';
   kdsRefreshInterval: 2 | 4 | 6 | 10;
@@ -18,6 +22,7 @@ export interface KdsSettings {
 }
 
 export const DEFAULT_KDS_SETTINGS: KdsSettings = {
+  kdsBranchId: null,
   kdsTheme: 'dark',
   kdsRefreshInterval: 2,
   kdsColumns: 'auto',

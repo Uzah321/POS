@@ -9,7 +9,7 @@ class HeldSale extends Model
 {
     protected $table = 'held_sales';
 
-    protected $fillable = ['reference', 'branch_id', 'user_id', 'customer_id', 'cart_data', 'note', 'order_status', 'table_number'];
+    protected $fillable = ['reference', 'branch_id', 'business_type', 'user_id', 'customer_id', 'cart_data', 'note', 'order_status', 'table_number'];
 
     protected $casts = ['cart_data' => 'array'];
 

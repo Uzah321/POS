@@ -18,11 +18,13 @@ export default function QueueDisplayPage() {
   const [time, setTime]     = useState(new Date());
   const [error, setError]   = useState('');
   const networkUrl          = useNetworkUrl();
+  const branchId            = settings.kdsBranchId;
 
   useEffect(() => {
+    if (!branchId) return;
     const fetch = async () => {
       try {
-        const { data } = await axios.get('/api/kds/orders');
+        const { data } = await axios.get('/api/kds/orders', { params: { branch_id: branchId } });
         setOrders(data.data ?? []);
         setError('');
       } catch { setError('Connecting...'); }
@@ -31,10 +33,21 @@ export default function QueueDisplayPage() {
     const t1 = setInterval(fetch, 4000);
     const t2 = setInterval(() => setTime(new Date()), 1000);
     return () => { clearInterval(t1); clearInterval(t2); };
-  }, []);
+  }, [branchId]);
 
   const preparing = orders.filter(o => o.kds_status === 'new' || o.kds_status === 'preparing');
   const ready     = orders.filter(o => o.kds_status === 'ready');
+
+  if (!branchId) {
+    return (
+      <div className={`min-h-screen ${th.bg} ${th.titleText} flex flex-col items-center justify-center gap-3 p-6 text-center`}>
+        <p className="text-xl font-semibold">This screen isn't set up yet</p>
+        <p className="text-sm max-w-md opacity-75">
+          Pick a branch for this Queue Display in Hardware Settings → KDS / Queue before it can show orders.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${th.bg} flex flex-col select-none`}>

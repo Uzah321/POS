@@ -188,10 +188,10 @@ class SaleController extends BaseApiController
 
             $sale = Sale::create([
                 'branch_id'       => $data['branch_id'],
-                // Stamped from whichever mode was active when this sale was rung
-                // up, so reports can filter by it later without joining through
+                // Stamped from the products actually in the cart (ground truth) so
+                // reports can filter by it later without joining through
                 // sale_items -> products -> categories on every query.
-                'business_type'   => $this->activeBusinessType($request),
+                'business_type'   => $this->resolveSaleBusinessType($request, $productsById),
                 'warehouse_id'    => $data['warehouse_id'],
                 'register_id'     => $data['register_id'] ?? null,
                 'customer_id'     => $data['customer_id'] ?? null,
@@ -403,14 +403,21 @@ class SaleController extends BaseApiController
             'table_number' => 'nullable|string|max:20',
         ]);
 
+        // Same ground-truth derivation as store() — the products actually held,
+        // not whatever the global mode toggle currently says (see
+        // resolveSaleBusinessType() for why that's unreliable).
+        $productIds   = collect($data['cart_data']['items'] ?? [])->pluck('product_id')->filter()->unique();
+        $productsById = \App\Models\Product::whereIn('id', $productIds)->get()->keyBy('id');
+
         $held = HeldSale::create([
-            'branch_id'    => $data['branch_id'],
-            'user_id'      => $request->user()->id,
-            'customer_id'  => $data['customer_id'] ?? null,
-            'cart_data'    => $data['cart_data'],
-            'note'         => $data['note'] ?? null,
-            'order_status' => 'open',
-            'table_number' => $data['table_number'] ?? null,
+            'branch_id'      => $data['branch_id'],
+            'business_type'  => $this->resolveSaleBusinessType($request, $productsById),
+            'user_id'        => $request->user()->id,
+            'customer_id'    => $data['customer_id'] ?? null,
+            'cart_data'      => $data['cart_data'],
+            'note'           => $data['note'] ?? null,
+            'order_status'   => 'open',
+            'table_number'   => $data['table_number'] ?? null,
         ]);
 
         return $this->success($held, 'Sale held successfully', 201);
@@ -426,8 +433,12 @@ class SaleController extends BaseApiController
 
     public function heldSales(Request $request): \Illuminate\Http\JsonResponse
     {
+        $branchId     = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
+
         $held = HeldSale::with('customer')
-            ->where('branch_id', $request->branch_id)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $q->where(fn($q2) => $q2->where('business_type', $businessType)->orWhereNull('business_type')))
             ->latest()
             ->get();
         return $this->success($held);

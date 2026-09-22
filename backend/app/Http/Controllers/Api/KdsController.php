@@ -7,10 +7,16 @@ use Illuminate\Routing\Controller;
 
 class KdsController extends Controller
 {
-    // Active orders for kitchen display — no auth required
-    public function orders(): \Illuminate\Http\JsonResponse
+    // Active orders for kitchen display — no auth required, so the branch is
+    // whatever this screen was configured for (branch_id query param), never
+    // "every branch" — an unscoped query here is exactly what let one
+    // branch's kitchen see another branch's tickets.
+    public function orders(Request $request): \Illuminate\Http\JsonResponse
     {
+        $request->validate(['branch_id' => 'required|integer|exists:branches,id']);
+
         $orders = Sale::with(['items.product', 'items.variant', 'customer'])
+            ->where('branch_id', $request->integer('branch_id'))
             ->whereNotNull('kds_status')
             ->whereIn('kds_status', ['new', 'preparing', 'ready'])
             ->where('status', 'completed')
@@ -44,10 +50,19 @@ class KdsController extends Controller
         return response()->json(['data' => $orders]);
     }
 
-    // Kitchen staff update order status — no auth required
+    // Kitchen staff update order status — no auth required, so verify the
+    // screen's own configured branch_id actually owns this ticket before
+    // touching it (stops one branch's kiosk from bumping another branch's
+    // order even if it somehow knows the sale id).
     public function updateStatus(Request $request, Sale $sale): \Illuminate\Http\JsonResponse
     {
-        $request->validate(['status' => 'required|in:new,preparing,ready,served']);
+        $request->validate([
+            'status'    => 'required|in:new,preparing,ready,served',
+            'branch_id' => 'required|integer|exists:branches,id',
+        ]);
+        if ((int) $sale->branch_id !== $request->integer('branch_id')) {
+            return response()->json(['success' => false, 'message' => 'This order does not belong to your branch.'], 422);
+        }
         $sale->update(['kds_status' => $request->status]);
         return response()->json(['data' => ['id' => $sale->id, 'kds_status' => $sale->kds_status]]);
     }

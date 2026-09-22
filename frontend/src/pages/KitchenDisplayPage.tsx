@@ -89,9 +89,12 @@ export default function KitchenDisplayPage() {
     } catch {}
   };
 
+  const branchId = settings.kdsBranchId;
+
   const fetchOrders = async () => {
+    if (!branchId) return;
     try {
-      const { data } = await axios.get('/api/kds/orders');
+      const { data } = await axios.get('/api/kds/orders', { params: { branch_id: branchId } });
       const list: KdsOrder[] = data.data ?? [];
       const hasNew = list.some(o => o.kds_status === 'new' && !prevIds.current.has(o.id));
       if (hasNew) beep();
@@ -104,6 +107,7 @@ export default function KitchenDisplayPage() {
   };
 
   useEffect(() => {
+    if (!branchId) return;
     fetchOrders();
     const interval = setInterval(fetchOrders, settings.kdsRefreshInterval * 1000);
     // A kitchen screen left in a background tab/minimized window gets its
@@ -113,14 +117,14 @@ export default function KitchenDisplayPage() {
     const onVisible = () => { if (document.visibilityState === 'visible') fetchOrders(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
-  }, [settings.kdsRefreshInterval]);
+  }, [settings.kdsRefreshInterval, branchId]);
 
   const bump = async (order: KdsOrder) => {
     const next = STATUS_NEXT[order.kds_status];
-    if (!next) return;
+    if (!next || !branchId) return;
     setUpdating(prev => new Set(prev).add(order.id));
     try {
-      await axios.patch(`/api/kds/orders/${order.id}/status`, { status: next });
+      await axios.patch(`/api/kds/orders/${order.id}/status`, { status: next, branch_id: branchId });
       await fetchOrders();
     } catch {}
     setUpdating(prev => { const s = new Set(prev); s.delete(order.id); return s; });
@@ -143,6 +147,17 @@ export default function KitchenDisplayPage() {
     ready:    t.badgeReady,
     served:   t.badgeServed,
   };
+
+  if (!branchId) {
+    return (
+      <div className={`min-h-screen ${t.bg} ${t.text} flex flex-col items-center justify-center gap-3 p-6 text-center`}>
+        <p className="text-xl font-semibold">This screen isn't set up yet</p>
+        <p className={`${t.textMuted} text-sm max-w-md`}>
+          Pick a branch for this Kitchen Display in Hardware Settings → KDS / Queue before it can show orders.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${t.bg} text-white flex flex-col`}>

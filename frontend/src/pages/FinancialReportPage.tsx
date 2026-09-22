@@ -47,6 +47,20 @@ export default function FinancialReportPage() {
   const { data: branchData } = useQuery({ queryKey: ['branches'], queryFn: () => branchesApi.list().then(r => r.data?.data || []) });
   const branches = branchData || [];
 
+  const handlePeriodChange = (p: Period) => {
+    setPeriod(p);
+    if (p === 'weekly') {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 6);
+      setDateFrom(start.toISOString().split('T')[0]);
+      setDateTo(end.toISOString().split('T')[0]);
+    } else if (p === 'daily') {
+      setDateFrom(today);
+      setDateTo(today);
+    }
+  };
+
   const queryParams = period === 'monthly'
     ? { period: 'monthly', month, branch_id: branchId || undefined }
     : { period, date_from: dateFrom, date_to: dateTo, branch_id: branchId || undefined };
@@ -125,7 +139,7 @@ export default function FinancialReportPage() {
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Period</label>
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
               {(['daily', 'weekly', 'monthly'] as Period[]).map(p => (
-                <button key={p} type="button" onClick={() => setPeriod(p)}
+                <button key={p} type="button" onClick={() => handlePeriodChange(p)}
                   className={`px-3 py-1 rounded-md text-sm font-medium capitalize transition-all ${period === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                   {p}
                 </button>

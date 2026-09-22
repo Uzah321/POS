@@ -867,6 +867,10 @@ class ReportController extends BaseApiController
             [$year, $mon] = explode('-', $month);
             $from = "{$year}-{$mon}-01";
             $to   = date('Y-m-t', strtotime($from));
+        } elseif ($period === 'weekly') {
+            // Previous 7 days (inclusive of the end date), not a calendar week.
+            $to   = $request->date_to   ?? $request->date ?? now()->toDateString();
+            $from = $request->date_from ?? date('Y-m-d', strtotime($to . ' -6 days'));
         } else {
             $from = $request->date_from ?? $request->date ?? now()->toDateString();
             $to   = $request->date_to   ?? $request->date ?? now()->toDateString();

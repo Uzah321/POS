@@ -127,7 +127,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
       <div className={`w-full flex items-center gap-1.5 ${large ? 'mb-2' : 'mb-1'}`}>
         {keyboardMode ? (
           <div
-            className={`flex-1 flex items-center justify-between px-3 transition-colors min-h-11 rounded-none ${
+            className={`flex-1 min-w-0 flex items-center justify-between px-3 transition-colors min-h-11 rounded-none ${
               large
                 ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
                 : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')
@@ -152,7 +152,7 @@ const CashNotesPad = forwardRef<HTMLInputElement, CashNotesPadProps>(function Ca
             onClick={() => { if (!disabled) setShowKeypad(true); }}
             disabled={disabled}
             title="Tap to type an exact amount"
-            className={`flex-1 flex items-center justify-between px-3 touch-manipulation transition-colors min-h-11 rounded-none ${
+            className={`flex-1 min-w-0 flex items-center justify-between px-3 touch-manipulation transition-colors min-h-11 rounded-none ${
               large
                 ? (value ? 'bg-blue-50 border-2 border-blue-300' : 'bg-gray-50 border-2 border-gray-200')
                 : (value ? 'bg-blue-50 border border-blue-300' : 'bg-white border border-gray-200')

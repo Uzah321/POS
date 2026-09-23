@@ -610,7 +610,7 @@ export default function CashierPage() {
               className="relative flex items-center gap-2 rounded-xl h-11 text-white hover:brightness-125 text-xs font-semibold px-3.5 transition touch-manipulation flex-shrink-0"
               style={{ background: '#16305e' }}
             >
-              <LayoutGrid size={16} className="text-amber-300" /> {isRestaurant ? 'Open Tables' : 'Held Orders'}
+              <LayoutGrid size={16} className="text-amber-300" /> <span className="hidden sm:inline">{isRestaurant ? 'Open Tables' : 'Held Orders'}</span>
               {heldOrders.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
               )}
@@ -621,7 +621,7 @@ export default function CashierPage() {
               className="flex items-center gap-2 rounded-xl h-11 text-red-200 hover:text-white hover:bg-red-500/80 text-xs font-semibold px-3.5 transition-colors touch-manipulation flex-shrink-0"
               style={{ background: '#16305e' }}
             >
-              <Ban size={16} /> Void
+              <Ban size={16} /> <span className="hidden sm:inline">Void</span>
             </button>
 
             {scales.length > 0 && (
@@ -639,7 +639,7 @@ export default function CashierPage() {
 
             <span className={`flex items-center gap-2 rounded-xl px-3 h-11 text-xs font-semibold flex-shrink-0 ${isOnline ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
               <span className={`w-1.5 h-1.5 rounded-full inline-block ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
-              {isOnline ? 'Online & synced' : 'Server starting...'}
+              <span className="hidden sm:inline">{isOnline ? 'Online & synced' : 'Server starting...'}</span>
             </span>
 
             <div className="text-right leading-tight pl-1 flex-shrink-0 hidden sm:block">
@@ -769,10 +769,13 @@ export default function CashierPage() {
       </div>
 
       {/* Main area */}
-      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden gap-3 lg:gap-4 px-2 sm:px-4 pb-2 sm:pb-4 min-h-0">
+      {/* Below lg the column scrolls as a whole: order list gets a fixed share
+          of the screen and the payment panel follows at full height, so a phone
+          never squeezes the order list to nothing. */}
+      <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden gap-3 lg:gap-4 px-2 sm:px-4 pb-2 sm:pb-4 min-h-0">
 
         {/* Left: current order */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-3 overflow-hidden">
+        <div className="flex-shrink-0 h-[50vh] min-h-[260px] lg:h-auto lg:min-h-0 lg:flex-1 lg:flex-shrink min-w-0 flex flex-col gap-3 overflow-hidden">
 
           {/* Current order */}
           <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -860,10 +863,8 @@ export default function CashierPage() {
 
         {/* Right: payment column -- 38% width on desktop (lg+), stretches to fill the
             full height with generous touch-sized buttons. Below lg it stacks under
-            the item list full-width instead, capped to a share of the viewport with
-            its own scroll so a tall payment panel never pushes the cart list off
-            screen. */}
-        <div className="w-full lg:w-[38%] lg:min-w-[360px] xl:min-w-[420px] 2xl:min-w-[520px] max-w-full lg:max-w-[600px] flex flex-col gap-3 flex-shrink-0 max-h-[55vh] lg:max-h-none overflow-y-auto">
+            the item list full-width, and the page scrolls down to it. */}
+        <div className="w-full lg:w-[38%] lg:min-w-[360px] xl:min-w-[420px] 2xl:min-w-[520px] max-w-full lg:max-w-[600px] flex flex-col gap-3 flex-shrink-0 lg:overflow-y-auto">
 
           {/* Amount due */}
           <div className="rounded-2xl shadow-lg shadow-blue-200 px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0b1f44 0%, #173463 55%, #2f6df6 130%)' }}>

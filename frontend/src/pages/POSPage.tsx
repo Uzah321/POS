@@ -1134,21 +1134,22 @@ export default function POSPage() {
       </div>
 
       {/* Status bar */}
-      <div className="bg-white border-t border-slate-200 px-5 h-9 flex items-center flex-shrink-0 text-sm">
-        <span className="flex items-center gap-2 font-semibold w-1/3" style={{ color: isServerUp ? '#0f9d6b' : '#d97706' }}>
+      <div className="bg-white border-t border-slate-200 px-3 sm:px-5 h-9 flex items-center flex-shrink-0 text-sm whitespace-nowrap">
+        <span className="flex items-center gap-2 font-semibold flex-1 sm:flex-none sm:w-1/3" style={{ color: isServerUp ? '#0f9d6b' : '#d97706' }}>
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: isServerUp ? '#10b981' : '#f59e0b' }} />
           {isServerUp ? 'Online' : 'Offline'}
         </span>
-        <span className="w-1/3 text-center text-slate-600"><span className="font-semibold text-slate-800">Core POS</span> &nbsp;v{APP_VERSION}</span>
-        <span className="w-1/3 flex items-center justify-end gap-6 text-slate-600">
+        <span className="hidden sm:inline w-1/3 text-center text-slate-600"><span className="font-semibold text-slate-800">Core POS</span> &nbsp;v{APP_VERSION}</span>
+        {/* Phones: icon-only actions, no version, so the bar fits a narrow screen */}
+        <span className="sm:w-1/3 flex items-center justify-end gap-5 sm:gap-6 text-slate-600">
           {(hasPermission('manage_day_end') || hasRole('admin')) && (
             <button type="button" onClick={() => navigate('/day-end')} className="flex items-center gap-2 hover:text-blue-700 touch-manipulation">
-              <CalendarCheck size={18} /> End Day
+              <CalendarCheck size={18} /> <span className="hidden sm:inline">End Day</span>
             </button>
           )}
           {(hasPermission('manage_settings') || hasRole('admin')) && (
             <button type="button" onClick={() => navigate('/settings')} className="flex items-center gap-2 hover:text-blue-700 touch-manipulation">
-              <Settings size={18} /> Settings
+              <Settings size={18} /> <span className="hidden sm:inline">Settings</span>
             </button>
           )}
           <button
@@ -1156,7 +1157,7 @@ export default function POSPage() {
             onClick={() => toast('F2 Search · F5 Clear · F8 Hold · F9 Process · 1/2/3 Cash/Card/Mobile', { icon: '⌨️', duration: 6000 })}
             className="flex items-center gap-2 hover:text-blue-700 touch-manipulation"
           >
-            <HelpCircle size={18} /> Help
+            <HelpCircle size={18} /> <span className="hidden sm:inline">Help</span>
           </button>
         </span>
       </div>

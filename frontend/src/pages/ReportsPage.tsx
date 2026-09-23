@@ -152,8 +152,7 @@ export default function ReportsPage() {
 
   const downloadPdf = (url: string, params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
-    const token = localStorage.getItem('token');
-    fetch(`/api${url}?${qs}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api${url}?${qs}`, { credentials: 'include' })
       .then(res => res.blob())
       .then(blob => {
         const a = document.createElement('a');

@@ -32,7 +32,6 @@ const UsersPage                = lazy(() => import('./pages/UsersPage'));
 const SettingsPage             = lazy(() => import('./pages/SettingsPage'));
 const CurrenciesPage           = lazy(() => import('./pages/CurrenciesPage'));
 const OrdersPage               = lazy(() => import('./pages/OrdersPage'));
-const MySalesPage              = lazy(() => import('./pages/MySalesPage'));
 const ShiftEndPage             = lazy(() => import('./pages/ShiftEndPage'));
 const DayEndPage               = lazy(() => import('./pages/DayEndPage'));
 const HardwarePage             = lazy(() => import('./pages/HardwarePage'));
@@ -109,7 +108,6 @@ export default function App() {
             <Route path="/pos" element={<LayoutWrapper><ShopGuard shop="restaurant"><POSPage /></ShopGuard></LayoutWrapper>} />
             <Route path="/cashier" element={<LayoutWrapper><ShopGuard shop="supermarket"><CashierPage /></ShopGuard></LayoutWrapper>} />
             <Route element={<StaffOnlyRoute />}>
-              <Route path="/my-sales" element={<LayoutWrapper><MySalesPage /></LayoutWrapper>} />
               <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
               <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
               <Route path="/" element={<RequirePermission perm="view_dashboard"><LayoutWrapper><DashboardPage /></LayoutWrapper></RequirePermission>} />
@@ -128,10 +126,10 @@ export default function App() {
               <Route path="/settings" element={<RequirePermission perm="manage_settings"><LayoutWrapper><SettingsPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/currencies" element={<RequirePermission perm="manage_settings"><LayoutWrapper><CurrenciesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/hardware" element={<RequirePermission perm="manage_settings"><LayoutWrapper><HardwarePage /></LayoutWrapper></RequirePermission>} />
-              <Route path="/day-end" element={<RequirePermission perm="view_reports"><LayoutWrapper><DayEndPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/day-end" element={<RequirePermission perm="manage_day_end"><LayoutWrapper><DayEndPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/laybys" element={<RequirePermission perm="create_sales"><LayoutWrapper><LaybyPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/quotations" element={<RequirePermission perm="create_sales"><LayoutWrapper><QuotationsPage /></LayoutWrapper></RequirePermission>} />
-              <Route path="/stocktake" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StocktakePage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/stocktake" element={<RequirePermission perm="manage_stocktake"><LayoutWrapper><StocktakePage /></LayoutWrapper></RequirePermission>} />
               <Route path="/stock-transfers" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockTransferPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/attendance" element={<RequirePermission perm="view_reports"><LayoutWrapper><AttendancePage /></LayoutWrapper></RequirePermission>} />
               <Route path="/commissions" element={<RequirePermission perm="view_reports"><LayoutWrapper><CommissionsPage /></LayoutWrapper></RequirePermission>} />
@@ -140,7 +138,7 @@ export default function App() {
               <Route path="/webhooks" element={<RequirePermission perm="manage_settings"><LayoutWrapper><WebhooksPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/backups" element={<RequirePermission perm="manage_settings"><LayoutWrapper><BackupPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/cashflow" element={<RequirePermission perm="view_reports"><LayoutWrapper><CashflowPage /></LayoutWrapper></RequirePermission>} />
-              <Route path="/financial-report" element={<RequirePermission perm="view_reports"><LayoutWrapper><FinancialReportPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/financial-report" element={<RequirePermission perm="view_financial_reports"><LayoutWrapper><FinancialReportPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/salaries" element={<RequirePermission perm="view_reports"><LayoutWrapper><SalariesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/rentals" element={<RequirePermission perm="view_reports"><LayoutWrapper><RentalsPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/stock-reconciliation" element={<RequirePermission perm="view_inventory"><LayoutWrapper><StockReconciliationPage /></LayoutWrapper></RequirePermission>} />

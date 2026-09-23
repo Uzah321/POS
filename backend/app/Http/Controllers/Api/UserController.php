@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class UserController extends BaseApiController
 {
@@ -31,7 +32,7 @@ class UserController extends BaseApiController
             'username'  => 'required|string|max:50|unique:users|alpha_dash',
             'email'     => 'nullable|email|unique:users',
             'phone'     => 'nullable|string|max:20',
-            'password'      => 'required|string|min:4',
+            'password'      => ['required', 'string', Password::min(8)->mixedCase()->numbers()],
             'branch_id'     => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
             // Which shop this person works in. Empty = follows the system-wide mode.
@@ -75,7 +76,7 @@ class UserController extends BaseApiController
             'is_active' => 'sometimes|boolean',
             'roles'     => 'sometimes|array',
             'roles.*'   => 'exists:roles,name',
-            'password'  => 'sometimes|string|min:4',
+            'password'  => ['sometimes', 'string', Password::min(8)->mixedCase()->numbers()],
         ]);
 
         if (isset($data['password'])) {
@@ -87,10 +88,20 @@ class UserController extends BaseApiController
             unset($data['branch_id']);
         }
 
+        // Being deactivated or given a new password by an admin should take
+        // effect immediately, not just at the next login — otherwise a fired
+        // employee (or someone whose password was just reset) stays signed
+        // into any session/device they already had open.
+        $revokeSessions = (isset($data['is_active']) && ! $data['is_active']) || isset($data['password']);
+
         $user->update(\Arr::except($data, ['roles']));
 
         if (isset($data['roles'])) {
             $user->syncRoles($data['roles']);
+        }
+
+        if ($revokeSessions) {
+            $user->revokeAllSessions();
         }
 
         return $this->success($user->load('roles', 'branch', 'department'), 'User updated successfully');

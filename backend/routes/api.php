@@ -53,7 +53,7 @@ Route::patch('/kds/orders/{sale}/status', [\App\Http\Controllers\Api\KdsControll
 Route::get('/network-info', [\App\Http\Controllers\Api\KdsController::class, 'networkInfo']);
 
 // Protected routes
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 // License check-in — clients call this on the vendor's server (LICENSE_SERVER=true). Public but throttled; answers are signed.
 Route::post('/license/check', [LicenseController::class, 'check'])->middleware('throttle:30,1');
@@ -140,9 +140,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::post('/inventory/import', [InventoryController::class, 'importStock']);
     Route::get('/inventory/import-template', [InventoryController::class, 'importTemplate']);
 
-    // Expenses
-    Route::get('/expense-categories', [ExpenseController::class, 'categories']);
-    Route::apiResource('expenses', ExpenseController::class)->except(['show']);
+    // Expenses — matches /expenses frontend route's view_expenses gate
+    Route::middleware('permission:view_expenses')->group(function () {
+        Route::get('/expense-categories', [ExpenseController::class, 'categories']);
+        Route::apiResource('expenses', ExpenseController::class)->except(['show']);
+    });
 
     // Reports & Dashboard — dashboard uses its own permission (matches the "/" frontend
     // route's view_dashboard gate; storekeeper has view_dashboard but not view_reports,
@@ -181,8 +183,8 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::put('/shift-end/{shiftEnd}', [\App\Http\Controllers\Api\ShiftEndController::class, 'update']);
     Route::delete('/shift-end/{shiftEnd}', [\App\Http\Controllers\Api\ShiftEndController::class, 'destroy']);
 
-    // End of Day — matches /day-end frontend route's view_reports gate
-    Route::middleware('permission:view_reports')->group(function () {
+    // End of Day — matches /day-end frontend route's manage_day_end gate
+    Route::middleware('permission:manage_day_end')->group(function () {
         Route::get('/end-of-day/summary', [\App\Http\Controllers\Api\EndOfDayController::class, 'summary']);
         Route::get('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'index']);
         Route::post('/end-of-day', [\App\Http\Controllers\Api\EndOfDayController::class, 'store']);
@@ -258,9 +260,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::post('/stock-transfers/{stockTransfer}/cancel', [StockTransferController::class, 'cancel']);
     Route::apiResource('stock-transfers', StockTransferController::class)->only(['index','store','show']);
 
-    // Stocktakes
-    Route::post('/stocktakes/{stocktake}/complete', [StocktakeController::class, 'complete']);
-    Route::apiResource('stocktakes', StocktakeController::class)->only(['index','store','show','update']);
+    // Stocktakes — matches /stocktake frontend route's manage_stocktake gate
+    Route::middleware('permission:manage_stocktake')->group(function () {
+        Route::post('/stocktakes/{stocktake}/complete', [StocktakeController::class, 'complete']);
+        Route::apiResource('stocktakes', StocktakeController::class)->only(['index','store','show','update']);
+    });
 
     // Product Batches / Expiry tracking
     Route::apiResource('product-batches', ProductBatchController::class);
@@ -305,17 +309,25 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
         Route::get('/reports/low-stock', [ReportController::class, 'lowStock']);
         Route::get('/reports/vat', [ReportController::class, 'vatReport']);
 
-        // Financial summary, consolidation & CSV exports
-        Route::get('/reports/financial-summary', [ReportController::class, 'financialSummary']);
+        // Consolidation & CSV exports
         Route::get('/reports/branch-consolidation', [ReportController::class, 'branchConsolidation']);
         Route::get('/reports/daily/csv', [ReportController::class, 'dailyCsv']);
         Route::get('/reports/monthly/csv', [ReportController::class, 'monthlyCsv']);
     });
 
-    // EcoCash agent banking
-    Route::get('/ecocash/summary', [EcocashController::class, 'summary']);
-    Route::post('/ecocash/{ecocashTransaction}/reverse', [EcocashController::class, 'reverse']);
-    Route::apiResource('ecocash', EcocashController::class)->only(['index', 'store']);
+    // Financial summary — matches /financial-report frontend route's
+    // view_financial_reports gate (kept separate from view_reports so a role
+    // can see general reports without seeing financials, or vice versa).
+    Route::middleware('permission:view_financial_reports')->group(function () {
+        Route::get('/reports/financial-summary', [ReportController::class, 'financialSummary']);
+    });
+
+    // EcoCash agent banking — matches /ecocash frontend route's view_reports gate
+    Route::middleware('permission:view_reports')->group(function () {
+        Route::get('/ecocash/summary', [EcocashController::class, 'summary']);
+        Route::post('/ecocash/{ecocashTransaction}/reverse', [EcocashController::class, 'reverse']);
+        Route::apiResource('ecocash', EcocashController::class)->only(['index', 'store']);
+    });
 
     // Cashflow, Salaries, Rentals — all match their frontend routes' view_reports gate
     Route::middleware('permission:view_reports')->group(function () {
@@ -333,6 +345,6 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::get('/stock-reconciliation', [StockReconciliationController::class, 'reconcile']);
 
     // PIN auth
-    Route::post('/auth/pin-login', [AuthController::class, 'pinLogin']);
+    Route::post('/auth/pin-login', [AuthController::class, 'pinLogin'])->middleware('throttle:5,1');
     Route::put('/auth/set-pin', [AuthController::class, 'setPin']);
 });

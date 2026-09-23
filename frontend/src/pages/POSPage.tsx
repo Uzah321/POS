@@ -27,7 +27,7 @@ import {
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard,
   User, Award, LayoutGrid,
   ChevronLeft, ChevronRight,
-  Minus, ScanLine, ArrowLeftRight, XCircle, Delete, Settings, HelpCircle,
+  Minus, ScanLine, ArrowLeftRight, XCircle, Delete, Settings, HelpCircle, CalendarCheck,
 } from 'lucide-react';
 
 const APP_VERSION = '1.2.0';
@@ -1138,6 +1138,11 @@ export default function POSPage() {
         </span>
         <span className="w-1/3 text-center text-slate-600"><span className="font-semibold text-slate-800">Core POS</span> &nbsp;v{APP_VERSION}</span>
         <span className="w-1/3 flex items-center justify-end gap-6 text-slate-600">
+          {(hasPermission('manage_day_end') || hasRole('admin')) && (
+            <button type="button" onClick={() => navigate('/day-end')} className="flex items-center gap-2 hover:text-blue-700 touch-manipulation">
+              <CalendarCheck size={18} /> End Day
+            </button>
+          )}
           {(hasPermission('manage_settings') || hasRole('admin')) && (
             <button type="button" onClick={() => navigate('/settings')} className="flex items-center gap-2 hover:text-blue-700 touch-manipulation">
               <Settings size={18} /> Settings

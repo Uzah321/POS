@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { authApi } from '../api';
+import { primeCsrf } from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
@@ -27,9 +28,10 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     try {
+      await primeCsrf();
       const res = await authApi.login(data as any);
-      const { user, token } = res.data.data;
-      setAuth(user, token);
+      const { user } = res.data.data;
+      setAuth(user);
       toast.success(`Welcome back, ${user.name}!`);
       const isCashier = user.roles?.includes('cashier');
       // Cashiers go straight to their own shop's till.

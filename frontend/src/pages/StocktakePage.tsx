@@ -648,38 +648,38 @@ export default function StocktakePage() {
         </div>
       )}
 
-      {/* Stocktake Detail */}
+      {/* Stocktake Detail — full page for proper visibility while counting */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
-              <div>
-                <h2 className="font-bold text-gray-900">{stocktakeDetail?.reference ?? selected.reference}</h2>
-                {stocktakeDetail && <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[stocktakeDetail.status]}`}>{stocktakeDetail.status.replace('_',' ')}</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                {stocktakeDetail && (
-                  <>
-                    <button
-                      onClick={downloadCountSheet}
-                      title="Download count sheet as CSV"
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
-                    >
-                      <Download size={13} /> CSV
-                    </button>
-                    <button
-                      onClick={printCountSheet}
-                      title="Print count sheet"
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors"
-                    >
-                      <Download size={13} /> Print
-                    </button>
-                  </>
-                )}
-                <button onClick={() => setSelected(null)}><X size={20} className="text-gray-400" /></button>
-              </div>
+        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">{stocktakeDetail?.reference ?? selected.reference}</h2>
+              {stocktakeDetail && <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[stocktakeDetail.status]}`}>{stocktakeDetail.status.replace('_',' ')}</span>}
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center gap-2">
+              {stocktakeDetail && (
+                <>
+                  <button
+                    onClick={downloadCountSheet}
+                    title="Download count sheet as CSV"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+                  >
+                    <Download size={13} /> CSV
+                  </button>
+                  <button
+                    onClick={printCountSheet}
+                    title="Print count sheet"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors"
+                  >
+                    <Download size={13} /> Print
+                  </button>
+                </>
+              )}
+              <button onClick={() => setSelected(null)}><X size={20} className="text-gray-400" /></button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-4xl mx-auto">
               {detailLoading ? <div className="text-center text-gray-400 py-8">Loading...</div> : (
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 bg-gray-50 border border-gray-100 rounded-md px-4 py-2.5">
@@ -759,8 +759,10 @@ export default function StocktakePage() {
                 </div>
               )}
             </div>
-            {stocktakeDetail?.status !== 'completed' && (
-              <div className="flex gap-3 px-6 py-4 border-t flex-shrink-0">
+          </div>
+          {stocktakeDetail?.status !== 'completed' && (
+            <div className="flex gap-3 px-6 py-4 border-t flex-shrink-0">
+              <div className="max-w-4xl mx-auto w-full flex gap-3">
                 <button onClick={handleSaveCounts} disabled={updateMutation.isPending} className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-blue-200 text-blue-600 rounded-md text-sm font-semibold hover:bg-blue-50 disabled:opacity-50">
                   Save Counts
                 </button>
@@ -768,8 +770,8 @@ export default function StocktakePage() {
                   <Check size={14} /> Complete & Update Stock
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

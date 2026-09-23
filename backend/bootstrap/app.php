@@ -15,6 +15,25 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Lets the browser SPA authenticate via an httpOnly session cookie
+        // instead of a Bearer token in localStorage. Non-browser API clients
+        // (smoke_test.js, etc.) are unaffected — they keep using Bearer tokens.
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+
+        // These routes are deliberately public/loginless (KDS kitchen screens,
+        // the vendor license check-in, currency list, desktop shortcut) and are
+        // sometimes called from a browser tab without any CSRF priming. Once a
+        // request is "stateful" (see above), Laravel would otherwise 419 them.
+        $middleware->validateCsrfTokens(except: [
+            'api/kds/*',
+            'api/network-info',
+            'api/license/check',
+            'api/currencies',
+            'api/download/core-shortcut.url',
+        ]);
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,

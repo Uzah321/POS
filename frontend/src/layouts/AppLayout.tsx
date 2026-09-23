@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
   BarChart2, Receipt, Settings, LogOut,
   Store, CreditCard, Menu, DollarSign, ClipboardList, UserCog,
-  History, CalendarCheck, Cpu, BookOpen, FileText,
+  Cpu, BookOpen, FileText,
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
@@ -56,7 +56,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Restaurant → Advanced POS only. Supermarket → Cashier Register only. Neither when unset.
     ...(isRestaurant  ? [{ to: '/pos',     label: 'Advanced POS',      icon: ShoppingCart, perm: 'create_sales' }] : []),
     ...(isSupermarket ? [{ to: '/cashier', label: 'Cashier Register',  icon: Monitor,      perm: 'create_sales' }] : []),
-    { to: '/my-sales',  label: 'My Sales',   icon: History,   perm: 'create_sales' },
     { to: '/ecocash',   label: 'EcoCash',    icon: Smartphone, perm: 'create_sales' },
     { to: '/shift-end', label: 'Cashup',      icon: Banknote,  perm: 'create_sales' },
   ];
@@ -95,7 +94,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { to: '/ingredients',        label: 'Ingredients',    icon: Wheat,         perm: 'view_inventory' },
         { to: '/inventory',          label: 'Stock Levels',   icon: Warehouse,     perm: 'view_inventory' },
         { to: '/stock-production',   label: 'Production',     icon: Factory,       perm: 'view_inventory' },
-        { to: '/stocktake',          label: 'Stocktake',      icon: ClipboardCheck,perm: 'view_inventory' },
+        { to: '/stocktake',          label: 'Stocktake',      icon: ClipboardCheck,perm: 'manage_stocktake' },
         { to: '/stock-reconciliation',label: 'Reconciliation',icon: GitCompare,    perm: 'view_inventory' },
         { to: '/stock-transfers',    label: 'Transfers',      icon: ArrowRightLeft,perm: 'view_inventory' },
         { to: '/barcode-labels',     label: 'Barcode Labels', icon: Tag,           perm: 'view_products' },
@@ -108,7 +107,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       label: 'Finance',
       icon: Banknote,
       items: [
-        { to: '/financial-report', label: 'Financial Report', icon: PieChart,   perm: 'view_reports' },
+        { to: '/financial-report', label: 'Financial Report', icon: PieChart,   perm: 'view_financial_reports' },
         { to: '/ecocash',          label: 'EcoCash',          icon: Smartphone, perm: 'view_reports' },
         { to: '/cashflow',         label: 'Cashflow',         icon: Banknote,   perm: 'view_reports' },
         { to: '/salaries',         label: 'Salaries',         icon: Users,      perm: 'view_reports' },
@@ -123,7 +122,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: BarChart2,
       items: [
         { to: '/reports',    label: 'Reports',    icon: BarChart2,    perm: 'view_reports' },
-        { to: '/day-end',    label: 'Day End',    icon: CalendarCheck,perm: 'view_reports' },
         { to: '/attendance', label: 'Attendance', icon: UserCheck,    perm: 'view_reports' },
       ],
     },
@@ -230,12 +228,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = async (reason?: 'idle') => {
     try { await authApi.logout(); } catch {}
     clearAuth();
     navigate('/login');
-    toast.success('Logged out');
+    toast.success(reason === 'idle' ? 'Logged out after 15 minutes of inactivity' : 'Logged out');
   };
+
+  // Idle timeout: only real interaction (mouse/keyboard/touch/scroll) resets the
+  // clock — background polling (server-health checks, offline sync, etc.) does
+  // not, so someone actively using the app is never logged out mid-use, only
+  // after they've genuinely stepped away for 15 minutes.
+  const IDLE_LIMIT_MS = 15 * 60 * 1000;
+  useEffect(() => {
+    if (!user) return;
+    let idleTimer: ReturnType<typeof setTimeout>;
+    let lastReset = 0;
+    const scheduleLogout = () => { idleTimer = setTimeout(() => handleLogout('idle'), IDLE_LIMIT_MS); };
+    const resetTimer = () => {
+      const now = Date.now();
+      if (now - lastReset < 1000) return; // throttle high-frequency events (mousemove/scroll)
+      lastReset = now;
+      clearTimeout(idleTimer);
+      scheduleLogout();
+    };
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
+    scheduleLogout();
+    return () => {
+      clearTimeout(idleTimer);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!user]);
 
   const toggleGroup = (id: string) => {
     setOpenGroups(prev => {
@@ -292,7 +317,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Top flat items */}
         {topItems
           .filter(item => {
-            if (isCashier) return ['/cashier', '/pos', '/my-sales', '/ecocash', '/shift-end'].includes(item.to);
+            if (isCashier) return ['/cashier', '/pos', '/ecocash', '/shift-end'].includes(item.to);
             return hasPermission(item.perm) || user?.roles?.includes('admin');
           })
           .map(item => <NavLink key={item.to} {...item} />)}
@@ -367,9 +392,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           icon in the top bar. Cashiers are kiosk-locked to their register,
           no sidebar at all for that role. */}
       {!isCashier && sidebarOpen && (
-        <div className="fixed inset-0 z-40">
+        <div className="fixed inset-0 z-40 will-change-transform">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-60 h-full z-50"><SidebarContent /></aside>
+          <aside className="relative w-60 h-full z-50 will-change-transform"><SidebarContent /></aside>
         </div>
       )}
 
@@ -630,7 +655,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <main> lets content grow to its natural size and scrolls the whole page instead of
             the page's own internal scroll regions. */}
         <LicenseBanner />
-        <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto p-3 sm:p-5 lg:p-6">
+        <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6">
           <TopbarSlotContext.Provider value={topbarSlotEl}>
             {children}
           </TopbarSlotContext.Provider>

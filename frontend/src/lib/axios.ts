@@ -5,20 +5,26 @@ import toast from 'react-hot-toast';
 // Development may set VITE_API_URL=http://localhost:8080/api if needed.
 const configuredBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
 const localBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api';
+const apiBaseUrl = configuredBaseUrl || localBaseUrl;
+// Sanctum's CSRF-cookie route lives outside /api, at the same origin.
+const rootBaseUrl = apiBaseUrl.replace(/\/api\/?$/, '');
 
 // Local-only POS: all requests go to the bundled PHP server on 127.0.0.1:8080.
 // Timeout is generous because the machine may be busy (background indexing, etc.).
 const api = axios.create({
-  baseURL: configuredBaseUrl || localBaseUrl,
+  baseURL: apiBaseUrl,
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
   timeout: 15000,
+  // Auth is an httpOnly session cookie, not a Bearer token — the browser
+  // attaches it automatically. withXSRFToken is needed because in dev the
+  // SPA (5173) and API (8080) are different origins.
+  withCredentials: true,
+  withXSRFToken: true,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// Sanctum's SPA auth requires priming the XSRF-TOKEN cookie before the first
+// state-changing request (i.e. before login) can pass CSRF verification.
+export const primeCsrf = () => axios.get(`${rootBaseUrl}/sanctum/csrf-cookie`, { withCredentials: true });
 
 api.interceptors.response.use(
   (res) => res,
@@ -29,7 +35,6 @@ api.interceptors.response.use(
       toast.error(error.response.data.message, { id: 'license-expired' });
     }
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
       window.location.href = '/login';
     }

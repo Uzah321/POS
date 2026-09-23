@@ -39,6 +39,10 @@ class DatabaseSeeder extends Seeder
             'view_reports', 'view_financial_reports',
             'manage_branches', 'manage_settings',
             'view_audit_logs',
+            // Split out of view_inventory/view_reports so a role (namely
+            // 'manager') can be denied stocktake/day-end specifically without
+            // losing general inventory/reports access those used to imply.
+            'manage_stocktake', 'manage_day_end',
         ];
 
         foreach ($permissions as $perm) {
@@ -46,10 +50,13 @@ class DatabaseSeeder extends Seeder
         }
 
         Role::findByName('admin')->syncPermissions(Permission::all());
-        Role::findByName('manager')->syncPermissions(['view_dashboard','view_sales','create_sales','void_sales','process_refunds','view_products','manage_products','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_suppliers','view_purchase_orders','manage_purchase_orders','approve_purchase_orders','receive_goods','view_customers','manage_customers','view_expenses','manage_expenses','view_reports','view_financial_reports']);
+        // Store manager: no stocktake, no reports, no financial reports, no
+        // finance (Cashflow/Salaries/Rentals/EcoCash/Expenses/Commissions) —
+        // keeps manage_day_end so they can still close the day from the POS.
+        Role::findByName('manager')->syncPermissions(['view_dashboard','view_sales','create_sales','void_sales','process_refunds','view_products','manage_products','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_suppliers','view_purchase_orders','manage_purchase_orders','approve_purchase_orders','receive_goods','view_customers','manage_customers','manage_day_end']);
         Role::findByName('cashier')->syncPermissions(['create_sales', 'void_sales']);
-        Role::findByName('storekeeper')->syncPermissions(['view_dashboard','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_products','manage_products','view_purchase_orders','receive_goods']);
-        Role::findByName('accountant')->syncPermissions(['view_dashboard','view_sales','view_reports','view_financial_reports','view_expenses','manage_expenses','approve_expenses']);
+        Role::findByName('storekeeper')->syncPermissions(['view_dashboard','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_products','manage_products','view_purchase_orders','receive_goods','manage_stocktake']);
+        Role::findByName('accountant')->syncPermissions(['view_dashboard','view_sales','view_reports','view_financial_reports','view_expenses','manage_expenses','approve_expenses','manage_day_end']);
 
         // Main branch
         $branch = Branch::firstOrCreate(['code' => 'MAIN'], ['name'=>'Main Branch','code'=>'MAIN','address'=>'123 Main Street','city'=>'Johannesburg','phone'=>'+27 11 000 0000','email'=>'main@corepos.local','currency'=>'USD','is_main'=>true,'is_active'=>true]);

@@ -15,29 +15,24 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  token: string | null;
-  setAuth: (user: User, token: string) => void;
+  setAuth: (user: User) => void;
   clearAuth: () => void;
   hasRole: (role: string) => boolean;
   hasPermission: (perm: string) => boolean;
 }
 
+// Auth itself is an httpOnly session cookie the browser manages — nothing
+// readable by JS. `user` here is just a cache for rendering role-gated UI
+// before the first API call; a 401 (see lib/axios.ts) clears it.
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      token: null,
-      setAuth: (user, token) => {
-        localStorage.setItem('token', token);
-        set({ user, token });
-      },
-      clearAuth: () => {
-        localStorage.removeItem('token');
-        set({ user: null, token: null });
-      },
+      setAuth: (user) => set({ user }),
+      clearAuth: () => set({ user: null }),
       hasRole: (role) => get().user?.roles?.includes(role) ?? false,
       hasPermission: (perm) => get().user?.permissions?.includes(perm) ?? false,
     }),
-    { name: 'auth-storage', partialize: (s) => ({ user: s.user, token: s.token }) }
+    { name: 'auth-storage', partialize: (s) => ({ user: s.user }) }
   )
 );

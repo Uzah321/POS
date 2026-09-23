@@ -178,8 +178,7 @@ export default function AuditLogPage() {
     const params = new URLSearchParams(
       Object.entries(filterParams).filter(([, v]) => v !== undefined) as [string, string][]
     ).toString();
-    const token = localStorage.getItem('token');
-    fetch(`/api/audit-logs/pdf${params ? `?${params}` : ''}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/audit-logs/pdf${params ? `?${params}` : ''}`, { credentials: 'include' })
       .then(res => {
         if (!res.ok) throw new Error('Export failed');
         return res.blob();

@@ -16,6 +16,9 @@ normalize_runtime_repo_state() {
   if [ -f "${APP_DIR}/frontend/.env.production" ] && ! git ls-files --error-unmatch frontend/.env.production >/dev/null 2>&1; then
     rm -f "${APP_DIR}/frontend/.env.production"
   fi
+  # Older deploy.sh runs overwrote the tracked file; the server build now passes
+  # VITE_API_URL via the environment instead.
+  git checkout -- frontend/.env.production 2>/dev/null || true
 
   while IFS= read -r path; do
     [ -n "${path}" ] || continue
@@ -116,12 +119,6 @@ ok "Permissions updated"
 
 info "Installing frontend dependencies..."
 cd "${FRONTEND_DIR}"
-if [ ! -f .env.production ]; then
-  cat > .env.production <<ENV
-VITE_API_URL=/api
-VITE_APP_NAME=DiaperMart Store
-ENV
-fi
 if [ -f package-lock.json ]; then
   "${NPM_BIN}" ci --silent
 else
@@ -130,7 +127,10 @@ fi
 ok "Frontend dependencies installed"
 
 info "Building frontend..."
-"${NPM_BIN}" run build
+# The tracked .env.production targets the desktop build's local server
+# (127.0.0.1:8080); on the VPS the API is same-origin /api. Process env wins
+# over .env files in Vite, so this overrides it without touching the file.
+VITE_API_URL=/api "${NPM_BIN}" run build
 # vite.config.ts sets outDir to ../backend/public (single-server layout) — build output
 # lands there, not in frontend/dist.
 [ -f "${BACKEND_DIR}/public/index.html" ] || error "Frontend build did not produce backend/public/index.html"

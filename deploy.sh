@@ -200,12 +200,10 @@ fi
 ok "npm install complete"
 
 info "Building React frontend (this takes ~1 min)..."
-# Point the built frontend's API calls to /api on the same server
-cat > .env.production <<ENV
-VITE_API_URL=/api
-VITE_APP_NAME=DiaperMart Store
-ENV
-npm run build
+# Point the built frontend's API calls to /api on the same server. Passed via
+# the environment (which wins over .env files in Vite) so the tracked
+# .env.production, used by the desktop build, stays untouched.
+VITE_API_URL=/api npm run build
 ok "Frontend built → $APP_DIR/backend/public"
 
 # ── Nginx config ─────────────────────────────────────────────

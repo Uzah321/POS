@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Warehouse, Truck, Users,
   BarChart2, Receipt, Settings, LogOut,
   Store, CreditCard, Menu, DollarSign, ClipboardList, UserCog,
-  Cpu, BookOpen, FileText,
+  Cpu, BookOpen, FileText, CalendarCheck,
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
@@ -58,6 +58,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ...(isSupermarket ? [{ to: '/cashier', label: 'Cashier Register',  icon: Monitor,      perm: 'create_sales' }] : []),
     { to: '/ecocash',   label: 'EcoCash',    icon: Smartphone, perm: 'create_sales' },
     { to: '/shift-end', label: 'Cashup',      icon: Banknote,  perm: 'create_sales' },
+    // Own top-level item (not inside the Reports group) so a role with
+    // manage_day_end but not view_reports — e.g. manager — can still reach
+    // it from the sidebar regardless of which POS screen their store uses.
+    { to: '/day-end',   label: 'End Day',    icon: CalendarCheck, perm: 'manage_day_end' },
   ];
 
   const navGroups: NavGroup[] = [

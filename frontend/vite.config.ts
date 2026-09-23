@@ -22,7 +22,8 @@ export default defineConfig({
         // fullscreen isn't supported.
         display: 'fullscreen',
         display_override: ['fullscreen', 'standalone'],
-        orientation: 'landscape',
+        // No fixed orientation: tablets lock landscape, phones portrait, at
+        // runtime (see main.tsx) — the manifest can't tell them apart.
         start_url: '/',
         scope: '/',
         icons: [

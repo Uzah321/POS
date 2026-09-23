@@ -87,6 +87,18 @@ if (/Android/i.test(navigator.userAgent) && !isInstalledApp && document.document
   document.addEventListener('pointerdown', enterFullscreen)
 }
 
+// Tablet tills run landscape, phones portrait (device class set in index.html).
+// Orientation lock only works in the installed app or fullscreen, so retry
+// whenever fullscreen is entered; failures elsewhere are expected and ignored.
+const lockOrientation = () => {
+  const device = document.documentElement.dataset.device
+  if (!device) return
+  const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+  orientation.lock?.(device === 'tablet' ? 'landscape' : 'portrait').catch(() => {})
+}
+lockOrientation()
+document.addEventListener('fullscreenchange', lockOrientation)
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

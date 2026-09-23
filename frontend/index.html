@@ -4,10 +4,21 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Touchscreen POS: disable double-tap zoom, pinch zoom, and scroll bounce -->
-    <!-- Tablets/phones used as tills always get the full desktop layout (products
-         and ticket side by side), laid out 1280px wide and scaled to fit, in any
-         orientation. Desktop browsers and Electron ignore this tag. -->
-    <meta name="viewport" content="width=1280, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <script>
+      // Phones keep the native-width mobile layout (portrait). Tablets used as
+      // tills get the full desktop layout (products and ticket side by side),
+      // laid out 1280px wide and scaled to fit. A screen whose shortest side is
+      // 520 CSS px or more is a tablet (Galaxy Tab A11 8.7" is ~600; the largest
+      // phones are ~480). Desktop browsers and Electron ignore the viewport tag.
+      (function () {
+        var tablet = Math.min(screen.width, screen.height) >= 520;
+        document.documentElement.dataset.device = tablet ? 'tablet' : 'phone';
+        if (tablet) {
+          document.querySelector('meta[name="viewport"]').setAttribute('content', 'width=1280, user-scalable=no');
+        }
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#2563eb" />
     <title>Core POS</title>

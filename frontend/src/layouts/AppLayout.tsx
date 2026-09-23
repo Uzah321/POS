@@ -299,6 +299,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   };
 
+  // Called as a function, not rendered as <SidebarContent />: a component
+  // defined inside AppLayout gets a new identity every render, so React would
+  // remount the sidebar on each state change (e.g. opening a dropdown group)
+  // and reset its scroll position to the top.
   const SidebarContent = () => (
     <div className="app-sidebar flex flex-col h-full shadow-xl">
       {/* Logo */}
@@ -398,7 +402,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {!isCashier && sidebarOpen && (
         <div className="fixed inset-0 z-40 will-change-transform">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-60 h-full z-50 will-change-transform"><SidebarContent /></aside>
+          <aside className="relative w-60 h-full z-50 will-change-transform">{SidebarContent()}</aside>
         </div>
       )}
 

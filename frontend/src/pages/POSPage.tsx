@@ -793,6 +793,7 @@ export default function POSPage() {
         <aside ref={railRef} className="flex-1 min-h-0 flex flex-col gap-2.5 overflow-y-auto p-2.5">
           {categories.map((cat) => {
             const Icon = iconForCategory(cat);
+            const catImage = cat === 'All' ? undefined : categoryImages.get(cat);
             const active = activeCategory === cat;
             return (
               <button
@@ -803,7 +804,9 @@ export default function POSPage() {
                 className="flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl min-h-[92px] px-2 py-3 text-white text-[15px] font-semibold leading-tight text-center transition-colors touch-manipulation hover:brightness-125"
                 style={{ background: active ? BLUE : NAVY_TILE, boxShadow: active ? '0 6px 16px rgba(47,109,246,.35)' : undefined }}
               >
-                <Icon size={30} strokeWidth={1.6} />
+                {catImage
+                  ? <img src={catImage} alt="" draggable={false} className="w-14 h-14 rounded-xl object-cover bg-white/10" />
+                  : <Icon size={30} strokeWidth={1.6} />}
                 <span className="line-clamp-2">{cat === 'All' ? 'All Items' : cat}</span>
               </button>
             );

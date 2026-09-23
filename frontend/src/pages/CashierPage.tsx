@@ -194,6 +194,10 @@ export default function CashierPage() {
   // Store-defined categories, same source POSPage uses so both tills stay
   // visually and behaviorally consistent.
   const categoryTabs = ['Popular', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
+  const categoryImages = new Map<string, string>();
+  allProducts.forEach((p: any) => {
+    if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
+  });
 
   // Barcode scanner — instant add on exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
@@ -744,6 +748,7 @@ export default function CashierPage() {
       <div className="mx-2 sm:mx-4 mb-2 flex-shrink-0 flex items-center gap-2 overflow-x-auto pb-0.5">
         {categoryTabs.map((cat) => {
           const TabIcon = cat === 'Popular' ? Star : iconForCategory(cat);
+          const catImage = categoryImages.get(cat);
           const active = activeCategory === cat;
           return (
             <button
@@ -755,7 +760,9 @@ export default function CashierPage() {
                 active ? 'text-white shadow-sm shadow-blue-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600'
               }`}
             >
-              <TabIcon size={15} /> {cat}
+              {catImage
+                ? <img src={catImage} alt="" draggable={false} className="w-6 h-6 rounded-md object-cover" />
+                : <TabIcon size={15} />} {cat}
             </button>
           );
         })}

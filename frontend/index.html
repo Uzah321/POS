@@ -5,7 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Touchscreen POS: disable double-tap zoom, pinch zoom, and scroll bounce -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <script>
+      // Small tablets/phones used as tills get the full desktop layout, scaled to
+      // fit, instead of the cramped mobile one: lay the page out 1280px wide
+      // whenever the screen's longest side is narrower than that.
+      (function () {
+        var DESKTOP_WIDTH = 1280;
+        if (Math.max(screen.width, screen.height) < DESKTOP_WIDTH) {
+          document.querySelector('meta[name="viewport"]')
+            .setAttribute('content', 'width=' + DESKTOP_WIDTH + ', user-scalable=no');
+        }
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#2563eb" />
     <title>Core POS</title>
     <style>
       /* Prevent tap highlight and callout on all elements */

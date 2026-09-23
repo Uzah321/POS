@@ -73,6 +73,20 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// Opened in a plain Android browser tab (not the installed app, which is
+// already fullscreen via the manifest): take over the whole screen on the
+// first tap. Browsers only allow requestFullscreen from a user gesture.
+const isInstalledApp = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches
+if (/Android/i.test(navigator.userAgent) && !isInstalledApp && document.documentElement.requestFullscreen) {
+  const enterFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+    }
+  }
+  // Re-arm on every tap so it recovers if the user swipes out of fullscreen.
+  document.addEventListener('pointerdown', enterFullscreen)
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

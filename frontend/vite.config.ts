@@ -17,8 +17,14 @@ export default defineConfig({
         description: 'Point of Sale System',
         theme_color: '#2563eb',
         background_color: '#ffffff',
-        display: 'standalone',
+        // Installed on a till tablet it should own the whole screen — no browser
+        // bar, no Android status/nav bars. Falls back to standalone where
+        // fullscreen isn't supported.
+        display: 'fullscreen',
+        display_override: ['fullscreen', 'standalone'],
+        orientation: 'landscape',
         start_url: '/',
+        scope: '/',
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

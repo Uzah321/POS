@@ -112,14 +112,10 @@ if [ -f "$APP_DIR/update.sh" ]; then
   ok "Update command installed: sudo nexapos-update"
 fi
 
-# ── Backend setup ────────────────────────────────────────────
-info "Installing PHP dependencies..."
-cd "$APP_DIR/backend"
-composer install --no-dev --optimize-autoloader --quiet
-ok "Composer dependencies installed"
-
+# .env must exist before composer install: package:discover boots the app,
+# which refuses to start without DB_CONNECTION. So artisan cannot generate the key.
 # ── Generate app key ─────────────────────────────────────────
-APP_KEY=$(php artisan key:generate --show 2>/dev/null || echo "base64:$(openssl rand -base64 32)")
+APP_KEY="base64:$(openssl rand -base64 32)"
 
 # ── Write .env ───────────────────────────────────────────────
 info "Writing production .env..."
@@ -160,6 +156,13 @@ FRONTEND_URL=http://${DOMAIN}
 VITE_APP_NAME="DiaperMart Store"
 ENV
 ok ".env written"
+
+# ── Backend setup ────────────────────────────────────────────
+info "Installing PHP dependencies..."
+cd "$APP_DIR/backend"
+COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --quiet
+ok "Composer dependencies installed"
+
 
 # ── Run migrations & seed ────────────────────────────────────
 info "Running database migrations..."
@@ -203,7 +206,7 @@ VITE_API_URL=/api
 VITE_APP_NAME=DiaperMart Store
 ENV
 npm run build
-ok "Frontend built → $APP_DIR/frontend/dist"
+ok "Frontend built → $APP_DIR/backend/public"
 
 # ── Nginx config ─────────────────────────────────────────────
 info "Configuring Nginx..."
@@ -212,33 +215,22 @@ server {
     listen 80;
     server_name ${DOMAIN};
 
-    # Serve built React app
-    root ${APP_DIR}/frontend/dist;
+    # vite.config.ts builds into backend/public, so the React app (index.html)
+    # and Laravel (index.php) share one document root.
+    root ${APP_DIR}/backend/public;
     index index.html;
 
-    # Laravel backend — handle /api/*
-    location ~ ^/api(/.*)?$ {
-        root ${APP_DIR}/backend/public;
+    # Laravel backend — handle /api/* and Sanctum's CSRF-cookie route
+    location ~ ^/(api|sanctum)(/.*)?$ {
         try_files \$uri \$uri/ /index.php?\$query_string;
-
-        location ~ \.php\$ {
-            fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-            fastcgi_param SCRIPT_FILENAME ${APP_DIR}/backend/public/index.php;
-            fastcgi_param REQUEST_URI \$request_uri;
-            fastcgi_param DOCUMENT_ROOT ${APP_DIR}/backend/public;
-            include fastcgi_params;
-        }
     }
 
-    # Also serve /sanctum for CSRF
-    location /sanctum {
-        root ${APP_DIR}/backend/public;
-        try_files \$uri \$uri/ /index.php?\$query_string;
-        location ~ \.php\$ {
-            fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-            fastcgi_param SCRIPT_FILENAME ${APP_DIR}/backend/public/index.php;
-            include fastcgi_params;
-        }
+    location ~ \.php\$ {
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME ${APP_DIR}/backend/public/index.php;
+        fastcgi_param REQUEST_URI \$request_uri;
+        fastcgi_param DOCUMENT_ROOT ${APP_DIR}/backend/public;
+        include fastcgi_params;
     }
 
     # React Router — all other routes go to index.html

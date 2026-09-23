@@ -1,0 +1,34 @@
+.git
+.github
+installer
+ssh_run.js
+*.md
+*.png
+
+backend/vendor
+backend/.env
+backend/.env.backup
+backend/.env.production
+# Composer/package auto-discovery cache — regenerated at container start
+# (docker-entrypoint.sh runs package:discover) once the real, --no-dev
+# vendor/ is in place. A stale host-generated copy (e.g. referencing a
+# require-dev-only provider like laravel/pail) would crash the app on boot.
+backend/bootstrap/cache/packages.php
+backend/bootstrap/cache/services.php
+backend/public/assets
+backend/public/build
+backend/public/hot
+backend/public/index.html
+backend/public/manifest.webmanifest
+backend/public/registerSW.js
+backend/public/sw.js
+backend/public/workbox-*.js
+backend/storage/logs/*.log
+backend/.phpunit.cache
+backend/.phpunit.result.cache
+
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+frontend/dist-electron
+frontend/.env.production

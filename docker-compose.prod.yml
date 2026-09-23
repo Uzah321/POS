@@ -1,0 +1,56 @@
+# Production stack. Parallel to the bare-metal deploy.sh/update.sh path — use
+# whichever fits your hosting; this one doesn't touch the VPS setup. See
+# DOCKER.md for the one-time setup (mainly: create backend/.env from
+# backend/.env.production.example and fill in real values).
+#
+# --env-file is required (php-fpm's env_file: below only injects vars into
+# that container, it doesn't feed Compose's own ${...} substitution) — the
+# ${...} values below only resolve via --env-file or a .env next to this file.
+#
+# Usage:
+#   docker compose --env-file backend/.env -f docker-compose.prod.yml build
+#   docker compose --env-file backend/.env -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-nexapos_prod}
+      POSTGRES_USER: ${DB_USERNAME:-nexapos_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in backend/.env}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-nexapos_user} -d ${DB_DATABASE:-nexapos_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  php-fpm:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: php
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - php-fpm
+    restart: unless-stopped
+
+volumes:
+  pgdata_prod:

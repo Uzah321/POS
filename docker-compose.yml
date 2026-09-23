@@ -1,0 +1,67 @@
+# Local development stack. Reproduces the native `php artisan serve` (:8080)
+# + `npm run dev` (:5173) setup 1:1, so backend/.env and frontend/.env.development
+# work unmodified — the browser still talks to localhost:5173/8080 exactly as
+# it does outside Docker. See DOCKER.md.
+#
+# Usage: docker compose up
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nexapos
+      POSTGRES_USER: nexapos
+      POSTGRES_PASSWORD: nexapos123
+    ports:
+      # Host port 5433, not 5432 — many dev machines already have a native
+      # Postgres bound to 5432 (this one did, for the app's non-Docker mode).
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexapos -d nexapos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides for the container network — everything else (APP_KEY,
+      # SANCTUM_STATEFUL_DOMAINS, ...) comes from backend/.env unchanged.
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: nexapos
+      DB_USERNAME: nexapos
+      DB_PASSWORD: nexapos123
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+      - backend_vendor:/app/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_DEV_PROXY_TARGET: http://backend:8080
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  backend_vendor:
+  frontend_node_modules:

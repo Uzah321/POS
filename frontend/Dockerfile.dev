@@ -1,0 +1,9 @@
+# Dev image only — source is bind-mounted over this at runtime (see
+# docker-compose.yml). Not used for production; the prod build happens inside
+# backend/Dockerfile's frontend-build stage instead.
+FROM node:20-alpine
+
+WORKDIR /app
+
+EXPOSE 5173
+CMD ["sh", "-c", "[ -d node_modules/.bin ] || npm ci; npm run dev"]

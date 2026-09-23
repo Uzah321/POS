@@ -91,9 +91,15 @@ export default defineConfig({
     emptyOutDir: false,
   },
   server: {
+    host: true,
     proxy: {
+      // Native dev: frontend and backend share the same localhost, so the
+      // default is right. Dockerized dev sets VITE_DEV_PROXY_TARGET to the
+      // backend service's Compose DNS name, since 127.0.0.1 inside the
+      // frontend container would otherwise mean "this container", not the
+      // backend one.
       '/api': {
-        target: 'http://127.0.0.1:8080',
+        target: process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:8080',
         changeOrigin: true,
       },
     },

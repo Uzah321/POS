@@ -1,0 +1,19 @@
+# Dev image only — source is bind-mounted over this at runtime (see
+# docker-compose.yml), so this just needs the right PHP/extensions/Composer.
+# Not used for production; see backend/Dockerfile for that.
+FROM php:8.3-cli-alpine
+
+RUN apk add --no-cache \
+        postgresql-dev libzip-dev libpng-dev libxml2-dev icu-dev oniguruma-dev curl-dev bash \
+    && docker-php-ext-install pdo_pgsql mbstring xml curl zip bcmath gd intl \
+    && rm -rf /var/cache/apk/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+COPY docker-entrypoint-dev.sh /usr/local/bin/docker-entrypoint-dev.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-dev.sh
+
+EXPOSE 8080
+ENTRYPOINT ["docker-entrypoint-dev.sh"]

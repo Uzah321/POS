@@ -378,7 +378,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
             <p className="text-xs text-slate-400 capitalize truncate">{user?.roles?.[0] ?? 'user'}</p>
           </div>
-          <button type="button" onClick={handleLogout} title="Logout" className="text-slate-400 hover:text-red-400 transition-colors">
+          <button type="button" onClick={() => handleLogout()} title="Logout" className="text-slate-400 hover:text-red-400 transition-colors">
             <LogOut size={16} />
           </button>
         </div>
@@ -496,7 +496,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <button type="button" onClick={handleLogout} title="Logout" className="w-10 h-10 flex items-center justify-center rounded-xl text-blue-100 hover:bg-white/10 hover:text-red-300 transition-colors">
+            <button type="button" onClick={() => handleLogout()} title="Logout" className="w-10 h-10 flex items-center justify-center rounded-xl text-blue-100 hover:bg-white/10 hover:text-red-300 transition-colors">
               <LogOut size={18} />
             </button>
             {!isCashier && (
@@ -571,7 +571,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => handleLogout()}
             className={`inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-md transition-colors border border-transparent ${isCashierRegisterPage ? 'text-blue-100 hover:text-red-300 hover:bg-white/10 rounded-xl' : 'text-slate-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200'}`}
           >
             <LogOut size={16} />

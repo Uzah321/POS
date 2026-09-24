@@ -443,7 +443,8 @@ export default function POSPage() {
   // these lines as sent — even if the category filter left nothing to print.
   const sendKitchenTicket = (
     items: CartItem[],
-    meta: { ticket: string; table: string; orderType: 'sit_in' | 'takeaway' | 'delivery'; covers: number; customerName: string; note: string },
+    // waiter: the order's assigned waiter; falls back to whoever is logged in (counter orders).
+    meta: { ticket: string; table: string; orderType: 'sit_in' | 'takeaway' | 'delivery'; covers: number; customerName: string; note: string; waiter?: string },
   ): boolean => {
     if (!hw.kitchenPrinterEnabled) return false;
     const categoryOf = (productId: number) => {
@@ -459,7 +460,7 @@ export default function POSPage() {
       table: meta.table || undefined,
       orderType: meta.orderType,
       covers: meta.table ? meta.covers : undefined,
-      waiter: user?.name,
+      waiter: meta.waiter || user?.name,
       customerName: meta.customerName || undefined,
       items: lines.map((i) => ({ name: i.name, qty: i.unsent, soldByWeight: i.sold_by_weight })),
       note: meta.note || undefined,
@@ -549,6 +550,7 @@ export default function POSPage() {
           covers: snap.covers,
           customerName: snap.customerName,
           note: snap.note,
+          waiter: sale?.waiter?.name,
         });
       }
 
@@ -622,6 +624,7 @@ export default function POSPage() {
         covers: cart.covers,
         customerName: cart.customerName,
         note: vars.note,
+        waiter: sale?.waiter?.name ?? cart.waiterName,
       });
       useCartStore.setState({
         items: useCartStore.getState().items.map((i) =>
@@ -709,6 +712,7 @@ export default function POSPage() {
           covers: snap.covers,
           customerName: snap.customerName,
           note: snap.note,
+          waiter: sale?.waiter?.name,
         });
       }
 
@@ -999,6 +1003,7 @@ export default function POSPage() {
       covers: cart.covers,
       customerName: cart.customerName,
       note: cart.note,
+      waiter: cart.waiterName,
     });
     const heldItems = sent ? cart.items.map((i) => ({ ...i, kitchen_sent_qty: i.quantity })) : cart.items;
     if (sent) cart.markSentToKitchen();

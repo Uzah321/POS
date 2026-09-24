@@ -53,7 +53,7 @@ export const salesApi = {
   deleteHeld: (id: number) => api.delete(`/sales/held/${id}`),
   updateHeldStatus: (id: number, status: string) => api.patch(`/sales/held/${id}/status`, { order_status: status }),
   receipt: (id: number) => api.get(`/sales/${id}/receipt`),
-  cancel: (id: number) => api.patch(`/sales/${id}/cancel`),
+  cancel: (id: number, reason?: string) => api.patch(`/sales/${id}/cancel`, reason ? { reason } : {}),
 };
 
 export const refundsApi = {
@@ -117,6 +117,11 @@ export const reportsApi = {
   categories: (params?: object) => api.get('/reports/categories', { params }),
   scales: (params?: object) => api.get('/reports/scales', { params }),
   branchComparison: (params?: object) => api.get('/reports/branch-comparison', { params }),
+  salesByTable: (params?: object) => api.get('/reports/sales-by-table', { params }),
+  salesByWaiter: (params?: object) => api.get('/reports/sales-by-waiter', { params }),
+  payments: (params?: object) => api.get('/reports/payments', { params }),
+  dayComparison: (params?: object) => api.get('/reports/day-comparison', { params }),
+  discountsVoids: (params?: object) => api.get('/reports/discounts-voids', { params }),
 };
 
 export const weighingScalesApi = {

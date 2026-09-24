@@ -158,6 +158,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
         Route::get('/reports/inventory', [ReportController::class, 'inventoryReport']);
         Route::get('/reports/profit-loss', [ReportController::class, 'profitLoss']);
         Route::get('/reports/cashier-performance', [ReportController::class, 'cashierPerformance']);
+        Route::get('/reports/sales-by-table', [ReportController::class, 'salesByTable']);
+        Route::get('/reports/sales-by-waiter', [ReportController::class, 'salesByWaiter']);
+        Route::get('/reports/payments', [ReportController::class, 'paymentsReport']);
+        Route::get('/reports/day-comparison', [ReportController::class, 'dayComparison']);
+        Route::get('/reports/discounts-voids', [ReportController::class, 'discountsVoids']);
         Route::get('/reports/categories', [ReportController::class, 'categoryReport']);
         Route::get('/reports/daily', [ReportController::class, 'dailyReport']);
         Route::get('/reports/monthly', [ReportController::class, 'monthlyReport']);

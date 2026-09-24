@@ -31,6 +31,7 @@ class Sale extends Model
         'subtotal', 'discount_amount', 'tax_amount', 'total', 'amount_paid', 'change_due',
         'discount_type', 'discount_value', 'coupon_code', 'notes', 'is_offline', 'completed_at',
         'table_number', 'order_type',
+        'voided_by', 'voided_at', 'void_reason',
     ];
 
     protected $casts = [
@@ -43,6 +44,7 @@ class Sale extends Model
         'discount_value' => 'decimal:2',
         'is_offline' => 'boolean',
         'completed_at' => 'datetime',
+        'voided_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -65,6 +67,7 @@ class Sale extends Model
     public function register(): BelongsTo { return $this->belongsTo(Register::class); }
     public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
     public function cashier(): BelongsTo { return $this->belongsTo(User::class, 'user_id'); }
+    public function voidedBy(): BelongsTo { return $this->belongsTo(User::class, 'voided_by'); }
     public function items(): HasMany { return $this->hasMany(SaleItem::class); }
     public function payments(): HasMany { return $this->hasMany(SalePayment::class); }
     public function refunds(): HasMany { return $this->hasMany(Refund::class); }

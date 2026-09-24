@@ -328,8 +328,9 @@ class SaleController extends BaseApiController
         return $this->success($sale->load('items.product', 'items.variant', 'payments', 'customer', 'cashier', 'branch', 'refunds'));
     }
 
-    public function cancel(Sale $sale): \Illuminate\Http\JsonResponse
+    public function cancel(Request $request, Sale $sale): \Illuminate\Http\JsonResponse
     {
+        $request->validate(['reason' => 'nullable|string|max:255']);
         if (! auth()->user()->can('void_sales')) {
             return $this->error('You do not have permission to cancel orders', 403);
         }
@@ -339,7 +340,7 @@ class SaleController extends BaseApiController
 
         $sale->load('items');
 
-        return DB::transaction(function () use ($sale) {
+        return DB::transaction(function () use ($request, $sale) {
             // Restore stock for each item — a made-to-order item restores the
             // recipe's ingredients it consumed instead, mirroring how it was deducted.
             $productsById = \App\Models\Product::whereIn('id', $sale->items->pluck('product_id'))->get()->keyBy('id');
@@ -380,7 +381,12 @@ class SaleController extends BaseApiController
                 }
             }
 
-            $sale->update(['status' => 'voided']);
+            $sale->update([
+                'status'      => 'voided',
+                'voided_by'   => $request->user()->id,
+                'voided_at'   => now(),
+                'void_reason' => $request->input('reason'),
+            ]);
             $this->bustDashboardCache($sale->branch_id);
 
             return $this->success($sale->fresh(), 'Sale cancelled successfully');

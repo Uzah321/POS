@@ -1197,4 +1197,274 @@ class ReportController extends BaseApiController
 
         return response()->stream($callback, 200, $headers);
     }
+
+    // ── Restaurant / operations reports ─────────────────────────────────────
+
+    /** Revenue-counted sales in [from, to], scoped to the caller's branch and shop. */
+    private function scopedSales(Request $request, string $from, string $to)
+    {
+        $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
+
+        return Sale::revenueCounted()
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
+            ->whereDate('completed_at', '>=', $from)
+            ->whereDate('completed_at', '<=', $to);
+    }
+
+    /** Voided sales whose void happened in [from, to], same scoping as scopedSales(). */
+    private function scopedVoids(Request $request, string $from, string $to)
+    {
+        $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
+
+        return Sale::where('status', 'voided')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
+            ->whereDate('voided_at', '>=', $from)
+            ->whereDate('voided_at', '<=', $to);
+    }
+
+    /**
+     * Money actually kept per payment method. sale_payments.amount is what was
+     * *tendered*, so a cash payment includes the customer's change — take each
+     * sale's change_due back off its cash payments. Returns [byMethod, byDay].
+     */
+    private function netPayments($sales): array
+    {
+        $byMethod = [];
+        $byDay = [];
+        foreach ($sales as $sale) {
+            $change = (float) $sale->change_due;
+            $day = $sale->completed_at?->toDateString();
+            foreach ($sale->payments as $payment) {
+                $amount = (float) $payment->amount;
+                if ($payment->method === 'cash' && $change > 0) {
+                    $deduct = min($change, $amount);
+                    $amount -= $deduct;
+                    $change -= $deduct;
+                }
+                $m = $payment->method;
+                $byMethod[$m] ??= ['method' => $m, 'amount' => 0.0, 'transactions' => 0];
+                $byMethod[$m]['amount'] += $amount;
+                $byMethod[$m]['transactions']++;
+                if ($day) {
+                    $byDay[$day] ??= ['date' => $day];
+                    $byDay[$day][$m] = ($byDay[$day][$m] ?? 0) + $amount;
+                }
+            }
+        }
+        ksort($byDay);
+        $byMethod = collect($byMethod)->sortByDesc('amount')->values()->all();
+        return [$byMethod, array_values($byDay)];
+    }
+
+    /** Sales grouped by table (orders with no table count as Walk-in). */
+    public function salesByTable(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
+        $tableExpr = "COALESCE(NULLIF(table_number, ''), 'Walk-in')";
+
+        $rows = $this->scopedSales($request, $request->date_from, $request->date_to)
+            ->selectRaw("{$tableExpr} as table_name, COUNT(*) as transactions, SUM(total) as revenue, AVG(total) as avg_sale, SUM(discount_amount) as discounts")
+            ->groupByRaw($tableExpr)
+            ->orderByDesc('revenue')
+            ->get()
+            ->map(fn($r) => [
+                'table'        => $r->table_name,
+                'transactions' => (int) $r->transactions,
+                'revenue'      => (float) $r->revenue,
+                'avg_sale'     => (float) $r->avg_sale,
+                'discounts'    => (float) $r->discounts,
+            ]);
+
+        return $this->success($rows);
+    }
+
+    /** Sales grouped by the staff member who rang them up (the waiter on a restaurant till). */
+    public function salesByWaiter(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
+        $sales = $this->scopedSales($request, $request->date_from, $request->date_to);
+
+        $rows = (clone $sales)
+            ->join('users', 'users.id', '=', 'sales.user_id')
+            ->groupBy('sales.user_id', 'users.name')
+            ->selectRaw("sales.user_id, users.name, COUNT(*) as transactions, SUM(sales.total) as revenue, AVG(sales.total) as avg_sale, SUM(sales.discount_amount) as discounts, COUNT(DISTINCT NULLIF(sales.table_number, '')) as tables_served")
+            ->get()
+            ->keyBy('user_id');
+
+        $itemsSold = SaleItem::whereIn('sale_id', (clone $sales)->select('sales.id'))
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->groupBy('sales.user_id')
+            ->selectRaw('sales.user_id, SUM(sale_items.quantity) as qty')
+            ->pluck('qty', 'user_id');
+
+        // Voids are attributed to whoever rang the sale up, not who voided it —
+        // this is "how many of this waiter's orders got voided".
+        $voids = $this->scopedVoids($request, $request->date_from, $request->date_to)
+            ->groupBy('user_id')
+            ->selectRaw('user_id, COUNT(*) as void_count, SUM(total) as void_amount')
+            ->get()
+            ->keyBy('user_id');
+
+        $userIds = $rows->keys()->merge($voids->keys())->unique();
+        $names = DB::table('users')->whereIn('id', $userIds)->pluck('name', 'id');
+
+        $data = $userIds->map(fn($id) => [
+            'user_id'       => $id,
+            'name'          => $rows->get($id)->name ?? $names->get($id) ?? 'Unknown',
+            'transactions'  => (int) ($rows->get($id)->transactions ?? 0),
+            'revenue'       => (float) ($rows->get($id)->revenue ?? 0),
+            'avg_sale'      => (float) ($rows->get($id)->avg_sale ?? 0),
+            'discounts'     => (float) ($rows->get($id)->discounts ?? 0),
+            'tables_served' => (int) ($rows->get($id)->tables_served ?? 0),
+            'items_sold'    => (float) ($itemsSold->get($id) ?? 0),
+            'voids'         => (int) ($voids->get($id)->void_count ?? 0),
+            'void_amount'   => (float) ($voids->get($id)->void_amount ?? 0),
+        ])->sortByDesc('revenue')->values();
+
+        return $this->success($data);
+    }
+
+    /** Net takings per payment method, with a per-day breakdown. */
+    public function paymentsReport(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
+        $sales = $this->scopedSales($request, $request->date_from, $request->date_to)
+            ->with('payments:id,sale_id,method,amount')
+            ->get(['id', 'completed_at', 'change_due', 'total']);
+
+        [$byMethod, $byDay] = $this->netPayments($sales);
+
+        return $this->success([
+            'methods'      => $byMethod,
+            'daily'        => $byDay,
+            'total'        => (float) collect($byMethod)->sum('amount'),
+            'sales_total'  => (float) $sales->sum('total'),
+            'transactions' => $sales->count(),
+        ]);
+    }
+
+    /** Side-by-side figures for two single days. */
+    public function dayComparison(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate(['date_a' => 'required|date', 'date_b' => 'required|date']);
+
+        return $this->success([
+            'a' => $this->daySnapshot($request, $request->date_a),
+            'b' => $this->daySnapshot($request, $request->date_b),
+        ]);
+    }
+
+    private function daySnapshot(Request $request, string $date): array
+    {
+        $sales = $this->scopedSales($request, $date, $date)
+            ->with('payments:id,sale_id,method,amount')
+            ->get(['id', 'completed_at', 'change_due', 'total', 'discount_amount']);
+        [$byMethod] = $this->netPayments($sales);
+
+        $hourly = array_fill(0, 24, 0.0);
+        foreach ($sales as $sale) {
+            if ($sale->completed_at) $hourly[(int) $sale->completed_at->format('G')] += (float) $sale->total;
+        }
+
+        $saleIds = $sales->pluck('id');
+        $voids = $this->scopedVoids($request, $date, $date);
+        $revenue = (float) $sales->sum('total');
+        $cogs = $this->calculateCogs($saleIds);
+
+        $branchId = $this->effectiveBranchId($request);
+        $businessType = $this->effectiveBusinessType($request);
+        $refunds = (float) DB::table('refunds')
+            ->join('sales', 'sales.id', '=', 'refunds.sale_id')
+            ->where('refunds.status', 'completed')
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
+            ->whereDate('refunds.created_at', $date)
+            ->sum('refunds.amount');
+
+        return [
+            'date'         => $date,
+            'revenue'      => $revenue,
+            'transactions' => $sales->count(),
+            'avg_sale'     => $sales->count() ? $revenue / $sales->count() : 0,
+            'discounts'    => (float) $sales->sum('discount_amount'),
+            'gross_profit' => $revenue - $cogs,
+            'items_sold'   => (float) SaleItem::whereIn('sale_id', $saleIds)->sum('quantity'),
+            'voids'        => (clone $voids)->count(),
+            'void_amount'  => (float) (clone $voids)->sum('total'),
+            'refunds'      => $refunds,
+            'payments'     => $byMethod,
+            'hourly'       => collect($hourly)->map(fn($v, $h) => ['hour' => $h, 'revenue' => $v])->values(),
+            'top_products' => SaleItem::whereIn('sale_id', $saleIds)
+                ->join('products', 'products.id', '=', 'sale_items.product_id')
+                ->groupBy('products.id', 'products.name')
+                ->selectRaw('products.name, SUM(sale_items.quantity) as qty, SUM(sale_items.total) as revenue')
+                ->orderByDesc('revenue')->limit(5)->get()
+                ->map(fn($p) => ['name' => $p->name, 'qty' => (float) $p->qty, 'revenue' => (float) $p->revenue]),
+        ];
+    }
+
+    /** Every discounted sale and every void in the period, with per-staff totals. */
+    public function discountsVoids(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
+
+        $discounted = $this->scopedSales($request, $request->date_from, $request->date_to)
+            ->where('discount_amount', '>', 0)
+            ->with('cashier:id,name')
+            ->orderByDesc('completed_at')
+            ->get()
+            ->map(fn($s) => [
+                'id'             => $s->id,
+                'reference'      => $s->reference,
+                'date'           => $s->completed_at?->toDateTimeString(),
+                'staff'          => $s->cashier?->name ?? 'Unknown',
+                'table'          => $s->table_number,
+                'subtotal'       => (float) $s->subtotal,
+                'discount'       => (float) $s->discount_amount,
+                'discount_type'  => $s->discount_type,
+                'discount_value' => (float) $s->discount_value,
+                'coupon_code'    => $s->coupon_code,
+                'total'          => (float) $s->total,
+            ]);
+
+        $voids = $this->scopedVoids($request, $request->date_from, $request->date_to)
+            ->with('cashier:id,name', 'voidedBy:id,name')
+            ->orderByDesc('voided_at')
+            ->get()
+            ->map(fn($s) => [
+                'id'        => $s->id,
+                'reference' => $s->reference,
+                'sale_date' => $s->completed_at?->toDateTimeString(),
+                'voided_at' => $s->voided_at?->toDateTimeString(),
+                'rang_by'   => $s->cashier?->name ?? 'Unknown',
+                // Voids from before void auditing existed have no voider recorded.
+                'voided_by' => $s->voidedBy?->name,
+                'reason'    => $s->void_reason,
+                'table'     => $s->table_number,
+                'total'     => (float) $s->total,
+            ]);
+
+        $byStaff = fn($rows, $key, $amountKey) => $rows->groupBy(fn($r) => $r[$key] ?? 'Not recorded')
+            ->map(fn($g, $name) => ['name' => $name, 'count' => $g->count(), 'amount' => (float) $g->sum($amountKey)])
+            ->sortByDesc('amount')->values();
+
+        return $this->success([
+            'discounts' => [
+                'rows'     => $discounted,
+                'total'    => (float) $discounted->sum('discount'),
+                'count'    => $discounted->count(),
+                'by_staff' => $byStaff($discounted, 'staff', 'discount'),
+            ],
+            'voids' => [
+                'rows'     => $voids,
+                'total'    => (float) $voids->sum('total'),
+                'count'    => $voids->count(),
+                'by_staff' => $byStaff($voids, 'voided_by', 'total'),
+            ],
+        ]);
+    }
 }

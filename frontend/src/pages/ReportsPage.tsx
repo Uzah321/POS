@@ -10,8 +10,13 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
 import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
+import {
+  SalesByTableReport, SalesByWaiterReport, PaymentsReport, DayComparisonReport, DiscountsVoidsReport,
+} from '../components/reports/OperationsReports';
 
-const tabs = ['Sales', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Category Report', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History', 'Day End History'];
+const tabs = ['Sales', 'Sales by Table', 'Sales by Waiter', 'Payments', 'Day Comparison', 'Discounts & Voids', 'Profit & Loss', 'Inventory', 'Cashier Performance', 'Category Report', 'Daily Summary', 'Monthly Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History', 'Day End History'];
+// These report tabs carry their own Excel export (see OperationsReports).
+const SELF_EXPORTING_TABS = ['Sales by Table', 'Sales by Waiter', 'Payments', 'Day Comparison', 'Discounts & Voids'];
 
 function printCashupReport(records: any[], from: string, to: string, fmt: (n: number) => string) {
   const statusColor = (s: string) => ({ pending: '#b45309', approved: '#16a34a', rejected: '#dc2626' }[s] ?? '#6b7280');
@@ -257,15 +262,17 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-gray-500 text-sm">Business analytics and insights</p>
         </div>
-        <button type="button" onClick={handleExportExcel}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
-          <FileSpreadsheet size={16} /> Export Excel
-        </button>
+        {!SELF_EXPORTING_TABS.includes(tab) && (
+          <button type="button" onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
+            <FileSpreadsheet size={16} /> Export Excel
+          </button>
+        )}
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-md p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
-        {['Sales', 'Profit & Loss', 'Cashier Performance', 'Category Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
+        {['Sales', 'Sales by Table', 'Sales by Waiter', 'Payments', 'Discounts & Voids', 'Profit & Loss', 'Cashier Performance', 'Category Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
           <>
             <label className="text-sm text-gray-600">From:</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
@@ -370,6 +377,12 @@ export default function ReportsPage() {
           )}
         </div>
       )}
+
+      {tab === 'Sales by Table' && <SalesByTableReport from={from} to={to} branchId={branchId} />}
+      {tab === 'Sales by Waiter' && <SalesByWaiterReport from={from} to={to} branchId={branchId} />}
+      {tab === 'Payments' && <PaymentsReport from={from} to={to} branchId={branchId} />}
+      {tab === 'Day Comparison' && <DayComparisonReport branchId={branchId} />}
+      {tab === 'Discounts & Voids' && <DiscountsVoidsReport from={from} to={to} branchId={branchId} />}
 
       {/* P&L */}
       {tab === 'Profit & Loss' && plData && (

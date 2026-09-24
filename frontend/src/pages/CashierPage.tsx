@@ -455,7 +455,7 @@ export default function CashierPage() {
   const voidResults: any[] = (Array.isArray(voidResultsData) ? voidResultsData : []).filter((s: any) => s.status === 'completed');
 
   const voidMutation = useMutation({
-    mutationFn: (id: number) => salesApi.cancel(id),
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => salesApi.cancel(id, reason),
     onSuccess: () => {
       toast.success('Sale voided');
       qc.invalidateQueries({ queryKey: ['void-search'] });
@@ -1062,7 +1062,13 @@ export default function CashierPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { if (confirm(`Void sale ${s.reference}? Stock will be restored.`)) voidMutation.mutate(s.id); }}
+                    onClick={() => {
+                      // Cancel aborts; OK voids — with the reason, if one was typed, for the voids report.
+                      const reason = prompt(`Void sale ${s.reference}? Stock will be restored.
+
+Reason (optional):`);
+                      if (reason !== null) voidMutation.mutate({ id: s.id, reason: reason.trim() || undefined });
+                    }}
                     disabled={voidMutation.isPending}
                     className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-none disabled:opacity-50 touch-manipulation"
                   >

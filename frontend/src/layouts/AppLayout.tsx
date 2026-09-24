@@ -72,6 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       label: 'Restaurant',
       icon: UtensilsCrossed,
       items: [
+        { to: '/tables',  label: 'Tables',          icon: UtensilsCrossed, perm: 'create_sales' },
         { to: '/orders',  label: 'Orders',          icon: ClipboardList, perm: 'view_sales' },
         { to: '/queue',   label: 'Queue Display',   icon: Tv2,           perm: 'create_sales' },
         { to: '/kitchen', label: 'Kitchen Display', icon: ChefHat,       perm: 'create_sales' },

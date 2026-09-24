@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi } from '../api';
+import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi, usersApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
 import { useCartStore, unsentKitchenItems } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
@@ -23,11 +23,11 @@ import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
 import { decodeEmbeddedBarcode } from '../lib/barcode/embeddedBarcode';
 import { useServerHealth } from '../hooks/useServerHealth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard,
-  User, Award, LayoutGrid,
+  User, Users, Award, LayoutGrid,
   ChevronLeft, ChevronRight,
   Minus, ScanLine, ArrowLeftRight, XCircle, Delete, Settings, HelpCircle, CalendarCheck,
 } from 'lucide-react';
@@ -141,6 +141,8 @@ export default function POSPage() {
   const cart = useCartStore();
   const { user, hasPermission, hasRole } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [showWaiterPicker, setShowWaiterPicker] = useState(false);
   const { isServerUp } = useServerHealth();
   const { format: formatCurrency } = useCurrencyStore();
   const {
@@ -299,6 +301,58 @@ export default function POSPage() {
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
+
+  // Waiters — staff with the "waiter" role, mandatory on every sit-in order.
+  const { data: waitersData } = useQuery({
+    queryKey: ['users', 'role-waiter'],
+    queryFn: () => usersApi.list({ role: 'waiter', per_page: 200 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    staleTime: 60000,
+  });
+  const waiters: any[] = Array.isArray(waitersData) ? waitersData : [];
+
+  // Arriving from the Tables page with an already-open tab (?sale_id=X) —
+  // load its current items into the cart so staff can see what's on the
+  // table already and keep adding to it. A free table's cart (table_id +
+  // waiter already set) needs no fetch — TablesPage writes that straight
+  // into the cart store before navigating here.
+  const resumedSaleRef = useRef<string | null>(null);
+  useEffect(() => {
+    const saleId = searchParams.get('sale_id');
+    if (!saleId || resumedSaleRef.current === saleId) return;
+    resumedSaleRef.current = saleId;
+    salesApi.get(Number(saleId)).then((r) => {
+      const sale = r.data?.data;
+      if (!sale || sale.status !== 'open') return;
+      const items: CartItem[] = (sale.items ?? []).map((it: any) => {
+        const qty = parseFloat(it.quantity) || 0;
+        return {
+          line_id: `resumed-${it.id}`,
+          product_id: it.product_id,
+          variant_id: it.product_variant_id ?? undefined,
+          name: it.product?.name ?? 'Item',
+          sku: it.product?.sku ?? '',
+          price: parseFloat(it.unit_price),
+          cost: parseFloat(it.cost_price ?? 0),
+          tax_rate: effectiveTaxRate(it.product, storeSettings),
+          quantity: qty,
+          discount: qty > 0 ? (parseFloat(it.discount_amount ?? 0) / qty) : 0,
+          sold_by_weight: !!it.product?.sold_by_weight,
+          scale_id: it.scale_id,
+          kitchen_sent_qty: qty,
+          synced_to_tab: true,
+        };
+      });
+      useCartStore.setState({ items });
+      cart.setTableTab({
+        tableId: sale.table_id ?? null,
+        waiterId: sale.waiter_id ?? null,
+        waiterName: sale.waiter?.name ?? '',
+        openSaleId: sale.id,
+      });
+      cart.setOrderType('sit_in');
+      if (sale.table?.name) cart.setTableNumber(sale.table.name);
+    }).catch(() => toast.error('Could not load that tab'));
+  }, [searchParams]);
 
   // Derive categories
   const categories = ['All', ...Array.from(new Set(allProducts.map((p: any) => p.category?.name).filter(Boolean))) as string[]];
@@ -526,6 +580,153 @@ export default function POSPage() {
     },
   });
 
+  // "Add to Tab" — punches the cart's not-yet-synced lines onto the table's
+  // open, unpaid Sale (creating it on the first punch), sends a kitchen
+  // ticket, and leaves the tab open for more items / eventual payment.
+  const addToTabMutation = useMutation({
+    mutationFn: async (vars: {
+      unsyncedItems: CartItem[]; tableId: number | null; waiterId: number | null;
+      openSaleId: number | null; orderType: 'sit_in' | 'takeaway' | 'delivery';
+      customerId: number | null; note: string;
+    }) => {
+      const payloadItems = vars.unsyncedItems.map((i) => ({
+        product_id: i.product_id,
+        product_variant_id: i.variant_id,
+        quantity: i.quantity,
+        unit_price: i.price,
+        discount_type: i.discount > 0 ? 'fixed' : null,
+        discount_value: i.discount > 0 ? i.discount : 0,
+      }));
+      if (vars.openSaleId) {
+        return salesApi.addItems(vars.openSaleId, { items: payloadItems });
+      }
+      return salesApi.create({
+        branch_id: branchId,
+        warehouse_id: 1,
+        register_id: registerId,
+        customer_id: vars.customerId,
+        table_id: vars.tableId,
+        waiter_id: vars.waiterId,
+        order_type: vars.orderType,
+        status: 'open',
+        items: payloadItems,
+        notes: vars.note,
+      });
+    },
+    onSuccess: (result, vars) => {
+      const sale = (result as any).data?.data;
+      sendKitchenTicket(vars.unsyncedItems, {
+        ticket: sale?.reference ?? cart.ticketNum,
+        table: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : '',
+        orderType: vars.orderType,
+        covers: cart.covers,
+        customerName: cart.customerName,
+        note: vars.note,
+      });
+      useCartStore.setState({
+        items: useCartStore.getState().items.map((i) =>
+          vars.unsyncedItems.some((u) => u.line_id === i.line_id) ? { ...i, synced_to_tab: true, kitchen_sent_qty: i.quantity } : i
+        ),
+      });
+      cart.setTableTab({ tableId: sale?.table_id ?? vars.tableId, openSaleId: sale?.id ?? vars.openSaleId });
+      toast.success('Sent to kitchen — tab stays open');
+      qc.invalidateQueries({ queryKey: ['tables'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not add to tab'),
+  });
+
+  // "Pay & Close Tab" — syncs any last unsynced lines, takes payment, and
+  // settles the table's open Sale (SaleController::closeTab), freeing the table.
+  const closeTabMutation = useMutation({
+    mutationFn: async (vars: { saleId: number; unsyncedItems: CartItem[]; payments: Array<{ method: string; amount: number }> }) => {
+      if (vars.unsyncedItems.length > 0) {
+        await salesApi.addItems(vars.saleId, {
+          items: vars.unsyncedItems.map((i) => ({
+            product_id: i.product_id,
+            product_variant_id: i.variant_id,
+            quantity: i.quantity,
+            unit_price: i.price,
+            discount_type: i.discount > 0 ? 'fixed' : null,
+            discount_value: i.discount > 0 ? i.discount : 0,
+          })),
+        });
+      }
+      return salesApi.closeTab(vars.saleId, { payments: vars.payments });
+    },
+    onSuccess: (result) => {
+      const sale = (result as any).data?.data;
+      const snap = saleSnapshotRef.current;
+
+      toast.success('Tab closed — payment received');
+
+      const snapPayMethod = snap?.paymentMethod ?? 'cash';
+      const snapTendered = snap?.cashTendered ?? '';
+      const snapTotal = snap?.totalDue ?? snap?.total ?? 0;
+
+      void printReceipt(
+        buildReceiptDataFromSale(sale ?? null, {
+          storeName,
+          storeAddress,
+          storePhone,
+          cashier: user?.name ?? '',
+          currency,
+          paymentMethod: snapPayMethod,
+          amountTendered: snapPayMethod === 'cash' ? parseFloat(snapTendered) || snapTotal : undefined,
+          change: snapPayMethod === 'cash' ? Math.max(0, (parseFloat(snapTendered) || 0) - snapTotal) : undefined,
+          itemsFallback: (snap?.items ?? []).map((item) => ({
+            name: item.name,
+            qty: item.quantity,
+            price: item.price,
+            total: item.price * item.quantity,
+          })),
+          vatNumber: storeSettings?.company_vat_number,
+          tinNumber: storeSettings?.company_tin_number,
+          currencyCode: activeCurrency?.code ?? 'USD',
+          currencyRate: activeCurrency?.exchange_rate ?? 1,
+          posNumber: String(user?.branch?.id ?? 1),
+          orderType: snap?.orderType ?? 'sit_in',
+          branchName: user?.branch?.name,
+          customerName: snap?.customerName || undefined,
+          tableNumber: snap?.tableNumber || undefined,
+          covers: snap?.covers,
+          deviceId: storeSettings?.fiscal_device_id || undefined,
+          fiscalDay: storeSettings?.fiscal_day || undefined,
+          recGn: storeSettings?.fiscal_rec_gn || undefined,
+          rec68: storeSettings?.fiscal_rec_68 || undefined,
+        }),
+        resolveReceiptPrintMode(hw.printerMode),
+        hw.printerName
+      ).catch((error: any) => {
+        toast.error(error?.message ?? 'Tab closed, but receipt printing failed');
+      });
+
+      if (snap) {
+        sendKitchenTicket(snap.items, {
+          ticket: sale?.reference ?? snap.ticketNum,
+          table: snap.tableNumber,
+          orderType: snap.orderType,
+          covers: snap.covers,
+          customerName: snap.customerName,
+          note: snap.note,
+        });
+      }
+
+      saleSnapshotRef.current = null;
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
+      qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
+      qc.invalidateQueries({ queryKey: ['tables'] });
+      navigate('/tables');
+    },
+    onError: (e: any) => {
+      toast.error(e?.response?.data?.message ?? 'Could not close the tab');
+    },
+  });
+
   // Shared by both the direct-add path (live scale reading, or a plain
   // count item) and the manual-weight-entry path below — keeps the price
   // check / stock check / toast messaging identical for both.
@@ -676,6 +877,11 @@ export default function POSPage() {
 
   const handleProcessSale = () => {
     if (cart.items.length === 0) return;
+    if (cart.orderType === 'sit_in' && !cart.waiterId) {
+      toast.error('Select a waiter before processing a sit-in order');
+      setShowWaiterPicker(true);
+      return;
+    }
 
     let paymentsPayload: Array<{method: string; amount: number}>;
     if (isSplitPayment) {
@@ -714,12 +920,27 @@ export default function POSPage() {
     };
     saleSnapshotRef.current = snap;
 
+    // A tab already open on this table (via Add to Tab, or resumed from the
+    // Tables page) — settle it instead of ringing up a brand new sale.
+    if (cart.openSaleId) {
+      const unsyncedItems = snap.items.filter((i) => !i.synced_to_tab);
+      const openSaleId = cart.openSaleId;
+      cart.newTicket();
+      setCashTendered('');
+      setSplitPayments([]);
+      setIsSplitPayment(false);
+      closeTabMutation.mutate({ saleId: openSaleId, unsyncedItems, payments: paymentsPayload });
+      return;
+    }
+
     const salePayload = {
       branch_id: branchId,
       warehouse_id: 1,
       register_id: registerId,
       customer_id: cart.customerId,
       table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
+      table_id: cart.tableId,
+      waiter_id: cart.waiterId,
       order_type: cart.orderType,
       items: snap.items.map((i) => ({
         product_id: i.product_id,
@@ -741,6 +962,29 @@ export default function POSPage() {
     setIsSplitPayment(false);
 
     saleMutation.mutate(salePayload);
+  };
+
+  const handleAddToTab = () => {
+    if (cart.items.length === 0) return;
+    if (cart.orderType === 'sit_in' && !cart.waiterId) {
+      toast.error('Select a waiter before sending this order');
+      setShowWaiterPicker(true);
+      return;
+    }
+    const unsyncedItems = cart.items.filter((i) => !i.synced_to_tab);
+    if (unsyncedItems.length === 0) {
+      toast.error('Nothing new to send');
+      return;
+    }
+    addToTabMutation.mutate({
+      unsyncedItems,
+      tableId: cart.tableId,
+      waiterId: cart.waiterId,
+      openSaleId: cart.openSaleId,
+      orderType: cart.orderType,
+      customerId: cart.customerId,
+      note: cart.note,
+    });
   };
 
   const handleHoldOrder = () => {
@@ -845,7 +1089,7 @@ export default function POSPage() {
   const BLUE = '#2f6df6';
   const KEY_CLS = 'rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
   const KEY_H = 'clamp(34px, 4.5vh, 58px)';
-  const canProcess = !(cart.items.length === 0 || saleMutation.isPending || needsRegisterSelection || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
+  const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (cart.orderType === 'sit_in' && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
   return (
     <>
@@ -1053,6 +1297,35 @@ export default function POSPage() {
               </button>
             </div>
 
+            {cart.orderType === 'sit_in' && (
+              <div className="flex items-center gap-2 px-4 pb-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowWaiterPicker(true)}
+                  disabled={!!cart.openSaleId}
+                  title={cart.openSaleId ? 'Waiter is locked once a tab is open' : 'Select waiter'}
+                  className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border touch-manipulation disabled:opacity-70 ${
+                    cart.waiterId ? 'border-slate-200 text-slate-700 bg-slate-50' : 'border-amber-300 text-amber-700 bg-amber-50'
+                  }`}
+                >
+                  <Users size={13} /> {cart.waiterId ? cart.waiterName : 'Select Waiter (required)'}
+                </button>
+                {cart.tableId && (
+                  <span className="text-xs text-slate-400">Table: {cart.tableNumber}</span>
+                )}
+                {cart.items.some((i) => !i.synced_to_tab) && (cart.tableId || cart.openSaleId) && (
+                  <button
+                    type="button"
+                    onClick={handleAddToTab}
+                    disabled={addToTabMutation.isPending}
+                    className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 touch-manipulation"
+                  >
+                    {addToTabMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />} Add to Tab
+                  </button>
+                )}
+              </div>
+            )}
+
             {(cart.heldOrders.length > 0) && (
               <div className="px-4 pb-2 flex-shrink-0">
                 <button
@@ -1220,7 +1493,7 @@ export default function POSPage() {
                 className={`${KEY_CLS} !text-[20px] gap-1.5 text-white disabled:opacity-40 disabled:cursor-not-allowed`}
                 style={{ height: KEY_H, background: '#10a37f' }}
               >
-                {saleMutation.isPending ? <Loader2 size={22} className="animate-spin" /> : <><ChevronRight size={24} strokeWidth={2.4} /> Process</>}
+                {(saleMutation.isPending || closeTabMutation.isPending) ? <Loader2 size={22} className="animate-spin" /> : <><ChevronRight size={24} strokeWidth={2.4} /> {cart.openSaleId ? 'Close Tab' : 'Process'}</>}
               </button>
             </div>
           </div>
@@ -1342,6 +1615,36 @@ export default function POSPage() {
         confirmLabel="✓ Set Covers"
         confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
       />
+    )}
+
+    {/* Waiter picker — mandatory for every sit-in order */}
+    {showWaiterPicker && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-900">Select Waiter</h2>
+            <button onClick={() => setShowWaiterPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          </div>
+          {waiters.length === 0 ? (
+            <p className="text-xs text-amber-600 mb-4">No staff have the "waiter" role yet — assign it from Users.</p>
+          ) : (
+            <div className="space-y-1.5 mb-4 max-h-64 overflow-y-auto">
+              {waiters.map((w: any) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => { cart.setWaiter(w.id, w.name); setShowWaiterPicker(false); }}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold border touch-manipulation ${
+                    cart.waiterId === w.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {w.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     )}
 
     {/* Manual weight entry — a weight-priced product tapped with no live scale reading */}

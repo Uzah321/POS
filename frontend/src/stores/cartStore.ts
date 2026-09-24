@@ -27,6 +27,10 @@ export interface CartItem {
   // quantity and this goes on the next kitchen ticket. Travels with the line
   // through hold/resume (it's part of the held cart_data).
   kitchen_sent_qty?: number;
+  // True once this line has actually been punched onto the backend's open
+  // tab Sale (via "Add to Tab" or by resuming one) — an unsynced line still
+  // needs to go through addToTab before the tab can be closed/paid.
+  synced_to_tab?: boolean;
 }
 
 /** The part of each line the kitchen hasn't had a ticket for yet. */
@@ -76,6 +80,14 @@ interface CartState {
   covers: number;
   orderType: 'sit_in' | 'takeaway' | 'delivery';
   ticketNum: string;
+  // Set when this order was opened from the Tables page — ties the cart to a
+  // real restaurant_table + the waiter assigned for this visit. openSaleId is
+  // set once the tab actually exists as a Sale (status='open') on the
+  // backend — null while still building the first punch of a new tab.
+  tableId: number | null;
+  waiterId: number | null;
+  waiterName: string;
+  openSaleId: number | null;
   // Payment-form state — also shared so "New Ticket" from the top nav can
   // reset it, even though the form itself renders inside POSPage.
   paymentMethod: string;
@@ -93,6 +105,8 @@ interface CartState {
   setCovers: (c: number) => void;
   setOrderType: (t: 'sit_in' | 'takeaway' | 'delivery') => void;
   cycleOrderType: () => void;
+  setWaiter: (id: number | null, name: string) => void;
+  setTableTab: (v: { tableId: number | null; waiterId?: number | null; waiterName?: string; openSaleId?: number | null }) => void;
   setPaymentMethod: (m: string) => void;
   setCashTendered: (v: string) => void;
   setIsSplitPayment: (v: boolean) => void;
@@ -121,6 +135,10 @@ export const useCartStore = create<CartState>()(
       covers: 1,
       orderType: 'sit_in',
       ticketNum: randomTicketNum(),
+      tableId: null,
+      waiterId: null,
+      waiterName: '',
+      openSaleId: null,
       paymentMethod: 'cash',
       cashTendered: '',
       isSplitPayment: false,
@@ -146,6 +164,13 @@ export const useCartStore = create<CartState>()(
         const order: Array<'sit_in' | 'takeaway' | 'delivery'> = ['sit_in', 'takeaway', 'delivery'];
         set({ orderType: order[(order.indexOf(get().orderType) + 1) % order.length] });
       },
+      setWaiter: (id, name) => set({ waiterId: id, waiterName: name }),
+      setTableTab: (v) => set({
+        tableId: v.tableId,
+        ...(v.waiterId !== undefined ? { waiterId: v.waiterId } : {}),
+        ...(v.waiterName !== undefined ? { waiterName: v.waiterName } : {}),
+        ...(v.openSaleId !== undefined ? { openSaleId: v.openSaleId } : {}),
+      }),
       setPaymentMethod: (m) => set({ paymentMethod: m }),
       setCashTendered: (v) => set({ cashTendered: v }),
       setIsSplitPayment: (v) => set({ isSplitPayment: v }),
@@ -154,6 +179,7 @@ export const useCartStore = create<CartState>()(
       newTicket: () => set({
         items: [], customerId: null, customerName: '', discount: 0, note: '',
         tableNumber: 'Walk-in', covers: 1, orderType: 'sit_in', ticketNum: randomTicketNum(),
+        tableId: null, waiterId: null, waiterName: '', openSaleId: null,
         paymentMethod: 'cash', cashTendered: '', isSplitPayment: false, splitPayments: [],
       }),
       holdCurrentCart: (label?: string) => {

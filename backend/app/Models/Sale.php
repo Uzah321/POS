@@ -30,7 +30,7 @@ class Sale extends Model
         'reference', 'branch_id', 'business_type', 'warehouse_id', 'register_id', 'customer_id', 'user_id', 'status', 'kds_status',
         'subtotal', 'discount_amount', 'tax_amount', 'total', 'amount_paid', 'change_due',
         'discount_type', 'discount_value', 'coupon_code', 'notes', 'is_offline', 'completed_at',
-        'table_number', 'order_type',
+        'table_number', 'order_type', 'table_id', 'waiter_id',
         'voided_by', 'voided_at', 'void_reason',
     ];
 
@@ -68,6 +68,8 @@ class Sale extends Model
     public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
     public function cashier(): BelongsTo { return $this->belongsTo(User::class, 'user_id'); }
     public function voidedBy(): BelongsTo { return $this->belongsTo(User::class, 'voided_by'); }
+    public function table(): BelongsTo { return $this->belongsTo(RestaurantTable::class, 'table_id'); }
+    public function waiter(): BelongsTo { return $this->belongsTo(User::class, 'waiter_id'); }
     public function items(): HasMany { return $this->hasMany(SaleItem::class); }
     public function payments(): HasMany { return $this->hasMany(SalePayment::class); }
     public function refunds(): HasMany { return $this->hasMany(Refund::class); }

@@ -19,9 +19,11 @@ class KdsController extends Controller
             ->where('branch_id', $request->integer('branch_id'))
             ->whereNotNull('kds_status')
             ->whereIn('kds_status', ['new', 'preparing', 'ready'])
-            ->where('status', 'completed')
+            // An open tab (unpaid, still being added to) must reach the kitchen
+            // the moment it's punched, not only once the bill is finally paid.
+            ->whereIn('status', ['open', 'completed'])
             ->whereHas('items.product', fn ($q) => $q->where('made_to_order', true))
-            ->orderBy('completed_at', 'asc')
+            ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($sale) {
                 $sale->setRelation('items', $sale->items->filter(fn ($i) => $i->product?->made_to_order)->values());

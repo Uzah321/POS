@@ -13,7 +13,7 @@ import { useOfflineStore } from '../stores/offlineStore';
 import BranchFilter from '../components/BranchFilter';
 import { SUPERMARKET_ENABLED } from '../lib/shops';
 
-const ROLES = ['admin', 'manager', 'cashier', 'storekeeper', 'accountant'];
+const ROLES = ['admin', 'manager', 'cashier', 'storekeeper', 'accountant', 'waiter'];
 
 const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',

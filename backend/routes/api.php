@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\ProductIngredientController;
 use App\Http\Controllers\Api\IngredientController;
 use App\Http\Controllers\Api\ProductCaseUnitController;
 use App\Http\Controllers\Api\LicenseController;
+use App\Http\Controllers\Api\TableController;
 
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
@@ -108,7 +109,17 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::patch('/sales/held/{id}/status', [SaleController::class, 'updateHeldStatus']);
     Route::get('/sales/{sale}/receipt', [SaleController::class, 'receipt']);
     Route::patch('/sales/{sale}/cancel', [SaleController::class, 'cancel']);
+    Route::post('/sales/{sale}/add-items', [SaleController::class, 'addToTab']);
+    Route::post('/sales/{sale}/close-tab', [SaleController::class, 'closeTab']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'store', 'show']);
+
+    // Restaurant tables — tile grid + open tabs
+    Route::get('/tables', [TableController::class, 'index']);
+    Route::middleware('permission:manage_tables')->group(function () {
+        Route::post('/tables', [TableController::class, 'store']);
+        Route::put('/tables/{table}', [TableController::class, 'update']);
+        Route::delete('/tables/{table}', [TableController::class, 'destroy']);
+    });
 
     // Refunds
     Route::middleware('permission:process_refunds')->group(function () {

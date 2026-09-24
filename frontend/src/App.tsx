@@ -37,6 +37,7 @@ const DayEndPage               = lazy(() => import('./pages/DayEndPage'));
 const HardwarePage             = lazy(() => import('./pages/HardwarePage'));
 const CustomerDisplayPage      = lazy(() => import('./pages/CustomerDisplayPage'));
 const KitchenDisplayPage       = lazy(() => import('./pages/KitchenDisplayPage'));
+const TablesPage               = lazy(() => import('./pages/TablesPage'));
 const QueueDisplayPage         = lazy(() => import('./pages/QueueDisplayPage'));
 const LaybyPage                = lazy(() => import('./pages/LaybyPage'));
 const QuotationsPage           = lazy(() => import('./pages/QuotationsPage'));
@@ -111,6 +112,7 @@ export default function App() {
               <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
               <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
               <Route path="/" element={<RequirePermission perm="view_dashboard"><LayoutWrapper><DashboardPage /></LayoutWrapper></RequirePermission>} />
+              <Route path="/tables" element={<RequirePermission perm="create_sales"><LayoutWrapper><TablesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/orders" element={<RequirePermission perm="view_sales"><LayoutWrapper><OrdersPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/sales" element={<RequirePermission perm="view_sales"><LayoutWrapper><SalesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/refunds" element={<RequirePermission perm="process_refunds"><LayoutWrapper><RefundsPage /></LayoutWrapper></RequirePermission>} />

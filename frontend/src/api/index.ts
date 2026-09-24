@@ -54,6 +54,15 @@ export const salesApi = {
   updateHeldStatus: (id: number, status: string) => api.patch(`/sales/held/${id}/status`, { order_status: status }),
   receipt: (id: number) => api.get(`/sales/${id}/receipt`),
   cancel: (id: number, reason?: string) => api.patch(`/sales/${id}/cancel`, reason ? { reason } : {}),
+  addItems: (id: number, data: object) => api.post(`/sales/${id}/add-items`, data),
+  closeTab: (id: number, data: object) => api.post(`/sales/${id}/close-tab`, data),
+};
+
+export const tablesApi = {
+  list: (params?: object) => api.get('/tables', { params }),
+  create: (data: object) => api.post('/tables', data),
+  update: (id: number, data: object) => api.put(`/tables/${id}`, data),
+  remove: (id: number) => api.delete(`/tables/${id}`),
 };
 
 export const refundsApi = {

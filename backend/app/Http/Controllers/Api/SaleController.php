@@ -58,7 +58,10 @@ class SaleController extends BaseApiController
             'items.*.discount_type'      => 'nullable|in:fixed,percent',
             'items.*.discount_value'     => 'nullable|numeric|min:0',
             'items.*.note'               => 'nullable|string',
-            'payments'       => 'required|array|min:1',
+            // Not required when status=open — an "Add to Tab" order is sent
+            // to the kitchen and deducts stock like any other sale, but isn't
+            // paid until the tab is closed later (see closeTab()).
+            'payments'       => 'required_unless:status,open|array',
             'payments.*.method'  => 'required|in:cash,card,mobile_money,bank_transfer,loyalty_points,credit,other',
             'payments.*.amount'  => 'required|numeric|min:0',
             'payments.*.reference' => 'nullable|string',
@@ -67,7 +70,12 @@ class SaleController extends BaseApiController
             'coupon_code'    => 'nullable|string',
             'notes'          => 'nullable|string',
             'table_number'   => 'nullable|string|max:20',
+            'table_id'       => 'nullable|exists:restaurant_tables,id',
+            // A waiter is mandatory for every sit-in order (dine-in), regardless
+            // of whether it's paid immediately or opened as a tab.
+            'waiter_id'      => ['nullable', 'exists:users,id', 'required_if:order_type,sit_in'],
             'order_type'     => 'nullable|string|max:20',
+            'status'         => 'nullable|in:open',
             'is_offline'     => 'boolean',
         ]);
 
@@ -96,80 +104,10 @@ class SaleController extends BaseApiController
             // sync queue, or a second concurrent cashier can all bypass. Lock each
             // row now (inside this transaction) so two simultaneous sales for the
             // same product can't both read the same starting quantity and both pass.
-            $blockNegativeStock = filter_var(\App\Models\Setting::get('block_negative_stock', true), FILTER_VALIDATE_BOOLEAN);
-            if ($blockNegativeStock) {
-                // Aggregate quantity per product+variant first — the same line
-                // can appear more than once in a cart (e.g. split notes), and
-                // checking each occurrence in isolation would let their combined
-                // demand exceed stock even though each individual line "passed".
-                $neededByKey = [];
-                foreach ($data['items'] as $item) {
-                    $key = $item['product_id'].':'.($item['product_variant_id'] ?? '');
-                    $neededByKey[$key] = ($neededByKey[$key] ?? 0) + (float) $item['quantity'];
-                }
-
-                foreach ($neededByKey as $key => $needed) {
-                    [$productId, $variantId] = array_pad(explode(':', $key, 2), 2, null);
-                    $product = $productsById->get((int) $productId);
-                    if ($product && ! $product->track_stock) continue;
-
-                    if ($product && $product->made_to_order) {
-                        $this->assertRecipeCanMake($product, $data['warehouse_id'], $needed);
-                        continue;
-                    }
-
-                    $stock = Stock::where('warehouse_id', $data['warehouse_id'])
-                        ->where('product_id', $productId)
-                        ->where('product_variant_id', $variantId === '' ? null : $variantId)
-                        ->lockForUpdate()
-                        ->first();
-
-                    $available = (float) ($stock->quantity ?? 0);
-                    if ($available < $needed) {
-                        throw new \RuntimeException(($product->name ?? 'Item')." is out of stock (available: {$available})");
-                    }
-                }
-            }
+            $this->assertStockAvailable($data['items'], $productsById, $data['warehouse_id']);
 
             // Calculate totals
-            $subtotal       = 0;
-            $totalDiscount  = 0;
-            $totalTax       = 0;
-            $lineItems      = [];
-
-            foreach ($data['items'] as $item) {
-                $unitPrice  = (float) $item['unit_price'];
-                $qty        = (float) $item['quantity'];
-                $lineSubtotal = $unitPrice * $qty;
-
-                $discAmt = 0;
-                if (! empty($item['discount_type']) && ! empty($item['discount_value'])) {
-                    $discAmt = $item['discount_type'] === 'percent'
-                        ? $lineSubtotal * ($item['discount_value'] / 100)
-                        : min((float) $item['discount_value'], $lineSubtotal);
-                }
-
-                // Prices in the system are VAT-inclusive — the configured rate is
-                // baked into unit_price already, so tax is extracted out of the
-                // taxable amount rather than added on top of it. Net + tax must
-                // reconcile back to the taxable (inclusive) amount.
-                $taxable = $lineSubtotal - $discAmt;
-                $product = $productsById->get($item['product_id']);
-                $isTaxable = $product?->is_taxable ?? true;
-                $rate    = ($taxEnabled && $isTaxable) ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
-                $taxAmt  = round($taxable - ($taxable / (1 + $rate / 100)), 2);
-
-                $lineItems[] = array_merge($item, [
-                    'subtotal'        => $lineSubtotal,
-                    'discount_amount' => $discAmt,
-                    'tax_amount'      => $taxAmt,
-                    'total'           => $taxable,
-                ]);
-
-                $subtotal      += $lineSubtotal;
-                $totalDiscount += $discAmt;
-                $totalTax      += $taxAmt;
-            }
+            [$lineItems, $subtotal, $totalDiscount, $totalTax] = $this->calculateLineItems($data['items'], $productsById, $taxEnabled, $globalTaxRate);
 
             // Cart-level discount
             $cartDiscount = 0;
@@ -183,8 +121,10 @@ class SaleController extends BaseApiController
             // tax_amount is informational (VAT extracted from the already-inclusive
             // prices above) — it's not added on top, since it's already inside subtotal.
             $total      = $subtotal - $totalDiscount;
-            $amountPaid = collect($data['payments'])->sum('amount');
-            $changeDue  = max(0, $amountPaid - $total);
+            $isOpenTab  = ($data['status'] ?? null) === 'open';
+            $payments   = $data['payments'] ?? [];
+            $amountPaid = $isOpenTab ? 0 : collect($payments)->sum('amount');
+            $changeDue  = $isOpenTab ? 0 : max(0, $amountPaid - $total);
 
             $sale = Sale::create([
                 'branch_id'       => $data['branch_id'],
@@ -196,7 +136,7 @@ class SaleController extends BaseApiController
                 'register_id'     => $data['register_id'] ?? null,
                 'customer_id'     => $data['customer_id'] ?? null,
                 'user_id'         => $request->user()->id,
-                'status'          => 'completed',
+                'status'          => $isOpenTab ? 'open' : 'completed',
                 'subtotal'        => $subtotal,
                 'discount_amount' => $totalDiscount,
                 'tax_amount'      => $totalTax,
@@ -208,52 +148,21 @@ class SaleController extends BaseApiController
                 'coupon_code'     => $data['coupon_code'] ?? null,
                 'notes'           => $data['notes'] ?? null,
                 'table_number'    => $data['table_number'] ?? null,
+                'table_id'        => $data['table_id'] ?? null,
+                'waiter_id'       => $data['waiter_id'] ?? null,
                 'order_type'      => $data['order_type'] ?? null,
                 'is_offline'      => $data['is_offline'] ?? false,
-                'completed_at'    => now(),
+                'completed_at'    => $isOpenTab ? null : now(),
                 // Only sales containing a "Made on Order" product go to the kitchen/queue displays.
                 'kds_status'      => collect($data['items'])->contains(
                     fn ($i) => $productsById->get($i['product_id'])?->made_to_order
                 ) ? 'new' : null,
             ]);
 
-            $costPrices = $productsById->pluck('cost_price', 'id');
+            $this->createLineItemsAndDeductStock($sale, $lineItems, $productsById, $data['warehouse_id']);
 
-            // Create line items & deduct stock
-            foreach ($lineItems as $item) {
-                // Snapshot which scale weighed this line (if any) straight from the
-                // product's own assignment — the client never sends this, since a
-                // product's scale is configured once in Products, not per-sale.
-                $product = $productsById->get($item['product_id']);
-                SaleItem::create([
-                    'sale_id'            => $sale->id,
-                    'product_id'         => $item['product_id'],
-                    'product_variant_id' => $item['product_variant_id'] ?? null,
-                    'scale_id'           => $product?->scale_id,
-                    'quantity'           => $item['quantity'],
-                    'unit_price'         => $item['unit_price'],
-                    'cost_price'         => (float) ($costPrices[$item['product_id']] ?? 0),
-                    'discount_amount'    => $item['discount_amount'],
-                    'tax_amount'         => $item['tax_amount'],
-                    'subtotal'           => $item['subtotal'],
-                    'total'              => $item['total'],
-                    'discount_type'      => $item['discount_type'] ?? null,
-                    'discount_value'     => $item['discount_value'] ?? 0,
-                    'note'               => $item['note'] ?? null,
-                ]);
-
-                // Deduct from stock — a made-to-order item deducts its recipe's
-                // ingredients instead, since it never carries its own stock row.
-                $product = $productsById->get($item['product_id']);
-                if ($product && $product->made_to_order) {
-                    $this->deductIngredients($product, $data['warehouse_id'], (float) $item['quantity']);
-                } else {
-                    $this->deductStock($data['warehouse_id'], $item['product_id'], $item['product_variant_id'] ?? null, $item['quantity']);
-                }
-            }
-
-            // Record payments
-            foreach ($data['payments'] as $payment) {
+            // Record payments — none yet for an open tab, settled later via closeTab().
+            foreach ($payments as $payment) {
                 SalePayment::create([
                     'sale_id'   => $sale->id,
                     'method'    => $payment['method'],
@@ -262,8 +171,9 @@ class SaleController extends BaseApiController
                 ]);
             }
 
-            // Handle loyalty points
-            if ($sale->customer_id) {
+            // Handle loyalty points — only once a sale is actually paid; an open
+            // tab awards points when it's closed instead (see closeTab()).
+            if (! $isOpenTab && $sale->customer_id) {
                 $customer = Customer::find($sale->customer_id);
                 $points   = (int) ($total / 10); // 1 point per R10 spent
                 if ($points > 0) {
@@ -280,19 +190,22 @@ class SaleController extends BaseApiController
 
             $this->bustDashboardCache($data['branch_id']);
 
-            $sale->load('items.product', 'payments', 'customer', 'cashier', 'branch');
+            $sale->load('items.product', 'payments', 'customer', 'cashier', 'branch', 'table', 'waiter');
 
             // Allocating fiscal receipt numbering happens inside this same
             // transaction (see FiscalSubmissionService) so it can never be
             // skipped or double-issued — but it must never be able to fail the
             // sale itself, since ZIMRA availability is entirely outside Core's
             // control and a till going down because a government API is
-            // unreachable is not acceptable.
+            // unreachable is not acceptable. Skipped for an open tab — it isn't
+            // a finalized transaction yet, so it's fiscalized on closeTab().
             $fiscalReceipt = null;
-            try {
-                $fiscalReceipt = app(FiscalSubmissionService::class)->prepareForSale($sale);
-            } catch (\Throwable $e) {
-                Log::error('Failed to prepare ZIMRA fiscal receipt for sale', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+            if (! $isOpenTab) {
+                try {
+                    $fiscalReceipt = app(FiscalSubmissionService::class)->prepareForSale($sale);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to prepare ZIMRA fiscal receipt for sale', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+                }
             }
 
             return [$sale, $fiscalReceipt];
@@ -398,6 +311,152 @@ class SaleController extends BaseApiController
         return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier', 'branch'));
     }
 
+    /**
+     * Punches more items onto an already-open tab (table tile still occupied,
+     * customer still ordering) — creates sale_items and deducts stock exactly
+     * like store() does, but doesn't touch payments; the tab stays open.
+     */
+    public function addToTab(Request $request, Sale $sale): \Illuminate\Http\JsonResponse
+    {
+        if ($sale->status !== 'open') {
+            return $this->error('This order is not an open tab.', 422);
+        }
+
+        $data = $request->validate([
+            'items'                       => 'required|array|min:1',
+            'items.*.product_id'         => 'required|exists:products,id',
+            'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
+            'items.*.quantity'           => 'required|numeric|min:0.001',
+            'items.*.unit_price'         => 'required|numeric|min:0.01',
+            'items.*.discount_type'      => 'nullable|in:fixed,percent',
+            'items.*.discount_value'     => 'nullable|numeric|min:0',
+            'items.*.note'               => 'nullable|string',
+        ]);
+
+        $productIds = collect($data['items'])->pluck('product_id')->unique();
+        $ownedCount = \App\Models\Product::whereIn('id', $productIds)->where('branch_id', $sale->branch_id)->count();
+        if ($ownedCount !== $productIds->count()) {
+            return $this->error('One or more items do not belong to this branch.', 422);
+        }
+
+        try {
+            $sale = DB::transaction(function () use ($data, $sale) {
+                $productsById = \App\Models\Product::with('taxRate')->whereIn('id', $productIds = collect($data['items'])->pluck('product_id')->unique())->get()->keyBy('id');
+
+                $this->assertStockAvailable($data['items'], $productsById, $sale->warehouse_id);
+
+                $taxEnabled    = filter_var(\App\Models\Setting::get('tax_enabled', false), FILTER_VALIDATE_BOOLEAN);
+                $globalTaxRate = (float) \App\Models\Setting::get('tax_rate', 0);
+                [$lineItems, $subtotal, $discount, $tax] = $this->calculateLineItems($data['items'], $productsById, $taxEnabled, $globalTaxRate);
+
+                $this->createLineItemsAndDeductStock($sale, $lineItems, $productsById, $sale->warehouse_id);
+
+                $sale->increment('subtotal', $subtotal);
+                $sale->increment('discount_amount', $discount);
+                $sale->increment('tax_amount', $tax);
+                $sale->increment('total', $subtotal - $discount);
+
+                // A made-to-order item just added means the kitchen has something new to prep.
+                if ($sale->kds_status === null && collect($data['items'])->contains(fn ($i) => $productsById->get($i['product_id'])?->made_to_order)) {
+                    $sale->update(['kds_status' => 'new']);
+                }
+
+                $this->bustDashboardCache($sale->branch_id);
+
+                return $sale->fresh(['items.product', 'table', 'waiter']);
+            });
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+
+        return $this->success($sale, 'Items added to tab');
+    }
+
+    /**
+     * Settles an open tab: takes payment, marks the Sale completed, and frees
+     * up the table. Mirrors the finalization half of store() (loyalty points,
+     * fiscal receipt) since this is the moment the sale actually becomes final.
+     */
+    public function closeTab(Request $request, Sale $sale): \Illuminate\Http\JsonResponse
+    {
+        if ($sale->status !== 'open') {
+            return $this->error('This order is not an open tab.', 422);
+        }
+
+        $data = $request->validate([
+            'payments'             => 'required|array|min:1',
+            'payments.*.method'    => 'required|in:cash,card,mobile_money,bank_transfer,loyalty_points,credit,other',
+            'payments.*.amount'    => 'required|numeric|min:0',
+            'payments.*.reference' => 'nullable|string',
+        ]);
+
+        $result = DB::transaction(function () use ($data, $sale) {
+            $amountPaid = collect($data['payments'])->sum('amount');
+            $changeDue  = max(0, $amountPaid - (float) $sale->total);
+
+            foreach ($data['payments'] as $payment) {
+                SalePayment::create([
+                    'sale_id'   => $sale->id,
+                    'method'    => $payment['method'],
+                    'amount'    => $payment['amount'],
+                    'reference' => $payment['reference'] ?? null,
+                ]);
+            }
+
+            $sale->update([
+                'status'       => 'completed',
+                'amount_paid'  => $amountPaid,
+                'change_due'   => $changeDue,
+                'completed_at' => now(),
+            ]);
+
+            if ($sale->customer_id) {
+                $customer = Customer::find($sale->customer_id);
+                $points   = (int) ($sale->total / 10);
+                if ($points > 0) {
+                    $customer->increment('loyalty_points', $points);
+                    LoyaltyTransaction::create([
+                        'customer_id'  => $customer->id,
+                        'sale_id'      => $sale->id,
+                        'type'         => 'earned',
+                        'points'       => $points,
+                        'balance_after'=> $customer->fresh()->loyalty_points,
+                    ]);
+                }
+            }
+
+            $this->bustDashboardCache($sale->branch_id);
+            $sale->load('items.product', 'payments', 'customer', 'cashier', 'branch', 'table', 'waiter');
+
+            $fiscalReceipt = null;
+            try {
+                $fiscalReceipt = app(FiscalSubmissionService::class)->prepareForSale($sale);
+            } catch (\Throwable $e) {
+                Log::error('Failed to prepare ZIMRA fiscal receipt for sale', ['sale_id' => $sale->id, 'error' => $e->getMessage()]);
+            }
+
+            return [$sale, $fiscalReceipt];
+        });
+
+        [$sale, $fiscalReceipt] = $result;
+
+        if ($fiscalReceipt) {
+            try {
+                app(FiscalSubmissionService::class)->attemptSubmit($fiscalReceipt);
+            } catch (\Throwable $e) {
+                Log::error('ZIMRA fiscal receipt submission threw unexpectedly', ['fiscal_receipt_id' => $fiscalReceipt->id, 'error' => $e->getMessage()]);
+            }
+            $fiscalReceipt->refresh();
+        }
+
+        $payload = $sale->toArray();
+        $payload['fiscal_receipt'] = $fiscalReceipt?->only([
+            'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
+        ]);
+
+        return $this->success($payload, 'Tab closed');
+    }
+
     // Hold/Park a sale
     public function hold(Request $request): \Illuminate\Http\JsonResponse
     {
@@ -454,6 +513,139 @@ class SaleController extends BaseApiController
     {
         HeldSale::findOrFail($id)->delete();
         return $this->success(null, 'Held sale removed');
+    }
+
+    /**
+     * Re-validates stock/ingredient availability for a set of cart items
+     * server-side (extracted from store() so addToTab() can reuse it for
+     * items added to an already-open tab). Throws RuntimeException on the
+     * first line that can't be fulfilled.
+     */
+    private function assertStockAvailable(array $items, $productsById, int $warehouseId): void
+    {
+        $blockNegativeStock = filter_var(\App\Models\Setting::get('block_negative_stock', true), FILTER_VALIDATE_BOOLEAN);
+        if (! $blockNegativeStock) return;
+
+        // Aggregate quantity per product+variant first — the same line can
+        // appear more than once in a cart (e.g. split notes), and checking
+        // each occurrence in isolation would let their combined demand
+        // exceed stock even though each individual line "passed".
+        $neededByKey = [];
+        foreach ($items as $item) {
+            $key = $item['product_id'].':'.($item['product_variant_id'] ?? '');
+            $neededByKey[$key] = ($neededByKey[$key] ?? 0) + (float) $item['quantity'];
+        }
+
+        foreach ($neededByKey as $key => $needed) {
+            [$productId, $variantId] = array_pad(explode(':', $key, 2), 2, null);
+            $product = $productsById->get((int) $productId);
+            if ($product && ! $product->track_stock) continue;
+
+            if ($product && $product->made_to_order) {
+                $this->assertRecipeCanMake($product, $warehouseId, $needed);
+                continue;
+            }
+
+            $stock = Stock::where('warehouse_id', $warehouseId)
+                ->where('product_id', $productId)
+                ->where('product_variant_id', $variantId === '' ? null : $variantId)
+                ->lockForUpdate()
+                ->first();
+
+            $available = (float) ($stock->quantity ?? 0);
+            if ($available < $needed) {
+                throw new \RuntimeException(($product->name ?? 'Item')." is out of stock (available: {$available})");
+            }
+        }
+    }
+
+    /**
+     * Computes per-line subtotal/discount/tax for a cart of items (extracted
+     * from store() so addToTab() can reuse the exact same math for items
+     * added to an already-open tab). Returns [lineItems, subtotal, discount, tax].
+     */
+    private function calculateLineItems(array $items, $productsById, bool $taxEnabled, float $globalTaxRate): array
+    {
+        $subtotal      = 0;
+        $totalDiscount = 0;
+        $totalTax      = 0;
+        $lineItems     = [];
+
+        foreach ($items as $item) {
+            $unitPrice    = (float) $item['unit_price'];
+            $qty          = (float) $item['quantity'];
+            $lineSubtotal = $unitPrice * $qty;
+
+            $discAmt = 0;
+            if (! empty($item['discount_type']) && ! empty($item['discount_value'])) {
+                $discAmt = $item['discount_type'] === 'percent'
+                    ? $lineSubtotal * ($item['discount_value'] / 100)
+                    : min((float) $item['discount_value'], $lineSubtotal);
+            }
+
+            // Prices in the system are VAT-inclusive — the configured rate is
+            // baked into unit_price already, so tax is extracted out of the
+            // taxable amount rather than added on top of it. Net + tax must
+            // reconcile back to the taxable (inclusive) amount.
+            $taxable   = $lineSubtotal - $discAmt;
+            $product   = $productsById->get($item['product_id']);
+            $isTaxable = $product?->is_taxable ?? true;
+            $rate      = ($taxEnabled && $isTaxable) ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
+            $taxAmt    = round($taxable - ($taxable / (1 + $rate / 100)), 2);
+
+            $lineItems[] = array_merge($item, [
+                'subtotal'        => $lineSubtotal,
+                'discount_amount' => $discAmt,
+                'tax_amount'      => $taxAmt,
+                'total'           => $taxable,
+            ]);
+
+            $subtotal      += $lineSubtotal;
+            $totalDiscount += $discAmt;
+            $totalTax      += $taxAmt;
+        }
+
+        return [$lineItems, $subtotal, $totalDiscount, $totalTax];
+    }
+
+    /**
+     * Creates sale_items rows and deducts stock/ingredients for a computed
+     * set of line items (extracted from store() so addToTab() can reuse it).
+     */
+    private function createLineItemsAndDeductStock(Sale $sale, array $lineItems, $productsById, int $warehouseId): void
+    {
+        $costPrices = $productsById->pluck('cost_price', 'id');
+
+        foreach ($lineItems as $item) {
+            // Snapshot which scale weighed this line (if any) straight from the
+            // product's own assignment — the client never sends this, since a
+            // product's scale is configured once in Products, not per-sale.
+            $product = $productsById->get($item['product_id']);
+            SaleItem::create([
+                'sale_id'            => $sale->id,
+                'product_id'         => $item['product_id'],
+                'product_variant_id' => $item['product_variant_id'] ?? null,
+                'scale_id'           => $product?->scale_id,
+                'quantity'           => $item['quantity'],
+                'unit_price'         => $item['unit_price'],
+                'cost_price'         => (float) ($costPrices[$item['product_id']] ?? 0),
+                'discount_amount'    => $item['discount_amount'],
+                'tax_amount'         => $item['tax_amount'],
+                'subtotal'           => $item['subtotal'],
+                'total'              => $item['total'],
+                'discount_type'      => $item['discount_type'] ?? null,
+                'discount_value'     => $item['discount_value'] ?? 0,
+                'note'               => $item['note'] ?? null,
+            ]);
+
+            // Deduct from stock — a made-to-order item deducts its recipe's
+            // ingredients instead, since it never carries its own stock row.
+            if ($product && $product->made_to_order) {
+                $this->deductIngredients($product, $warehouseId, (float) $item['quantity']);
+            } else {
+                $this->deductStock($warehouseId, $item['product_id'], $item['product_variant_id'] ?? null, $item['quantity']);
+            }
+        }
     }
 
     private function deductStock(int $warehouseId, int $productId, ?int $variantId, float $qty): void

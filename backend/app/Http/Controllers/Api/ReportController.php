@@ -1200,17 +1200,21 @@ class ReportController extends BaseApiController
 
     // ── Restaurant / operations reports ─────────────────────────────────────
 
-    /** Revenue-counted sales in [from, to], scoped to the caller's branch and shop. */
+    /**
+     * Revenue-counted sales in [from, to], scoped to the caller's branch and shop.
+     * Columns are table-qualified because callers join users, which has its
+     * own business_type column.
+     */
     private function scopedSales(Request $request, string $from, string $to)
     {
         $branchId = $this->effectiveBranchId($request);
         $businessType = $this->effectiveBusinessType($request);
 
-        return Sale::revenueCounted()
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
-            ->whereDate('completed_at', '>=', $from)
-            ->whereDate('completed_at', '<=', $to);
+        return Sale::whereIn('sales.status', Sale::REVENUE_STATUSES)
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
+            ->whereDate('sales.completed_at', '>=', $from)
+            ->whereDate('sales.completed_at', '<=', $to);
     }
 
     /** Voided sales whose void happened in [from, to], same scoping as scopedSales(). */
@@ -1219,11 +1223,11 @@ class ReportController extends BaseApiController
         $branchId = $this->effectiveBranchId($request);
         $businessType = $this->effectiveBusinessType($request);
 
-        return Sale::where('status', 'voided')
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
-            ->whereDate('voided_at', '>=', $from)
-            ->whereDate('voided_at', '<=', $to);
+        return Sale::where('sales.status', 'voided')
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
+            ->whereDate('sales.voided_at', '>=', $from)
+            ->whereDate('sales.voided_at', '<=', $to);
     }
 
     /**

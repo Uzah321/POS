@@ -56,6 +56,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard' },
     // Restaurant → Advanced POS only. Supermarket → Cashier Register only. Neither when unset.
     ...(isRestaurant  ? [{ to: '/pos',     label: 'Advanced POS',      icon: ShoppingCart, perm: 'create_sales' }] : []),
+    ...(isRestaurant  ? [{ to: '/tables',  label: 'Tables',            icon: UtensilsCrossed, perm: 'create_sales' }] : []),
     ...(isSupermarket ? [{ to: '/cashier', label: 'Cashier Register',  icon: Monitor,      perm: 'create_sales' }] : []),
     { to: '/ecocash',   label: 'EcoCash',    icon: Smartphone, perm: 'create_sales' },
     { to: '/shift-end', label: 'Cashup',      icon: Banknote,  perm: 'create_sales' },
@@ -72,7 +73,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       label: 'Restaurant',
       icon: UtensilsCrossed,
       items: [
-        { to: '/tables',  label: 'Tables',          icon: UtensilsCrossed, perm: 'create_sales' },
         { to: '/orders',  label: 'Orders',          icon: ClipboardList, perm: 'view_sales' },
         { to: '/queue',   label: 'Queue Display',   icon: Tv2,           perm: 'create_sales' },
         { to: '/kitchen', label: 'Kitchen Display', icon: ChefHat,       perm: 'create_sales' },
@@ -327,7 +327,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Top flat items */}
         {topItems
           .filter(item => {
-            if (isCashier) return ['/cashier', '/pos', '/ecocash', '/shift-end'].includes(item.to);
+            if (isCashier) return ['/cashier', '/pos', '/tables', '/ecocash', '/shift-end'].includes(item.to);
             return hasPermission(item.perm) || user?.roles?.includes('admin');
           })
           .map(item => <NavLink key={item.to} {...item} />)}
@@ -426,37 +426,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="hidden md:flex items-center gap-2 min-w-0 overflow-x-auto">
-              {/* Table — a real select underneath so choosing/resuming a table still works */}
-              <label className="relative flex items-center gap-2.5 rounded-xl px-3 h-11 cursor-pointer flex-shrink-0" style={{ background: '#16305e' }}>
+              {/* Table — opens the Tables page, where a table is picked (with its waiter) or its open tab resumed */}
+              <button
+                type="button"
+                onClick={() => navigate('/tables')}
+                title="Open the Tables page"
+                className="flex items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0 text-left hover:brightness-125 transition"
+                style={{ background: '#16305e' }}
+              >
                 <Utensils size={18} className="text-blue-200" />
                 <span className="leading-tight">
                   <span className="block text-[10px] text-blue-200/80">Table</span>
-                  <span className="block text-xs font-bold whitespace-nowrap">{cart.tableNumber}</span>
+                  <span className="block text-xs font-bold whitespace-nowrap">{cart.tableId ? cart.tableNumber : 'Walk-in'}</span>
                 </span>
-                <select
-                  value={cart.tableNumber}
-                  onChange={(e) => {
-                    const t = e.target.value;
-                    const held = cart.heldOrders.find((h) => h.tableNumber === t);
-                    if (held) {
-                      if (cart.items.length > 0) cart.holdCurrentCart();
-                      cart.restoreHeldOrder(held.id);
-                      toast.success(`Order resumed — ${t}`);
-                    } else {
-                      cart.setTableNumber(t);
-                    }
-                  }}
-                  title="Select table"
-                  aria-label="Select table"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-slate-900"
-                >
-                  {TABLES.map((t) => {
-                    const held = cart.heldOrders.find((h) => h.tableNumber === t);
-                    const heldTotal = held ? held.items.reduce((s, i) => s + (i.price - i.discount) * i.quantity, 0) : 0;
-                    return <option key={t} value={t}>{t}{held ? ` • Held ${formatCurrency(heldTotal)}` : ''}</option>;
-                  })}
-                </select>
-              </label>
+              </button>
 
               {[
                 { icon: ListChecks, label: 'CV / TN', value: `${cart.covers} / ${user?.branch?.id ?? 1}`, cls: 'hidden xl:flex' },

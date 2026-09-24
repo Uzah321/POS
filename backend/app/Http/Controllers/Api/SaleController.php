@@ -71,9 +71,11 @@ class SaleController extends BaseApiController
             'notes'          => 'nullable|string',
             'table_number'   => 'nullable|string|max:20',
             'table_id'       => 'nullable|exists:restaurant_tables,id',
-            // A waiter is mandatory for every sit-in order (dine-in), regardless
-            // of whether it's paid immediately or opened as a tab.
-            'waiter_id'      => ['nullable', 'exists:users,id', 'required_if:order_type,sit_in'],
+            // A waiter is mandatory for a sit-in order at a table (paid now or
+            // opened as a tab); walk-in, takeaway and delivery need none.
+            'waiter_id'      => ['nullable', 'exists:users,id', \Illuminate\Validation\Rule::requiredIf(
+                fn () => $request->input('order_type', 'sit_in') === 'sit_in' && $request->filled('table_id')
+            )],
             'order_type'     => 'nullable|string|max:20',
             'status'         => 'nullable|in:open',
             'is_offline'     => 'boolean',

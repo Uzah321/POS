@@ -879,9 +879,13 @@ export default function POSPage() {
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not redeem points'),
   });
 
+  // A waiter is only required for a sit-in order at a table — walk-in,
+  // takeaway and delivery orders never need one.
+  const needsWaiter = cart.orderType === 'sit_in' && !!cart.tableId;
+
   const handleProcessSale = () => {
     if (cart.items.length === 0) return;
-    if (cart.orderType === 'sit_in' && !cart.waiterId) {
+    if (needsWaiter && !cart.waiterId) {
       toast.error('Select a waiter before processing a sit-in order');
       setShowWaiterPicker(true);
       return;
@@ -970,7 +974,7 @@ export default function POSPage() {
 
   const handleAddToTab = () => {
     if (cart.items.length === 0) return;
-    if (cart.orderType === 'sit_in' && !cart.waiterId) {
+    if (needsWaiter && !cart.waiterId) {
       toast.error('Select a waiter before sending this order');
       setShowWaiterPicker(true);
       return;
@@ -1094,7 +1098,7 @@ export default function POSPage() {
   const BLUE = '#2f6df6';
   const KEY_CLS = 'rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
   const KEY_H = 'clamp(34px, 4.5vh, 58px)';
-  const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (cart.orderType === 'sit_in' && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
+  const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (needsWaiter && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
   return (
     <>
@@ -1302,7 +1306,7 @@ export default function POSPage() {
               </button>
             </div>
 
-            {cart.orderType === 'sit_in' && (
+            {needsWaiter && (
               <div className="flex items-center gap-2 px-4 pb-2 flex-shrink-0">
                 <button
                   type="button"

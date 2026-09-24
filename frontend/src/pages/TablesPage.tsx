@@ -106,6 +106,8 @@ export default function TablesPage() {
       waiterName: waiter?.name ?? '',
       openSaleId: null,
     });
+    // The table's name travels with the order (header, kitchen ticket, sales-by-table report).
+    cart.setTableNumber(waiterPickerFor.name);
     setWaiterPickerFor(null);
     navigate('/pos');
   };

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi, usersApi } from '../api';
+import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi, usersApi, tablesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
 import { useCartStore, unsentKitchenItems } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
@@ -301,6 +301,18 @@ export default function POSPage() {
   });
 
   const allProducts: any[] = Array.isArray(allProductsData) ? allProductsData : [];
+
+  // Add to Tab before a table is chosen opens this picker; pendingAddToTab
+  // carries the intent through the table and waiter pickers.
+  const [showTabTablePicker, setShowTabTablePicker] = useState(false);
+  const pendingAddToTab = useRef(false);
+  const { data: tabTablesData, isLoading: tabTablesLoading } = useQuery({
+    queryKey: ['tables', branchId],
+    queryFn: () => tablesApi.list({ branch_id: branchId }).then((r) => r.data?.data ?? []),
+    enabled: showTabTablePicker,
+    staleTime: 0,
+  });
+  const tabTables: any[] = Array.isArray(tabTablesData) ? tabTablesData : [];
 
   // Waiters — staff with the "waiter" role, mandatory on every sit-in order.
   const { data: waitersData } = useQuery({
@@ -973,26 +985,60 @@ export default function POSPage() {
   };
 
   const handleAddToTab = () => {
-    if (cart.items.length === 0) return;
-    if (needsWaiter && !cart.waiterId) {
+    // Live state, not this render's snapshot — the table/waiter pickers call
+    // back into here right after changing the cart.
+    const now = useCartStore.getState();
+    if (now.items.length === 0) return;
+    // A tab lives on a table — with none picked yet, choose one first; the
+    // picker comes back here (via pendingAddToTab) once table + waiter are set.
+    if (!now.tableId && !now.openSaleId) {
+      pendingAddToTab.current = true;
+      setShowTabTablePicker(true);
+      return;
+    }
+    if (now.orderType === 'sit_in' && now.tableId && !now.waiterId) {
+      pendingAddToTab.current = true;
       toast.error('Select a waiter before sending this order');
       setShowWaiterPicker(true);
       return;
     }
-    const unsyncedItems = cart.items.filter((i) => !i.synced_to_tab);
+    pendingAddToTab.current = false;
+    const unsyncedItems = now.items.filter((i) => !i.synced_to_tab);
     if (unsyncedItems.length === 0) {
       toast.error('Nothing new to send');
       return;
     }
     addToTabMutation.mutate({
       unsyncedItems,
-      tableId: cart.tableId,
-      waiterId: cart.waiterId,
-      openSaleId: cart.openSaleId,
-      orderType: cart.orderType,
-      customerId: cart.customerId,
-      note: cart.note,
+      tableId: now.tableId,
+      waiterId: now.waiterId,
+      openSaleId: now.openSaleId,
+      orderType: now.orderType,
+      customerId: now.customerId,
+      note: now.note,
     });
+  };
+
+  // Table chosen from the Add to Tab picker: a free table starts a new tab
+  // there (asking for a waiter if none is set yet); an occupied one adds these
+  // items to that table's existing tab under its waiter.
+  const pickTableForTab = (table: any) => {
+    setShowTabTablePicker(false);
+    cart.setOrderType('sit_in');
+    if (table.open_sale) {
+      cart.setTableTab({
+        tableId: table.id, openSaleId: table.open_sale.id,
+        waiterId: table.open_sale.waiter_id ?? null, waiterName: table.open_sale.waiter_name ?? '',
+      });
+    } else {
+      cart.setTableTab({ tableId: table.id, openSaleId: null });
+    }
+    cart.setTableNumber(table.name);
+    if (!useCartStore.getState().waiterId) {
+      setShowWaiterPicker(true); // choosing a waiter continues the Add to Tab
+      return;
+    }
+    handleAddToTab();
   };
 
   const handleHoldOrder = () => {
@@ -1306,8 +1352,9 @@ export default function POSPage() {
               </button>
             </div>
 
-            {needsWaiter && (
+            {cart.orderType === 'sit_in' && (needsWaiter || cart.items.length > 0) && (
               <div className="flex items-center gap-2 px-4 pb-2 flex-shrink-0">
+                {needsWaiter && (
                 <button
                   type="button"
                   onClick={() => setShowWaiterPicker(true)}
@@ -1319,10 +1366,11 @@ export default function POSPage() {
                 >
                   <Users size={13} /> {cart.waiterId ? cart.waiterName : 'Select Waiter (required)'}
                 </button>
+                )}
                 {cart.tableId && (
                   <span className="text-xs text-slate-400">Table: {cart.tableNumber}</span>
                 )}
-                {cart.items.some((i) => !i.synced_to_tab) && (cart.tableId || cart.openSaleId) && (
+                {cart.items.some((i) => !i.synced_to_tab) && (
                   <button
                     type="button"
                     onClick={handleAddToTab}
@@ -1626,13 +1674,50 @@ export default function POSPage() {
       />
     )}
 
+    {/* Table picker for Add to Tab */}
+    {showTabTablePicker && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[85vh] flex flex-col">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="font-bold text-gray-900">Add to Tab — choose a table</h2>
+            <button onClick={() => { setShowTabTablePicker(false); pendingAddToTab.current = false; }} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">A free table starts a new tab. An occupied table adds these items to its open tab.</p>
+          {tabTablesLoading ? (
+            <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-blue-500" /></div>
+          ) : tabTables.length === 0 ? (
+            <p className="text-sm text-amber-600 py-6 text-center">No tables set up yet — add them on the Tables page (Manage Tables).</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 overflow-y-auto">
+              {tabTables.map((t: any) => (
+                <button key={t.id} type="button" onClick={() => pickTableForTab(t)}
+                  className={`rounded-xl border-2 p-3 text-left touch-manipulation transition-colors ${
+                    t.open_sale ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' : 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100'
+                  }`}>
+                  <p className="font-bold text-gray-900">{t.name}</p>
+                  {t.open_sale ? (
+                    <>
+                      <p className="text-xs text-amber-700 font-semibold mt-0.5">Open · {formatCurrency(Number(t.open_sale.total) || 0)}</p>
+                      <p className="text-[11px] text-gray-500 truncate">{t.open_sale.waiter_name ?? 'No waiter'}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-emerald-700 font-semibold mt-0.5">Free · {t.seats} seats</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
     {/* Waiter picker — mandatory for every sit-in order */}
     {showWaiterPicker && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-gray-900">Select Waiter</h2>
-            <button onClick={() => setShowWaiterPicker(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            <button onClick={() => { setShowWaiterPicker(false); pendingAddToTab.current = false; }} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
           </div>
           {waiters.length === 0 ? (
             <p className="text-xs text-amber-600 mb-4">No staff have the "waiter" role yet — assign it from Users.</p>
@@ -1642,7 +1727,11 @@ export default function POSPage() {
                 <button
                   key={w.id}
                   type="button"
-                  onClick={() => { cart.setWaiter(w.id, w.name); setShowWaiterPicker(false); }}
+                  onClick={() => {
+                    cart.setWaiter(w.id, w.name);
+                    setShowWaiterPicker(false);
+                    if (pendingAddToTab.current) handleAddToTab();
+                  }}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold border touch-manipulation ${
                     cart.waiterId === w.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}

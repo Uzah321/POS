@@ -28,6 +28,7 @@ class TableController extends BaseApiController
                     'id'          => $openSale->id,
                     'reference'   => $openSale->reference,
                     'total'       => $openSale->total,
+                    'waiter_id'   => $openSale->waiter_id,
                     'waiter_name' => $openSale->waiter?->name,
                     'opened_at'   => $openSale->created_at,
                 ] : null,

@@ -16,6 +16,18 @@ export interface HardwareConfig {
   printerName: string;
   autoPrintReceipt: boolean;
 
+  // Kitchen printer — prints an order ticket (no prices) for the back when a
+  // restaurant order is sent (held to a table) or paid. Same modes as the
+  // receipt printer, chosen independently per device.
+  kitchenPrinterEnabled: boolean;
+  kitchenPrinterMode: PrinterMode;
+  kitchenPrinterName: string;
+  kitchenPrinterVendorId: number | null;
+  kitchenPrinterProductId: number | null;
+  // Only lines from these category ids go on kitchen tickets; empty = all
+  // (lets a bar's drinks stay off the kitchen printer).
+  kitchenCategoryIds: number[];
+
   // Cash drawer
   cashDrawerEnabled: boolean;
   cashDrawerViaPrinter: boolean; // open via ESC/POS kick command
@@ -51,6 +63,13 @@ const DEFAULTS: HardwareConfig = {
   printerProductId: null,
   printerName: '',
   autoPrintReceipt: true,
+
+  kitchenPrinterEnabled: false,
+  kitchenPrinterMode: 'browser',
+  kitchenPrinterName: '',
+  kitchenPrinterVendorId: null,
+  kitchenPrinterProductId: null,
+  kitchenCategoryIds: [],
 
   cashDrawerEnabled: false,
   cashDrawerViaPrinter: true,

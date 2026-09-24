@@ -8,6 +8,11 @@
  *               Core desktop app's Electron shell (window.electronAPI). No dialog, no per-order
  *               printer choice — this only works inside the installed desktop app, never a
  *               plain browser tab, since only Electron can print without a user gesture/dialog.
+ *
+ * Two printers can be set up per device, each with its own mode: the front
+ * "receipt" printer (customer receipts) and the "kitchen" printer (order tickets
+ * for the back). USB/Bluetooth connections are held per role, so both can be
+ * direct-connected at once.
  */
 
 interface ElectronPrinterBridge {
@@ -401,45 +406,90 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// Printer roles — each role keeps its own direct USB / Bluetooth connection
+// ---------------------------------------------------------------------------
+export type PrinterRole = 'receipt' | 'kitchen';
+
+interface UsbConnection { device: any; iface: number; endpoint: number }
+interface BleConnection { device: any; characteristic: any }
+
+const usbConnections: Partial<Record<PrinterRole, UsbConnection>> = {};
+const bleConnections: Partial<Record<PrinterRole, BleConnection>> = {};
+
+/** Whether this role currently has a live direct (USB/Bluetooth) connection for the given mode. */
+export function isPrinterConnected(role: PrinterRole, mode: ReceiptPrintMode): boolean {
+  if (mode === 'webusb') return !!usbConnections[role];
+  if (mode === 'webbluetooth') return !!bleConnections[role]?.device?.gatt?.connected;
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // WebUSB printer connection
 // ---------------------------------------------------------------------------
-let usbDevice: any = null;
-let usbInterface = 0;
-let usbEndpoint = 1;
-
-export async function connectUsbPrinter(): Promise<{ name: string; vendorId: number; productId: number }> {
-  if (!('usb' in navigator)) throw new Error('WebUSB not supported in this browser');
-  const device = await (navigator as any).usb.requestDevice({ filters: [] });
+async function openUsbDevice(device: any): Promise<UsbConnection> {
   await device.open();
   if (device.configuration === null) await device.selectConfiguration(1);
 
-  for (const iface of device.configuration!.interfaces) {
-    for (const alt of iface.alternates) {
+  let iface = 0;
+  let endpoint = 1;
+  for (const i of device.configuration!.interfaces) {
+    for (const alt of i.alternates) {
       for (const ep of alt.endpoints) {
         if (ep.direction === 'out' && ep.type === 'bulk') {
-          usbInterface = iface.interfaceNumber;
-          usbEndpoint  = ep.endpointNumber;
+          iface = i.interfaceNumber;
+          endpoint = ep.endpointNumber;
         }
       }
     }
   }
 
-  await device.claimInterface(usbInterface);
-  usbDevice = device;
+  await device.claimInterface(iface);
+  return { device, iface, endpoint };
+}
+
+export async function connectUsbPrinter(role: PrinterRole = 'receipt'): Promise<{ name: string; vendorId: number; productId: number }> {
+  if (!('usb' in navigator)) throw new Error('WebUSB not supported in this browser');
+  const device = await (navigator as any).usb.requestDevice({ filters: [] });
+  await disconnectUsbPrinter(role);
+  usbConnections[role] = await openUsbDevice(device);
   return { name: device.productName ?? 'USB Printer', vendorId: device.vendorId, productId: device.productId };
 }
 
-export async function disconnectUsbPrinter(): Promise<void> {
-  if (usbDevice) {
-    try { await usbDevice.releaseInterface(usbInterface); } catch {}
-    try { await usbDevice.close(); } catch {}
-    usbDevice = null;
+/**
+ * Silently reopens a USB printer this browser was already granted access to
+ * (navigator.usb.getDevices needs no user gesture), so a reload doesn't drop
+ * the till back to the print dialog. Returns whether it's connected afterwards.
+ */
+export async function reconnectUsbPrinter(role: PrinterRole, vendorId: number | null, productId: number | null): Promise<boolean> {
+  if (usbConnections[role]) return true;
+  if (!vendorId || !productId || !('usb' in navigator)) return false;
+  try {
+    const devices: any[] = await (navigator as any).usb.getDevices();
+    const device = devices.find((d) => d.vendorId === vendorId && d.productId === productId);
+    if (!device) return false;
+    // The same physical printer can't be opened twice — share it if the other role already holds it.
+    const other = Object.values(usbConnections).find((c) => c?.device === device);
+    usbConnections[role] = other ?? await openUsbDevice(device);
+    return true;
+  } catch {
+    return false;
   }
 }
 
-async function sendToUsb(data: Uint8Array): Promise<void> {
-  if (!usbDevice) throw new Error('No USB printer connected');
-  await usbDevice.transferOut(usbEndpoint, data);
+export async function disconnectUsbPrinter(role: PrinterRole = 'receipt'): Promise<void> {
+  const conn = usbConnections[role];
+  if (!conn) return;
+  delete usbConnections[role];
+  // Leave the device open if the other role is printing to the same printer.
+  if (Object.values(usbConnections).some((c) => c?.device === conn.device)) return;
+  try { await conn.device.releaseInterface(conn.iface); } catch {}
+  try { await conn.device.close(); } catch {}
+}
+
+async function sendToUsb(data: Uint8Array, role: PrinterRole = 'receipt'): Promise<void> {
+  const conn = usbConnections[role];
+  if (!conn) throw new Error('No USB printer connected');
+  await conn.device.transferOut(conn.endpoint, data);
 }
 
 // ---------------------------------------------------------------------------
@@ -458,10 +508,7 @@ const BLE_PRINTER_SERVICES = [
   'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Nordic UART-style custom service
 ];
 
-let bleDevice: any = null;
-let bleCharacteristic: any = null;
-
-export async function connectBluetoothPrinter(): Promise<{ name: string }> {
+export async function connectBluetoothPrinter(role: PrinterRole = 'receipt'): Promise<{ name: string }> {
   if (!('bluetooth' in navigator)) throw new Error('Web Bluetooth not supported in this browser');
   const device = await (navigator as any).bluetooth.requestDevice({
     acceptAllDevices: true,
@@ -486,38 +533,41 @@ export async function connectBluetoothPrinter(): Promise<{ name: string }> {
     throw new Error('Connected, but no printable service found on this device — it may use a proprietary protocol');
   }
 
-  bleDevice = device;
-  bleCharacteristic = characteristic;
+  await disconnectBluetoothPrinter(role);
+  bleConnections[role] = { device, characteristic };
   return { name: device.name ?? 'Bluetooth Printer' };
 }
 
-export async function disconnectBluetoothPrinter(): Promise<void> {
-  if (bleDevice?.gatt?.connected) {
-    try { bleDevice.gatt.disconnect(); } catch {}
+export async function disconnectBluetoothPrinter(role: PrinterRole = 'receipt'): Promise<void> {
+  const conn = bleConnections[role];
+  if (!conn) return;
+  delete bleConnections[role];
+  if (Object.values(bleConnections).some((c) => c?.device === conn.device)) return;
+  if (conn.device?.gatt?.connected) {
+    try { conn.device.gatt.disconnect(); } catch {}
   }
-  bleDevice = null;
-  bleCharacteristic = null;
 }
 
-async function sendToBluetooth(data: Uint8Array): Promise<void> {
-  if (!bleCharacteristic) throw new Error('No Bluetooth printer connected');
+async function sendToBluetooth(data: Uint8Array, role: PrinterRole = 'receipt'): Promise<void> {
+  const characteristic = bleConnections[role]?.characteristic;
+  if (!characteristic) throw new Error('No Bluetooth printer connected');
   // BLE writes are capped by the negotiated ATT MTU (often just 20 bytes) —
   // chunk so this works regardless of what the connected stack negotiated.
   const CHUNK = 100;
-  const canWriteWithoutResponse = !!bleCharacteristic.properties?.writeWithoutResponse;
+  const canWriteWithoutResponse = !!characteristic.properties?.writeWithoutResponse;
   for (let offset = 0; offset < data.length; offset += CHUNK) {
     const chunk = data.slice(offset, offset + CHUNK);
-    if (canWriteWithoutResponse) await bleCharacteristic.writeValueWithoutResponse(chunk);
-    else await bleCharacteristic.writeValue(chunk);
+    if (canWriteWithoutResponse) await characteristic.writeValueWithoutResponse(chunk);
+    else await characteristic.writeValue(chunk);
     await new Promise((r) => setTimeout(r, 20));
   }
 }
 
 // ---------------------------------------------------------------------------
-// Open cash drawer
+// Open cash drawer — wired to the front (receipt) printer
 // ---------------------------------------------------------------------------
 export async function openCashDrawer(): Promise<void> {
-  if (usbDevice) await sendToUsb(CASH_DRAWER);
+  if (usbConnections.receipt) await sendToUsb(CASH_DRAWER, 'receipt');
 }
 
 // ---------------------------------------------------------------------------
@@ -528,12 +578,12 @@ export async function printReceipt(
   mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
   systemPrinterName?: string,
 ): Promise<void> {
-  if (mode === 'webusb' && usbDevice) {
-    await sendToUsb(buildEscPosReceipt(data));
+  if (mode === 'webusb' && usbConnections.receipt) {
+    await sendToUsb(buildEscPosReceipt(data), 'receipt');
     return;
   }
-  if (mode === 'webbluetooth' && bleCharacteristic) {
-    await sendToBluetooth(buildEscPosReceipt(data));
+  if (mode === 'webbluetooth' && bleConnections.receipt) {
+    await sendToBluetooth(buildEscPosReceipt(data), 'receipt');
     return;
   }
   if (mode === 'system') {
@@ -547,6 +597,148 @@ export async function printReceipt(
     return;
   }
   await browserPrintReceipt(data);
+}
+
+// ---------------------------------------------------------------------------
+// Kitchen order ticket — what the back needs to cook: table, waiter, time and
+// items in large type. No prices, no payment details.
+// ---------------------------------------------------------------------------
+export interface KitchenTicketItem {
+  name: string;
+  qty: number;
+  soldByWeight?: boolean;
+}
+
+export interface KitchenTicketData {
+  /** e.g. "NEW ORDER", or "ADD TO ORDER" when a table orders more later. */
+  title: string;
+  ticket?: string;
+  table?: string;
+  orderType?: 'sit_in' | 'takeaway' | 'delivery';
+  covers?: number;
+  waiter?: string;
+  customerName?: string;
+  items: KitchenTicketItem[];
+  note?: string;
+  date?: Date;
+}
+
+function kitchenQty(item: KitchenTicketItem): string {
+  return item.soldByWeight ? `${item.qty.toFixed(3)}kg` : `${+item.qty.toFixed(3)}`;
+}
+
+/** Word-wraps to `width` columns (ESC/POS has no automatic wrapping we can rely on). */
+function wrapText(textValue: string, width: number): string[] {
+  const words = textValue.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (!current) current = word;
+    else if ((current + ' ' + word).length <= width) current += ' ' + word;
+    else { lines.push(current); current = word; }
+    while (current.length > width) { lines.push(current.slice(0, width)); current = current.slice(width); }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [''];
+}
+
+function buildEscPosKitchenTicket(d: KitchenTicketData): Uint8Array {
+  const date = d.date ?? new Date();
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const parts: Uint8Array[] = [
+    ESC_INIT,
+    ESC_ALIGN_CENTER, ESC_BOLD_ON, ESC_DWIDTH_ON, line(d.title), ESC_DWIDTH_OFF, ESC_BOLD_OFF,
+  ];
+  if (d.table) parts.push(ESC_DWIDTH_ON, line(d.table), ESC_DWIDTH_OFF);
+  else if (d.orderType && d.orderType !== 'sit_in') parts.push(ESC_DWIDTH_ON, line(orderTypeLabel(d.orderType).toUpperCase()), ESC_DWIDTH_OFF);
+  parts.push(ESC_ALIGN_LEFT, divider('='));
+  parts.push(line(`Time: ${time}${d.ticket ? `   Ticket: ${d.ticket}` : ''}`));
+  if (d.waiter) parts.push(line(`Waiter: ${d.waiter}`));
+  if (d.covers) parts.push(line(`Covers: ${d.covers}`));
+  if (d.customerName) parts.push(line(`Customer: ${d.customerName}`));
+  parts.push(divider('='));
+  // Double-height/width items: 16 columns per line at 58mm.
+  parts.push(ESC_BOLD_ON, ESC_DWIDTH_ON);
+  for (const item of d.items) {
+    const prefix = `${kitchenQty(item)} x `;
+    wrapText(item.name, 16 - prefix.length).forEach((segment, i) => {
+      parts.push(line(i === 0 ? prefix + segment : ' '.repeat(prefix.length) + segment));
+    });
+  }
+  parts.push(ESC_DWIDTH_OFF, ESC_BOLD_OFF);
+  if (d.note) {
+    parts.push(divider());
+    parts.push(ESC_BOLD_ON, line('NOTE:'), ESC_BOLD_OFF);
+    wrapText(d.note, 32).forEach((l) => parts.push(line(l)));
+  }
+  parts.push(divider('='), line(), line(), line(), ESC_CUT);
+  return concat(...parts);
+}
+
+function escapeHtml(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+
+export function buildKitchenTicketHtml(d: KitchenTicketData): string {
+  const date = d.date ?? new Date();
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const where = d.table || (d.orderType && d.orderType !== 'sit_in' ? orderTypeLabel(d.orderType) : '');
+  const meta = [
+    `Time: ${time}`, d.ticket && `Ticket: ${d.ticket}`, d.waiter && `Waiter: ${d.waiter}`,
+    d.covers && `Covers: ${d.covers}`, d.customerName && `Customer: ${d.customerName}`,
+  ].filter(Boolean).map((m) => `<div>${escapeHtml(String(m))}</div>`).join('');
+  const items = d.items.map((item) =>
+    `<tr><td class="qty">${escapeHtml(kitchenQty(item))}</td><td>${escapeHtml(item.name)}</td></tr>`).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Kitchen Order</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Courier New',monospace; width:72mm; padding:3mm; color:#000; }
+  .title { text-align:center; font-size:22px; font-weight:900; }
+  .where { text-align:center; font-size:26px; font-weight:900; margin-top:2px; }
+  .rule { border-top:2px dashed #000; margin:6px 0; }
+  .meta { font-size:13px; line-height:1.4; }
+  table { width:100%; border-collapse:collapse; font-size:20px; font-weight:800; }
+  td { padding:3px 0; vertical-align:top; }
+  td.qty { width:1%; white-space:nowrap; padding-right:8px; }
+  .note { font-size:15px; font-weight:700; white-space:pre-wrap; }
+  @media print { @page { margin:0; size:80mm auto; } }
+</style></head><body>
+<div class="title">${escapeHtml(d.title)}</div>
+${where ? `<div class="where">${escapeHtml(where)}</div>` : ''}
+<div class="rule"></div><div class="meta">${meta}</div><div class="rule"></div>
+<table>${items}</table>
+${d.note ? `<div class="rule"></div><div class="note">NOTE: ${escapeHtml(d.note)}</div>` : ''}
+<div class="rule"></div>
+</body></html>`;
+}
+
+export async function printKitchenTicket(
+  data: KitchenTicketData,
+  mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
+  systemPrinterName?: string,
+): Promise<void> {
+  if (mode === 'webusb' && usbConnections.kitchen) {
+    await sendToUsb(buildEscPosKitchenTicket(data), 'kitchen');
+    return;
+  }
+  if (mode === 'webbluetooth' && bleConnections.kitchen) {
+    await sendToBluetooth(buildEscPosKitchenTicket(data), 'kitchen');
+    return;
+  }
+  if (mode === 'system') {
+    const bridge = electronBridge();
+    if (!bridge) throw new Error('Silent printing requires the Core desktop app');
+    if (!systemPrinterName) throw new Error('No kitchen printer set — pick one in Hardware > Kitchen Printer');
+    const result = await bridge.printSilent(buildKitchenTicketHtml(data), systemPrinterName);
+    if (!result.success) throw new Error(result.failureReason || 'Kitchen print failed');
+    return;
+  }
+  const w = window.open('', '_blank', 'width=320,height=600,toolbar=0,scrollbars=1');
+  if (!w) throw new Error('Allow popups to print kitchen orders');
+  w.document.write(buildKitchenTicketHtml(data));
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); w.close(); }, 300);
 }
 
 // ---------------------------------------------------------------------------

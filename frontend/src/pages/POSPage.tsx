@@ -2,14 +2,15 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
-import { useCartStore } from '../stores/cartStore';
+import { useCartStore, unsentKitchenItems } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
-import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
+import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode } from '../lib/hardware/printer';
+import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, type ScaleDevice } from '../lib/hardware/scale';
 import { db } from '../lib/db';
@@ -152,6 +153,7 @@ export default function POSPage() {
   const branchId = user?.branch?.id ?? 1;
   const { registerId, registers: fiscalRegisters, needsSelection: needsRegisterSelection, selectRegister } = useSelectedRegister(branchId);
   const hw = useHardwareStore();
+  usePrinterReconnect();
   const { activeCurrency } = useCurrencyStore();
   const currency = activeCurrency?.symbol ?? '$';
   // Registered weighing scales — a store can run several (one per
@@ -369,8 +371,42 @@ export default function POSPage() {
     customerName: string;
     tableNumber: string;
     covers: number;
+    ticketNum: string;
+    note: string;
   };
   const saleSnapshotRef = useRef<CartSnapshot | null>(null);
+
+  // Prints a kitchen ticket for the lines on `items` the kitchen hasn't had yet
+  // (optionally only the categories this device's kitchen printer handles).
+  // Returns true when kitchen printing is on, i.e. the caller should record
+  // these lines as sent — even if the category filter left nothing to print.
+  const sendKitchenTicket = (
+    items: CartItem[],
+    meta: { ticket: string; table: string; orderType: 'sit_in' | 'takeaway' | 'delivery'; covers: number; customerName: string; note: string },
+  ): boolean => {
+    if (!hw.kitchenPrinterEnabled) return false;
+    const categoryOf = (productId: number) => {
+      const product = allProducts.find((p: any) => p.id === productId);
+      return product?.category_id ?? product?.category?.id;
+    };
+    const lines = unsentKitchenItems(items).filter((i) =>
+      hw.kitchenCategoryIds.length === 0 || hw.kitchenCategoryIds.includes(categoryOf(i.product_id)));
+    if (lines.length === 0) return true;
+    void printKitchenTicket({
+      title: items.some((i) => (i.kitchen_sent_qty ?? 0) > 0) ? 'ADD TO ORDER' : 'NEW ORDER',
+      ticket: meta.ticket,
+      table: meta.table || undefined,
+      orderType: meta.orderType,
+      covers: meta.table ? meta.covers : undefined,
+      waiter: user?.name,
+      customerName: meta.customerName || undefined,
+      items: lines.map((i) => ({ name: i.name, qty: i.unsent, soldByWeight: i.sold_by_weight })),
+      note: meta.note || undefined,
+    }, resolveReceiptPrintMode(hw.kitchenPrinterMode), hw.kitchenPrinterName).catch((error: any) => {
+      toast.error(error?.message ?? 'Kitchen ticket failed to print');
+    });
+    return true;
+  };
 
   const saleMutation = useMutation({
     mutationFn: (payload: object) => offlineMutate(() => salesApi.create(payload), 'sales', 'create', payload as Record<string, unknown>),
@@ -443,6 +479,17 @@ export default function POSPage() {
       ).catch((error: any) => {
         toast.error(error?.message ?? 'Sale completed, but receipt printing failed');
       });
+
+      if (snap) {
+        sendKitchenTicket(snap.items, {
+          ticket: sale?.reference ?? snap.ticketNum,
+          table: snap.tableNumber,
+          orderType: snap.orderType,
+          covers: snap.covers,
+          customerName: snap.customerName,
+          note: snap.note,
+        });
+      }
 
       broadcastCart({ type: 'thankyou', storeName, currency });
       setTimeout(() => broadcastCart({ type: 'idle', storeName, currency }), 4000);
@@ -630,6 +677,8 @@ export default function POSPage() {
       customerName: cart.customerName,
       tableNumber: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : '',
       covers: cart.covers,
+      ticketNum: cart.ticketNum,
+      note: cart.note,
     };
     saleSnapshotRef.current = snap;
 
@@ -664,6 +713,19 @@ export default function POSPage() {
 
   const handleHoldOrder = () => {
     if (cart.items.length === 0) return;
+    // Holding an order is when it goes to the kitchen — ticket whatever the
+    // kitchen hasn't had yet, then record it as sent so resuming and adding
+    // to this table later only tickets the additions.
+    const sent = sendKitchenTicket(cart.items, {
+      ticket: cart.ticketNum,
+      table: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : '',
+      orderType: cart.orderType,
+      covers: cart.covers,
+      customerName: cart.customerName,
+      note: cart.note,
+    });
+    const heldItems = sent ? cart.items.map((i) => ({ ...i, kitchen_sent_qty: i.quantity })) : cart.items;
+    if (sent) cart.markSentToKitchen();
     // Save current cart to local held orders and clear cart immediately
     const holdPayload = {
       branch_id: branchId,
@@ -671,7 +733,7 @@ export default function POSPage() {
       table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
       order_type: cart.orderType,
       cart_data: {
-        items: cart.items,
+        items: heldItems,
         subtotal: cart.subtotal(),
         tax: cart.taxTotal(),
         total: cart.total(),

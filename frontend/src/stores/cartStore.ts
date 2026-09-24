@@ -22,6 +22,18 @@ export interface CartItem {
   // Which registered scale this line is weighed on (products.scale_id) — lets
   // the qty-edit keypad keep suggesting live readings from the right scale.
   scale_id?: number | null;
+  // How much of this line the kitchen has already been sent a ticket for. An
+  // open table is held and resumed many times; only the difference between
+  // quantity and this goes on the next kitchen ticket. Travels with the line
+  // through hold/resume (it's part of the held cart_data).
+  kitchen_sent_qty?: number;
+}
+
+/** The part of each line the kitchen hasn't had a ticket for yet. */
+export function unsentKitchenItems(items: CartItem[]): Array<CartItem & { unsent: number }> {
+  return items
+    .map((i) => ({ ...i, unsent: Math.round((i.quantity - (i.kitchen_sent_qty ?? 0)) * 1000) / 1000 }))
+    .filter((i) => i.unsent > 0);
 }
 
 let lineIdCounter = 0;
@@ -85,6 +97,7 @@ interface CartState {
   clearCart: () => void;
   newTicket: () => void;
   holdCurrentCart: (label?: string) => string;
+  markSentToKitchen: () => void;
   restoreHeldOrder: (id: string) => void;
   removeHeldOrder: (id: string) => void;
   subtotal: () => number;
@@ -162,6 +175,7 @@ export const useCartStore = create<CartState>()(
         });
       },
       removeHeldOrder: (id: string) => set({ heldOrders: get().heldOrders.filter((h) => h.id !== id) }),
+      markSentToKitchen: () => set({ items: get().items.map((i) => ({ ...i, kitchen_sent_qty: i.quantity })) }),
       // Prices are VAT-inclusive — tax_rate is already baked into i.price, so
       // taxTotal below extracts the VAT portion out of subtotal rather than
       // adding it on top (must mirror SaleController::store's calculation).

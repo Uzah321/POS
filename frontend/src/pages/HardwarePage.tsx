@@ -9,8 +9,11 @@ import {
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
-  printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, isSystemPrintAvailable, listSystemPrinters
+  printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, isSystemPrintAvailable, listSystemPrinters,
+  isPrinterConnected,
 } from '../lib/hardware/printer';
+import KitchenPrinterSettings from '../components/hardware/KitchenPrinterSettings';
+import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
 } from '../lib/hardware/customerDisplay';
@@ -39,6 +42,7 @@ import {
 // ---------------------------------------------------------------------------
 const TABS = [
   { id: 'printer',   label: 'Receipt Printer',   icon: Printer    },
+  { id: 'kitchen',   label: 'Kitchen Printer',   icon: ChefHat    },
   { id: 'scanner',   label: 'Barcode Scanner',   icon: ScanBarcode },
   { id: 'drawer',    label: 'Cash Drawer',       icon: DollarSign  },
   { id: 'display',   label: 'Customer Display',  icon: Monitor     },
@@ -368,11 +372,13 @@ export default function HardwarePage() {
     staleTime: 120000,
   });
 
-  // USB printer connection state
-  const [usbConnected, setUsbConnected] = useState(false);
+  // USB printer connection state — reopened automatically if it was connected before
+  const reconnected = usePrinterReconnect();
+  const [usbConnected, setUsbConnected] = useState(() => isPrinterConnected('receipt', 'webusb'));
+  useEffect(() => { if (reconnected.receipt) setUsbConnected(true); }, [reconnected.receipt]);
 
   // Bluetooth printer connection state
-  const [bleConnected, setBleConnected] = useState(false);
+  const [bleConnected, setBleConnected] = useState(() => isPrinterConnected('receipt', 'webbluetooth'));
 
   // System printer setup (Core desktop app only) — the printers Windows
   // reports (USB, Bluetooth-paired, network) once "Scan for Printers" runs.
@@ -522,6 +528,9 @@ export default function HardwarePage() {
   // ----------------------------------------------------------
   const renderTab = () => {
     switch (tab) {
+      // ---- Kitchen Printer -----------------------------------
+      case 'kitchen': return <KitchenPrinterSettings usbReconnected={reconnected.kitchen} />;
+
       // ---- Receipt Printer -----------------------------------
       case 'printer': return (
         <div className="space-y-4">

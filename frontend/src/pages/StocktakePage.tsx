@@ -75,6 +75,7 @@ export default function StocktakePage() {
       else { toast.success('Stocktake created!'); qc.invalidateQueries({ queryKey: ['stocktakes'] }); const d = (result as any).data?.data?.data; if (d) setSelected(d); }
       setNewCountModalOpen(false);
     },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not create stocktake'),
   });
 
   const openNewCountModal = () => {
@@ -93,6 +94,7 @@ export default function StocktakePage() {
       if (result.offline) toast.success('Counts saved offline — will sync when server is back');
       else { toast.success('Counts saved!'); qc.invalidateQueries({ queryKey: ['stocktake', selected?.id] }); }
     },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not save counts'),
   });
 
   const completeMutation = useMutation({
@@ -112,6 +114,7 @@ export default function StocktakePage() {
         qc.invalidateQueries({ queryKey: ['products'] });
       }
     },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Could not complete stocktake'),
   });
 
   const stocktakes: any[] = data?.data ?? data ?? [];

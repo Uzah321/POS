@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 use App\Observers\AuditObserver;
 use App\Models\{
     Sale, Product, User, Customer, Supplier, Branch, Expense,
@@ -21,6 +22,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->guardDatabaseConnection();
+
+        // Admin always passes every permission check, full stop. Spatie has no
+        // built-in super-admin bypass — without this, admin only has whatever
+        // permissions were explicitly synced to its role, so every *new*
+        // permission this app ever adds (manage_stocktake, manage_day_end, ...)
+        // silently leaves admin without it until someone remembers to re-sync.
+        // That's exactly what happened this session. The frontend already
+        // treats admin this way (RequirePermission bypasses on hasRole('admin')
+        // — see frontend/src/components/auth/PermissionRoute.tsx); this makes
+        // the backend match instead of being able to drift out of sync with it.
+        Gate::before(function (User $user, string $ability) {
+            return $user->hasRole('admin') ? true : null;
+        });
 
         // Every model here gets created/updated/deleted rows in the audit log
         // automatically via AuditObserver — no per-controller instrumentation

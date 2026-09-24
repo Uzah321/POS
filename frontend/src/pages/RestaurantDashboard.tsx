@@ -33,23 +33,6 @@ function StatCard({ label, value, sub, icon: Icon, color = 'blue' }: {
   );
 }
 
-function KdsBadge({ label, count, color }: { label: string; count: number; color: string }) {
-  const colors: Record<string, string> = {
-    blue:   'bg-blue-600',
-    amber:  'bg-amber-500',
-    green:  'bg-green-500',
-  };
-  return (
-    <div className="flex items-center gap-3 bg-white rounded-lg p-4 shadow-sm border border-gray-100">
-      <span className={`w-3 h-3 rounded-full flex-shrink-0 ${colors[color]}`} />
-      <div>
-        <p className="text-2xl font-black text-gray-900 tabular-nums">{count}</p>
-        <p className="text-xs text-gray-500 font-medium">{label}</p>
-      </div>
-    </div>
-  );
-}
-
 export default function RestaurantDashboard() {
   const { format: formatCurrency, activeCurrency } = useCurrencyStore();
   const { user } = useAuthStore();
@@ -155,26 +138,6 @@ export default function RestaurantDashboard() {
             </span>
           )}
         </div>
-      </div>
-
-      {/* KDS live status bar */}
-      <div className="bg-gray-950 rounded-xl px-6 py-4 flex items-center gap-6">
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <ChefHat size={20} className="text-orange-400" />
-          <span className="text-white font-semibold text-sm">Kitchen Status</span>
-          {totalActive > 0 && (
-            <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-          )}
-        </div>
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <KdsBadge label="New Orders"  count={newOrders}       color="blue"  />
-          <KdsBadge label="Preparing"   count={preparingOrders} color="amber" />
-          <KdsBadge label="Ready"       count={readyOrders}     color="green" />
-        </div>
-        <Link to="/kitchen"
-          className="text-xs text-orange-400 hover:text-orange-300 font-semibold whitespace-nowrap border border-orange-800 rounded-md px-3 py-1.5 transition-colors flex-shrink-0">
-          Open Kitchen
-        </Link>
       </div>
 
       {/* Stats */}

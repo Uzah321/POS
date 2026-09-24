@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
 import toast from 'react-hot-toast';
+import { SUPERMARKET_ENABLED } from '../lib/shops';
 
 type BizType = 'restaurant' | 'supermarket';
 
@@ -36,6 +37,8 @@ const OPTIONS: { type: BizType; label: string; desc: string; icon: React.ReactNo
     ),
   },
 ];
+
+const AVAILABLE_OPTIONS = OPTIONS.filter((o) => o.type !== 'supermarket' || SUPERMARKET_ENABLED);
 
 interface Props {
   onSelect: (type: BizType) => void;
@@ -92,7 +95,7 @@ export default function BusinessTypeModal({ onSelect }: Props) {
 
         {/* Options */}
         <div className="p-4 sm:p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {OPTIONS.map(opt => (
+          {AVAILABLE_OPTIONS.map(opt => (
             <button
               key={opt.type}
               type="button"

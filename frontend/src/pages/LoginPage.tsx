@@ -9,6 +9,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
 import { Eye, EyeOff, Loader2, WifiOff } from 'lucide-react';
+import { effectiveShop } from '../lib/shops';
 
 const schema = z.object({
   username: z.string().min(1, 'Username required'),
@@ -35,7 +36,7 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${user.name}!`);
       const isCashier = user.roles?.includes('cashier');
       // Cashiers go straight to their own shop's till.
-      navigate(isCashier ? (user.business_type === 'supermarket' ? '/cashier' : '/pos') : '/');
+      navigate(isCashier ? (effectiveShop(user.business_type) === 'supermarket' ? '/cashier' : '/pos') : '/');
     } catch (err: any) {
       if (!err.response) {
         toast.error('Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.');

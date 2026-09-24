@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { db, type LocalUser } from '../lib/db';
 import { useOfflineStore } from '../stores/offlineStore';
 import BranchFilter from '../components/BranchFilter';
+import { SUPERMARKET_ENABLED } from '../lib/shops';
 
 const ROLES = ['admin', 'manager', 'cashier', 'storekeeper', 'accountant'];
 
@@ -200,7 +201,7 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
               <select {...register('business_type')} className={field}>
                 <option value="">System default</option>
                 <option value="restaurant">Restaurant</option>
-                <option value="supermarket">Supermarket</option>
+                {SUPERMARKET_ENABLED && <option value="supermarket">Supermarket</option>}
               </select>
               {errors.business_type && <p className="text-red-500 text-xs mt-1">{String(errors.business_type.message ?? 'Required')}</p>}
             </div>

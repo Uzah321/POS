@@ -20,6 +20,7 @@ import { authApi, currenciesApi, settingsApi } from '../api';
 import LicenseBanner from '../components/LicenseBanner';
 import NotificationBell from '../components/ui/NotificationBell';
 import { TopbarSlotContext } from './TopbarSlot';
+import { effectiveShop } from '../lib/shops';
 import toast from 'react-hot-toast';
 
 type NavItem = { to: string; label: string; icon: React.ElementType; perm: string; external?: boolean };
@@ -47,7 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
   });
   // A user assigned to a shop always sees that shop; otherwise follow the system-wide mode.
-  const businessType = (user?.business_type ?? settings?.business_type ?? null) as 'restaurant' | 'supermarket' | null;
+  const businessType = effectiveShop((user?.business_type ?? settings?.business_type ?? null) as 'restaurant' | 'supermarket' | null);
   const isRestaurant  = businessType === 'restaurant';
   const isSupermarket = businessType === 'supermarket';
 

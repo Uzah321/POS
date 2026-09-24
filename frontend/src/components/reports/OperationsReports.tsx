@@ -142,7 +142,7 @@ export function SalesByWaiterReport(props: RangeProps) {
 
   return (
     <Panel title="Sales by Waiter" action={rows.length > 0 && <ExportButton onClick={exportXlsx} />}>
-      <p className="text-xs text-gray-400 -mt-2 mb-4">Each order is credited to the staff member logged in when it was rung up.</p>
+      <p className="text-xs text-gray-400 -mt-2 mb-4">Each order is credited to the waiter assigned to it; orders with no waiter go to the staff member who rang them up.</p>
       {isLoading ? <Loading /> : rows.length === 0 ? <Empty /> : (
         <Table headers={['Waiter', 'Orders', 'Revenue', 'Avg Order', 'Items Sold', 'Tables', 'Discounts', 'Voided']} minWidth={860}>
           {rows.map((r) => (

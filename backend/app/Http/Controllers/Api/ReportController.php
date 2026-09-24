@@ -1291,25 +1291,28 @@ class ReportController extends BaseApiController
     {
         $request->validate(['date_from' => 'required|date', 'date_to' => 'required|date']);
         $sales = $this->scopedSales($request, $request->date_from, $request->date_to);
+        // The waiter assigned to the table/order; sales from before waiters were
+        // tracked (or counter sales with none) fall back to whoever rang them up.
+        $staff = 'COALESCE(sales.waiter_id, sales.user_id)';
 
         $rows = (clone $sales)
-            ->join('users', 'users.id', '=', 'sales.user_id')
-            ->groupBy('sales.user_id', 'users.name')
-            ->selectRaw("sales.user_id, users.name, COUNT(*) as transactions, SUM(sales.total) as revenue, AVG(sales.total) as avg_sale, SUM(sales.discount_amount) as discounts, COUNT(DISTINCT NULLIF(sales.table_number, '')) as tables_served")
+            ->join('users', 'users.id', '=', DB::raw($staff))
+            ->groupByRaw("{$staff}, users.name")
+            ->selectRaw("{$staff} as user_id, users.name, COUNT(*) as transactions, SUM(sales.total) as revenue, AVG(sales.total) as avg_sale, SUM(sales.discount_amount) as discounts, COUNT(DISTINCT NULLIF(sales.table_number, '')) as tables_served")
             ->get()
             ->keyBy('user_id');
 
         $itemsSold = SaleItem::whereIn('sale_id', (clone $sales)->select('sales.id'))
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-            ->groupBy('sales.user_id')
-            ->selectRaw('sales.user_id, SUM(sale_items.quantity) as qty')
+            ->groupByRaw($staff)
+            ->selectRaw("{$staff} as user_id, SUM(sale_items.quantity) as qty")
             ->pluck('qty', 'user_id');
 
-        // Voids are attributed to whoever rang the sale up, not who voided it —
+        // Voids are attributed to the order's waiter, not who voided it —
         // this is "how many of this waiter's orders got voided".
         $voids = $this->scopedVoids($request, $request->date_from, $request->date_to)
-            ->groupBy('user_id')
-            ->selectRaw('user_id, COUNT(*) as void_count, SUM(total) as void_amount')
+            ->groupByRaw($staff)
+            ->selectRaw("{$staff} as user_id, COUNT(*) as void_count, SUM(sales.total) as void_amount")
             ->get()
             ->keyBy('user_id');
 

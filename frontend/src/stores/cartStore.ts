@@ -52,6 +52,9 @@ export interface HeldOrder {
   note: string;
   heldAt: string;
   tableNumber: string;
+  // Kept so a resumed table's add-on kitchen tickets carry the same ticket number.
+  ticketNum?: string;
+  covers?: number;
 }
 
 export const TABLES = ['Walk-in', ...Array.from({ length: 20 }, (_, i) => `T-${i + 1}`)];
@@ -154,10 +157,10 @@ export const useCartStore = create<CartState>()(
         paymentMethod: 'cash', cashTendered: '', isSplitPayment: false, splitPayments: [],
       }),
       holdCurrentCart: (label?: string) => {
-        const { items, customerId, customerName, discount, note, tableNumber } = get();
+        const { items, customerId, customerName, discount, note, tableNumber, ticketNum, covers } = get();
         const id = `hold-${Date.now()}`;
         const holdLabel = label || (customerName ? customerName : `Order ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
-        const held: HeldOrder = { id, label: holdLabel, items: [...items], customerId, customerName, discount, note, heldAt: new Date().toISOString(), tableNumber };
+        const held: HeldOrder = { id, label: holdLabel, items: [...items], customerId, customerName, discount, note, heldAt: new Date().toISOString(), tableNumber, ticketNum, covers };
         set({ heldOrders: [...get().heldOrders, held], items: [], customerId: null, customerName: '', discount: 0, note: '', tableNumber: 'Walk-in' });
         return id;
       },
@@ -171,6 +174,8 @@ export const useCartStore = create<CartState>()(
           discount: held.discount,
           note: held.note,
           tableNumber: held.tableNumber || 'Walk-in',
+          ...(held.ticketNum ? { ticketNum: held.ticketNum } : {}),
+          ...(held.covers ? { covers: held.covers } : {}),
           heldOrders: get().heldOrders.filter((h) => h.id !== id),
         });
       },

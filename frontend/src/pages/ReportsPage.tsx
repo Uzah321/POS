@@ -270,7 +270,8 @@ export default function ReportsPage() {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Filters — Day Comparison has its own date pickers, so only show the bar there if the branch picker needs it */}
+      {(tab !== 'Day Comparison' || (isAdmin && (branchData as any[]).length > 1)) && (
       <div className="bg-white rounded-md p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-center">
         {['Sales', 'Sales by Table', 'Sales by Waiter', 'Payments', 'Discounts & Voids', 'Profit & Loss', 'Cashier Performance', 'Category Report', 'Stock Variances', 'Weighing Scales', 'Branch Consolidation', 'Cashup History'].includes(tab) && (
           <>
@@ -330,6 +331,7 @@ export default function ReportsPage() {
           </button>
         )}
       </div>
+      )}
 
       {/* Tabs */}
       <div className="flex flex-wrap border-b border-gray-200">

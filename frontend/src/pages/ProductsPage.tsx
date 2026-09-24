@@ -46,11 +46,18 @@ function extractErrorMessage(err: any): string {
   return data?.message || err?.message || 'Something went wrong';
 }
 
+// Saved products come back with null for empty text fields (barcode, PLU code,
+// description, …). Editing loads the whole product as the form's defaults, and
+// a field the edit form doesn't render (e.g. PLU code on a non-weighed item)
+// keeps that null — so these must accept null, or validation fails on a field
+// the user can't even see and the save silently does nothing.
+const optionalText = z.preprocess((value) => (value === null ? undefined : value), z.string().optional());
+
 const schema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
-  barcode: z.string().optional(),
-  plu_code: z.string().optional(),
+  barcode: optionalText,
+  plu_code: optionalText,
   selling_price: z.coerce.number().min(0),
   cost_price: z.coerce.number().min(0),
   category_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
@@ -58,9 +65,9 @@ const schema = z.object({
   unit_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
   reorder_level: z.coerce.number().min(0).default(5),
   initial_quantity: z.coerce.number().min(0).default(0),
-  description: z.string().optional(),
-  color: z.string().optional(),
-  image: z.string().optional(),
+  description: optionalText,
+  color: optionalText,
+  image: optionalText,
   made_to_order: z.coerce.boolean().default(false),
   is_taxable: z.coerce.boolean().default(true),
   sold_by_weight: z.coerce.boolean().default(false),
@@ -409,6 +416,10 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             // never a registered <input> — merge them in explicitly so a save
             // can never silently drop the picked color/image.
             mutation.mutate({ ...d, color: watchedColor, image: watchedImage });
+          }, (invalid) => {
+            // Never fail silently — some fields (e.g. PLU code) aren't always on screen.
+            const fields = Object.keys(invalid).map((f) => f.replace(/_/g, ' ')).join(', ');
+            toast.error(`Can't save yet — check: ${fields}`);
           })}
           className="p-6 space-y-4"
         >

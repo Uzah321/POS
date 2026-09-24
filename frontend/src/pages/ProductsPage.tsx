@@ -16,6 +16,7 @@ import InventoryImportModal from '../components/inventory/InventoryImportModal';
 import { useOfflineStore } from '../stores/offlineStore';
 import { useAuthStore } from '../stores/authStore';
 import { offlineMutate } from '../lib/offlineMutation';
+import { SUPERMARKET_ENABLED } from '../lib/shops';
 
 function makeMutId() {
   return `mut-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1435,7 +1436,7 @@ export default function ProductsPage() {
               >
                 <option value="both">Both</option>
                 <option value="restaurant">Restaurant</option>
-                <option value="supermarket">Supermarket</option>
+                {SUPERMARKET_ENABLED && <option value="supermarket">Supermarket</option>}
               </select>
               <button
                 type="button"
@@ -1536,7 +1537,7 @@ export default function ProductsPage() {
                       >
                         <option value="both">Both</option>
                         <option value="restaurant">Restaurant</option>
-                        <option value="supermarket">Supermarket</option>
+                        {SUPERMARKET_ENABLED && <option value="supermarket">Supermarket</option>}
                       </select>
                     ) : (
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${

@@ -6,6 +6,7 @@ import BusinessTypeModal from '../components/BusinessTypeModal';
 import RestaurantDashboard from './RestaurantDashboard';
 import SupermarketDashboard from './SupermarketDashboard';
 import { Loader2 } from 'lucide-react';
+import { SUPERMARKET_ENABLED, effectiveShop } from '../lib/shops';
 
 type BizType = 'restaurant' | 'supermarket';
 
@@ -34,7 +35,7 @@ export default function DashboardPage() {
     },
   });
 
-  const businessType: BizType | null = (assignedShop ?? overrideType ?? settings?.business_type ?? null) as BizType | null;
+  const businessType: BizType | null = effectiveShop((assignedShop ?? overrideType ?? settings?.business_type ?? null) as BizType | null);
 
   const handleModalSelect = (type: BizType) => {
     setOverrideType(type);
@@ -56,7 +57,7 @@ export default function DashboardPage() {
       )}
 
       {/* Switch business type link — always visible in top-right corner */}
-      {businessType && !assignedShop && (
+      {businessType && !assignedShop && SUPERMARKET_ENABLED && (
         <div className="flex justify-end mb-1">
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <span className="capitalize">{businessType} mode</span>

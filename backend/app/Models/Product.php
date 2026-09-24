@@ -29,9 +29,9 @@ class Product extends Model
         'is_taxable' => 'boolean',
         'sold_by_weight' => 'boolean',
         'expires' => 'boolean',
-        'cost_price' => 'decimal:4',
-        'selling_price' => 'decimal:4',
-        'wholesale_price' => 'decimal:4',
+        'cost_price' => 'decimal:6',
+        'selling_price' => 'decimal:6',
+        'wholesale_price' => 'decimal:6',
     ];
 
     public function branch(): BelongsTo { return $this->belongsTo(Branch::class); }

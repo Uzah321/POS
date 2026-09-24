@@ -91,10 +91,10 @@ class ProductController extends BaseApiController
             'is_taxable'      => 'boolean',
             'sold_by_weight'  => 'boolean',
             'scale_id'        => 'nullable|exists:weighing_scales,id',
-            'reorder_level'   => 'integer|min:0',
-            'reorder_quantity' => 'integer|min:0',
+            'reorder_level'   => 'numeric|min:0',
+            'reorder_quantity' => 'numeric|min:0',
             'expires'         => 'boolean',
-            'alert_quantity'  => 'integer|min:0',
+            'alert_quantity'  => 'numeric|min:0',
             'initial_quantity' => 'nullable|numeric|min:0',
         ]);
 
@@ -194,10 +194,10 @@ class ProductController extends BaseApiController
             'is_taxable'     => 'boolean',
             'sold_by_weight' => 'boolean',
             'scale_id'       => 'nullable|exists:weighing_scales,id',
-            'reorder_level'  => 'integer|min:0',
-            'reorder_quantity'=> 'integer|min:0',
+            'reorder_level'  => 'numeric|min:0',
+            'reorder_quantity'=> 'numeric|min:0',
             'expires'        => 'boolean',
-            'alert_quantity' => 'integer|min:0',
+            'alert_quantity' => 'numeric|min:0',
         ]);
 
         if (isset($data['name'])) {

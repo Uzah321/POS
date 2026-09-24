@@ -374,7 +374,7 @@ class InventoryController extends BaseApiController
                         'category_id'   => $categoryId,
                         'cost_price'    => $costPrice ?? 0,
                         'selling_price' => $sellingPrice ?? 0,
-                        'reorder_level' => !empty($row['reorder_level']) ? intval($row['reorder_level'])   : 5,
+                        'reorder_level' => !empty($row['reorder_level']) ? floatval($row['reorder_level'])   : 5,
                         'track_stock'   => true,
                         'is_active'     => true,
                     ];

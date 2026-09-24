@@ -444,12 +444,12 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">Selling Price * <span className="text-gray-400 font-medium">({activeCurrency?.code || 'USD'})</span></label>
-              <input type="number" step="0.01" {...register('selling_price')} className={field} />
+              <input type="number" step="any" {...register('selling_price')} className={field} />
               {errors.selling_price && <p className="text-red-500 text-xs mt-1">Required</p>}
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">({activeCurrency?.code || 'USD'})</span></label>
-              <input type="number" step="0.01" {...register('cost_price')} className={field} />
+              <input type="number" step="any" {...register('cost_price')} className={field} />
             </div>
             <div>
               <div className="flex items-center justify-between">
@@ -575,13 +575,13 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
             {!product && (
               <div>
                 <label className="text-sm font-semibold text-gray-700">Opening Stock (units)</label>
-                <input type="number" step="1" min="0" {...register('initial_quantity')} className={field} placeholder="0" />
+                <input type="number" step="any" min="0" {...register('initial_quantity')} className={field} placeholder="0" />
                 <p className="text-xs text-gray-400 mt-1">Stock added to the default warehouse</p>
               </div>
             )}
             <div>
               <label className="text-sm font-semibold text-gray-700">Reorder Level</label>
-              <input type="number" step="1" min="0" {...register('reorder_level')} className={field} placeholder="5" />
+              <input type="number" step="any" min="0" {...register('reorder_level')} className={field} placeholder="5" />
               <p className="text-xs text-gray-400 mt-1">Flag as low stock at or below this quantity</p>
             </div>
             <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
@@ -742,12 +742,12 @@ function ProductStockAdjustModal({ product, mode, onClose }: { product: any; mod
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700">Quantity to {isAdd ? 'Add' : 'Remove'} *</label>
-            <input type="number" min="0.001" step="0.001" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="0" className={field} />
+            <input type="number" min="0" step="any" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="0" className={field} />
           </div>
           {isAdd ? (
             <div>
               <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional, {activeCurrency?.code || 'USD'}</span></label>
-              <input type="number" min="0" step="0.01" value={cost} onChange={e => setCost(e.target.value)} className={field} />
+              <input type="number" min="0" step="any" value={cost} onChange={e => setCost(e.target.value)} className={field} />
             </div>
           ) : (
             <div>

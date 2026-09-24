@@ -49,6 +49,7 @@ const schema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
   barcode: z.string().optional(),
+  plu_code: z.string().optional(),
   selling_price: z.coerce.number().min(0),
   cost_price: z.coerce.number().min(0),
   category_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
@@ -615,17 +616,24 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                   : 'For butchery/deli/produce items priced per kilogram rather than sold as a fixed count.'}
               </p>
               {watchedSoldByWeight && (
-                <div className="mt-2">
-                  <label className="text-xs text-gray-500 mb-1 block">Weighing Scale</label>
-                  <select {...register('scale_id')} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-                    <option value="">Unassigned</option>
-                    {scales?.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.mode === 'network' ? s.host : 'USB/Serial'})</option>
-                    ))}
-                  </select>
-                  {!scales?.length && (
-                    <p className="text-xs text-amber-600 mt-1">No scales registered yet — add one in Settings → Hardware → Weighing Scales.</p>
-                  )}
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Weighing Scale</label>
+                    <select {...register('scale_id')} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                      <option value="">Unassigned</option>
+                      {scales?.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.mode === 'network' ? s.host : 'USB/Serial'})</option>
+                      ))}
+                    </select>
+                    {!scales?.length && (
+                      <p className="text-xs text-amber-600 mt-1">No scales registered yet — add one in Settings → Hardware → Weighing Scales.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">PLU Code</label>
+                    <input {...register('plu_code')} placeholder="e.g. 123" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white" />
+                    <p className="text-xs text-gray-400 mt-1">Only needed if the scale prints an embedded-weight barcode — must match the PLU/department code the scale encodes. Set up the barcode format in Settings → Barcodes.</p>
+                  </div>
                 </div>
               )}
             </div>

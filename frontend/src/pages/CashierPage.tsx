@@ -20,6 +20,7 @@ import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
+import { decodeEmbeddedBarcode } from '../lib/barcode/embeddedBarcode';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -199,8 +200,9 @@ export default function CashierPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
   });
 
-  // Barcode scanner — instant add on exact SKU/barcode match
+  // Barcode scanner — embedded weight/price barcode first, then exact SKU/barcode match
   const handleBarcodeScan = useCallback((code: string) => {
+    if (tryAddEmbeddedBarcode(code)) return;
     const product = allProducts.find(p =>
       (p.sku ?? '').toLowerCase() === code.toLowerCase() ||
       (p.barcode ?? '').toLowerCase() === code.toLowerCase()
@@ -211,7 +213,7 @@ export default function CashierPage() {
       setCodeInput(code);
       codeRef.current?.focus();
     }
-  }, [allProducts]);
+  }, [allProducts, storeSettings]);
 
   useBarcodeScanner({ enabled: hw.barcodeScannerEnabled, onScan: handleBarcodeScan });
 
@@ -237,8 +239,8 @@ export default function CashierPage() {
   // Shared by both the direct-add path (live scale reading, or a plain
   // count item) and the manual-weight-entry path below — keeps the price
   // check / stock check / toast messaging identical for both.
-  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean): boolean => {
-    const price = parseFloat(product.selling_price);
+  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean, priceOverride?: number): boolean => {
+    const price = priceOverride ?? parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`);
       return false;
@@ -296,6 +298,29 @@ export default function CashierPage() {
     }
   };
 
+  // Scale-printed barcode whose digits encode a PLU code plus a weight or
+  // price (Settings → Barcodes), rather than being a literal product
+  // barcode. Tried before the normal exact-match lookup; returns false (and
+  // does nothing) for any code that doesn't match the configured format, so
+  // a store that hasn't set this up sees no change in behavior.
+  const tryAddEmbeddedBarcode = (code: string): boolean => {
+    const decoded = decodeEmbeddedBarcode(code, storeSettings ?? {});
+    if (!decoded) return false;
+    const product = allProducts.find((p: any) => p.sold_by_weight && (p.plu_code ?? '') === decoded.pluCode);
+    if (!product) {
+      toast.error(`No product with PLU code ${decoded.pluCode}`);
+      return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
+    }
+    const added = decoded.kind === 'weight'
+      ? addProductWithQty(product, decoded.value, true)
+      : addProductWithQty(product, 1, false, decoded.value);
+    if (added) {
+      setCodeInput('');
+      setTimeout(() => codeRef.current?.focus(), 40);
+    }
+    return true;
+  };
+
   const confirmPendingWeight = () => {
     if (!pendingWeightProduct) return;
     const n = parseFloat(weightInput);
@@ -310,6 +335,8 @@ export default function CashierPage() {
 
     const q = codeInput.trim();
     if (!q) return;
+
+    if (tryAddEmbeddedBarcode(q)) return;
 
     const ql = q.toLowerCase();
     const exact = allProducts.find(p =>

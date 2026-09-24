@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
-import { Loader2, Save, Building2, ShoppingCart, Package, Landmark } from 'lucide-react';
+import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 import FiscalisationPanel from '../components/FiscalisationPanel';
@@ -32,6 +32,26 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
 
 const field = 'w-full border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
 
+// Text (not number) inputs on purpose — a prefix/position/length is a digit
+// string where a leading zero matters (e.g. prefix "02" vs "2"); a <input
+// type="number"> would silently strip it.
+function DigitField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={value ?? ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors"
+      />
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -43,6 +63,8 @@ export default function SettingsPage() {
     low_stock_alerts: true,
     require_table_number: false,
     block_negative_stock: true,
+    barcode_weight_enabled: false,
+    barcode_price_enabled: false,
   });
 const { isLoading } = useQuery({
     queryKey: ['settings'],
@@ -58,6 +80,8 @@ const { isLoading } = useQuery({
         low_stock_alerts: data.low_stock_alerts !== 'false' && data.low_stock_alerts !== false,
         require_table_number: data.require_table_number === 'true' || data.require_table_number === true,
         block_negative_stock: data.block_negative_stock !== 'false' && data.block_negative_stock !== false,
+        barcode_weight_enabled: data.barcode_weight_enabled === 'true' || data.barcode_weight_enabled === true,
+        barcode_price_enabled: data.barcode_price_enabled === 'true' || data.barcode_price_enabled === true,
       }));
       return data;
     }),
@@ -282,6 +306,65 @@ const { isLoading } = useQuery({
               placeholder="Thank you for your purchase!"
               className={`${field} resize-none`}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Barcodes — embedded weight/price barcodes, the convention a scale
+          uses to print a barcode whose digits encode a PLU code plus a
+          weight or price, instead of the barcode being a literal SKU. */}
+      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+            <Barcode size={16} className="text-blue-600" />
+          </div>
+          <h2 className="font-semibold text-gray-900">Barcodes</h2>
+        </div>
+        <div className="p-6 space-y-6">
+          <p className="text-xs text-gray-400 -mt-2">
+            For a scale that prints barcodes with a weight or price embedded in the digits, instead of a literal product barcode. Give each sold-by-weight product a PLU Code (on its product page) matching what the scale encodes — leave both off if your scale prints plain product barcodes.
+          </p>
+
+          {/* Random Weight */}
+          <div>
+            <ToggleRow
+              label="Random Weight Barcodes"
+              description="A barcode starting with the prefix below encodes a PLU code and a weight"
+              checked={toggles.barcode_weight_enabled}
+              onChange={(v) => setToggles(t => ({ ...t, barcode_weight_enabled: v }))}
+            />
+            {toggles.barcode_weight_enabled && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                <DigitField label="Barcode Prefix" value={values.barcode_weight_prefix} onChange={set('barcode_weight_prefix')} placeholder="20" />
+                <DigitField label="Prefix Length" value={values.barcode_weight_prefix_length} onChange={set('barcode_weight_prefix_length')} placeholder="2" />
+                <DigitField label="PLU Code Position" value={values.barcode_weight_code_position} onChange={set('barcode_weight_code_position')} placeholder="4" />
+                <DigitField label="PLU Code Length" value={values.barcode_weight_code_length} onChange={set('barcode_weight_code_length')} placeholder="3" />
+                <DigitField label="Weight Position" value={values.barcode_weight_qty_position} onChange={set('barcode_weight_qty_position')} placeholder="8" />
+                <DigitField label="Weight Length" value={values.barcode_weight_qty_length} onChange={set('barcode_weight_qty_length')} placeholder="5" />
+                <DigitField label="Decimal Point" value={values.barcode_weight_decimal_point} onChange={set('barcode_weight_decimal_point')} placeholder="3" />
+              </div>
+            )}
+          </div>
+
+          {/* Random Price */}
+          <div>
+            <ToggleRow
+              label="Random Price Barcodes"
+              description="A barcode starting with the prefix below encodes a PLU code and a price"
+              checked={toggles.barcode_price_enabled}
+              onChange={(v) => setToggles(t => ({ ...t, barcode_price_enabled: v }))}
+            />
+            {toggles.barcode_price_enabled && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                <DigitField label="Barcode Prefix" value={values.barcode_price_prefix} onChange={set('barcode_price_prefix')} placeholder="2" />
+                <DigitField label="Prefix Length" value={values.barcode_price_prefix_length} onChange={set('barcode_price_prefix_length')} placeholder="1" />
+                <DigitField label="PLU Code Position" value={values.barcode_price_code_position} onChange={set('barcode_price_code_position')} placeholder="4" />
+                <DigitField label="PLU Code Length" value={values.barcode_price_code_length} onChange={set('barcode_price_code_length')} placeholder="4" />
+                <DigitField label="Price Position" value={values.barcode_price_value_position} onChange={set('barcode_price_value_position')} placeholder="9" />
+                <DigitField label="Price Length" value={values.barcode_price_value_length} onChange={set('barcode_price_value_length')} placeholder="4" />
+                <DigitField label="Decimal Point" value={values.barcode_price_decimal_point} onChange={set('barcode_price_decimal_point')} placeholder="2" />
+              </div>
+            )}
           </div>
         </div>
       </div>

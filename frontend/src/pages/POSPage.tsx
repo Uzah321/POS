@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
@@ -21,6 +21,7 @@ import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import PosProductTile from '../components/pos/PosProductTile';
 import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
+import { decodeEmbeddedBarcode } from '../lib/barcode/embeddedBarcode';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -213,14 +214,20 @@ export default function POSPage() {
   useEffect(() => { searchRef.current?.focus(); }, []);
 
   // Barcode scanner - intercepts fast keystroke sequences and routes to product search
-  const handleBarcodeScan = useCallback((code: string) => {
+  // Not useCallback — it needs a fresh closure over allProducts/storeSettings
+  // (both declared further down) on every render for tryAddEmbeddedBarcode to
+  // see current data; useBarcodeScanner re-subscribing its listener on every
+  // render is cheap (a capture-phase keydown listener), unlike the risk of a
+  // stale product list silently missing newly-added PLU codes.
+  const handleBarcodeScan = (code: string) => {
+    if (tryAddEmbeddedBarcode(code)) return;
     setSearch(code);
     searchRef.current?.focus();
     if (hw.barcodeAutoAdd) {
       // Auto-add handled after product list re-renders (see filteredProducts effect below)
       barcodeRef.current = code;
     }
-  }, [hw.barcodeAutoAdd]);
+  };
 
   const barcodeRef = useRef<string | null>(null);
   useBarcodeScanner({ enabled: hw.barcodeScannerEnabled, onScan: handleBarcodeScan });
@@ -522,8 +529,8 @@ export default function POSPage() {
   // Shared by both the direct-add path (live scale reading, or a plain
   // count item) and the manual-weight-entry path below — keeps the price
   // check / stock check / toast messaging identical for both.
-  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean): boolean => {
-    const price = parseFloat(product.selling_price);
+  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean, priceOverride?: number): boolean => {
+    const price = priceOverride ?? parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
       return false;
@@ -548,6 +555,30 @@ export default function POSPage() {
       sold_by_weight: soldByWeight,
       scale_id: soldByWeight ? (product.scale_id ?? null) : undefined,
     }, qty);
+    return true;
+  };
+
+  // Scale-printed barcode whose digits encode a PLU code plus a weight or
+  // price (Settings → Barcodes), rather than being a literal product
+  // barcode. Tried before the normal exact-match lookup; returns false (and
+  // does nothing) for any code that doesn't match the configured format, so
+  // a store that hasn't set this up sees no change in behavior.
+  const tryAddEmbeddedBarcode = (code: string): boolean => {
+    const decoded = decodeEmbeddedBarcode(code, storeSettings ?? {});
+    if (!decoded) return false;
+    const product = allProducts.find((p: any) => p.sold_by_weight && (p.plu_code ?? '') === decoded.pluCode);
+    if (!product) {
+      toast.error(`No product with PLU code ${decoded.pluCode}`);
+      return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
+    }
+    const added = decoded.kind === 'weight'
+      ? addProductWithQty(product, decoded.value, true)
+      : addProductWithQty(product, 1, false, decoded.value);
+    if (added) {
+      toast.success(decoded.kind === 'weight'
+        ? `Added ${product.name} (${decoded.value.toFixed(3)} kg)`
+        : `Added ${product.name}`, { duration: 800 });
+    }
     return true;
   };
 
@@ -594,6 +625,7 @@ export default function POSPage() {
     }
     const code = search.trim();
     if (!code) return;
+    if (tryAddEmbeddedBarcode(code)) { setSearch(''); return; }
     const exact = allProducts.find((p: any) => (p.sku ?? '') === code || (p.barcode ?? '') === code);
     if (exact) { handleAddProduct(exact); setSearch(''); return; }
     if (filteredProducts.length === 1) { handleAddProduct(filteredProducts[0]); setSearch(''); return; }

@@ -313,6 +313,10 @@ export default function POSPage() {
     staleTime: 0,
   });
   const tabTables: any[] = Array.isArray(tabTablesData) ? tabTablesData : [];
+  const canManageTables = hasPermission('manage_tables') || hasRole('admin');
+  // With no tables set up yet, the picker offers to create one on the spot.
+  const [newTableName, setNewTableName] = useState('');
+  const [newTableSeats, setNewTableSeats] = useState('2');
 
   // Waiters — staff with the "waiter" role, mandatory on every sit-in order.
   const { data: waitersData } = useQuery({
@@ -1041,6 +1045,26 @@ export default function POSPage() {
     handleAddToTab();
   };
 
+  // New table created from the Add to Tab picker — it's free, so it goes
+  // straight through pickTableForTab to start the tab there.
+  const createTableForTabMutation = useMutation({
+    mutationFn: (payload: { name: string; seats: number }) =>
+      tablesApi.create({ branch_id: branchId, ...payload }).then((r) => r.data?.data),
+    onSuccess: (table: any) => {
+      toast.success('Table added');
+      qc.invalidateQueries({ queryKey: ['tables'] });
+      setNewTableName('');
+      setNewTableSeats('2');
+      if (table?.id) pickTableForTab(table);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not add table'),
+  });
+
+  const submitNewTableForTab = () => {
+    if (!newTableName.trim()) { toast.error('Table name is required'); return; }
+    createTableForTabMutation.mutate({ name: newTableName.trim(), seats: parseInt(newTableSeats, 10) || 2 });
+  };
+
   const handleHoldOrder = () => {
     if (cart.items.length === 0) return;
     // Holding an order is when it goes to the kitchen — ticket whatever the
@@ -1686,7 +1710,30 @@ export default function POSPage() {
           {tabTablesLoading ? (
             <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-blue-500" /></div>
           ) : tabTables.length === 0 ? (
-            <p className="text-sm text-amber-600 py-6 text-center">No tables set up yet — add them on the Tables page (Manage Tables).</p>
+            canManageTables ? (
+              <form onSubmit={(e) => { e.preventDefault(); submitNewTableForTab(); }} className="py-2">
+                <p className="text-sm text-amber-600 mb-3">No tables set up yet — add one to start this tab.</p>
+                <div className="flex gap-2 items-end">
+                  <label className="flex-1 text-xs font-semibold text-gray-600">
+                    Table name
+                    <input autoFocus value={newTableName} onChange={(e) => setNewTableName(e.target.value)} maxLength={50}
+                      placeholder="e.g. Table 1"
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-normal text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </label>
+                  <label className="w-24 text-xs font-semibold text-gray-600">
+                    Seats
+                    <input type="number" min={1} value={newTableSeats} onChange={(e) => setNewTableSeats(e.target.value)}
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-normal text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </label>
+                  <button type="submit" disabled={createTableForTabMutation.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60 touch-manipulation">
+                    {createTableForTabMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Add table
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <p className="text-sm text-amber-600 py-6 text-center">No tables set up yet — ask a manager to add them on the Tables page.</p>
+            )
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 overflow-y-auto">
               {tabTables.map((t: any) => (

@@ -480,7 +480,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </select>
 
-            <div className="text-blue-100 [&_button]:text-blue-100 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></div>
+            <NotificationBell dark />
 
             <div className="flex items-center gap-2.5">
               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base" style={{ background: '#2f6df6' }}>{userInitials}</div>
@@ -635,7 +635,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
-          <div className="text-blue-100 [&_button]:text-blue-100 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></div>
+          <NotificationBell dark />
 
           {/* Cashier Register already names the logged-in cashier in its own
               header content (portaled in above), so this avatar+name would

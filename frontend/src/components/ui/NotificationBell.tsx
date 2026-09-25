@@ -16,7 +16,9 @@ interface StockRow {
 
 /** Bell icon in the top nav — click to see low/out-of-stock products and,
  * for managers, cash-ups still awaiting approval. */
-export default function NotificationBell() {
+// `dark`: light icon for the navy top bars (POS and back office). Only the bell
+// itself changes — the dropdown panel keeps its normal dark-on-white text.
+export default function NotificationBell({ dark = false }: { dark?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -77,7 +79,7 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative text-slate-500 hover:text-blue-700 transition-colors p-1.5 rounded-md hover:bg-blue-50 border border-transparent hover:border-blue-200"
+        className={`relative transition-colors p-1.5 rounded-md bg-transparent ${dark ? 'text-blue-100 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-blue-700 hover:bg-blue-50'}`}
         title="Notifications"
       >
         <Bell size={19} />

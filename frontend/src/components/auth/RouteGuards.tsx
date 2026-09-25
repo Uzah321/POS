@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import { landingPath } from '../../lib/landing';
 
 export function ProtectedRoute() {
   const user = useAuthStore((s: any) => s.user);
@@ -7,10 +8,10 @@ export function ProtectedRoute() {
 }
 
 export function GuestRoute() {
-  const { user, hasRole } = useAuthStore();
+  const { user } = useAuthStore();
   if (!user) return <Outlet />;
-  // Cashiers go directly to the POS register on login
-  return <Navigate to={hasRole('cashier') ? '/pos' : '/'} replace />;
+  // Already signed in: same landing as a fresh sign-in (till, dashboard, or the Front/Back of House choice)
+  return <Navigate to={landingPath(user)} replace />;
 }
 
 // Restricts cashiers to the POS page only — redirects them away from admin pages

@@ -158,7 +158,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   // The GAAP-style merged info bar is scoped to Advanced POS only —
   // Cashier Register keeps its own simpler inline table selector.
-  const isPosPage = location.pathname === '/pos';
+  // Front-of-house screens (Advanced POS and Tables) share the navy POS top bar.
+  const isPosPage = location.pathname === '/pos' || location.pathname === '/tables';
   // Cashier Register renders its own online-status pill + user avatar in its
   // header card right below this bar — skip the topbar's copies here so the
   // two bars read as one continuous toolbar instead of repeating the same info.

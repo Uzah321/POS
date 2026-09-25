@@ -38,6 +38,7 @@ const HardwarePage             = lazy(() => import('./pages/HardwarePage'));
 const CustomerDisplayPage      = lazy(() => import('./pages/CustomerDisplayPage'));
 const KitchenDisplayPage       = lazy(() => import('./pages/KitchenDisplayPage'));
 const TablesPage               = lazy(() => import('./pages/TablesPage'));
+const StartPage                = lazy(() => import('./pages/StartPage'));
 const QueueDisplayPage         = lazy(() => import('./pages/QueueDisplayPage'));
 const LaybyPage                = lazy(() => import('./pages/LaybyPage'));
 const QuotationsPage           = lazy(() => import('./pages/QuotationsPage'));
@@ -106,6 +107,8 @@ export default function App() {
           <Route path="/kitchen" element={<KitchenDisplayPage />} />
           <Route path="/queue" element={<QueueDisplayPage />} />
           <Route element={<ProtectedRoute />}>
+            {/* Front of House / Back of House choice right after sign-in */}
+            <Route path="/start" element={<StartPage />} />
             <Route path="/pos" element={<LayoutWrapper><ShopGuard shop="restaurant"><POSPage /></ShopGuard></LayoutWrapper>} />
             <Route path="/cashier" element={<LayoutWrapper><ShopGuard shop="supermarket"><CashierPage /></ShopGuard></LayoutWrapper>} />
             <Route element={<StaffOnlyRoute />}>

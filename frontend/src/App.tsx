@@ -111,11 +111,12 @@ export default function App() {
             <Route path="/start" element={<StartPage />} />
             <Route path="/pos" element={<LayoutWrapper><ShopGuard shop="restaurant"><POSPage /></ShopGuard></LayoutWrapper>} />
             <Route path="/cashier" element={<LayoutWrapper><ShopGuard shop="supermarket"><CashierPage /></ShopGuard></LayoutWrapper>} />
+            {/* Front of house like the POS — cashiers seat sit-in orders here, so it's outside StaffOnlyRoute */}
+            <Route path="/tables" element={<RequirePermission perm="create_sales"><LayoutWrapper><TablesPage /></LayoutWrapper></RequirePermission>} />
             <Route element={<StaffOnlyRoute />}>
               <Route path="/ecocash" element={<LayoutWrapper><EcocashPage /></LayoutWrapper>} />
               <Route path="/shift-end" element={<LayoutWrapper><ShiftEndPage /></LayoutWrapper>} />
               <Route path="/" element={<RequirePermission perm="view_dashboard"><LayoutWrapper><DashboardPage /></LayoutWrapper></RequirePermission>} />
-              <Route path="/tables" element={<RequirePermission perm="create_sales"><LayoutWrapper><TablesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/orders" element={<RequirePermission perm="view_sales"><LayoutWrapper><OrdersPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/sales" element={<RequirePermission perm="view_sales"><LayoutWrapper><SalesPage /></LayoutWrapper></RequirePermission>} />
               <Route path="/refunds" element={<RequirePermission perm="process_refunds"><LayoutWrapper><RefundsPage /></LayoutWrapper></RequirePermission>} />

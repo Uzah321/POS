@@ -1,5 +1,24 @@
 import { effectiveShop } from './shops';
 
+// The login page's Front/Back of House choice. Signing in flips the guest-only
+// guard on /login, which redirects immediately — it reads this to send the
+// user where they chose instead of the generic landing.
+const CHOSEN_DESTINATION_KEY = 'core-login-destination';
+
+export function setChosenDestination(path: string) {
+  try { sessionStorage.setItem(CHOSEN_DESTINATION_KEY, path); } catch { /* storage unavailable */ }
+}
+
+export function takeChosenDestination(): string | null {
+  try {
+    const path = sessionStorage.getItem(CHOSEN_DESTINATION_KEY);
+    sessionStorage.removeItem(CHOSEN_DESTINATION_KEY);
+    return path;
+  } catch {
+    return null;
+  }
+}
+
 interface LandingUser {
   roles?: string[];
   permissions?: string[];

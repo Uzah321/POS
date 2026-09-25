@@ -12,7 +12,7 @@ import {
   Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings,
   ShoppingCart, LineChart, Users,
 } from 'lucide-react';
-import { frontOfHousePath } from '../lib/landing';
+import { frontOfHousePath, setChosenDestination } from '../lib/landing';
 
 const schema = z.object({
   username: z.string().min(1, 'Username or email required'),
@@ -91,6 +91,7 @@ export default function LoginPage() {
         toast('You don\'t have Back of House access — opening Front of House.', { icon: 'ℹ️' });
       }
 
+      setChosenDestination(destination);
       setAuth(user);
       toast.success(`Welcome back, ${user.name}!`);
       navigate(destination, { replace: true });
@@ -98,7 +99,8 @@ export default function LoginPage() {
       if (!err.response) {
         toast.error('Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.');
       } else {
-        toast.error(err.response?.data?.message || 'Incorrect username or password.');
+        // 422 = the credentials didn't match; anything else, show the server's reason (e.g. account disabled).
+        toast.error(err.response?.status === 422 ? 'Incorrect username or password.' : (err.response?.data?.message || 'Could not sign in.'));
       }
     }
   };

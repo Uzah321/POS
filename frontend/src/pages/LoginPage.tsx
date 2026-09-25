@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,34 +8,92 @@ import { primeCsrf } from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, Loader2, WifiOff } from 'lucide-react';
-import { landingPath } from '../lib/landing';
+import {
+  Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings,
+  ShoppingCart, LineChart, Users,
+} from 'lucide-react';
+import { frontOfHousePath } from '../lib/landing';
 
 const schema = z.object({
-  username: z.string().min(1, 'Username required'),
+  username: z.string().min(1, 'Username or email required'),
   password: z.string().min(1, 'Password required'),
 });
 type FormData = z.infer<typeof schema>;
+type Side = 'front' | 'back';
+
+// "Remember me" keeps the username and chosen side on this device (never the password).
+const REMEMBER_KEY = 'core-login-remember';
+function loadRemembered(): { username: string; side: Side } | null {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+const FEATURES = [
+  { icon: ShoppingCart, title: 'Sales & Order Management', text: 'Fast checkout, flexible ordering' },
+  { icon: BarChart3,    title: 'Inventory Control',        text: 'Track stock in real-time' },
+  { icon: LineChart,    title: 'Business Insights',        text: 'Reports that help you grow' },
+  { icon: Settings,     title: 'Built for Your Business',  text: 'Retail, restaurant and more' },
+];
+
+function Logo({ size = 64 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width={size} height={size}>
+      <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb" />
+      <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2.5" fill="none" />
+      <circle cx="18" cy="18" r="4" fill="white" opacity="0.35" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
+  const remembered = loadRemembered();
   const [showPw, setShowPw] = useState(false);
+  const [side, setSide] = useState<Side>(remembered?.side ?? 'front');
+  const [remember, setRemember] = useState(!!remembered);
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const { isServerUp } = useServerHealth();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
+    defaultValues: { username: remembered?.username ?? '' },
   });
+
+  const askAdmin = () => toast('Ask your administrator — they can reset your password under Users.', { icon: '🔑', duration: 5000 });
 
   const onSubmit = async (data: FormData) => {
     try {
       await primeCsrf();
       const res = await authApi.login(data as any);
       const { user } = res.data.data;
+
+      try {
+        if (remember) localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: data.username, side }));
+        else localStorage.removeItem(REMEMBER_KEY);
+      } catch { /* storage unavailable — remembering is only a convenience */ }
+
+      // Open the side they picked, if their role allows it; otherwise the side they can use.
+      const isAdmin = user.roles?.includes('admin');
+      const can = (perm: string) => isAdmin || (user.permissions ?? []).includes(perm);
+      const tillOnly = user.roles?.includes('cashier') || user.roles?.includes('waiter');
+      const canFront = can('create_sales');
+      const canBack = can('view_dashboard') && !tillOnly;
+      let destination = side === 'front' ? frontOfHousePath(user) : '/';
+      if (side === 'front' && !canFront) {
+        destination = '/';
+        toast('You don\'t have Front of House access — opening Back of House.', { icon: 'ℹ️' });
+      } else if (side === 'back' && !canBack) {
+        destination = frontOfHousePath(user);
+        toast('You don\'t have Back of House access — opening Front of House.', { icon: 'ℹ️' });
+      }
+
       setAuth(user);
       toast.success(`Welcome back, ${user.name}!`);
-      // Till staff go straight to their till; admin/manager choose Front or Back of House.
-      navigate(landingPath(user), { replace: true });
+      navigate(destination, { replace: true });
     } catch (err: any) {
       if (!err.response) {
         toast.error('Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.');
@@ -45,91 +103,190 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 flex items-center justify-center p-4">
-      {/* Background pattern */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-white rounded-full blur-3xl" />
-      </div>
+  const sideCards: Array<{ key: Side; title: string; text: string; icon: React.ReactNode }> = [
+    { key: 'front', title: 'Front of House', text: 'Cashier, sales, order taking', icon: <Store size={44} strokeWidth={1.8} /> },
+    {
+      key: 'back', title: 'Back of House', text: 'Admin, inventory, reporting, settings',
+      icon: (
+        <span className="relative inline-block">
+          <BarChart3 size={44} strokeWidth={1.8} />
+          <Settings size={20} strokeWidth={2.4} className="absolute -right-1.5 -bottom-1 bg-white rounded-full" />
+        </span>
+      ),
+    },
+  ];
 
-      <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md p-8">
-        {/* Server offline banner */}
-        {!isServerUp && (
-          <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 rounded-md px-4 py-3">
-            <WifiOff size={18} className="text-red-500 mt-0.5 shrink-0" />
+  return (
+    <div className="login-screen relative min-h-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #eef4ff 0%, #f6f9ff 45%, #e8f0fe 100%)' }}>
+      {/* Soft background shapes */}
+      <div className="pointer-events-none absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-blue-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/3 left-1/3 w-[420px] h-[420px] rounded-full bg-indigo-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 right-0 w-[520px] h-[520px] rounded-full bg-sky-200/40 blur-3xl" />
+
+      <div className="relative min-h-screen max-w-7xl mx-auto flex items-center gap-10 px-4 sm:px-8 py-8">
+        {/* ── Left: brand + features + POS on a tablet (large screens) ── */}
+        <div className="hidden lg:flex flex-1 flex-col min-w-0">
+          <div className="flex items-center gap-4">
+            <Logo size={76} />
             <div>
-              <p className="text-sm font-semibold text-red-700">Server not running</p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Double-click the <strong>Core</strong> shortcut on your Desktop to start it, then refresh this page.
-              </p>
+              <p className="text-5xl font-extrabold tracking-tight text-slate-900 leading-none">Core <span className="text-blue-600">POS</span></p>
+              <p className="text-xl text-slate-700 tracking-[0.12em] mt-2">Simple. Smart. Sales.</p>
             </div>
           </div>
-        )}
 
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-4">
-            <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
-              <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
-              <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
-              <circle cx="18" cy="18" r="4" fill="white"/>
-            </svg>
+          <h2 className="mt-10 text-4xl font-extrabold text-slate-900 leading-tight">
+            Everything you need<br />to run <span className="text-blue-600">your business.</span>
+          </h2>
+          <p className="mt-4 text-lg text-slate-500 max-w-md">
+            Fast, reliable and easy to use point of sale for retail and food service businesses.
+          </p>
+
+          <div className="mt-8 flex gap-8 items-end">
+            <ul className="space-y-5 flex-shrink-0">
+              {FEATURES.map(({ icon: Icon, title, text }) => (
+                <li key={title} className="flex items-center gap-4">
+                  <span className="w-14 h-14 rounded-xl bg-white/80 shadow-sm flex items-center justify-center text-blue-600">
+                    <Icon size={26} />
+                  </span>
+                  <span>
+                    <span className="block font-semibold text-slate-900">{title}</span>
+                    <span className="block text-sm text-slate-500">{text}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {/* The real POS screen on a tablet stand */}
+            <div className="hidden xl:flex flex-col items-center flex-1 min-w-0 -mb-2">
+              <div className="w-full max-w-[380px] rounded-2xl bg-slate-900 p-2.5 shadow-2xl" style={{ transform: 'perspective(900px) rotateY(-8deg)' }}>
+                <img src="/login-pos-screen.jpg" alt="Core POS till screen" className="w-full rounded-lg block" draggable={false} />
+              </div>
+              <div className="w-10 h-10 bg-gradient-to-b from-slate-700 to-slate-800" />
+              <div className="w-40 h-3 rounded-full bg-slate-800 shadow-lg" />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Core</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
-            <input
-              {...register('username')}
-              type="text"
-              autoComplete="username"
-              placeholder="e.g. admin"
-              className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-            />
-            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
+        {/* ── Right: sign-in card ── */}
+        <div className="w-full max-w-xl mx-auto lg:mx-0 lg:w-[560px] flex-shrink-0 bg-white/95 backdrop-blur rounded-2xl shadow-2xl shadow-blue-900/10 border border-white p-6 sm:p-10">
+          {/* Compact brand on small screens (the left panel is hidden there) */}
+          <div className="flex lg:hidden items-center justify-center gap-3 mb-6">
+            <Logo size={44} />
+            <p className="text-2xl font-extrabold text-slate-900">Core <span className="text-blue-600">POS</span></p>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
-            <div className="relative">
-              <input
-                {...register('password')}
-                type={showPw ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="w-full border border-gray-200 rounded-md px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors pr-11"
-              />
-              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+          {!isServerUp && (
+            <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              <WifiOff size={18} className="text-red-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-red-700">Server not running</p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  Double-click the <strong>Core</strong> shortcut on your Desktop to start it, then refresh this page.
+                </p>
+              </div>
             </div>
-            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+          )}
+
+          <div className="text-center">
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Welcome Back</h1>
+            <p className="text-slate-500 mt-2">Sign in to continue to Core POS</p>
           </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || !isServerUp}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-md text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-blue-200 mt-2"
-          >
-            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-            {!isServerUp ? 'Server offline' : isSubmitting ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit(onSubmit as any)} className="mt-8 space-y-5">
+            {/* Front / Back of House */}
+            <div>
+              <p className="font-bold text-slate-900">Select Your Role</p>
+              <p className="text-sm text-slate-500">Choose how you want to access the system</p>
+              <div className="grid grid-cols-2 gap-3 mt-3" role="radiogroup" aria-label="Front or Back of House">
+                {sideCards.map(({ key, title, text, icon }) => {
+                  const active = side === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setSide(key)}
+                      className={`relative flex flex-col items-center text-center gap-2 rounded-xl border-2 px-3 py-5 transition-colors touch-manipulation ${
+                        active ? 'border-blue-600 bg-blue-50/60' : 'border-slate-200 bg-white hover:border-blue-300'
+                      }`}
+                    >
+                      <span className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center ${active ? 'border-blue-600' : 'border-slate-300'}`}>
+                        {active && <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
+                      </span>
+                      <span className={active ? 'text-blue-600' : 'text-slate-500'}>{icon}</span>
+                      <span className="font-bold text-slate-900">{title}</span>
+                      <span className="text-xs text-slate-500">{text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        <p className="text-xs text-center text-gray-400 mt-6">
-          Core - Point of Sale
-        </p>
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">Username / Email</label>
+              <div className="relative">
+                <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  {...register('username')}
+                  type="text"
+                  autoComplete="username"
+                  placeholder="Enter username or email"
+                  className="w-full border border-slate-200 rounded-lg pl-11 pr-4 py-3.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
+            </div>
 
-        <a
-          href="/api/download/core-shortcut.url"
-          className="block text-center text-xs text-blue-600 hover:text-blue-700 hover:underline mt-3"
-        >
-          Download desktop shortcut
-        </a>
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">Password</label>
+              <div className="relative">
+                <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  {...register('password')}
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  className="w-full border border-slate-200 rounded-lg pl-11 pr-12 py-3.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button type="button" onClick={() => setShowPw(!showPw)} aria-label={showPw ? 'Hide password' : 'Show password'}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="w-4 h-4 accent-blue-600" />
+                Remember me
+              </label>
+              <button type="button" onClick={askAdmin} className="text-sm text-blue-600 hover:underline">Forgot password?</button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !isServerUp}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg shadow-blue-600/25"
+            >
+              {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
+              {!isServerUp ? 'Server offline' : isSubmitting ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="mt-8 flex items-center gap-3 text-sm text-slate-500">
+            <span className="flex-1 h-px bg-slate-200" /> Need help? <span className="flex-1 h-px bg-slate-200" />
+          </div>
+          <div className="mt-2 text-center">
+            <button type="button" onClick={askAdmin} className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1.5">
+              <Users size={14} /> Contact administrator
+            </button>
+          </div>
+          <a href="/api/download/core-shortcut.url" className="block text-center text-xs text-slate-400 hover:text-slate-600 mt-4">
+            Download desktop shortcut
+          </a>
+        </div>
       </div>
     </div>
   );

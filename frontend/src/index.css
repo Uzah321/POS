@@ -50,6 +50,14 @@
 	.pos-screen .rounded-2xl  { border-radius: 0.4375rem !important; }
 	.pos-screen .rounded-full { border-radius: 9999px !important; }
 
+	/* Exception: the sign-in screen follows its own rounded design too. */
+	.login-screen .rounded-md   { border-radius: 0.5rem !important; }
+	.login-screen .rounded-lg   { border-radius: 0.625rem !important; }
+	.login-screen .rounded-xl   { border-radius: 0.875rem !important; }
+	.login-screen .rounded-2xl  { border-radius: 1.25rem !important; }
+	.login-screen .rounded-3xl  { border-radius: 1.75rem !important; }
+	.login-screen .rounded-full { border-radius: 9999px !important; }
+
 	.app-shell {
 		background: var(--app-bg);
 	}

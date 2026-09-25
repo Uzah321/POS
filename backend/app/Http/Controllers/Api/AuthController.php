@@ -20,7 +20,11 @@ class AuthController extends BaseApiController
             'password' => 'required|string',
         ]);
 
-        $user = User::where('username', $request->username)->first();
+        // The sign-in box takes a username or an email address.
+        $login = trim($request->username);
+        $user = str_contains($login, '@')
+            ? User::whereRaw('LOWER(email) = ?', [mb_strtolower($login)])->first()
+            : User::where('username', $login)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([

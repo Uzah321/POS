@@ -9,8 +9,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
 import {
-  Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings,
-  ShoppingCart, LineChart, Users,
+  Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings, Users,
 } from 'lucide-react';
 import { frontOfHousePath, setChosenDestination } from '../lib/landing';
 
@@ -31,13 +30,6 @@ function loadRemembered(): { username: string; side: Side } | null {
     return null;
   }
 }
-
-const FEATURES = [
-  { icon: ShoppingCart, title: 'Sales & Order Management', text: 'Fast checkout, flexible ordering' },
-  { icon: BarChart3,    title: 'Inventory Control',        text: 'Track stock in real-time' },
-  { icon: LineChart,    title: 'Business Insights',        text: 'Reports that help you grow' },
-  { icon: Settings,     title: 'Built for Your Business',  text: 'Retail, restaurant and more' },
-];
 
 function Logo({ size = 64 }: { size?: number }) {
   return (
@@ -126,48 +118,13 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute -bottom-40 right-0 w-[520px] h-[520px] rounded-full bg-sky-200/40 blur-3xl" />
 
       <div className="relative min-h-screen max-w-7xl mx-auto flex items-center gap-10 px-4 sm:px-8 py-8">
-        {/* ── Left: brand + features + POS on a tablet (large screens) ── */}
-        <div className="hidden lg:flex flex-1 flex-col min-w-0">
+        {/* ── Left: brand (large screens) ── */}
+        <div className="hidden lg:flex flex-1 flex-col min-w-0 justify-center">
           <div className="flex items-center gap-4">
             <Logo size={76} />
             <div>
               <p className="text-5xl font-extrabold tracking-tight text-slate-900 leading-none">Core <span className="text-blue-600">POS</span></p>
               <p className="text-xl text-slate-700 tracking-[0.12em] mt-2">Simple. Smart. Sales.</p>
-            </div>
-          </div>
-
-          <h2 className="mt-10 text-4xl font-extrabold text-slate-900 leading-tight">
-            Everything you need<br />to run <span className="text-blue-600">your business.</span>
-          </h2>
-          <p className="mt-4 text-lg text-slate-500 max-w-md">
-            Fast, reliable and easy to use point of sale for retail and food service businesses.
-          </p>
-
-          <div className="mt-8 flex gap-8 items-end">
-            <ul className="space-y-5 flex-shrink-0">
-              {FEATURES.map(({ icon: Icon, title, text }) => (
-                <li key={title} className="flex items-center gap-4">
-                  <span className="w-14 h-14 rounded-xl bg-white/80 shadow-sm flex items-center justify-center text-blue-600">
-                    <Icon size={26} />
-                  </span>
-                  <span>
-                    <span className="block font-semibold text-slate-900">{title}</span>
-                    <span className="block text-sm text-slate-500">{text}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            {/* The real POS screen on a tablet stand */}
-            <div className="hidden xl:flex flex-col items-center flex-1 min-w-0 -mb-2">
-              <div className="w-full max-w-[380px] rounded-2xl bg-slate-900 p-2.5 shadow-2xl" style={{ transform: 'perspective(900px) rotateY(-8deg)' }}>
-                {/* fixed 16:10 frame so the layout holds while the screenshot loads */}
-                <div className="w-full aspect-[16/10] rounded-lg overflow-hidden bg-slate-800">
-                  <img src="/login-pos-screen.jpg" alt="Core POS till screen" className="w-full h-full object-cover block" draggable={false} />
-                </div>
-              </div>
-              <div className="w-10 h-10 bg-gradient-to-b from-slate-700 to-slate-800" />
-              <div className="w-40 h-3 rounded-full bg-slate-800 shadow-lg" />
             </div>
           </div>
         </div>

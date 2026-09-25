@@ -501,13 +501,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </header>
         ) : (
         <header
-          className={`app-topbar h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0 ${isCashierRegisterPage ? 'pos-screen text-white' : 'bg-white border-b border-gray-100'}`}
-          style={isCashierRegisterPage ? { background: '#0b1f44' } : undefined}
+          className="app-topbar pos-screen text-white h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0"
         >
           {!isCashier && (
-            <button className="text-gray-500 hover:text-gray-800" onClick={() => setSidebarOpen(true)} title="Menu">
+            <button className="text-blue-100 hover:text-white" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
             </button>
+          )}
+
+          {!isCashierRegisterPage && (
+            <div className="flex items-center gap-2.5 flex-shrink-0 pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
+              <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+                <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
+                <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
+                <circle cx="18" cy="18" r="4" fill="white" />
+              </svg>
+              <div className="leading-tight hidden sm:block">
+                <p className="font-bold text-[16px]">Core POS</p>
+                <p className="text-[10px] text-blue-200/80">Simple. Smart. Sales.</p>
+              </div>
+            </div>
           )}
 
           {isPosPage ? (
@@ -539,21 +552,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ) : (
             <>
               {!isCashier && (
-                <div className={`hidden sm:flex items-center gap-2 rounded-md px-3 py-1.5 border ${
-                  isServerUp ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+                <div className={`hidden sm:flex items-center gap-2 rounded-xl px-3 h-10 ${
+                  isServerUp ? 'bg-emerald-500/15' : 'bg-amber-500/15'
                 }`}>
-                  <span className={`w-2 h-2 rounded-full inline-block ${isServerUp ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                  <span className={`text-xs font-semibold ${isServerUp ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className={`w-2 h-2 rounded-full inline-block ${isServerUp ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                  <span className={`text-xs font-semibold ${isServerUp ? 'text-emerald-300' : 'text-amber-300'}`}>
                     {isServerUp ? 'Online' : 'Offline'}
                   </span>
                 </div>
               )}
               {isCashier && (
-                <div className={`hidden sm:flex items-center gap-2 rounded-md px-3 py-1.5 shadow-sm border ${
-                  isServerUp ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300'
+                <div className={`hidden sm:flex items-center gap-2 rounded-xl px-3 h-10 ${
+                  isServerUp ? 'bg-emerald-500/15' : 'bg-amber-500/15'
                 }`}>
-                  <ShoppingCart size={14} className={isServerUp ? 'text-emerald-600' : 'text-amber-600'} />
-                  <span className={`text-sm font-semibold ${isServerUp ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  <ShoppingCart size={14} className={isServerUp ? 'text-emerald-300' : 'text-amber-300'} />
+                  <span className={`text-sm font-semibold ${isServerUp ? 'text-emerald-300' : 'text-amber-300'}`}>
                     Cashier Mode {isServerUp ? '· Online' : '· Offline'}
                   </span>
                 </div>
@@ -566,7 +579,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => handleLogout()}
-            className={`inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-md transition-colors border border-transparent ${isCashierRegisterPage ? 'text-blue-100 hover:text-red-300 hover:bg-white/10 rounded-xl' : 'text-slate-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200'}`}
+            className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-xl transition-colors text-blue-100 hover:text-red-300 hover:bg-white/10"
           >
             <LogOut size={16} />
             <span className="hidden lg:inline">Logout</span>
@@ -607,8 +620,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               const c = currencies.find(x => x.code === e.target.value);
               if (c) setActiveCurrency(c);
             }}
-            className={`text-xs font-semibold px-3 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${isCashierRegisterPage ? 'text-white border border-white/10 rounded-xl h-10 text-sm' : 'border border-slate-300 bg-gray-50 text-slate-700 rounded-md'}`}
-            style={isCashierRegisterPage ? { background: '#16305e' } : undefined}
+            className="font-semibold px-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 text-white rounded-xl h-10 text-sm"
+            style={{ background: '#16305e' }}
           >
             {currencies.filter(c => c.is_active).map(c => (
               <option key={c.code} value={c.code} className="text-slate-900">{c.symbol} {c.code}</option>
@@ -622,9 +635,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
-          {isCashierRegisterPage
-            ? <div className="text-blue-100 [&_button]:text-blue-100 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></div>
-            : <NotificationBell />}
+          <div className="text-blue-100 [&_button]:text-blue-100 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></div>
 
           {/* Cashier Register already names the logged-in cashier in its own
               header content (portaled in above), so this avatar+name would
@@ -635,8 +646,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {userInitials}
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-semibold text-slate-950 leading-tight">{user?.name}</p>
-              <p className="text-xs text-slate-500 capitalize leading-tight">{user?.roles?.[0]}</p>
+              <p className="text-sm font-semibold text-white leading-tight">{user?.name}</p>
+              <p className="text-xs text-blue-200/80 capitalize leading-tight">{user?.roles?.[0]}</p>
             </div>
           </div>
           )}

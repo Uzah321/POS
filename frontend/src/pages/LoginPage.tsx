@@ -161,7 +161,10 @@ export default function LoginPage() {
             {/* The real POS screen on a tablet stand */}
             <div className="hidden xl:flex flex-col items-center flex-1 min-w-0 -mb-2">
               <div className="w-full max-w-[380px] rounded-2xl bg-slate-900 p-2.5 shadow-2xl" style={{ transform: 'perspective(900px) rotateY(-8deg)' }}>
-                <img src="/login-pos-screen.jpg" alt="Core POS till screen" className="w-full rounded-lg block" draggable={false} />
+                {/* fixed 16:10 frame so the layout holds while the screenshot loads */}
+                <div className="w-full aspect-[16/10] rounded-lg overflow-hidden bg-slate-800">
+                  <img src="/login-pos-screen.jpg" alt="Core POS till screen" className="w-full h-full object-cover block" draggable={false} />
+                </div>
               </div>
               <div className="w-10 h-10 bg-gradient-to-b from-slate-700 to-slate-800" />
               <div className="w-40 h-3 rounded-full bg-slate-800 shadow-lg" />
@@ -209,7 +212,7 @@ export default function LoginPage() {
                       role="radio"
                       aria-checked={active}
                       onClick={() => setSide(key)}
-                      className={`relative flex flex-col items-center text-center gap-2 rounded-xl border-2 px-3 py-5 transition-colors touch-manipulation ${
+                      className={`login-role relative flex flex-col items-center text-center gap-2 rounded-xl border-2 px-3 py-5 transition-colors touch-manipulation ${
                         active ? 'border-blue-600 bg-blue-50/60' : 'border-slate-200 bg-white hover:border-blue-300'
                       }`}
                     >

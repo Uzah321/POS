@@ -788,7 +788,7 @@ export default function CashierPage() {
               }`}
             >
               {catImage
-                ? <img src={catImage} alt="" draggable={false} className="w-8 h-8 rounded-md object-cover" />
+                ? <img src={catImage} alt="" draggable={false} className="w-6 h-6 rounded-md object-cover" />
                 : <TabIcon size={15} />} {cat}
             </button>
           );

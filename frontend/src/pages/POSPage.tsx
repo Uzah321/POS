@@ -1194,11 +1194,11 @@ export default function POSPage() {
                 type="button"
                 onClick={() => setActiveCategory(cat)}
                 title={cat === 'All' ? 'All Products' : cat}
-                className="flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl min-h-[92px] px-2 py-3 text-white text-[15px] font-semibold leading-tight text-center transition-colors touch-manipulation hover:brightness-125"
+                className={`flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl min-h-[92px] px-2 ${catImage ? 'py-1.5' : 'py-3'} text-white text-[15px] font-semibold leading-tight text-center transition-colors touch-manipulation hover:brightness-125`}
                 style={{ background: active ? BLUE : NAVY_TILE, boxShadow: active ? '0 6px 16px rgba(47,109,246,.35)' : undefined }}
               >
                 {catImage
-                  ? <img src={catImage} alt="" draggable={false} className="w-[76px] h-[76px] rounded-xl object-cover bg-white/10" />
+                  ? <img src={catImage} alt="" draggable={false} className="w-[68px] h-[68px] rounded-xl object-cover bg-white/10" />
                   : <Icon size={30} strokeWidth={1.6} />}
                 <span className="line-clamp-2">{cat === 'All' ? 'All Items' : cat}</span>
               </button>

@@ -28,11 +28,11 @@ export default function PosProductTile({
         ${highlighted ? 'outline outline-[3px] outline-blue-500 outline-offset-1 z-10' : ''}`}
     >
       <div
-        className="relative w-full h-[clamp(90px,13.5vh,136px)] flex items-center justify-center overflow-hidden"
+        className="relative w-full h-[clamp(70px,10.5vh,104px)] flex items-center justify-center overflow-hidden"
         style={!product.image && tint ? { background: tint } : undefined}
       >
         {product.image ? (
-          <img src={product.image} alt="" className="w-full h-full object-contain p-1" />
+          <img src={product.image} alt="" className="w-full h-full object-contain scale-[1.15]" />
         ) : (
           <span className="text-4xl font-black select-none text-slate-300">{product.name?.[0]?.toUpperCase() ?? '?'}</span>
         )}

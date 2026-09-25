@@ -185,7 +185,7 @@ export default function SalesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales', search, page, branchId, dateFrom, dateTo],
-    queryFn: () => salesApi.list(salesFilterParams({ page, per_page: 20 })).then(r => r.data?.data),
+    queryFn: () => salesApi.list(salesFilterParams({ page, per_page: 20 })).then(r => ({ ...r.data?.data, summary: r.data?.summary })),
   });
 
   // Close the row's "..." actions menu, or the export menu, on an outside click.
@@ -348,6 +348,7 @@ export default function SalesPage() {
 
   const sales = data?.data || [];
   const meta = data?.meta;
+  const summary = data?.summary;
 
   return (
     <div className="space-y-6">
@@ -434,6 +435,22 @@ export default function SalesPage() {
             )}
           </div>
         </div>
+
+        {/* Total of every sale matching the filters above, across all pages */}
+        {summary && (
+          <div className="px-4 py-3 border-b border-gray-100 bg-amber-50/60 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Sales</span>
+              <span className="ml-2 text-xl font-bold text-gray-900 tabular-nums">{formatAmount(summary.total)}</span>
+            </div>
+            <span className="text-sm text-gray-600">{summary.count} sale{summary.count === 1 ? '' : 's'} · {dateRangeLabel}</span>
+            {(summary.voided_count > 0 || summary.open_count > 0) && (
+              <span className="text-xs text-gray-400">
+                Not included: {[summary.voided_count > 0 && `${summary.voided_count} voided`, summary.open_count > 0 && `${summary.open_count} open tab${summary.open_count === 1 ? '' : 's'}`].filter(Boolean).join(', ')}
+              </span>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>

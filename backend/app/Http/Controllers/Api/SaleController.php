@@ -40,7 +40,22 @@ class SaleController extends BaseApiController
                 return $q->where('created_at', '>=', $shiftStart);
             });
 
-        return $this->paginated($query->latest()->paginate($request->per_page ?? 20));
+        // Totals for everything matching the filters (not just this page).
+        // Only sales that count as money taken go into the total — voided
+        // sales and still-open tabs are counted separately.
+        $counted = (clone $query)->whereIn('status', Sale::REVENUE_STATUSES);
+        $summary = [
+            'total'        => (float) (clone $counted)->sum('total'),
+            'count'        => (clone $counted)->count(),
+            'voided_count' => (clone $query)->where('status', 'voided')->count(),
+            'open_count'   => (clone $query)->where('status', 'open')->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data'    => $query->latest()->paginate($request->per_page ?? 20),
+            'summary' => $summary,
+        ]);
     }
 
     public function store(Request $request): \Illuminate\Http\JsonResponse

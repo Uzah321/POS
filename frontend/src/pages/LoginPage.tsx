@@ -117,26 +117,9 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute top-1/3 left-1/3 w-[420px] h-[420px] rounded-full bg-indigo-200/30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 right-0 w-[520px] h-[520px] rounded-full bg-sky-200/40 blur-3xl" />
 
-      <div className="relative min-h-screen max-w-7xl mx-auto flex items-center gap-10 px-4 sm:px-8 py-8">
-        {/* ── Left: brand (large screens) ── */}
-        <div className="hidden lg:flex flex-1 flex-col min-w-0 justify-center">
-          <div className="flex items-center gap-4">
-            <Logo size={76} />
-            <div>
-              <p className="text-5xl font-extrabold tracking-tight text-slate-900 leading-none">Core <span className="text-blue-600">POS</span></p>
-              <p className="text-xl text-slate-700 tracking-[0.12em] mt-2">Simple. Smart. Sales.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Right: sign-in card ── */}
-        <div className="w-full max-w-xl mx-auto lg:mx-0 lg:w-[560px] flex-shrink-0 bg-white/95 backdrop-blur rounded-2xl shadow-2xl shadow-blue-900/10 border border-white p-6 sm:p-10">
-          {/* Compact brand on small screens (the left panel is hidden there) */}
-          <div className="flex lg:hidden items-center justify-center gap-3 mb-6">
-            <Logo size={44} />
-            <p className="text-2xl font-extrabold text-slate-900">Core <span className="text-blue-600">POS</span></p>
-          </div>
-
+      <div className="relative min-h-screen flex items-center justify-center px-4 sm:px-8 py-8">
+        {/* Centred sign-in card */}
+        <div className="w-full max-w-xl bg-white/95 backdrop-blur rounded-2xl shadow-2xl shadow-blue-900/10 border border-white p-6 sm:p-10">
           {!isServerUp && (
             <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
               <WifiOff size={18} className="text-red-500 mt-0.5 shrink-0" />
@@ -149,9 +132,12 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="text-center">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Welcome Back</h1>
-            <p className="text-slate-500 mt-2">Sign in to continue to Core POS</p>
+          <div className="flex items-center justify-center gap-3">
+            <Logo size={52} />
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-none">Core <span className="text-blue-600">POS</span></h1>
+              <p className="text-sm text-slate-600 tracking-[0.12em] mt-1.5">Simple. Smart. Sales.</p>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit as any)} className="mt-8 space-y-5">

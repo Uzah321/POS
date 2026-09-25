@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
 import {
-  Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings, Users,
+  Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings,
 } from 'lucide-react';
 import { frontOfHousePath, setChosenDestination } from '../lib/landing';
 
@@ -55,7 +55,7 @@ export default function LoginPage() {
     defaultValues: { username: remembered?.username ?? '' },
   });
 
-  const askAdmin = () => toast('Ask your administrator — they can reset your password under Users.', { icon: '🔑', duration: 5000 });
+  const askAdmin = () => toast('Ask your administrator to reset it under Users.', { icon: '🔑', duration: 5000 });
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -97,10 +97,10 @@ export default function LoginPage() {
     }
   };
 
-  const sideCards: Array<{ key: Side; title: string; text: string; icon: React.ReactNode }> = [
-    { key: 'front', title: 'Front of House', text: 'Cashier, sales, order taking', icon: <Store size={44} strokeWidth={1.8} /> },
+  const sideCards: Array<{ key: Side; title: string; icon: React.ReactNode }> = [
+    { key: 'front', title: 'Front of House', icon: <Store size={44} strokeWidth={1.8} /> },
     {
-      key: 'back', title: 'Back of House', text: 'Admin, inventory, reporting, settings',
+      key: 'back', title: 'Back of House',
       icon: (
         <span className="relative inline-block">
           <BarChart3 size={44} strokeWidth={1.8} />
@@ -158,9 +158,8 @@ export default function LoginPage() {
             {/* Front / Back of House */}
             <div>
               <p className="font-bold text-slate-900">Select Your Role</p>
-              <p className="text-sm text-slate-500">Choose how you want to access the system</p>
               <div className="grid grid-cols-2 gap-3 mt-3" role="radiogroup" aria-label="Front or Back of House">
-                {sideCards.map(({ key, title, text, icon }) => {
+                {sideCards.map(({ key, title, icon }) => {
                   const active = side === key;
                   return (
                     <button
@@ -178,7 +177,6 @@ export default function LoginPage() {
                       </span>
                       <span className={active ? 'text-blue-600' : 'text-slate-500'}>{icon}</span>
                       <span className="font-bold text-slate-900">{title}</span>
-                      <span className="text-xs text-slate-500">{text}</span>
                     </button>
                   );
                 })}
@@ -237,17 +235,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 flex items-center gap-3 text-sm text-slate-500">
-            <span className="flex-1 h-px bg-slate-200" /> Need help? <span className="flex-1 h-px bg-slate-200" />
-          </div>
-          <div className="mt-2 text-center">
-            <button type="button" onClick={askAdmin} className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1.5">
-              <Users size={14} /> Contact administrator
-            </button>
-          </div>
-          <a href="/api/download/core-shortcut.url" className="block text-center text-xs text-slate-400 hover:text-slate-600 mt-4">
-            Download desktop shortcut
-          </a>
         </div>
       </div>
     </div>

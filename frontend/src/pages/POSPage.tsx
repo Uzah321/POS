@@ -1198,7 +1198,7 @@ export default function POSPage() {
                 style={{ background: active ? BLUE : NAVY_TILE, boxShadow: active ? '0 6px 16px rgba(47,109,246,.35)' : undefined }}
               >
                 {catImage
-                  ? <img src={catImage} alt="" draggable={false} className="w-14 h-14 rounded-xl object-cover bg-white/10" />
+                  ? <img src={catImage} alt="" draggable={false} className="w-[76px] h-[76px] rounded-xl object-cover bg-white/10" />
                   : <Icon size={30} strokeWidth={1.6} />}
                 <span className="line-clamp-2">{cat === 'All' ? 'All Items' : cat}</span>
               </button>

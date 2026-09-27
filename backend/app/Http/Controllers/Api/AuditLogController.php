@@ -11,9 +11,14 @@ class AuditLogController extends BaseApiController
         return AuditLog::with('user:id,name')
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
+                // Search inside the captured values too, so typing a product
+                // name finds every sale/adjustment/transfer that touched it.
+                $text = $q->getConnection()->getDriverName() === 'mysql' ? 'CHAR' : 'TEXT';
                 $q->where(fn($sq) => $sq
                     ->whereRaw('LOWER(event) LIKE ?', [$s])
                     ->orWhereRaw('LOWER(auditable_type) LIKE ?', [$s])
+                    ->orWhereRaw("LOWER(CAST(new_values AS {$text})) LIKE ?", [$s])
+                    ->orWhereRaw("LOWER(CAST(old_values AS {$text})) LIKE ?", [$s])
                     ->orWhereHas('user', fn($u) => $u->whereRaw('LOWER(name) LIKE ?', [$s]))
                 );
             })

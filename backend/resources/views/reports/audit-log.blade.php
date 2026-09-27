@@ -40,17 +40,36 @@
 </p>
 @endif
 
+@php
+  $itemColumns = [
+    'quantity' => 'Qty', 'quantity_before' => 'Before', 'quantity_adjusted' => 'Change', 'quantity_after' => 'After',
+    'expected' => 'Expected', 'counted' => 'Counted', 'variance' => 'Variance',
+    'received_quantity' => 'Received', 'destination_before' => 'Dest. Before', 'destination_after' => 'Dest. After',
+    'unit' => 'Unit', 'unit_price' => 'Unit Price', 'cost_price' => 'Cost', 'discount' => 'Discount', 'total' => 'Total',
+    'restocked' => 'Restocked', 'batch' => 'Batch',
+  ];
+  $signed = ['quantity_adjusted', 'variance'];
+@endphp
 @forelse($logs as $log)
 @php
   $items = $log->new_values['items'] ?? $log->old_values['items'] ?? null;
-  $skip  = ['updated_at', 'created_at', 'slug', 'password', 'remember_token', 'items'];
+  $items = is_array($items) ? $items : null;
+  $skip  = \App\Models\AuditLog::SKIP_FIELDS;
   $changes = [];
   if ($log->event === 'updated' && !empty($log->old_values)) {
     foreach ($log->old_values as $field => $oldVal) {
       if (in_array($field, $skip)) continue;
-      $changes[] = ['field' => $field, 'old' => $oldVal, 'new' => $log->new_values[$field] ?? null];
+      $changes[] = ['field' => $field, 'old' => $log->refName($field, $oldVal), 'new' => $log->refName($field, $log->new_values[$field] ?? null)];
     }
   }
+  $fields = [];
+  if (in_array($log->event, ['created', 'deleted'])) {
+    foreach (array_merge($log->old_values ?? [], $log->new_values ?? []) as $field => $v) {
+      if (in_array($field, $skip) || $v === null || $v === '' || is_array($v)) continue;
+      $fields[] = ['field' => $field, 'value' => $log->refName($field, $v)];
+    }
+  }
+  $cols = $items ? array_filter($itemColumns, fn ($label, $key) => collect($items)->contains(fn ($i) => isset($i[$key])), ARRAY_FILTER_USE_BOTH) : [];
 @endphp
 <div class="entry">
   <table class="entry-head">
@@ -58,7 +77,7 @@
       <td style="width: 130px;" class="time">{{ $log->created_at->format('d M Y H:i:s') }}</td>
       <td style="width: 140px;" class="user">{{ $log->user->name ?? 'System' }}</td>
       <td style="width: 80px;"><span class="badge badge-{{ $log->event }}">{{ $log->event }}</span></td>
-      <td>{{ class_basename($log->auditable_type ?? '') }}{{ $log->auditable_id ? ' #' . $log->auditable_id : '' }}</td>
+      <td>{{ $log->subject }}</td>
     </tr>
   </table>
   <div class="description">{{ $log->description }}</div>
@@ -68,43 +87,49 @@
       <thead>
         <tr>
           <th>Product</th><th>SKU</th>
-          @if(array_key_exists('quantity_before', $items[0] ?? [])) <th>Before</th><th>Change</th><th>After</th><th>Cost Price</th> @endif
-          @if(array_key_exists('quantity', $items[0] ?? [])) <th>Quantity</th> @endif
-          @if(array_key_exists('received_quantity', $items[0] ?? [])) <th>Received</th><th>Dest. Before</th><th>Dest. After</th> @endif
+          @foreach($cols as $label) <th>{{ $label }}</th> @endforeach
         </tr>
       </thead>
       <tbody>
         @foreach($items as $it)
         <tr>
-          <td>{{ $it['product_name'] ?? '-' }}</td>
+          <td>{{ $it['product_name'] ?? $it['name'] ?? '-' }}</td>
           <td>{{ $it['product_sku'] ?? '-' }}</td>
-          @if(array_key_exists('quantity_before', $it))
-            <td>{{ $it['quantity_before'] }}</td>
-            <td class="{{ ($it['quantity_adjusted'] ?? 0) < 0 ? 'neg' : 'pos' }}">{{ ($it['quantity_adjusted'] ?? 0) > 0 ? '+' : '' }}{{ $it['quantity_adjusted'] }}</td>
-            <td>{{ $it['quantity_after'] }}</td>
-            <td>{{ number_format($it['cost_price'] ?? 0, 2) }}</td>
-          @endif
-          @if(array_key_exists('quantity', $it) && !array_key_exists('quantity_before', $it) && !array_key_exists('received_quantity', $it))
-            <td>{{ $it['quantity'] }}</td>
-          @endif
-          @if(array_key_exists('received_quantity', $it))
-            <td>{{ $it['received_quantity'] }}</td>
-            <td>{{ $it['destination_before'] ?? '-' }}</td>
-            <td>{{ $it['destination_after'] ?? '-' }}</td>
-          @endif
+          @foreach($cols as $key => $label)
+            @php $v = $it[$key] ?? null; @endphp
+            @if(in_array($key, $signed) && $v !== null)
+              <td class="{{ $v < 0 ? 'neg' : 'pos' }}">{{ $v > 0 ? '+' : '' }}{{ \App\Models\AuditLog::fmt($v) }}</td>
+            @else
+              <td>{{ $v === null ? '-' : \App\Models\AuditLog::fmt($v) }}</td>
+            @endif
+          @endforeach
         </tr>
         @endforeach
       </tbody>
     </table>
-  @elseif(!empty($changes))
+  @endif
+  @if(!empty($changes))
     <table class="items">
       <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
       <tbody>
         @foreach($changes as $c)
         <tr>
-          <td>{{ $c['field'] }}</td>
-          <td>{{ is_scalar($c['old']) ? $c['old'] : json_encode($c['old']) }}</td>
-          <td>{{ is_scalar($c['new']) ? $c['new'] : json_encode($c['new']) }}</td>
+          <td>{{ \App\Models\AuditLog::fieldLabel($c['field']) }}</td>
+          <td>{{ \App\Models\AuditLog::fmt($c['old']) }}</td>
+          <td>{{ \App\Models\AuditLog::fmt($c['new']) }}</td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
+  @endif
+  @if(!empty($fields))
+    <table class="items">
+      <thead><tr><th style="width: 160px;">Field</th><th>Value</th></tr></thead>
+      <tbody>
+        @foreach($fields as $f)
+        <tr>
+          <td>{{ \App\Models\AuditLog::fieldLabel($f['field']) }}</td>
+          <td>{{ \App\Models\AuditLog::fmt($f['value']) }}</td>
         </tr>
         @endforeach
       </tbody>

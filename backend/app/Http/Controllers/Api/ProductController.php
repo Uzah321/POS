@@ -122,6 +122,10 @@ class ProductController extends BaseApiController
                         ['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'product_variant_id' => null, 'batch_number' => null],
                         ['quantity' => $initialQty]
                     );
+                    \App\Models\AuditLog::attachExtra($product, [
+                        'opening_stock'           => $initialQty,
+                        'opening_stock_warehouse' => $warehouse->name,
+                    ]);
                 }
             }
 

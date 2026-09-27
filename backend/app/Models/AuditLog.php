@@ -1,6 +1,7 @@
 <?php namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class AuditLog extends Model
 {
@@ -9,7 +10,15 @@ class AuditLog extends Model
         'old_values', 'new_values', 'url', 'ip_address', 'user_agent',
     ];
     protected $casts = ['old_values' => 'array', 'new_values' => 'array'];
-    protected $appends = ['action', 'description'];
+    protected $appends = ['action', 'description', 'subject'];
+
+    /** Fields that are noise in a change list (or are rendered separately, like items). */
+    public const SKIP_FIELDS = ['updated_at', 'created_at', 'slug', 'password', 'remember_token', 'items', '_refs', 'id'];
+
+    private const ADJUSTMENT_TYPES = [
+        'in' => 'Stock added', 'out' => 'Stock removed', 'damage' => 'Stock written off (damage/wastage)',
+        'correction' => 'Stock corrected', 'opening' => 'Opening stock set', 'return' => 'Stock returned',
+    ];
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
 
@@ -41,57 +50,158 @@ class AuditLog extends Model
         }
     }
 
+    /** Reads a value from whichever side of the log has it (new first, since that's the current state). */
+    private function val(string $field)
+    {
+        return $this->new_values[$field] ?? $this->old_values[$field] ?? null;
+    }
+
+    /** "warehouse_id" + 2 -> "Main Warehouse", using the names captured when the log was written. */
+    public function refName(string $field, $id)
+    {
+        if ($id === null || $id === '' || !is_scalar($id)) return $id;
+        return $this->new_values['_refs'][$field][(string) $id] ?? $id;
+    }
+
+    public static function fieldLabel(string $field): string
+    {
+        return Str::headline(preg_replace('/_id$/', '', $field));
+    }
+
+    public static function fmt($value): string
+    {
+        if ($value === null || $value === '') return 'empty';
+        if (is_bool($value)) return $value ? 'Yes' : 'No';
+        if (is_array($value)) return json_encode($value);
+        if (is_numeric($value) && str_contains((string) $value, '.')) return rtrim(rtrim((string) $value, '0'), '.');
+        return (string) $value;
+    }
+
+    /** What the entry is about: "Stock Adjustment", "Product 'Coke 500ml'", "Sale SALE-66A1…". */
+    public function getSubjectAttribute(): string
+    {
+        $model = $this->auditable_type ? Str::headline(class_basename($this->auditable_type)) : '';
+        $name  = $this->val('name');
+        $ref   = $this->val('reference');
+        $id    = $this->auditable_id;
+        return $name ? "{$model} '{$name}'" : ($ref ? "{$model} {$ref}" : ($id ? "{$model} #{$id}" : $model));
+    }
+
     public function getDescriptionAttribute(): string
     {
-        $model = $this->auditable_type ? class_basename($this->auditable_type) : '';
-        $id    = $this->auditable_id ?? '';
-        $name  = ($this->new_values['name'] ?? null) ?? ($this->old_values['name'] ?? null);
-        // With a name field (Product, Customer, ...): "Product 'Coke 500ml'".
-        // Without one (StockAdjustment, StockTransfer, ...) the model+id is
-        // already the whole subject, so it must not be prefixed with the
-        // model name again — that previously read "Stockadjustment
-        // StockAdjustment #5 created".
-        $label = $name ? (ucfirst($model) . " '{$name}'") : ($id ? "{$model} #{$id}" : ucfirst($model));
-        $items = $this->new_values['items'] ?? $this->old_values['items'] ?? null;
+        $class = $this->auditable_type ? class_basename($this->auditable_type) : '';
+        $label = $this->subject;
+        $items = $this->val('items');
+        $items = is_array($items) ? $items : null;
 
         switch ($this->event) {
             case 'login':   return 'User logged in';
             case 'logout':  return 'User logged out';
-            case 'created': return "{$label} created" . $this->summarizeItems($items);
-            case 'deleted': return "{$label} deleted";
+            case 'created': return $this->describeCreated($class, $label, $items);
+            case 'deleted':
+                $stock = $this->val('stock_on_hand');
+                return "{$label} deleted" . ($stock !== null ? ' (stock on hand: ' . self::fmt($stock) . ')' : '') . $this->summarizeItems($items);
             case 'updated':
-                $skip    = ['updated_at', 'created_at', 'slug', 'password', 'remember_token', 'items'];
                 $changes = [];
-                if (!empty($this->old_values)) {
-                    foreach ($this->old_values as $field => $oldVal) {
-                        if (in_array($field, $skip)) continue;
-                        $newVal    = $this->new_values[$field] ?? null;
-                        $changes[] = "{$field}: {$oldVal} -> {$newVal}";
-                    }
+                foreach ($this->old_values ?? [] as $field => $oldVal) {
+                    if (in_array($field, self::SKIP_FIELDS)) continue;
+                    $newVal    = $this->new_values[$field] ?? null;
+                    $changes[] = self::fieldLabel($field) . ': ' . self::fmt($this->refName($field, $oldVal))
+                        . ' → ' . self::fmt($this->refName($field, $newVal));
                 }
-                if (!empty($changes)) {
-                    $detail = implode(', ', array_slice($changes, 0, 3));
-                    if (count($changes) > 3) $detail .= ' (+' . (count($changes) - 3) . ' more)';
-                    return "{$label} updated: {$detail}" . $this->summarizeItems($items);
-                }
-                return "{$label} updated" . $this->summarizeItems($items);
+                $detail = $changes
+                    ? ': ' . implode(', ', array_slice($changes, 0, 5)) . (count($changes) > 5 ? ' (+' . (count($changes) - 5) . ' more)' : '')
+                    : '';
+                return "{$label} updated{$detail}" . $this->summarizeItems($items);
             default:
-                return trim(ucfirst($this->event ?? '') . ($model ? " {$model}" : '') . ($id ? " #{$id}" : ''));
+                return trim(ucfirst($this->event ?? '') . ' ' . $label);
         }
     }
 
-    /** Turns an attached items[] detail array (see attachExtra()) into a short " — 2x Coke +100, 1x Sprite -5" style suffix. */
+    private function describeCreated(string $class, string $label, ?array $items): string
+    {
+        $ref   = fn (string $f) => $this->refName($f, $this->val($f));
+        $money = fn (string $f) => number_format((float) $this->val($f), 2);
+        $parts = [];
+
+        switch ($class) {
+            case 'StockAdjustment':
+            case 'IngredientStockAdjustment':
+                $type = self::ADJUSTMENT_TYPES[$this->val('type')] ?? 'Stock adjusted';
+                if ($class === 'IngredientStockAdjustment') $type = 'Ingredient ' . lcfirst($type);
+                $where  = $this->val('warehouse_id') ? ' at ' . $ref('warehouse_id') : '';
+                $reason = $this->val('reason') ? ' · Reason: ' . $this->val('reason') : '';
+                return $type . $where . $this->summarizeItems($items) . $reason;
+
+            case 'StockTransfer':
+                return "{$label} created from " . $ref('from_warehouse_id') . ' to ' . $ref('to_warehouse_id') . $this->summarizeItems($items);
+
+            case 'Sale':
+                if ($this->val('customer_id')) $parts[] = 'Customer: ' . $ref('customer_id');
+                if ($this->val('status')) $parts[] = 'Status: ' . $this->val('status');
+                if ($this->val('total') !== null) $parts[] = 'Total: ' . $money('total');
+                break;
+
+            case 'Refund':
+                if ($this->val('sale_id')) $parts[] = 'Sale: ' . $ref('sale_id');
+                if ($this->val('amount') !== null) $parts[] = 'Amount: ' . $money('amount');
+                if ($this->val('reason')) $parts[] = 'Reason: ' . $this->val('reason');
+                break;
+
+            case 'PurchaseOrder':
+                if ($this->val('supplier_id')) $parts[] = 'Supplier: ' . $ref('supplier_id');
+                if ($this->val('total') !== null) $parts[] = 'Total: ' . $money('total');
+                break;
+
+            case 'Product':
+                if ($this->val('sku')) $parts[] = 'SKU: ' . $this->val('sku');
+                if ($this->val('selling_price') !== null) $parts[] = 'Price: ' . $money('selling_price');
+                if ($this->val('cost_price') !== null) $parts[] = 'Cost: ' . $money('cost_price');
+                if ($this->val('opening_stock') !== null) {
+                    $parts[] = 'Opening stock: ' . self::fmt($this->val('opening_stock'))
+                        . ($this->val('opening_stock_warehouse') ? ' at ' . $this->val('opening_stock_warehouse') : '');
+                }
+                break;
+
+            case 'Expense':
+            case 'CashflowEntry':
+            case 'SupplierPayment':
+                if ($this->val('amount') !== null) $parts[] = 'Amount: ' . $money('amount');
+                break;
+        }
+
+        return "{$label} created" . ($parts ? ' (' . implode(', ', $parts) . ')' : '') . $this->summarizeItems($items);
+    }
+
+    /**
+     * Turns an items[] detail array into a readable suffix, e.g.
+     * " — Coke 500ml +10 (5 → 15), Bread -2 (8 → 6)" or " — 2 × Coke 500ml, 1 × Bread".
+     */
     private function summarizeItems(?array $items): string
     {
         if (empty($items)) return '';
         $parts = [];
-        foreach (array_slice($items, 0, 4) as $item) {
-            $label = $item['product_name'] ?? $item['name'] ?? ('#' . ($item['product_id'] ?? '?'));
-            $qty   = $item['quantity_adjusted'] ?? $item['quantity'] ?? $item['received_quantity'] ?? null;
-            $parts[] = $qty !== null ? "{$label} ({$qty})" : $label;
+        foreach (array_slice($items, 0, 5) as $item) {
+            $name = $item['product_name'] ?? $item['name'] ?? ('#' . ($item['product_id'] ?? '?'));
+            $unit = !empty($item['unit']) ? ' ' . $item['unit'] : '';
+            if (array_key_exists('quantity_adjusted', $item)) {
+                $adj = (float) $item['quantity_adjusted'];
+                $parts[] = $name . ' ' . ($adj > 0 ? '+' : '') . self::fmt($item['quantity_adjusted']) . $unit
+                    . (isset($item['quantity_before'], $item['quantity_after'])
+                        ? ' (' . self::fmt($item['quantity_before']) . ' → ' . self::fmt($item['quantity_after']) . ')' : '');
+            } elseif (array_key_exists('counted', $item)) {
+                $parts[] = "{$name} counted " . self::fmt($item['counted']) . ' (expected ' . self::fmt($item['expected'] ?? null)
+                    . ', variance ' . self::fmt($item['variance'] ?? null) . ')';
+            } elseif (array_key_exists('destination_after', $item)) {
+                $parts[] = self::fmt($item['received_quantity'] ?? null) . " × {$name} received";
+            } elseif (array_key_exists('quantity', $item)) {
+                $parts[] = self::fmt($item['quantity']) . "{$unit} × {$name}";
+            } else {
+                $parts[] = $name;
+            }
         }
         $suffix = ' — ' . implode(', ', $parts);
-        if (count($items) > 4) $suffix .= ' +' . (count($items) - 4) . ' more';
+        if (count($items) > 5) $suffix .= ' +' . (count($items) - 5) . ' more';
         return $suffix;
     }
 }

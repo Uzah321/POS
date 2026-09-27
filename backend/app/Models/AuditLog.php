@@ -73,7 +73,10 @@ class AuditLog extends Model
         if ($value === null || $value === '') return 'empty';
         if (is_bool($value)) return $value ? 'Yes' : 'No';
         if (is_array($value)) return json_encode($value);
-        if (is_numeric($value) && str_contains((string) $value, '.')) return rtrim(rtrim((string) $value, '0'), '.');
+        // Decimals only — a numeric SKU/barcode has no '.' and must stay as typed.
+        if (is_numeric($value) && preg_match('/[.eE]/', (string) $value)) {
+            return rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
+        }
         return (string) $value;
     }
 

@@ -37,6 +37,7 @@ class AuditDetails
         'tax_rate_id'       => [TaxRate::class, 'name'],
         'register_id'       => [Register::class, 'name'],
         'table_id'          => [RestaurantTable::class, 'name'],
+        'scale_id'          => [\App\Models\WeighingScale::class, 'name'],
         'sale_id'           => [Sale::class, 'reference'],
         'purchase_order_id' => [PurchaseOrder::class, 'reference'],
         'user_id'           => [User::class, 'name'],

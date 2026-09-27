@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
 import toast from 'react-hot-toast';
 import { SUPERMARKET_ENABLED } from '../lib/shops';
+import { useAuthStore } from '../stores/authStore';
 
 type BizType = 'restaurant' | 'supermarket';
 
@@ -48,6 +49,10 @@ export default function BusinessTypeModal({ onSelect }: Props) {
   const [selected, setSelected]   = useState<BizType | null>(null);
   const [saving, setSaving]       = useState(false);
   const qc                        = useQueryClient();
+  const { hasPermission, hasRole } = useAuthStore();
+  // Only an admin/manage_settings user can set the store-wide type; anyone
+  // else's pick just applies to this session instead of failing with a 403.
+  const canSave = hasRole('admin') || hasPermission('manage_settings');
 
   const saveMutation = useMutation({
     mutationFn: (type: BizType) => settingsApi.update({ business_type: type }),
@@ -66,6 +71,10 @@ export default function BusinessTypeModal({ onSelect }: Props) {
 
   const confirm = async () => {
     if (!selected) return;
+    if (!canSave) {
+      onSelect(selected);
+      return;
+    }
     setSaving(true);
     try {
       await saveMutation.mutateAsync(selected);

@@ -236,9 +236,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
         Route::patch('/fiscal/tax-mappings/{fiscalTaxMapping}', [\App\Http\Controllers\Api\FiscalController::class, 'updateTaxMapping']);
     });
 
-    // Settings — matches /settings frontend route's manage_settings gate
+    // Settings — saving matches the /settings frontend route's manage_settings gate.
+    // Reading is open to everyone signed in (non-managers get only the
+    // non-secret keys — see SettingController::PUBLIC_KEYS); saving isn't.
+    Route::get('/settings', [\App\Http\Controllers\Api\SettingController::class, 'index']);
     Route::middleware('permission:manage_settings')->group(function () {
-        Route::get('/settings', [\App\Http\Controllers\Api\SettingController::class, 'index']);
         Route::post('/settings', [\App\Http\Controllers\Api\SettingController::class, 'update']);
     });
 

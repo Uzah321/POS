@@ -29,7 +29,7 @@
 </head>
 <body>
 <h1>Audit Log Report</h1>
-<p class="subtitle">Generated on {{ now()->format('d M Y, H:i') }} &middot; {{ $logs->count() }} {{ $logs->count() === 1 ? 'entry' : 'entries' }}</p>
+<p class="subtitle">Generated on {{ now()->setTimezone($tz ?? config('app.timezone'))->format('d M Y, H:i') }} &middot; {{ $logs->count() }} {{ $logs->count() === 1 ? 'entry' : 'entries' }}</p>
 
 @if(array_filter($filters))
 <p class="filters">
@@ -37,6 +37,7 @@
   @if($filters['date_to']) <span>To: {{ $filters['date_to'] }}</span> @endif
   @if($filters['user']) <span>User: {{ $filters['user'] }}</span> @endif
   @if($filters['search']) <span>Search: "{{ $filters['search'] }}"</span> @endif
+  @if(!empty($filters['event'])) <span>Action: {{ ucfirst($filters['event']) }}</span> @endif
 </p>
 @endif
 
@@ -68,7 +69,7 @@
 <div class="entry">
   <table class="entry-head">
     <tr>
-      <td style="width: 130px;" class="time">{{ $log->created_at->format('d M Y H:i:s') }}</td>
+      <td style="width: 130px;" class="time">{{ $log->created_at->copy()->setTimezone($tz ?? config('app.timezone'))->format('d M Y H:i:s') }}</td>
       <td style="width: 140px;" class="user">{{ $log->user->name ?? 'System' }}</td>
       <td style="width: 80px;"><span class="badge badge-{{ $log->event }}">{{ $log->event }}</span></td>
       <td>{{ $log->subject }}</td>

@@ -24,6 +24,8 @@ function fmt(value: unknown): string {
   if (value === null || value === undefined || value === '') return '';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'object') return JSON.stringify(value);
+  // Product photos are stored inline as base64 — show a marker, not pages of text.
+  if (typeof value === 'string' && value.startsWith('data:')) return '[image]';
   return String(value);
 }
 
@@ -231,6 +233,7 @@ export default function AuditLogPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [userId, setUserId] = useState('');
+  const [event, setEvent] = useState('');
   const [downloading, setDownloading] = useState(false);
 
   const filterParams = {
@@ -238,10 +241,13 @@ export default function AuditLogPage() {
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     user_id: userId || undefined,
+    event: event || undefined,
+    // Date filters mean this browser's calendar days, and the PDF prints times in it too.
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['audit-logs', page, search, dateFrom, dateTo, userId],
+    queryKey: ['audit-logs', page, search, dateFrom, dateTo, userId, event],
     queryFn: () => api.get('/audit-logs', { params: { page, ...filterParams, per_page: 50 } }).then(r => r.data?.data),
   });
 
@@ -256,17 +262,11 @@ export default function AuditLogPage() {
 
   const handleDownloadPdf = () => {
     setDownloading(true);
-    const params = new URLSearchParams(
-      Object.entries(filterParams).filter(([, v]) => v !== undefined) as [string, string][]
-    ).toString();
-    fetch(`/api/audit-logs/pdf${params ? `?${params}` : ''}`, { credentials: 'include' })
+    // Exactly the filters the list above is showing, so the PDF matches the screen.
+    api.get('/audit-logs/pdf', { params: filterParams, responseType: 'blob', timeout: 120000 })
       .then(res => {
-        if (!res.ok) throw new Error('Export failed');
-        return res.blob();
-      })
-      .then(blob => {
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
+        a.href = URL.createObjectURL(res.data);
         a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.pdf`;
         a.click();
       })
@@ -304,6 +304,18 @@ export default function AuditLogPage() {
         >
           <option value="">All users</option>
           {filterUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <select
+          value={event}
+          onChange={e => { setEvent(e.target.value); setPage(1); }}
+          className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">All actions</option>
+          <option value="created">Created</option>
+          <option value="updated">Updated</option>
+          <option value="deleted">Deleted</option>
+          <option value="login">Login</option>
+          <option value="logout">Logout</option>
         </select>
         <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <span className="text-gray-400 text-sm">to</span>

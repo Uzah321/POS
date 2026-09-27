@@ -73,6 +73,9 @@ class AuditLog extends Model
         if ($value === null || $value === '') return 'empty';
         if (is_bool($value)) return $value ? 'Yes' : 'No';
         if (is_array($value)) return json_encode($value);
+        // Product photos are stored inline as base64 — printing one is pages of noise (and exhausts dompdf's memory).
+        if (is_string($value) && str_starts_with($value, 'data:')) return '[image]';
+        if (is_string($value) && mb_strlen($value) > 300) return mb_substr($value, 0, 300) . '…';
         // Decimals only — a numeric SKU/barcode has no '.' and must stay as typed.
         if (is_numeric($value) && preg_match('/[.eE]/', (string) $value)) {
             return rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AUTH_ME_QUERY_KEY } from '../components/auth/RouteGuards';
 import { usersApi, branchesApi, departmentsApi } from '../api';
 import { Plus, Search, Edit, Trash2, Loader2, X, Users, WifiOff, Building2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -133,6 +134,8 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
         toast.success(user ? 'Staff updated' : 'Staff member added');
       }
       qc.invalidateQueries({ queryKey: ['users'] });
+      // If this was the signed-in user's own role, apply it right away.
+      qc.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
       onClose();
     },
     onError: () => toast.error('Failed to save'),

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AUTH_ME_QUERY_KEY } from '../components/auth/RouteGuards';
 import api from '../lib/axios';
 import { Shield, Save, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -30,7 +31,7 @@ export default function RolePermissionPage() {
       offlineMutate(() => api.put(`/roles/${roleId}`, { permissions }), 'roles', 'update', { _url: `/roles/${roleId}`, _method: 'PUT', permissions }, roleId),
     onSuccess: (result, { roleName }) => {
       if (result.offline) toast.success(`${roleName} permissions saved offline - will sync when server is back`);
-      else { toast.success(`${roleName} permissions saved`); qc.invalidateQueries({ queryKey: ['roles-permissions'] }); }
+      else { toast.success(`${roleName} permissions saved`); qc.invalidateQueries({ queryKey: ['roles-permissions'] }); qc.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY }); }
       setSaving(null);
     },
   });

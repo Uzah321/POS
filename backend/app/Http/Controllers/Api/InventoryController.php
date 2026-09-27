@@ -400,10 +400,28 @@ class InventoryController extends BaseApiController
                     // Set stock quantity
                     if ($quantity !== null) {
                         $qty = max(0, $quantity);
+                        $before = (float) (Stock::where('product_id', $product->id)->where('warehouse_id', $warehouseId)->value('quantity') ?? 0);
                         Stock::updateOrCreate(
                             ['product_id' => $product->id, 'warehouse_id' => $warehouseId],
                             ['quantity' => $qty, 'branch_id' => $request->branch_id ?? null]
                         );
+                        // Stock rows aren't audited on their own, so record what the import did.
+                        $whName = \App\Models\Warehouse::whereKey($warehouseId)->value('name');
+                        if ($product->wasRecentlyCreated) {
+                            AuditLog::attachExtra($product, ['opening_stock' => $qty, 'opening_stock_warehouse' => $whName]);
+                        } elseif ((float) $qty !== $before) {
+                            AuditLog::create([
+                                'user_id'        => $request->user()?->id,
+                                'event'          => 'updated',
+                                'auditable_type' => Product::class,
+                                'auditable_id'   => $product->id,
+                                'old_values'     => ['stock_quantity' => $before],
+                                'new_values'     => ['stock_quantity' => $qty, 'name' => $product->name, 'stock_on_hand' => (float) $product->stocks()->sum('quantity'), 'reason' => "Excel import at {$whName}"],
+                                'url'            => $request->url(),
+                                'ip_address'     => $request->ip(),
+                                'user_agent'     => $request->userAgent(),
+                            ]);
+                        }
                     }
                 } catch (\Throwable $e) {
                     $errors[] = "Row " . ($index + 1) . " ({$row['name']}): " . $e->getMessage();

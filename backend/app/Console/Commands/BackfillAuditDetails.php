@@ -7,6 +7,7 @@ use App\Models\IngredientStockAdjustment;
 use App\Models\Layby;
 use App\Support\AuditDetails;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Adds the detail that AuditObserver now captures (line items with product
@@ -102,33 +103,96 @@ class BackfillAuditDetails extends Command
     }
 
     /**
-     * ProductController::store writes the opening-stock row in the same
-     * transaction as the product, so a stock row created within a minute of
-     * the product is that row. Its quantity is only still the opening amount
-     * if it was never touched since (updated_at == created_at); otherwise
-     * sales/adjustments have moved it and the true figure is unknown, so
-     * nothing is guessed. No such row at all means it was created with 0.
+     * ProductController::store (and the Excel import) write the opening-stock
+     * row in the same request as the product, so a stock row created within
+     * a minute of the product is that row. No such row means it started at 0.
+     *
+     * If that row was never touched since, its quantity is the opening
+     * amount. Otherwise the opening amount is worked back from today's stock
+     * and every recorded movement since — but only when all movements are of
+     * a kind whose exact effect is known (completed/voided sales, stock
+     * adjustments). Anything else (deliveries, transfers, stocktakes,
+     * refunds, variants, a stock write after the last recorded movement)
+     * means the figure can't be proven, and nothing is written.
      */
     private function openingStock(AuditLog $log): ?array
     {
-        $rows = \App\Models\Stock::where('product_id', $log->auditable_id)
-            ->whereBetween('created_at', [$log->created_at->copy()->subMinute(), $log->created_at->copy()->addMinute()])
-            ->get();
+        $pid  = $log->auditable_id;
+        $all  = \App\Models\Stock::where('product_id', $pid)->get();
+        $rows = $all->filter(fn ($r) => $r->created_at
+            && $r->created_at->between($log->created_at->copy()->subMinute(), $log->created_at->copy()->addMinute()));
 
         if ($rows->isEmpty()) {
             // A row without timestamps (raw insert) could be the opening row — don't claim 0 then.
-            if (\App\Models\Stock::where('product_id', $log->auditable_id)->whereNull('created_at')->exists()) return null;
-            return \App\Models\Product::withoutGlobalScopes()->whereKey($log->auditable_id)->exists()
+            if ($all->contains(fn ($r) => !$r->created_at)) return null;
+            return \App\Models\Product::withoutGlobalScopes()->whereKey($pid)->exists()
                 ? ['opening_stock' => 0]
                 : null;
         }
-        if ($rows->contains(fn ($r) => !$r->updated_at || !$r->updated_at->equalTo($r->created_at))) return null;
 
         $warehouse = \App\Models\Warehouse::withoutGlobalScopes()->whereKey($rows->first()->warehouse_id)->value('name');
-        return array_filter([
-            'opening_stock'           => (float) $rows->sum('quantity'),
+        $result = fn (float $qty) => array_filter([
+            'opening_stock'           => $qty,
             'opening_stock_warehouse' => $warehouse,
         ], fn ($v) => $v !== null);
+
+        if (!$rows->contains(fn ($r) => !$r->updated_at || !$r->updated_at->equalTo($r->created_at))) {
+            return $result((float) $rows->sum('quantity'));
+        }
+
+        $opening = $this->reconstructOpening($pid, $all);
+        return $opening === null ? null : $result($opening);
+    }
+
+    private function reconstructOpening(int $pid, $stockRows): ?float
+    {
+        $product = \App\Models\Product::withoutGlobalScopes()->find($pid);
+        if (!$product || $product->made_to_order || !$product->track_stock) return null;
+        if ($stockRows->contains(fn ($r) => $r->product_variant_id !== null || !$r->updated_at)) return null;
+
+        // Movement kinds whose effect on stock isn't provable from here.
+        $saleItemIds = DB::table('sale_items')->where('product_id', $pid)->pluck('id');
+        if (DB::table('goods_receipt_items')->where('product_id', $pid)->exists()
+            || DB::table('stock_transfer_items')->where('product_id', $pid)->exists()
+            || DB::table('stocktake_items')->where('product_id', $pid)->exists()
+            || DB::table('stock_count_items')->where('product_id', $pid)->exists()
+            || ($saleItemIds->isNotEmpty() && DB::table('refund_items')->whereIn('sale_item_id', $saleItemIds)->exists())) {
+            return null;
+        }
+
+        $sales = DB::table('sale_items as i')->join('sales as s', 's.id', '=', 'i.sale_id')
+            ->where('i.product_id', $pid)
+            ->get(['s.status', 's.warehouse_id', 's.created_at', 's.completed_at', 's.voided_at', 'i.quantity', 'i.product_variant_id']);
+        $warehouses = $stockRows->pluck('warehouse_id')->all();
+        $sold = 0.0;
+        $lastMovement = null;
+        foreach ($sales as $sale) {
+            // Completed sales deduct exactly; voided ones deduct then restore (net 0). Open tabs etc. are unclear.
+            if (!in_array($sale->status, ['completed', 'voided'], true)) return null;
+            if ($sale->product_variant_id !== null || !in_array($sale->warehouse_id, $warehouses)) return null;
+            if ($sale->status === 'completed') $sold += (float) $sale->quantity;
+            $lastMovement = max($lastMovement, $sale->voided_at ?? $sale->completed_at ?? $sale->created_at, $sale->created_at);
+        }
+
+        $adjustments = DB::table('stock_adjustment_items as i')->join('stock_adjustments as a', 'a.id', '=', 'i.stock_adjustment_id')
+            ->where('i.product_id', $pid)
+            ->get(['a.created_at', 'i.quantity_before', 'i.quantity_after', 'i.product_variant_id']);
+        $adjusted = 0.0;
+        foreach ($adjustments as $a) {
+            if ($a->product_variant_id !== null) return null;
+            // after - before is what really happened (a removal is clamped at 0).
+            $adjusted += (float) $a->quantity_after - (float) $a->quantity_before;
+            $lastMovement = max($lastMovement, $a->created_at);
+        }
+        if ($lastMovement === null) return null;
+
+        // A stock write later than every recorded movement (e.g. an Excel
+        // import overwriting the quantity) would make the sum wrong.
+        $lastWrite = $stockRows->max('updated_at');
+        if ($lastWrite->gt(\Illuminate\Support\Carbon::parse($lastMovement)->addSeconds(5))) return null;
+
+        $opening = round((float) $stockRows->sum('quantity') - $adjusted + $sold, 3);
+        return $opening >= 0 ? $opening : null;
     }
 
     private function find(string $class, $id)

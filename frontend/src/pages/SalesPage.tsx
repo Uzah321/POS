@@ -180,6 +180,8 @@ export default function SalesPage() {
     ...(branchId ? { branch_id: Number(branchId) } : {}),
     ...(dateFrom ? { date_from: dateFrom } : {}),
     ...(dateTo ? { date_to: dateTo } : {}),
+    // Date pickers mean this browser's calendar days, not UTC ones.
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
     ...extra,
   });
 
@@ -209,24 +211,51 @@ export default function SalesPage() {
     return res?.data || [];
   };
 
-  // Total units on a sale (sum of line quantities — weighed items can be fractional).
-  const saleQty = (s: any): number =>
-    Math.round((s.items || []).reduce((sum: number, it: any) => sum + (parseFloat(it.quantity) || 0), 0) * 1000) / 1000;
+  // When the search matched products (e.g. "hunters"), rows and exports show
+  // just those products' lines — their quantity and money, not the whole basket.
+  const productIds: number[] = data?.summary?.product_ids ?? [];
+  const productFocus = productIds.length > 0;
+  const shownItems = (s: any): any[] => {
+    const items: any[] = s.items || [];
+    return productFocus ? items.filter((it: any) => productIds.includes(Number(it.product_id))) : items;
+  };
+  const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-  const saleExportRow = (s: any) => {
+  // Units on a sale (sum of line quantities — weighed items can be fractional).
+  const saleQty = (s: any): number =>
+    round3(shownItems(s).reduce((sum: number, it: any) => sum + (parseFloat(it.quantity) || 0), 0));
+  const lineTotal = (s: any): number =>
+    shownItems(s).reduce((sum: number, it: any) => sum + (parseFloat(it.total) || 0), 0);
+
+  const exportHead = productFocus
+    ? ['Reference', 'Date', 'Product', 'Qty', 'Unit Price', 'Line Total', 'Customer', 'Cashier', 'Sale Total', 'Status']
+    : ['Reference', 'Date', 'Items', 'Qty', 'Customer', 'Cashier', 'Total', 'Status'];
+
+  const saleExportRows = (s: any): any[][] => {
+    const date = format(new Date(s.created_at), 'dd MMM yyyy HH:mm');
+    if (productFocus) {
+      return shownItems(s).map((it: any) => [
+        s.reference, date, it.product?.name ?? '', round3(parseFloat(it.quantity) || 0),
+        formatAmount(parseFloat(it.unit_price)), formatAmount(parseFloat(it.total)),
+        s.customer?.name || 'Walk-in', s.cashier?.name || '', formatAmount(parseFloat(s.total)), s.status,
+      ]);
+    }
     const items: any[] = s.items || [];
     const itemNames = items.map((it: any) => it.product?.name).filter(Boolean).join(', ') || `${s.items_count || items.length || 0} items`;
-    return [
+    return [[
       s.reference,
-      format(new Date(s.created_at), 'dd MMM yyyy HH:mm'),
+      date,
       itemNames,
       saleQty(s),
       s.customer?.name || 'Walk-in',
       s.cashier?.name || '',
       formatAmount(parseFloat(s.total)),
       s.status,
-    ];
+    ]];
   };
+
+  const productSummaryLine = (): string =>
+    (data?.summary?.products ?? []).map((p: any) => `${p.name}: ${p.quantity} sold (${formatAmount(p.amount)})`).join('  ·  ');
 
   const handleExportExcel = async () => {
     setShowExportMenu(false);
@@ -234,7 +263,11 @@ export default function SalesPage() {
     try {
       const sales = await fetchAllFilteredSales();
       exportToExcel(
-        [['Reference', 'Date', 'Items', 'Qty', 'Customer', 'Cashier', 'Total', 'Status'], ...sales.map(saleExportRow)],
+        [
+          ...(productFocus ? [[`Search: "${search}"`, dateRangeLabel, productSummaryLine()], []] : []),
+          exportHead,
+          ...sales.flatMap(saleExportRows),
+        ],
         `sales-history-${format(new Date(), 'yyyy-MM-dd')}`
       );
       toast.success(`Exported ${sales.length} sale${sales.length !== 1 ? 's' : ''}`);
@@ -258,15 +291,21 @@ export default function SalesPage() {
       const margin = 40;
 
       autoTable(doc, {
-        head: [['Reference', 'Date', 'Items', 'Qty', 'Customer', 'Cashier', 'Total', 'Status']],
-        body: sales.map(saleExportRow),
+        head: [exportHead],
+        body: sales.flatMap(saleExportRows),
         startY: 90,
         margin: { left: margin, right: margin, bottom: 50 },
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, lineColor: [225, 228, 232], lineWidth: 0.5 },
         headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', halign: 'left' },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: {
+        columnStyles: productFocus ? {
+          0: { cellWidth: 90, font: 'courier', fontSize: 8 },
+          3: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+          4: { halign: 'right' },
+          5: { halign: 'right', fontStyle: 'bold' },
+          8: { halign: 'right' },
+        } : {
           0: { cellWidth: 90, font: 'courier', fontSize: 8 },
           3: { cellWidth: 40, halign: 'right' },
           6: { cellWidth: 90, halign: 'right', fontStyle: 'bold' },
@@ -282,7 +321,14 @@ export default function SalesPage() {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(10);
           doc.setTextColor(203, 213, 225);
-          doc.text(`Sales History Report  ·  ${dateRangeLabel}${branchName ? `  ·  ${branchName}` : ''}`, margin, 50);
+          doc.text(`Sales History Report  ·  ${dateRangeLabel}${branchName ? `  ·  ${branchName}` : ''}${search ? `  ·  Search: "${search}"` : ''}`, margin, 50);
+          if (productFocus) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(255, 255, 255);
+            doc.text(productSummaryLine(), margin, 63);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(203, 213, 225);
+          }
 
           doc.setFontSize(9);
           doc.text(`Generated: ${generatedAt.toLocaleDateString()} ${generatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, pageWidth - margin, 32, { align: 'right' });
@@ -395,8 +441,8 @@ export default function SalesPage() {
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search by reference..."
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-64"
+              placeholder="Search product, SKU, barcode or reference..."
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-80"
             />
           </div>
           <select
@@ -444,11 +490,34 @@ export default function SalesPage() {
               <span className="ml-2 text-xl font-bold text-gray-900 tabular-nums">{formatAmount(summary.total)}</span>
             </div>
             <span className="text-sm text-gray-600">{summary.count} sale{summary.count === 1 ? '' : 's'} · {dateRangeLabel}</span>
+            {productFocus && (summary.products ?? []).length === 0 && (
+              <span className="text-sm text-gray-500">No units of the matching product{productIds.length === 1 ? '' : 's'} sold in this period</span>
+            )}
             {(summary.voided_count > 0 || summary.open_count > 0) && (
               <span className="text-xs text-gray-400">
                 Not included: {[summary.voided_count > 0 && `${summary.voided_count} voided`, summary.open_count > 0 && `${summary.open_count} open tab${summary.open_count === 1 ? '' : 's'}`].filter(Boolean).join(', ')}
               </span>
             )}
+          </div>
+        )}
+        {summary?.products?.length > 0 && (
+          <div className="px-4 py-3 border-b border-gray-100 bg-white">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Sold in this period · {dateRangeLabel}</p>
+            <div className="flex flex-wrap gap-2">
+              {summary.products.map((p: any) => (
+                <div key={p.product_id} className="border border-amber-200 bg-amber-50 rounded-lg px-3 py-2">
+                  <div className="text-sm font-semibold text-gray-900">{p.name}{p.sku && <span className="text-gray-400 font-normal"> ({p.sku})</span>}</div>
+                  <div className="text-sm text-gray-700 mt-0.5">
+                    <span className="text-lg font-bold text-gray-900 tabular-nums">{p.quantity}</span> sold
+                    <span className="mx-1.5 text-gray-300">·</span>{formatAmount(p.amount)}
+                    <span className="mx-1.5 text-gray-300">·</span>{p.sales} sale{p.sales === 1 ? '' : 's'}
+                  </div>
+                  {p.refunded_qty > 0 && (
+                    <div className="text-xs text-red-600 mt-0.5">{p.refunded_qty} refunded ({formatAmount(p.refunded_amount)}) · net {round3(p.quantity - p.refunded_qty)}</div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -459,19 +528,22 @@ export default function SalesPage() {
             <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Item', 'Qty', 'Date', 'Customer', 'Cashier', 'Total', 'Status', ''].map(h => (
+                  {(productFocus
+                    ? ['Product', 'Qty', 'Line Total', 'Date', 'Customer', 'Cashier', 'Sale Total', 'Status', '']
+                    : ['Item', 'Qty', 'Date', 'Customer', 'Cashier', 'Total', 'Status', '']).map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sales.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
+                  <tr><td colSpan={productFocus ? 9 : 8} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
                 ) : sales.map((s: any) => {
-                  const items: any[] = s.items || [];
+                  const items: any[] = shownItems(s);
                   const firstItemName = items[0]?.product?.name;
-                  const itemCount = s.items_count || items.length || 0;
+                  const itemCount = productFocus ? items.length : (s.items_count || items.length || 0);
                   const extraCount = itemCount - 1;
+                  const otherItems = productFocus ? (s.items_count || (s.items || []).length) - items.length : 0;
                   return (
                   <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-sm text-gray-900">
@@ -483,8 +555,10 @@ export default function SalesPage() {
                       ) : (
                         <span className="text-gray-400">{itemCount} items</span>
                       )}
+                      {otherItems > 0 && <div className="text-xs text-gray-400">+ {otherItems} other item{otherItems === 1 ? '' : 's'} on this sale</div>}
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold text-gray-700 tabular-nums">{saleQty(s)}</td>
+                    {productFocus && <td className="px-4 py-3 text-sm font-semibold text-gray-900 tabular-nums">{formatAmount(lineTotal(s))}</td>}
                     <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(s.created_at), 'dd MMM yyyy HH:mm')}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.customer?.name || 'Walk-in'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{s.cashier?.name}</td>

@@ -23,33 +23,84 @@ class SaleController extends BaseApiController
     {
         $branchId = $this->effectiveBranchId($request);
         $businessType = $this->effectiveBusinessType($request);
-        $query = Sale::with('customer', 'cashier', 'branch', 'items.product:id,name')
-            ->withCount('items')
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
-            ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->when($request->cashier_id, fn($q) => $q->where('user_id', $request->cashier_id))
-            ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
-            ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
-            ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to))
-            ->when($request->search, fn($q) => $q->where('reference', 'like', "%{$request->search}%"))
-            ->when($request->current_shift, function ($q) use ($request) {
-                $user       = $request->user();
-                $lastShift  = ShiftEnd::where('user_id', $user->id)->latest()->first();
-                $shiftStart = $lastShift ? $lastShift->shift_end : now()->startOfDay();
-                return $q->where('created_at', '>=', $shiftStart);
-            });
+
+        // The search box matches a sale reference or anything that identifies
+        // a product on it (name, SKU, barcode), case-insensitively, so typing
+        // "hunters" lists every sale that included Hunters.
+        $term = trim((string) $request->search);
+        $like = '%' . mb_strtolower($term) . '%';
+        $productIds = [];
+        if ($request->filled('product_id')) {
+            $productIds = [(int) $request->product_id];
+        } elseif ($term !== '') {
+            $productIds = \App\Models\Product::withoutGlobalScopes()
+                ->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(sku) LIKE ?', [$like])
+                    ->orWhere('barcode', $term))
+                ->pluck('id')->all();
+        }
+
+        // Date pickers are the viewer's calendar days, not UTC ones.
+        $tz = in_array($request->query('tz'), \DateTimeZone::listIdentifiers(), true) ? $request->query('tz') : config('app.timezone');
+
+        $applyFilters = function ($q) use ($request, $branchId, $businessType, $term, $like, $productIds, $tz) {
+            return $q
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
+                ->when($request->status, fn($q) => $q->where('status', $request->status))
+                ->when($request->cashier_id, fn($q) => $q->where('user_id', $request->cashier_id))
+                ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
+                ->when($request->date_from, fn($q) => $q->where('created_at', '>=', \Illuminate\Support\Carbon::parse($request->date_from, $tz)->startOfDay()->utc()))
+                ->when($request->date_to, fn($q) => $q->where('created_at', '<=', \Illuminate\Support\Carbon::parse($request->date_to, $tz)->endOfDay()->utc()))
+                ->when($request->filled('product_id'), fn($q) => $q->whereHas('items', fn($i) => $i->whereIn('product_id', $productIds)))
+                ->when(!$request->filled('product_id') && $term !== '', fn($q) => $q->where(fn($w) => $w
+                    ->whereRaw('LOWER(reference) LIKE ?', [$like])
+                    ->when($productIds, fn($w) => $w->orWhereHas('items', fn($i) => $i->whereIn('product_id', $productIds)))))
+                ->when($request->current_shift, function ($q) use ($request) {
+                    $user       = $request->user();
+                    $lastShift  = ShiftEnd::where('user_id', $user->id)->latest()->first();
+                    $shiftStart = $lastShift ? $lastShift->shift_end : now()->startOfDay();
+                    return $q->where('created_at', '>=', $shiftStart);
+                });
+        };
+
+        $query = $applyFilters(Sale::with('customer', 'cashier', 'branch', 'items.product:id,name,sku')->withCount('items'));
 
         // Totals for everything matching the filters (not just this page).
         // Only sales that count as money taken go into the total — voided
         // sales and still-open tabs are counted separately.
-        $counted = (clone $query)->whereIn('status', Sale::REVENUE_STATUSES);
+        $counted = $applyFilters(Sale::query())->whereIn('status', Sale::REVENUE_STATUSES);
         $summary = [
             'total'        => (float) (clone $counted)->sum('total'),
             'count'        => (clone $counted)->count(),
-            'voided_count' => (clone $query)->where('status', 'voided')->count(),
-            'open_count'   => (clone $query)->where('status', 'open')->count(),
+            'voided_count' => $applyFilters(Sale::query())->where('status', 'voided')->count(),
+            'open_count'   => $applyFilters(Sale::query())->where('status', 'open')->count(),
         ];
+
+        // When the search matched products: how much of each was sold in the
+        // filtered period (quantity, money, number of sales, refunds).
+        if ($productIds) {
+            $saleIds = (clone $counted)->select('sales.id');
+            $rows = SaleItem::whereIn('sale_id', $saleIds)->whereIn('product_id', $productIds)
+                ->selectRaw('product_id, SUM(quantity) AS quantity, SUM(total) AS amount, COUNT(DISTINCT sale_id) AS sales')
+                ->groupBy('product_id')->get()->keyBy('product_id');
+            $refunded = DB::table('refund_items as r')->join('sale_items as i', 'i.id', '=', 'r.sale_item_id')
+                ->whereIn('i.sale_id', (clone $counted)->select('sales.id'))->whereIn('i.product_id', $productIds)
+                ->selectRaw('i.product_id, SUM(r.quantity) AS quantity, SUM(r.amount) AS amount')
+                ->groupBy('i.product_id')->get()->keyBy('product_id');
+            $names = \App\Models\Product::withoutGlobalScopes()->whereIn('id', $rows->keys())->get(['id', 'name', 'sku'])->keyBy('id');
+            $summary['product_ids'] = array_values($productIds);
+            $summary['products'] = $rows->map(fn ($r) => [
+                'product_id'       => (int) $r->product_id,
+                'name'             => $names[$r->product_id]->name ?? "#{$r->product_id}",
+                'sku'              => $names[$r->product_id]->sku ?? null,
+                'quantity'         => round((float) $r->quantity, 3),
+                'amount'           => round((float) $r->amount, 2),
+                'sales'            => (int) $r->sales,
+                'refunded_qty'     => round((float) ($refunded[$r->product_id]->quantity ?? 0), 3),
+                'refunded_amount'  => round((float) ($refunded[$r->product_id]->amount ?? 0), 2),
+            ])->sortByDesc('quantity')->values();
+        }
 
         return response()->json([
             'success' => true,

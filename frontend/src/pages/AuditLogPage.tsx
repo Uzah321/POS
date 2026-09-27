@@ -59,7 +59,8 @@ function getFields(log: any): Array<{ field: string; value: string }> {
   if (log.event !== 'created' && log.event !== 'deleted') return [];
   const values = { ...(log.old_values ?? {}), ...(log.new_values ?? {}) } as Record<string, unknown>;
   return Object.entries(values)
-    .filter(([f, v]) => !SKIP_FIELDS.has(f) && v !== null && v !== '' && typeof v !== 'object')
+    // opening_stock is shown in the quantity row instead.
+    .filter(([f, v]) => !SKIP_FIELDS.has(f) && f !== 'opening_stock' && v !== null && v !== '' && typeof v !== 'object')
     .map(([f, v]) => ({ field: f, value: refName(log, f, v) }));
 }
 
@@ -126,6 +127,28 @@ function ItemsTable({ items }: { items: any[] }) {
   );
 }
 
+// Stock this entry itself added/removed (opening stock, import overwrite,
+// deleted product) — see AuditLog::getStockMovementAttribute.
+function MovementTable({ movement }: { movement: { quantity: number; stock_after: number | null } }) {
+  const q = Number(movement.quantity);
+  return (
+    <table className="text-xs w-full max-w-lg">
+      <thead>
+        <tr className="text-gray-500">
+          <th className="text-left pr-4 py-1 font-semibold">Quantity {q < 0 ? 'removed' : 'added'}</th>
+          <th className="text-left py-1 font-semibold">Stock on hand after</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="border-t border-blue-100">
+          <td className={`pr-4 py-1 font-semibold ${q < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{q > 0 ? '+' : ''}{fmt(q)}</td>
+          <td className="py-1 text-gray-800">{movement.stock_after == null ? '-' : fmt(movement.stock_after)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 function FieldsTable({ fields }: { fields: Array<{ field: string; value: string }> }) {
   return (
     <table className="text-xs w-full max-w-lg">
@@ -146,7 +169,8 @@ function LogRow({ log }: { log: any }) {
   const changes = getChanges(log);
   const items = getItems(log);
   const fields = getFields(log);
-  const hasDetail = changes.length > 0 || items.length > 0 || fields.length > 0;
+  const movement = log.stock_movement;
+  const hasDetail = changes.length > 0 || items.length > 0 || fields.length > 0 || !!movement;
 
   return (
     <>
@@ -172,6 +196,12 @@ function LogRow({ log }: { log: any }) {
       {expanded && hasDetail && (
         <tr className="bg-blue-50 border-b border-blue-100">
           <td colSpan={4} className="px-8 py-3 space-y-3">
+            {movement && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase mb-1">Stock</p>
+                <MovementTable movement={movement} />
+              </div>
+            )}
             {items.length > 0 && (
               <div>
                 <p className="text-[11px] font-semibold text-gray-500 uppercase mb-1">Items</p>
@@ -234,6 +264,7 @@ export default function AuditLogPage() {
   const [dateTo, setDateTo] = useState('');
   const [userId, setUserId] = useState('');
   const [event, setEvent] = useState('');
+  const [model, setModel] = useState('');
   const [downloading, setDownloading] = useState(false);
 
   const filterParams = {
@@ -242,12 +273,13 @@ export default function AuditLogPage() {
     date_to: dateTo || undefined,
     user_id: userId || undefined,
     event: event || undefined,
+    model: model || undefined,
     // Date filters mean this browser's calendar days, and the PDF prints times in it too.
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['audit-logs', page, search, dateFrom, dateTo, userId, event],
+    queryKey: ['audit-logs', page, search, dateFrom, dateTo, userId, event, model],
     queryFn: () => api.get('/audit-logs', { params: { page, ...filterParams, per_page: 50 } }).then(r => r.data?.data),
   });
 
@@ -256,6 +288,12 @@ export default function AuditLogPage() {
     queryFn: () => api.get('/audit-logs/users').then(r => r.data?.data ?? []),
   });
   const filterUsers: Array<{ id: number; name: string }> = usersData ?? [];
+
+  const { data: typesData } = useQuery({
+    queryKey: ['audit-log-types'],
+    queryFn: () => api.get('/audit-logs/types').then(r => r.data?.data ?? []),
+  });
+  const filterTypes: Array<{ value: string; label: string }> = typesData ?? [];
 
   const logs: any[] = data?.data ?? data ?? [];
   const meta = data?.meta ?? {};
@@ -316,6 +354,14 @@ export default function AuditLogPage() {
           <option value="deleted">Deleted</option>
           <option value="login">Login</option>
           <option value="logout">Logout</option>
+        </select>
+        <select
+          value={model}
+          onChange={e => { setModel(e.target.value); setPage(1); }}
+          className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">All types</option>
+          {filterTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <span className="text-gray-400 text-sm">to</span>

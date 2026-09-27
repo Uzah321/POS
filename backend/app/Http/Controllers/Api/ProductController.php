@@ -112,22 +112,23 @@ class ProductController extends BaseApiController
         $product = DB::transaction(function () use ($data, $initialQty, $branchId) {
             $product = Product::create($data);
 
-            if ($initialQty > 0) {
-                // Initial stock lands in the same branch the product now belongs to.
-                $warehouse = \App\Models\Warehouse::where('branch_id', $branchId)->orderByDesc('is_default')->first()
-                          ?? \App\Models\Warehouse::where('is_default', true)->first()
-                          ?? \App\Models\Warehouse::first();
-                if ($warehouse) {
-                    Stock::updateOrCreate(
-                        ['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'product_variant_id' => null, 'batch_number' => null],
-                        ['quantity' => $initialQty]
-                    );
-                    \App\Models\AuditLog::attachExtra($product, [
-                        'opening_stock'           => $initialQty,
-                        'opening_stock_warehouse' => $warehouse->name,
-                    ]);
-                }
+            // Initial stock lands in the same branch the product now belongs to.
+            $warehouse = $initialQty > 0
+                ? (\App\Models\Warehouse::where('branch_id', $branchId)->orderByDesc('is_default')->first()
+                    ?? \App\Models\Warehouse::where('is_default', true)->first()
+                    ?? \App\Models\Warehouse::first())
+                : null;
+            if ($warehouse) {
+                Stock::updateOrCreate(
+                    ['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'product_variant_id' => null, 'batch_number' => null],
+                    ['quantity' => $initialQty]
+                );
             }
+            // Recorded even when 0, so the audit log always says how much stock the product started with.
+            \App\Models\AuditLog::attachExtra($product, array_filter([
+                'opening_stock'           => $warehouse ? $initialQty : 0,
+                'opening_stock_warehouse' => $warehouse?->name,
+            ], fn ($v) => $v !== null));
 
             return $product;
         });

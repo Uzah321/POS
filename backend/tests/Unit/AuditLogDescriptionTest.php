@@ -94,4 +94,27 @@ class AuditLogDescriptionTest extends TestCase
 
         $this->assertSame('Ingredient stock added at 1 — Flour +2.5 kg (1 → 3.5)', $log->description);
     }
+    public function test_product_created_reports_opening_stock_as_quantity_added(): void
+    {
+        $log = $this->log('created', 'Product', null, ['name' => 'Hunters', 'opening_stock' => 24]);
+        $this->assertSame(['quantity' => 24.0, 'stock_after' => 24.0], $log->stock_movement);
+    }
+
+    public function test_import_overwrite_reports_signed_quantity_change(): void
+    {
+        $log = $this->log('updated', 'Product', ['stock_quantity' => 10], ['stock_quantity' => 4, 'stock_on_hand' => 6]);
+        $this->assertSame(['quantity' => -6.0, 'stock_after' => 6.0], $log->stock_movement);
+    }
+
+    public function test_product_deleted_reports_stock_removed(): void
+    {
+        $log = $this->log('deleted', 'Product', ['name' => 'Guarana', 'stock_on_hand' => 3], null);
+        $this->assertSame(['quantity' => -3.0, 'stock_after' => 0.0], $log->stock_movement);
+    }
+
+    public function test_plain_product_edit_has_no_stock_movement(): void
+    {
+        $log = $this->log('updated', 'Product', ['cost_price' => 1.67], ['cost_price' => 1.167, 'stock_on_hand' => 12]);
+        $this->assertNull($log->stock_movement);
+    }
 }

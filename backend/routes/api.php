@@ -246,6 +246,7 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::middleware('permission:manage_settings')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\Api\AuditLogController::class, 'index']);
         Route::get('/audit-logs/users', [\App\Http\Controllers\Api\AuditLogController::class, 'filterUsers']);
+        Route::get('/audit-logs/types', [\App\Http\Controllers\Api\AuditLogController::class, 'filterTypes']);
         Route::get('/audit-logs/pdf', [\App\Http\Controllers\Api\AuditLogController::class, 'exportPdf']);
     });
 

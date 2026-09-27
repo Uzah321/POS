@@ -36,6 +36,7 @@
   @if($filters['date_from']) <span>From: {{ $filters['date_from'] }}</span> @endif
   @if($filters['date_to']) <span>To: {{ $filters['date_to'] }}</span> @endif
   @if($filters['user']) <span>User: {{ $filters['user'] }}</span> @endif
+  @if($filters['model']) <span>Type: {{ $filters['model'] }}</span> @endif
   @if($filters['search']) <span>Search: "{{ $filters['search'] }}"</span> @endif
   @if(!empty($filters['event'])) <span>Action: {{ ucfirst($filters['event']) }}</span> @endif
 </p>
@@ -60,10 +61,12 @@
   $fields = [];
   if (in_array($log->event, ['created', 'deleted'])) {
     foreach (array_merge($log->old_values ?? [], $log->new_values ?? []) as $field => $v) {
-      if (in_array($field, $skip) || $v === null || $v === '' || is_array($v)) continue;
+      // opening_stock is shown in the quantity row instead.
+      if (in_array($field, $skip) || $field === 'opening_stock' || $v === null || $v === '' || is_array($v)) continue;
       $fields[] = ['field' => $field, 'value' => $log->refName($field, $v)];
     }
   }
+  $movement = $log->stock_movement;
   $cols = $items ? array_filter($itemColumns, fn ($label, $key) => collect($items)->contains(fn ($i) => isset($i[$key])), ARRAY_FILTER_USE_BOTH) : [];
 @endphp
 <div class="entry">
@@ -76,6 +79,18 @@
     </tr>
   </table>
   <div class="description">{{ $log->description }}</div>
+
+  @if($movement)
+    <table class="items">
+      <thead><tr><th style="width: 160px;">Quantity {{ $movement['quantity'] < 0 ? 'removed' : 'added' }}</th><th>Stock on hand after</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="{{ $movement['quantity'] < 0 ? 'neg' : 'pos' }}">{{ $movement['quantity'] > 0 ? '+' : '' }}{{ \App\Models\AuditLog::fmt($movement['quantity']) }}</td>
+          <td>{{ $movement['stock_after'] === null ? '-' : \App\Models\AuditLog::fmt($movement['stock_after']) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  @endif
 
   @if(!empty($items))
     <table class="items">

@@ -10,7 +10,7 @@ class AuditLog extends Model
         'old_values', 'new_values', 'url', 'ip_address', 'user_agent',
     ];
     protected $casts = ['old_values' => 'array', 'new_values' => 'array'];
-    protected $appends = ['action', 'description', 'subject'];
+    protected $appends = ['action', 'description', 'subject', 'stock_movement'];
 
     /** Fields that are noise in a change list (or are rendered separately, like items). */
     public const SKIP_FIELDS = ['updated_at', 'created_at', 'slug', 'password', 'remember_token', 'items', '_refs', 'id'];
@@ -106,6 +106,39 @@ class AuditLog extends Model
             $changes[] = ['field' => $field, 'old' => $this->refName($field, $oldVal), 'new' => $this->refName($field, $newVal)];
         }
         return $changes;
+    }
+
+    /**
+     * How much stock this entry itself added or removed, for entries whose own
+     * row doesn't carry an items table: a product's opening stock, a stock
+     * quantity overwritten by an import, or the stock gone with a deleted
+     * product. Adjustments, sales, transfers etc. show theirs per item instead.
+     * @return array{quantity: float, stock_after: float|null}|null
+     */
+    public function getStockMovementAttribute(): ?array
+    {
+        $isProduct = $this->auditable_type === Product::class;
+
+        if ($this->event === 'created' && $isProduct && $this->val('opening_stock') !== null) {
+            $qty = (float) $this->val('opening_stock');
+            return ['quantity' => $qty, 'stock_after' => $qty];
+        }
+
+        if ($this->event === 'updated'
+            && isset($this->old_values['stock_quantity'], $this->new_values['stock_quantity'])
+            && !self::sameValue($this->old_values['stock_quantity'], $this->new_values['stock_quantity'])) {
+            $after = $this->new_values['stock_on_hand'] ?? $this->new_values['stock_quantity'];
+            return [
+                'quantity'    => (float) $this->new_values['stock_quantity'] - (float) $this->old_values['stock_quantity'],
+                'stock_after' => (float) $after,
+            ];
+        }
+
+        if ($this->event === 'deleted' && $isProduct && (float) $this->val('stock_on_hand') != 0) {
+            return ['quantity' => -(float) $this->val('stock_on_hand'), 'stock_after' => 0.0];
+        }
+
+        return null;
     }
 
     /** What the entry is about: "Stock Adjustment", "Product 'Coke 500ml'", "Sale SALE-66A1…". */

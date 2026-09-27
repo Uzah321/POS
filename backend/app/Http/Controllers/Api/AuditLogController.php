@@ -24,7 +24,8 @@ class AuditLogController extends BaseApiController
             })
             ->when($request->user_id, fn($q) => $q->where('user_id', $request->user_id))
             ->when($request->event, fn($q) => $q->where('event', $request->event))
-            ->when($request->model, fn($q) => $q->where('auditable_type', 'like', "%{$request->model}%"))
+            // Exact class, so "Product" doesn't also match ProductVariant/ProductCaseUnit.
+            ->when($request->model, fn($q) => $q->where('auditable_type', 'App\\Models\\' . class_basename($request->model)))
             // Dates are the viewer's calendar days, not UTC ones — otherwise
             // anything after 22:00 in Harare lands on the next day.
             ->when($request->date_from, fn($q) => $q->where('created_at', '>=', \Illuminate\Support\Carbon::parse($request->date_from, $this->tz($request))->startOfDay()->utc()))
@@ -53,6 +54,15 @@ class AuditLogController extends BaseApiController
         return $this->success($users);
     }
 
+    /** GET /audit-logs/types — kinds of record that have audit entries ("Product", "Sale", ...), for the filter dropdown. */
+    public function filterTypes(): \Illuminate\Http\JsonResponse
+    {
+        $types = AuditLog::query()->whereNotNull('auditable_type')->distinct()->pluck('auditable_type')
+            ->map(fn ($t) => ['value' => class_basename($t), 'label' => \Illuminate\Support\Str::headline(class_basename($t))])
+            ->sortBy('label')->values();
+        return $this->success($types);
+    }
+
     /** GET /audit-logs/pdf — same filters as index(), rendered as a downloadable report. Capped so a huge unfiltered export doesn't hang the request. */
     public function exportPdf(Request $request)
     {
@@ -67,6 +77,7 @@ class AuditLogController extends BaseApiController
             'user'      => $request->user_id ? optional(\App\Models\User::find($request->user_id))->name : null,
             'search'    => $request->search,
             'event'     => $request->event,
+            'model'     => $request->model ? \Illuminate\Support\Str::headline(class_basename($request->model)) : null,
         ];
 
         $pdf = Pdf::loadView('reports.audit-log', ['logs' => $logs, 'filters' => $filters, 'tz' => $this->tz($request)])->setPaper('a4', 'landscape');

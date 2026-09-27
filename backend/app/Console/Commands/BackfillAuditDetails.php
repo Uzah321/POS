@@ -82,6 +82,13 @@ class BackfillAuditDetails extends Command
             }
         }
 
+        if ($log->event === 'created' && $class === \App\Models\Product::class && !array_key_exists('opening_stock', $new)) {
+            if (($opening = $this->openingStock($log)) !== null) {
+                $new = array_merge($new, $opening);
+                $changed = true;
+            }
+        }
+
         if (!$changed) return false;
 
         $log->timestamps = false;
@@ -92,6 +99,36 @@ class BackfillAuditDetails extends Command
         }
         $log->saveQuietly();
         return true;
+    }
+
+    /**
+     * ProductController::store writes the opening-stock row in the same
+     * transaction as the product, so a stock row created within a minute of
+     * the product is that row. Its quantity is only still the opening amount
+     * if it was never touched since (updated_at == created_at); otherwise
+     * sales/adjustments have moved it and the true figure is unknown, so
+     * nothing is guessed. No such row at all means it was created with 0.
+     */
+    private function openingStock(AuditLog $log): ?array
+    {
+        $rows = \App\Models\Stock::where('product_id', $log->auditable_id)
+            ->whereBetween('created_at', [$log->created_at->copy()->subMinute(), $log->created_at->copy()->addMinute()])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            // A row without timestamps (raw insert) could be the opening row — don't claim 0 then.
+            if (\App\Models\Stock::where('product_id', $log->auditable_id)->whereNull('created_at')->exists()) return null;
+            return \App\Models\Product::withoutGlobalScopes()->whereKey($log->auditable_id)->exists()
+                ? ['opening_stock' => 0]
+                : null;
+        }
+        if ($rows->contains(fn ($r) => !$r->updated_at || !$r->updated_at->equalTo($r->created_at))) return null;
+
+        $warehouse = \App\Models\Warehouse::withoutGlobalScopes()->whereKey($rows->first()->warehouse_id)->value('name');
+        return array_filter([
+            'opening_stock'           => (float) $rows->sum('quantity'),
+            'opening_stock_warehouse' => $warehouse,
+        ], fn ($v) => $v !== null);
     }
 
     private function find(string $class, $id)

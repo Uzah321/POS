@@ -34,10 +34,17 @@ function refName(log: any, field: string, value: unknown): string {
   return name ?? fmt(value);
 }
 
+// "5" resubmitted over a stored 5.000 isn't a change — hide it (matches AuditLog::sameValue).
+function sameValue(a: unknown, b: unknown): boolean {
+  const isNum = (v: unknown) => v !== null && v !== '' && typeof v !== 'boolean' && !isNaN(Number(v));
+  if (isNum(a) && isNum(b)) return Number(a) === Number(b);
+  return fmt(a) === fmt(b);
+}
+
 function getChanges(log: any): Array<{ field: string; old: string; new: string }> {
   if (log.event !== 'updated' || !log.old_values) return [];
   return Object.entries(log.old_values as Record<string, unknown>)
-    .filter(([f]) => !SKIP_FIELDS.has(f))
+    .filter(([f, oldVal]) => !SKIP_FIELDS.has(f) && !sameValue(oldVal, log.new_values?.[f]))
     .map(([f, oldVal]) => ({
       field: f,
       old: refName(log, f, oldVal),
@@ -188,6 +195,12 @@ function LogRow({ log }: { log: any }) {
                         <td className="py-1 text-emerald-700 font-medium break-all">{c.new || <span className="text-gray-300">empty</span>}</td>
                       </tr>
                     ))}
+                    {log.new_values?.stock_on_hand != null && (
+                      <tr className="border-t border-blue-100">
+                        <td className="pr-4 py-1 font-semibold text-gray-700">Stock on hand</td>
+                        <td colSpan={2} className="py-1 font-semibold text-gray-800">{fmt(log.new_values.stock_on_hand)}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

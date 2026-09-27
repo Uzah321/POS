@@ -55,13 +55,7 @@
   $items = $log->new_values['items'] ?? $log->old_values['items'] ?? null;
   $items = is_array($items) ? $items : null;
   $skip  = \App\Models\AuditLog::SKIP_FIELDS;
-  $changes = [];
-  if ($log->event === 'updated' && !empty($log->old_values)) {
-    foreach ($log->old_values as $field => $oldVal) {
-      if (in_array($field, $skip)) continue;
-      $changes[] = ['field' => $field, 'old' => $log->refName($field, $oldVal), 'new' => $log->refName($field, $log->new_values[$field] ?? null)];
-    }
-  }
+  $changes = $log->changes();
   $fields = [];
   if (in_array($log->event, ['created', 'deleted'])) {
     foreach (array_merge($log->old_values ?? [], $log->new_values ?? []) as $field => $v) {
@@ -119,6 +113,12 @@
           <td>{{ \App\Models\AuditLog::fmt($c['new']) }}</td>
         </tr>
         @endforeach
+        @if(isset($log->new_values['stock_on_hand']))
+        <tr>
+          <td><strong>Stock on hand</strong></td>
+          <td colspan="2"><strong>{{ \App\Models\AuditLog::fmt($log->new_values['stock_on_hand']) }}</strong></td>
+        </tr>
+        @endif
       </tbody>
     </table>
   @endif

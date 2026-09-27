@@ -75,6 +75,10 @@ class AuditObserver
     {
         $dirty = $model->getDirty();
         unset($dirty['updated_at']);
+        $original = $model->getRawOriginal();
+        // A form resubmitting "5" over a stored 5.000 marks the field dirty
+        // without changing anything — that's noise ("Reorder Level: 5 → 5").
+        $dirty = array_filter($dirty, fn ($v, $f) => !AuditLog::sameValue($original[$f] ?? null, $v), ARRAY_FILTER_USE_BOTH);
         if (empty($dirty)) return;
         $old = array_intersect_key($model->getOriginal(), $dirty);
         // Only changed fields are stored, so keep what identifies the record

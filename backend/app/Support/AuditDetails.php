@@ -104,11 +104,11 @@ class AuditDetails
             ]];
         }
 
-        // A product's own row doesn't hold its stock, so a deletion would
-        // otherwise not say how much stock was still on hand. (Opening stock
-        // on creation is attached by ProductController::store, since the
-        // stock row is written after the product.)
-        if ($model instanceof Product && $event === 'deleted') {
+        // A product's own row doesn't hold its stock, so an edit or deletion
+        // would otherwise not say how much stock there was at the time.
+        // (Opening stock on creation is attached by ProductController::store,
+        // since the stock row is written after the product.)
+        if ($model instanceof Product && $event !== 'created') {
             $extra['stock_on_hand'] = (float) \App\Models\Stock::where('product_id', $model->getKey())->sum('quantity');
         }
 

@@ -61,6 +61,30 @@ class AuditLogDescriptionTest extends TestCase
         $this->assertSame("Product 'Coke 500ml' updated: Category: Drinks → Snacks, Selling Price: 10 → 12", $log->description);
     }
 
+    public function test_update_hides_unchanged_values_and_shows_stock_on_hand(): void
+    {
+        $log = $this->log('updated', 'Product',
+            ['cost_price' => '1.67', 'reorder_level' => 5],
+            ['cost_price' => '1.167', 'reorder_level' => '5.000', 'name' => 'Guarana', 'stock_on_hand' => 24.0],
+        );
+
+        $this->assertSame("Product 'Guarana' updated: Cost Price: 1.67 → 1.167 · Stock on hand: 24", $log->description);
+        $this->assertCount(1, $log->changes());
+    }
+
+    public function test_product_created_shows_opening_stock(): void
+    {
+        $log = $this->log('created', 'Product', null, [
+            'name' => 'Hunters', 'sku' => 'OYJ-1', 'selling_price' => '1.50', 'cost_price' => '1.167',
+            'opening_stock' => 24, 'opening_stock_warehouse' => 'Main Warehouse',
+        ]);
+
+        $this->assertSame(
+            "Product 'Hunters' created (SKU: OYJ-1, Price: 1.50, Cost: 1.17, Opening stock: 24 at Main Warehouse)",
+            $log->description,
+        );
+    }
+
     public function test_ingredient_adjustment_includes_unit(): void
     {
         $log = $this->log('created', 'IngredientStockAdjustment', null, [

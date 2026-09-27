@@ -80,6 +80,31 @@ class AuditLog extends Model
         return (string) $value;
     }
 
+    /** True when a "change" didn't change anything, e.g. "5" resubmitted over a stored 5.000. */
+    public static function sameValue($a, $b): bool
+    {
+        if (is_numeric($a) && is_numeric($b)) return (float) $a === (float) $b;
+        return $a === $b || (string) (is_scalar($a) ? $a : json_encode($a)) === (string) (is_scalar($b) ? $b : json_encode($b));
+    }
+
+    /**
+     * Field-level changes of an "updated" entry with ids resolved to names —
+     * shared by the description, the page and the PDF so all three agree.
+     * @return array<int, array{field: string, old: mixed, new: mixed}>
+     */
+    public function changes(): array
+    {
+        if ($this->event !== 'updated') return [];
+        $changes = [];
+        foreach ($this->old_values ?? [] as $field => $oldVal) {
+            if (in_array($field, self::SKIP_FIELDS)) continue;
+            $newVal = $this->new_values[$field] ?? null;
+            if (self::sameValue($oldVal, $newVal)) continue;
+            $changes[] = ['field' => $field, 'old' => $this->refName($field, $oldVal), 'new' => $this->refName($field, $newVal)];
+        }
+        return $changes;
+    }
+
     /** What the entry is about: "Stock Adjustment", "Product 'Coke 500ml'", "Sale SALE-66A1…". */
     public function getSubjectAttribute(): string
     {
@@ -105,17 +130,15 @@ class AuditLog extends Model
                 $stock = $this->val('stock_on_hand');
                 return "{$label} deleted" . ($stock !== null ? ' (stock on hand: ' . self::fmt($stock) . ')' : '') . $this->summarizeItems($items);
             case 'updated':
-                $changes = [];
-                foreach ($this->old_values ?? [] as $field => $oldVal) {
-                    if (in_array($field, self::SKIP_FIELDS)) continue;
-                    $newVal    = $this->new_values[$field] ?? null;
-                    $changes[] = self::fieldLabel($field) . ': ' . self::fmt($this->refName($field, $oldVal))
-                        . ' → ' . self::fmt($this->refName($field, $newVal));
-                }
+                $changes = array_map(
+                    fn ($c) => self::fieldLabel($c['field']) . ': ' . self::fmt($c['old']) . ' → ' . self::fmt($c['new']),
+                    $this->changes(),
+                );
                 $detail = $changes
                     ? ': ' . implode(', ', array_slice($changes, 0, 5)) . (count($changes) > 5 ? ' (+' . (count($changes) - 5) . ' more)' : '')
                     : '';
-                return "{$label} updated{$detail}" . $this->summarizeItems($items);
+                $stock = $this->val('stock_on_hand');
+                return "{$label} updated{$detail}" . ($stock !== null ? ' · Stock on hand: ' . self::fmt($stock) : '') . $this->summarizeItems($items);
             default:
                 return trim(ucfirst($this->event ?? '') . ' ' . $label);
         }

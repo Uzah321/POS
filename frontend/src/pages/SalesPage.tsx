@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { salesApi, settingsApi, branchesApi, refundsApi } from '../api';
+import { salesApi, settingsApi, branchesApi, refundsApi, productsApi } from '../api';
 import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
@@ -148,6 +148,11 @@ export default function SalesPage() {
   const [branchId, setBranchId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  // Product picker: narrows to one exact product (the search box can match several).
+  const [product, setProduct] = useState<{ id: number; name: string } | null>(null);
+  const [productQuery, setProductQuery] = useState('');
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const productPickerRef = useRef<HTMLDivElement>(null);
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [refundSale, setRefundSale] = useState<any>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -182,13 +187,37 @@ export default function SalesPage() {
     ...(dateTo ? { date_to: dateTo } : {}),
     // Date pickers mean this browser's calendar days, not UTC ones.
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+    ...(product ? { product_id: product.id } : {}),
     ...extra,
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales', search, page, branchId, dateFrom, dateTo],
+    queryKey: ['sales', search, page, branchId, dateFrom, dateTo, product?.id],
     queryFn: () => salesApi.list(salesFilterParams({ page, per_page: 20 })).then(r => ({ ...r.data?.data, summary: r.data?.summary })),
   });
+
+  const { data: productOptions = [], isFetching: productsLoading } = useQuery({
+    queryKey: ['sales-product-picker', productQuery],
+    queryFn: () => productsApi.list({ search: productQuery, per_page: 15 }).then(r => r.data?.data?.data ?? []),
+    enabled: showProductPicker,
+    staleTime: 30000,
+  });
+
+  useEffect(() => {
+    if (!showProductPicker) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (productPickerRef.current && !productPickerRef.current.contains(e.target as Node)) setShowProductPicker(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [showProductPicker]);
+
+  const pickProduct = (p: { id: number; name: string } | null) => {
+    setProduct(p);
+    setProductQuery('');
+    setShowProductPicker(false);
+    setPage(1);
+  };
 
   // Close the row's "..." actions menu, or the export menu, on an outside click.
   useEffect(() => {
@@ -203,6 +232,7 @@ export default function SalesPage() {
 
   const branchName = branchId ? (branchData as any[] || []).find((b: any) => String(b.id) === branchId)?.name : null;
   const dateRangeLabel = dateFrom || dateTo ? `${dateFrom || 'earliest'} to ${dateTo || 'today'}` : 'All dates';
+  const focusLabel = product ? `Product: ${product.name}` : search ? `Search: "${search}"` : '';
 
   // Pulls every sale matching the current filters (not just the visible page)
   // so an export reflects what the user has filtered for, not one page of it.
@@ -264,7 +294,7 @@ export default function SalesPage() {
       const sales = await fetchAllFilteredSales();
       exportToExcel(
         [
-          ...(productFocus ? [[`Search: "${search}"`, dateRangeLabel, productSummaryLine()], []] : []),
+          ...(productFocus ? [[focusLabel, dateRangeLabel, productSummaryLine()], []] : []),
           exportHead,
           ...sales.flatMap(saleExportRows),
         ],
@@ -321,7 +351,7 @@ export default function SalesPage() {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(10);
           doc.setTextColor(203, 213, 225);
-          doc.text(`Sales History Report  ·  ${dateRangeLabel}${branchName ? `  ·  ${branchName}` : ''}${search ? `  ·  Search: "${search}"` : ''}`, margin, 50);
+          doc.text(`Sales History Report  ·  ${dateRangeLabel}${branchName ? `  ·  ${branchName}` : ''}${focusLabel ? `  ·  ${focusLabel}` : ''}`, margin, 50);
           if (productFocus) {
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(255, 255, 255);
@@ -445,6 +475,43 @@ export default function SalesPage() {
               className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-80"
             />
           </div>
+          <div className="relative" ref={productPickerRef}>
+            {product ? (
+              <div className="flex items-center gap-2 pl-3 pr-2 py-2 border border-amber-300 bg-amber-50 rounded-lg text-sm">
+                <span className="font-medium text-gray-800 max-w-56 truncate">{product.name}</span>
+                <button type="button" onClick={() => pickProduct(null)} className="text-gray-400 hover:text-gray-600" aria-label="Clear product">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <input
+                value={productQuery}
+                onChange={(e) => { setProductQuery(e.target.value); setShowProductPicker(true); }}
+                onFocus={() => setShowProductPicker(true)}
+                placeholder="Filter by product..."
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-56"
+              />
+            )}
+            {showProductPicker && !product && (
+              <div className="absolute z-20 left-0 top-full mt-1 w-72 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+                {productsLoading && (productOptions as any[]).length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>
+                ) : (productOptions as any[]).length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-400">No products found</div>
+                ) : (productOptions as any[]).map((p: any) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => pickProduct({ id: p.id, name: p.name })}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-amber-50"
+                  >
+                    {p.name}
+                    {p.sku && <span className="text-gray-400 text-xs"> ({p.sku})</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <select
             value={branchId}
             onChange={(e) => { setBranchId(e.target.value); setPage(1); }}
@@ -505,7 +572,12 @@ export default function SalesPage() {
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Sold in this period · {dateRangeLabel}</p>
             <div className="flex flex-wrap gap-2">
               {summary.products.map((p: any) => (
-                <div key={p.product_id} className="border border-amber-200 bg-amber-50 rounded-lg px-3 py-2">
+                <div
+                  key={p.product_id}
+                  onClick={summary.products.length > 1 ? () => pickProduct({ id: p.product_id, name: p.name }) : undefined}
+                  title={summary.products.length > 1 ? 'Show only this product' : undefined}
+                  className={`border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 ${summary.products.length > 1 ? 'cursor-pointer hover:border-amber-400' : ''}`}
+                >
                   <div className="text-sm font-semibold text-gray-900">{p.name}{p.sku && <span className="text-gray-400 font-normal"> ({p.sku})</span>}</div>
                   <div className="text-sm text-gray-700 mt-0.5">
                     <span className="text-lg font-bold text-gray-900 tabular-nums">{p.quantity}</span> sold

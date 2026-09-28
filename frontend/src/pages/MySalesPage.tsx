@@ -253,7 +253,7 @@ export default function MySalesPage() {
                   <div className="mt-3 pt-3 border-t border-gray-50 space-y-1">
                     {sale.items.slice(0, 4).map((item) => (
                       <div key={item.id} className="flex justify-between text-xs text-gray-500">
-                        <span>{item.name ?? `Product #${item.product_id}`} × {item.quantity}</span>
+                        <span>{item.name ?? `Product #${item.product_id}`} × {Number(item.quantity)}</span>
                         <span>{formatAmount(item.unit_price * item.quantity)}</span>
                       </div>
                     ))}

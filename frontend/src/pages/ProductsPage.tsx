@@ -905,7 +905,7 @@ function CategoryProductsModal({ category, onClose }: { category: any; onClose: 
                   <tr key={p.id}>
                     <td className="px-4 py-2 font-medium text-gray-900">{p.name}</td>
                     <td className="px-4 py-2 text-gray-500">{p.sku ?? '-'}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-gray-700">{p.stocks_sum_quantity ?? '-'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-gray-700">{p.stocks_sum_quantity != null ? Number(p.stocks_sum_quantity) : '-'}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-gray-700">{formatCurrency(parseFloat(p.selling_price || 0))}</td>
                   </tr>
                 ))}

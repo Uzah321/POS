@@ -333,7 +333,7 @@ function OrderingTab({ ingredientId }: { ingredientId: number }) {
                     className="w-24 border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </td>
-                <td className="px-3 py-2 text-gray-500">{row.quantity}</td>
+                <td className="px-3 py-2 text-gray-500">{Number(row.quantity ?? 0)}</td>
               </tr>
             ))}
           </tbody>

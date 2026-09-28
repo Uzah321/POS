@@ -122,7 +122,7 @@ function OrderCard({
       <div className="space-y-1">
         {items.slice(0, 3).map((item: any, i: number) => (
           <div key={i} className="flex items-center justify-between text-xs text-gray-600">
-            <span className="truncate">{item.quantity}Ãƒ" {item.name}</span>
+            <span className="truncate">{Number(item.quantity)}× {item.name}</span>
             <span className="text-gray-400 ml-2 flex-shrink-0">{format(item.price * item.quantity)}</span>
           </div>
         ))}

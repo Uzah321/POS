@@ -157,7 +157,7 @@ export default function InventoryPage() {
                   // rows, so the raw stocks_sum_quantity aggregate is always 0 for it —
                   // use the total_stock accessor instead, which derives "how many more
                   // can be made" from the recipe's ingredient levels.
-                  const qty = s.made_to_order ? (s.total_stock ?? 0) : (s.stocks_sum_quantity ?? s.quantity ?? 0);
+                  const qty = Number(s.made_to_order ? (s.total_stock ?? 0) : (s.stocks_sum_quantity ?? s.quantity ?? 0)); // "5.000" -> 5
                   const reorder = s.reorder_level ?? s.reorder_point ?? 5;
                   // Untracked items (services) carry no meaningful quantity — match
                   // InventoryController::stockLevels / ProductsPage, which both

@@ -167,7 +167,7 @@ export default function NotificationBell({ dark = false }: { dark?: boolean }) {
                     {lowRows.map((p) => (
                       <li key={p.id} className="text-sm text-gray-700 flex items-center justify-between gap-2">
                         <span className="truncate">{p.name}</span>
-                        <span className="text-xs text-amber-600 font-medium flex-shrink-0">{p.stocks_sum_quantity ?? 0} left</span>
+                        <span className="text-xs text-amber-600 font-medium flex-shrink-0">{/* "5.000" -> 5, but a weighed 2.5 stays 2.5 */}{Number(p.stocks_sum_quantity ?? 0)} left</span>
                       </li>
                     ))}
                   </ul>

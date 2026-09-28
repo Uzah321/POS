@@ -925,7 +925,7 @@ export default function HardwarePage() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {[{w:50,h:30,label:'50Ãƒ"30 mm'},{w:60,h:40,label:'60Ãƒ"40 mm'},{w:100,h:50,label:'100Ãƒ"50 mm'}].map((p) => (
+              {[{w:50,h:30,label:'50×30 mm'},{w:60,h:40,label:'60×40 mm'},{w:100,h:50,label:'100×50 mm'}].map((p) => (
                 <button key={p.label} onClick={() => hw.update({ labelWidth: p.w, labelHeight: p.h })}
                   className={`px-3 py-1 rounded-lg text-xs border transition-colors ${hw.labelWidth === p.w && hw.labelHeight === p.h ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                   {p.label}

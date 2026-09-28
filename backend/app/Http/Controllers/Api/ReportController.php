@@ -48,6 +48,50 @@ class ReportController extends BaseApiController
         return $cogs;
     }
 
+    /**
+     * Completed refunds in a period, dated by when the refund happened (as End of
+     * Day does), and the cost of the stock they put back on the shelf. A refunded
+     * sale still counts toward revenue at its full total — REVENUE_STATUSES keeps
+     * it so the sale stays on record — so every P&L takes these off: sales less
+     * `amount`, and cost of sales less `cost` (restocked units aren't sold after all;
+     * units refunded without restocking keep their cost, since the stock is gone).
+     *
+     * @return array{amount: float, cost: float}
+     */
+    private function refundsFor(?int $branchId, ?string $businessType, string $from, string $to): array
+    {
+        $row = $this->refundLinesQuery($businessType, $from, $to)
+            ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+            ->selectRaw(self::REFUND_TOTALS_SQL)
+            ->first();
+
+        return ['amount' => (float) ($row->amount ?? 0), 'cost' => (float) ($row->cost ?? 0)];
+    }
+
+    /** refundsFor() for every branch at once, keyed by branch_id. */
+    private function refundsByBranch(?string $businessType, string $from, string $to): \Illuminate\Support\Collection
+    {
+        return $this->refundLinesQuery($businessType, $from, $to)
+            ->groupBy('sales.branch_id')
+            ->selectRaw('sales.branch_id, ' . self::REFUND_TOTALS_SQL)
+            ->get()
+            ->mapWithKeys(fn($row) => [$row->branch_id => ['amount' => (float) $row->amount, 'cost' => (float) $row->cost]]);
+    }
+
+    private const REFUND_TOTALS_SQL = 'COALESCE(SUM(refund_items.amount), 0) as amount, '
+        . 'COALESCE(SUM(CASE WHEN refund_items.restock THEN refund_items.quantity * sale_items.cost_price ELSE 0 END), 0) as cost';
+
+    private function refundLinesQuery(?string $businessType, string $from, string $to)
+    {
+        return DB::table('refund_items')
+            ->join('refunds', 'refunds.id', '=', 'refund_items.refund_id')
+            ->join('sale_items', 'sale_items.id', '=', 'refund_items.sale_item_id')
+            ->join('sales', 'sales.id', '=', 'refunds.sale_id')
+            ->where('refunds.status', 'completed')
+            ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType, 'sales'))
+            ->whereBetween(DB::raw('DATE(refunds.completed_at)'), [$from, $to]);
+    }
+
     public function dashboard(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = $this->effectiveBranchId($request);
@@ -181,10 +225,12 @@ class ReportController extends BaseApiController
                     'total' => (float) $row->total,
                 ]);
 
-            // What's left of the sales once expenses, paid salaries and rent paid
-            // are taken off — sales themselves stay as what customers paid.
+            // What's left of the sales once refunds, expenses, paid salaries and rent
+            // paid are taken off — sales themselves stay as what customers paid.
             $todayCosts = OperatingCosts::forPeriod($branchId, $todayStart->toDateString(), $todayEnd->toDateString());
             $monthCosts = OperatingCosts::forPeriod($branchId, $monthStart->toDateString(), $todayEnd->toDateString());
+            $todayRefunds = $this->refundsFor($branchId, $businessType, $todayStart->toDateString(), $todayEnd->toDateString());
+            $monthRefunds = $this->refundsFor($branchId, $businessType, $monthStart->toDateString(), $todayEnd->toDateString());
 
             return [
                 'today' => [
@@ -194,8 +240,9 @@ class ReportController extends BaseApiController
                     'expenses' => $todayCosts['expenses'],
                     'salaries' => $todayCosts['salaries'],
                     'rent_paid' => $todayCosts['rent'],
-                    'deductions' => $todayCosts['total'],
-                    'net' => $todaySales->sum('total') - $todayCosts['total'],
+                    'refunds' => $todayRefunds['amount'],
+                    'deductions' => $todayCosts['total'] + $todayRefunds['amount'],
+                    'net' => $todaySales->sum('total') - $todayRefunds['amount'] - $todayCosts['total'],
                 ],
                 'month' => [
                     'revenue' => $monthSales->sum('total'),
@@ -204,8 +251,9 @@ class ReportController extends BaseApiController
                     'expenses' => $monthCosts['expenses'],
                     'salaries' => $monthCosts['salaries'],
                     'rent_paid' => $monthCosts['rent'],
-                    'deductions' => $monthCosts['total'],
-                    'net' => $monthSales->sum('total') - $monthCosts['total'],
+                    'refunds' => $monthRefunds['amount'],
+                    'deductions' => $monthCosts['total'] + $monthRefunds['amount'],
+                    'net' => $monthSales->sum('total') - $monthRefunds['amount'] - $monthCosts['total'],
                 ],
                 'low_stock_count'  => $lowStockCount,
                 'out_of_stock_count' => $outOfStockCount,
@@ -344,13 +392,16 @@ class ReportController extends BaseApiController
         $revenue = (float) $sales->sum('total');
         $cogs    = $this->calculateCogs($sales->pluck('id'));
 
-        $costs = OperatingCosts::forPeriod($branchId, $request->date_from, $request->date_to);
+        $costs   = OperatingCosts::forPeriod($branchId, $request->date_from, $request->date_to);
+        $refunds = $this->refundsFor($branchId, $businessType, $request->date_from, $request->date_to);
+        $cogs   -= $refunds['cost'];
 
-        $grossProfit = $revenue - $cogs;
+        $grossProfit = $revenue - $refunds['amount'] - $cogs;
         $netProfit   = $grossProfit - $costs['total'];
 
         return $this->success([
             'revenue'       => $revenue,
+            'refunds'       => $refunds['amount'],
             'cogs'          => $cogs,
             'gross_profit'  => $grossProfit,
             'gross_margin'  => $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) : 0,
@@ -389,9 +440,10 @@ class ReportController extends BaseApiController
             }
         }
 
-        $costs = OperatingCosts::forPeriod($branchId, $date, $date);
+        $costs   = OperatingCosts::forPeriod($branchId, $date, $date);
+        $refunds = $this->refundsFor($branchId, $businessType, $date, $date);
 
-        $cogs = $this->calculateCogs($sales->pluck('id'));
+        $cogs = $this->calculateCogs($sales->pluck('id')) - $refunds['cost'];
 
         $topProducts = SaleItem::whereIn('sale_id', $sales->pluck('id'))
             ->groupBy('product_id')
@@ -411,12 +463,13 @@ class ReportController extends BaseApiController
             ->whereDate('shift_end', $date)->get();
 
         $totalRevenue = $sales->sum('total');
-        $grossProfit  = $totalRevenue - $cogs;
+        $grossProfit  = $totalRevenue - $refunds['amount'] - $cogs;
         $netProfit    = $grossProfit - $costs['total'];
 
         return $this->success([
             'date'               => $date,
             'total_revenue'      => $totalRevenue,
+            'total_refunds'      => $refunds['amount'],
             'total_transactions' => $sales->count(),
             'cash_sales'         => $cashSales,
             'card_sales'         => $cardSales,
@@ -452,9 +505,10 @@ class ReportController extends BaseApiController
             ->with('payments', 'cashier:id,name,username')
             ->get();
 
-        $cogs = $this->calculateCogs($sales->pluck('id'));
+        $costs   = OperatingCosts::forPeriod($branchId, $from, $to);
+        $refunds = $this->refundsFor($branchId, $businessType, $from, $to);
 
-        $costs = OperatingCosts::forPeriod($branchId, $from, $to);
+        $cogs = $this->calculateCogs($sales->pluck('id')) - $refunds['cost'];
 
         $dailyBreakdown = $sales->groupBy(fn($s) => substr($s->completed_at, 0, 10))
             ->map(fn($g, $d) => ['date' => $d, 'transactions' => $g->count(), 'revenue' => $g->sum('total')])
@@ -475,7 +529,7 @@ class ReportController extends BaseApiController
         }
 
         $revenue     = $sales->sum('total');
-        $grossProfit = $revenue - $cogs;
+        $grossProfit = $revenue - $refunds['amount'] - $cogs;
         $netProfit   = $grossProfit - $costs['total'];
 
         return $this->success([
@@ -483,6 +537,7 @@ class ReportController extends BaseApiController
             'from'               => $from,
             'to'                 => $to,
             'total_revenue'      => $revenue,
+            'total_refunds'      => $refunds['amount'],
             'total_transactions' => $sales->count(),
             'cogs'               => $cogs,
             'gross_profit'       => $grossProfit,
@@ -898,10 +953,11 @@ class ReportController extends BaseApiController
             ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
             ->get(['id', 'total', 'discount_amount', 'tax_amount', 'user_id', 'completed_at']);
 
-        $revenue = (float) $sales->sum('total');
-        $cogs    = $this->calculateCogs($sales->pluck('id'));
+        $costs   = OperatingCosts::forPeriod($branchId, $from, $to);
+        $refunds = $this->refundsFor($branchId, $businessType, $from, $to);
 
-        $costs = OperatingCosts::forPeriod($branchId, $from, $to);
+        $revenue = (float) $sales->sum('total');
+        $cogs    = $this->calculateCogs($sales->pluck('id')) - $refunds['cost'];
 
         // Payment breakdown
         $paymentBreakdown = DB::table('sale_payments')
@@ -916,7 +972,7 @@ class ReportController extends BaseApiController
             ->map(fn($row) => ['method' => $row->method, 'total' => (float) $row->total])
             ->keyBy('method');
 
-        $grossProfit = $revenue - $cogs;
+        $grossProfit = $revenue - $refunds['amount'] - $cogs;
         $netProfit   = $grossProfit - $costs['total'];
         $gpPercent   = $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) : 0;
 
@@ -926,7 +982,7 @@ class ReportController extends BaseApiController
             ->values()->sortBy('date')->values();
 
         if ($request->export === 'csv') {
-            return $this->exportFinancialCsv($from, $to, $revenue, $cogs, $grossProfit, $gpPercent, $costs, $netProfit, $dailyBreakdown);
+            return $this->exportFinancialCsv($from, $to, $revenue, $refunds['amount'], $cogs, $grossProfit, $gpPercent, $costs, $netProfit, $dailyBreakdown);
         }
 
         return $this->success([
@@ -935,6 +991,7 @@ class ReportController extends BaseApiController
             'to'                => $to,
             // P&L lines matching the required format
             'sales'             => $revenue,
+            'less_refunds'      => $refunds['amount'],
             'less_cost_of_sales'=> $cogs,
             'gross_profit'      => $grossProfit,
             'gp_percent'        => $gpPercent,
@@ -963,25 +1020,28 @@ class ReportController extends BaseApiController
         $from = $request->date_from ?? now()->startOfMonth()->toDateString();
         $to   = $request->date_to   ?? now()->toDateString();
 
-        $costsByBranch = OperatingCosts::byBranch($from, $to);
+        $costsByBranch   = OperatingCosts::byBranch($from, $to);
+        $refundsByBranch = $this->refundsByBranch(null, $from, $to);
 
-        $rows = Branch::orderBy('name')->get()->map(function (Branch $branch) use ($from, $to, $costsByBranch) {
+        $rows = Branch::orderBy('name')->get()->map(function (Branch $branch) use ($from, $to, $costsByBranch, $refundsByBranch) {
             $sales = Sale::revenueCounted()
                 ->where('branch_id', $branch->id)
                 ->whereBetween(DB::raw('DATE(completed_at)'), [$from, $to])
                 ->get(['id', 'total']);
 
+            $refunds = $refundsByBranch->get($branch->id, ['amount' => 0.0, 'cost' => 0.0]);
             $revenue = (float) $sales->sum('total');
-            $cogs    = $this->calculateCogs($sales->pluck('id'));
+            $cogs    = $this->calculateCogs($sales->pluck('id')) - $refunds['cost'];
             $costs = $costsByBranch->get($branch->id, OperatingCosts::none());
 
-            $grossProfit = $revenue - $cogs;
+            $grossProfit = $revenue - $refunds['amount'] - $cogs;
             $netProfit   = $grossProfit - $costs['total'];
 
             return [
                 'branch_id'          => $branch->id,
                 'branch_name'        => $branch->name,
                 'revenue'            => $revenue,
+                'refunds'            => $refunds['amount'],
                 'gross_profit'       => $grossProfit,
                 'gp_percent'         => $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) : 0,
                 'expenses'           => $costs['expenses'],
@@ -995,6 +1055,7 @@ class ReportController extends BaseApiController
 
         $totals = [
             'revenue'           => (float) $rows->sum('revenue'),
+            'refunds'           => (float) $rows->sum('refunds'),
             'gross_profit'      => (float) $rows->sum('gross_profit'),
             'expenses'          => (float) $rows->sum('expenses'),
             'salaries'          => (float) $rows->sum('salaries'),
@@ -1027,18 +1088,20 @@ class ReportController extends BaseApiController
             'Cache-Control'       => 'no-cache',
         ];
 
-        $cogs = $this->calculateCogs($sales->pluck('id'));
         $costs       = OperatingCosts::forPeriod($branchId, $date, $date);
+        $refunds     = $this->refundsFor($branchId, $businessType, $date, $date);
+        $cogs        = $this->calculateCogs($sales->pluck('id')) - $refunds['cost'];
         $revenue     = (float) $sales->sum('total');
-        $grossProfit = $revenue - $cogs;
+        $grossProfit = $revenue - $refunds['amount'] - $cogs;
         $netProfit   = $grossProfit - $costs['total'];
 
-        $callback = function () use ($sales, $date, $revenue, $cogs, $grossProfit, $costs, $netProfit) {
+        $callback = function () use ($sales, $date, $revenue, $refunds, $cogs, $grossProfit, $costs, $netProfit) {
             $f = fopen('php://output', 'w');
             // P&L Summary
             fputcsv($f, ["DAILY SALES REPORT - {$date}"]);
             fputcsv($f, []);
             fputcsv($f, ['Sales', number_format($revenue, 2)]);
+            fputcsv($f, ['Less Refunds', number_format($refunds['amount'], 2)]);
             fputcsv($f, ['Less Cost of Sales', number_format($cogs, 2)]);
             fputcsv($f, ['Gross Profit', number_format($grossProfit, 2)]);
             fputcsv($f, ['% GP', $revenue > 0 ? round(($grossProfit / $revenue) * 100, 2) . '%' : '0%']);
@@ -1081,10 +1144,11 @@ class ReportController extends BaseApiController
             ->with('cashier:id,name')
             ->get();
 
-        $cogs     = $this->calculateCogs($sales->pluck('id'));
         $costs    = OperatingCosts::forPeriod($branchId, $from, $to);
+        $refunds  = $this->refundsFor($branchId, $businessType, $from, $to);
+        $cogs     = $this->calculateCogs($sales->pluck('id')) - $refunds['cost'];
         $revenue  = (float) $sales->sum('total');
-        $gross    = $revenue - $cogs;
+        $gross    = $revenue - $refunds['amount'] - $cogs;
         $net      = $gross - $costs['total'];
 
         $dailyBreakdown = $sales->groupBy(fn($s) => substr($s->completed_at, 0, 10))
@@ -1097,11 +1161,12 @@ class ReportController extends BaseApiController
             'Cache-Control'       => 'no-cache',
         ];
 
-        $callback = function () use ($month, $from, $to, $revenue, $cogs, $gross, $costs, $net, $dailyBreakdown) {
+        $callback = function () use ($month, $from, $to, $revenue, $refunds, $cogs, $gross, $costs, $net, $dailyBreakdown) {
             $f = fopen('php://output', 'w');
             fputcsv($f, ["MONTHLY SALES REPORT - {$month} ({$from} to {$to})"]);
             fputcsv($f, []);
             fputcsv($f, ['Sales', number_format($revenue, 2)]);
+            fputcsv($f, ['Less Refunds', number_format($refunds['amount'], 2)]);
             fputcsv($f, ['Less Cost of Sales', number_format($cogs, 2)]);
             fputcsv($f, ['Gross Profit', number_format($gross, 2)]);
             fputcsv($f, ['% GP', $revenue > 0 ? round(($gross / $revenue) * 100, 2) . '%' : '0%']);
@@ -1145,22 +1210,25 @@ class ReportController extends BaseApiController
             ->selectRaw('sales.branch_id, SUM(sale_items.cost_price * sale_items.quantity) as cogs')
             ->get()->keyBy('branch_id');
 
-        $costsByBranch = OperatingCosts::byBranch($from, $to);
+        $costsByBranch   = OperatingCosts::byBranch($from, $to);
+        $refundsByBranch = $this->refundsByBranch($businessType, $from, $to);
 
         $result = [];
         foreach ($branches as $branch) {
+            $refunds      = $refundsByBranch->get($branch->id, ['amount' => 0.0, 'cost' => 0.0]);
             $revenue      = (float) ($revenueByBranch->get($branch->id)->revenue ?? 0);
             $transactions = (int) ($revenueByBranch->get($branch->id)->transactions ?? 0);
-            $cogs         = (float) ($cogsByBranch->get($branch->id)->cogs ?? 0);
+            $cogs         = (float) ($cogsByBranch->get($branch->id)->cogs ?? 0) - $refunds['cost'];
             $costs        = $costsByBranch->get($branch->id, OperatingCosts::none());
 
-            $gross = $revenue - $cogs;
+            $gross = $revenue - $refunds['amount'] - $cogs;
             $net   = $gross - $costs['total'];
 
             $result[] = [
                 'branch_id'    => $branch->id,
                 'branch_name'  => $branch->name,
                 'sales'        => round($revenue, 2),
+                'refunds'      => round($refunds['amount'], 2),
                 'cogs'         => round($cogs, 2),
                 'gross_profit' => round($gross, 2),
                 'gp_percent'   => $revenue > 0 ? round(($gross / $revenue) * 100, 2) : 0,
@@ -1175,6 +1243,7 @@ class ReportController extends BaseApiController
 
         $totals = [
             'sales'        => round(array_sum(array_column($result, 'sales')), 2),
+            'refunds'      => round(array_sum(array_column($result, 'refunds')), 2),
             'cogs'         => round(array_sum(array_column($result, 'cogs')), 2),
             'gross_profit' => round(array_sum(array_column($result, 'gross_profit')), 2),
             'expenses'     => round(array_sum(array_column($result, 'expenses')), 2),
@@ -1197,7 +1266,7 @@ class ReportController extends BaseApiController
         fputcsv($f, ['Total Deductions', number_format($costs['total'], 2)]);
     }
 
-    private function exportFinancialCsv($from, $to, $revenue, $cogs, $grossProfit, $gpPercent, array $costs, $netProfit, $dailyBreakdown)
+    private function exportFinancialCsv($from, $to, $revenue, $refunds, $cogs, $grossProfit, $gpPercent, array $costs, $netProfit, $dailyBreakdown)
     {
         $headers = [
             'Content-Type'        => 'text/csv',
@@ -1205,12 +1274,13 @@ class ReportController extends BaseApiController
             'Cache-Control'       => 'no-cache',
         ];
 
-        $callback = function () use ($from, $to, $revenue, $cogs, $grossProfit, $gpPercent, $costs, $netProfit, $dailyBreakdown) {
+        $callback = function () use ($from, $to, $revenue, $refunds, $cogs, $grossProfit, $gpPercent, $costs, $netProfit, $dailyBreakdown) {
             $f = fopen('php://output', 'w');
             fputcsv($f, ["FINANCIAL REPORT ({$from} to {$to})"]);
             fputcsv($f, []);
             fputcsv($f, ['Item', 'Amount']);
             fputcsv($f, ['Sales', number_format($revenue, 2)]);
+            fputcsv($f, ['Less Refunds', number_format($refunds, 2)]);
             fputcsv($f, ['Less Cost of Sales', number_format($cogs, 2)]);
             fputcsv($f, ['Gross Profit', number_format($grossProfit, 2)]);
             fputcsv($f, ['% GP', $gpPercent . '%']);

@@ -57,6 +57,7 @@
 <h2>Deductions</h2>
 <table>
   <tr><th>Item</th><th>Amount</th></tr>
+  <tr><td>Refunds</td><td>-${{ number_format($data['total_refunds'] ?? 0, 2) }}</td></tr>
   <tr><td>Expenses</td><td>-${{ number_format($data['total_expenses'] ?? 0, 2) }}</td></tr>
   <tr><td>Salaries paid</td><td>-${{ number_format($data['total_salaries'] ?? 0, 2) }}</td></tr>
   <tr><td>Rent paid</td><td>-${{ number_format($data['total_rent_paid'] ?? 0, 2) }}</td></tr>

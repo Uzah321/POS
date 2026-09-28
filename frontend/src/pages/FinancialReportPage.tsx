@@ -193,6 +193,7 @@ export default function FinancialReportPage() {
 
             <div className="divide-y divide-gray-50">
               <PLRow label="Sales" value={report.sales} isBold fmt={formatAmount} />
+              <PLRow label="Less: Refunds" value={report.less_refunds ?? 0} isNegative fmt={formatAmount} />
               <PLRow label="Less: Cost of Goods Sold (COGS)" value={report.less_cost_of_sales} isNegative fmt={formatAmount} />
               <PLRow label="Gross Profit" value={report.gross_profit} isBold fmt={formatAmount} />
               <PLRow label="% Gross Profit Margin" value={report.gp_percent} isPercent fmt={formatAmount} />

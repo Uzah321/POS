@@ -72,7 +72,7 @@ export default function BranchComparisonPage() {
               <table className="w-full min-w-[900px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Branch', 'Revenue', 'Gross Profit', 'GP %', 'Expenses', 'Salaries', 'Rent Paid', 'Net Profit', 'Transactions'].map(h => (
+                    {['Branch', 'Revenue', 'Refunds', 'Gross Profit', 'GP %', 'Expenses', 'Salaries', 'Rent Paid', 'Net Profit', 'Transactions'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -84,6 +84,7 @@ export default function BranchComparisonPage() {
                         {r.branch_name} {i === 0 && <span className="ml-1.5 text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full align-middle">TOP</span>}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{formatAmount(r.revenue)}</td>
+                      <td className="px-4 py-3 text-sm text-red-600 tabular-nums">{formatAmount(r.refunds ?? 0)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{formatAmount(r.gross_profit)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{r.gp_percent}%</td>
                       <td className="px-4 py-3 text-sm text-red-600 tabular-nums">{formatAmount(r.expenses)}</td>
@@ -99,6 +100,7 @@ export default function BranchComparisonPage() {
                     <tr>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900">Total</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900 tabular-nums">{formatAmount(totals.revenue)}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-red-600 tabular-nums">{formatAmount(totals.refunds ?? 0)}</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900 tabular-nums">{formatAmount(totals.gross_profit)}</td>
                       <td className="px-4 py-3 text-sm"></td>
                       <td className="px-4 py-3 text-sm font-bold text-red-600 tabular-nums">{formatAmount(totals.expenses)}</td>

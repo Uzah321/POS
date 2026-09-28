@@ -169,7 +169,7 @@ export default function SupermarketDashboard() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
-        <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${formatCurrency(d.today?.net ?? d.today?.revenue ?? 0)} after expenses, salaries & rent`} icon={DollarSign}    color="emerald" trend="+12%" />
+        <StatCard label="Sales Today"  value={formatCurrency(d.today?.revenue ?? 0)}   sub={`${formatCurrency(d.today?.net ?? d.today?.revenue ?? 0)} after refunds, expenses, salaries & rent`} icon={DollarSign}    color="emerald" trend="+12%" />
         <StatCard label="Transactions" value={d.today?.transactions ?? 0}              sub="Today"               icon={ShoppingCart}  color="blue"   trend="+8%" />
         <StatCard label="Avg Basket"   value={formatCurrency(d.today?.avg_sale ?? 0)}  sub="Per transaction" icon={TrendingUp} color="violet" />
         <StatCard label="Low Stock"    value={d.low_stock_count ?? 0}                  sub="Items need reorder"  icon={AlertTriangle}  color={d.low_stock_count > 0 ? 'orange' : 'blue'} />
@@ -307,7 +307,7 @@ export default function SupermarketDashboard() {
         {[
           { label: 'Month Revenue',   value: formatCurrency(d.month?.revenue ?? 0),      icon: TrendingUp,   color: 'emerald' },
           { label: 'Month After Costs', value: formatCurrency(d.month?.net ?? d.month?.revenue ?? 0), icon: DollarSign, color: (d.month?.net ?? 0) < 0 ? 'red' : 'emerald',
-            sub: `Less ${formatCurrency(d.month?.deductions ?? 0)} expenses, salaries & rent` },
+            sub: `Less ${formatCurrency(d.month?.deductions ?? 0)} refunds, expenses, salaries & rent` },
           { label: 'Month Sales',     value: `${d.month?.transactions ?? 0} sales`,      icon: ShoppingCart, color: 'blue' },
           { label: 'Month Customers', value: d.month?.customers ?? 0,                    icon: Users,        color: 'violet' },
         ].map(({ label, value, icon: Icon, color, sub }: { label: string; value: string | number; icon: any; color: string; sub?: string }) => {

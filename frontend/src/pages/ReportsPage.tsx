@@ -177,7 +177,7 @@ export default function ReportsPage() {
     } else if (tab === 'Profit & Loss' && plData) {
       exportToExcel(
         [['Item', 'Amount'],
-         ['Revenue', plData.revenue], ['Cost of Sales (COGS)', plData.cogs],
+         ['Revenue', plData.revenue], ['Refunds', plData.refunds ?? 0], ['Cost of Sales (COGS)', plData.cogs],
          ['Gross Profit', plData.gross_profit], ['Gross Margin %', plData.gross_margin + '%'],
          ['Expenses', plData.expenses], ['Salaries Paid', plData.salaries ?? 0],
          ['Rent Paid', plData.rent_paid ?? 0], ['Net Profit', plData.net_profit],
@@ -207,7 +207,7 @@ export default function ReportsPage() {
         [['Daily Sales Report', dailyDate],
          [],
          ['Metric', 'Value'],
-         ['Total Revenue', dailyData.total_revenue], ['Transactions', dailyData.total_transactions],
+         ['Total Revenue', dailyData.total_revenue], ['Refunds', dailyData.total_refunds ?? 0], ['Transactions', dailyData.total_transactions],
          ['Gross Profit', dailyData.gross_profit], ['Net Profit', dailyData.net_profit],
          ['Cash Sales', dailyData.cash_sales], ['Card Sales', dailyData.card_sales],
          ['Mobile Money', dailyData.mobile_money_sales], ['Expenses', dailyData.total_expenses],
@@ -222,7 +222,7 @@ export default function ReportsPage() {
         [['Monthly Sales Report', monthlyMonth],
          [],
          ['Metric', 'Value'],
-         ['Revenue', monthlyData.total_revenue], ['Transactions', monthlyData.total_transactions],
+         ['Revenue', monthlyData.total_revenue], ['Refunds', monthlyData.total_refunds ?? 0], ['Transactions', monthlyData.total_transactions],
          ['COGS', monthlyData.cogs], ['Gross Profit', monthlyData.gross_profit],
          ['Gross Margin %', monthlyData.gross_margin + '%'], ['Expenses', monthlyData.total_expenses],
          ['Salaries Paid', monthlyData.total_salaries ?? 0], ['Rent Paid', monthlyData.total_rent_paid ?? 0],
@@ -249,10 +249,10 @@ export default function ReportsPage() {
       exportToExcel(
         [['Branch Consolidation Report', `${from} to ${to}`],
          [],
-         ['Branch', 'Sales', 'COGS', 'Gross Profit', 'GP %', 'Expenses', 'Salaries', 'Rent Paid', 'Net Profit', 'Transactions'],
-         ...branches.map((b: any) => [b.branch_name, b.sales, b.cogs, b.gross_profit, b.gp_percent + '%', b.expenses, b.salaries ?? 0, b.rent_paid ?? 0, b.net_profit, b.transactions]),
+         ['Branch', 'Sales', 'Refunds', 'COGS', 'Gross Profit', 'GP %', 'Expenses', 'Salaries', 'Rent Paid', 'Net Profit', 'Transactions'],
+         ...branches.map((b: any) => [b.branch_name, b.sales, b.refunds ?? 0, b.cogs, b.gross_profit, b.gp_percent + '%', b.expenses, b.salaries ?? 0, b.rent_paid ?? 0, b.net_profit, b.transactions]),
          [],
-         ['TOTAL', totals.sales, totals.cogs, totals.gross_profit, '', totals.expenses, totals.salaries ?? 0, totals.rent_paid ?? 0, totals.net_profit, totals.transactions]],
+         ['TOTAL', totals.sales, totals.refunds ?? 0, totals.cogs, totals.gross_profit, '', totals.expenses, totals.salaries ?? 0, totals.rent_paid ?? 0, totals.net_profit, totals.transactions]],
         `branch-consolidation-${from}-${to}`
       );
     }
@@ -391,8 +391,8 @@ export default function ReportsPage() {
 
       {/* P&L */}
       {tab === 'Profit & Loss' && plData && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-          {[['Revenue', plData.revenue, 'text-blue-600'], ['COGS', plData.cogs, 'text-red-600'], ['Gross Profit', plData.gross_profit, 'text-green-600'], ['Expenses, Salaries & Rent', plData.total_deductions ?? plData.expenses, 'text-red-600'], ['Net Profit', plData.net_profit, plData.net_profit >= 0 ? 'text-green-600' : 'text-red-600']].map(([label, val, color]) => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+          {[['Revenue', plData.revenue, 'text-blue-600'], ['Refunds', plData.refunds ?? 0, 'text-red-600'], ['COGS', plData.cogs, 'text-red-600'], ['Gross Profit', plData.gross_profit, 'text-green-600'], ['Expenses, Salaries & Rent', plData.total_deductions ?? plData.expenses, 'text-red-600'], ['Net Profit', plData.net_profit, plData.net_profit >= 0 ? 'text-green-600' : 'text-red-600']].map(([label, val, color]) => (
             <div key={label} className="bg-white rounded-md p-5 shadow-sm border border-gray-100"><p className="text-sm text-gray-500">{label}</p><p className={`text-2xl font-bold mt-1 ${color}`}>{fmt(Number(val) || 0)}</p></div>
           ))}
         </div>
@@ -504,7 +504,7 @@ export default function ReportsPage() {
             <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">P&L " {dailyDate}</div>
               <div className="divide-y divide-gray-50">
-                {[['Sales', dailyData.total_revenue, false], ['Less Cost of Sales', dailyData.cogs, true], ['Gross Profit', dailyData.gross_profit, false], ['Less Expenses', dailyData.total_expenses, true], ['Less Salaries Paid', dailyData.total_salaries ?? 0, true], ['Less Rent Paid', dailyData.total_rent_paid ?? 0, true], ['Profit B/d (Net Profit)', dailyData.net_profit, false]].map(([label, val, neg]) => (
+                {[['Sales', dailyData.total_revenue, false], ['Less Refunds', dailyData.total_refunds ?? 0, true], ['Less Cost of Sales', dailyData.cogs, true], ['Gross Profit', dailyData.gross_profit, false], ['Less Expenses', dailyData.total_expenses, true], ['Less Salaries Paid', dailyData.total_salaries ?? 0, true], ['Less Rent Paid', dailyData.total_rent_paid ?? 0, true], ['Profit B/d (Net Profit)', dailyData.net_profit, false]].map(([label, val, neg]) => (
                   <div key={label as string} className="flex justify-between px-5 py-2.5 text-sm">
                     <span className="text-gray-600">{label as string}</span>
                     <span className={`font-semibold ${neg ? 'text-red-600' : Number(val) >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{fmt(Number(val) || 0)}</span>
@@ -538,7 +538,7 @@ export default function ReportsPage() {
             <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">P&L " {monthlyMonth}</div>
               <div className="divide-y divide-gray-50">
-                {[['Sales', monthlyData.total_revenue, false], ['Less Cost of Sales', monthlyData.cogs, true], ['Gross Profit', monthlyData.gross_profit, false], ['GP %', monthlyData.gross_margin + '%', false], ['Less Expenses', monthlyData.total_expenses, true], ['Less Salaries Paid', monthlyData.total_salaries ?? 0, true], ['Less Rent Paid', monthlyData.total_rent_paid ?? 0, true], ['Profit B/d', monthlyData.net_profit, false]].map(([label, val, neg]) => (
+                {[['Sales', monthlyData.total_revenue, false], ['Less Refunds', monthlyData.total_refunds ?? 0, true], ['Less Cost of Sales', monthlyData.cogs, true], ['Gross Profit', monthlyData.gross_profit, false], ['GP %', monthlyData.gross_margin + '%', false], ['Less Expenses', monthlyData.total_expenses, true], ['Less Salaries Paid', monthlyData.total_salaries ?? 0, true], ['Less Rent Paid', monthlyData.total_rent_paid ?? 0, true], ['Profit B/d', monthlyData.net_profit, false]].map(([label, val, neg]) => (
                   <div key={label as string} className="flex justify-between px-5 py-2.5 text-sm">
                     <span className="text-gray-600">{label as string}</span>
                     <span className={`font-semibold ${neg ? 'text-red-600' : 'text-gray-900'}`}>{typeof val === 'number' ? fmt(val) : val}</span>
@@ -875,13 +875,14 @@ export default function ReportsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[1100px]">
                   <thead className="bg-gray-50">
-                    <tr>{['Branch','Sales','Cost of Sales','Gross Profit','GP %','Expenses','Salaries','Rent Paid','Net Profit','Transactions'].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>)}</tr>
+                    <tr>{['Branch','Sales','Refunds','Cost of Sales','Gross Profit','GP %','Expenses','Salaries','Rent Paid','Net Profit','Transactions'].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {(consolidationData.branches || []).map((b: any) => (
                       <tr key={b.branch_id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-semibold text-gray-900">{b.branch_name}</td>
                         <td className="px-4 py-3 text-blue-700 font-medium">{fmt(b.sales)}</td>
+                        <td className="px-4 py-3 text-red-600">{fmt(b.refunds ?? 0)}</td>
                         <td className="px-4 py-3 text-red-600">{fmt(b.cogs)}</td>
                         <td className="px-4 py-3 text-green-700 font-medium">{fmt(b.gross_profit)}</td>
                         <td className="px-4 py-3 text-gray-600">{b.gp_percent}%</td>
@@ -897,6 +898,7 @@ export default function ReportsPage() {
                       <tr className="bg-gray-100 font-bold">
                         <td className="px-4 py-3 text-gray-900">TOTAL</td>
                         <td className="px-4 py-3 text-blue-700">{fmt(consolidationData.totals.sales)}</td>
+                        <td className="px-4 py-3 text-red-600">{fmt(consolidationData.totals.refunds ?? 0)}</td>
                         <td className="px-4 py-3 text-red-600">{fmt(consolidationData.totals.cogs)}</td>
                         <td className="px-4 py-3 text-green-700">{fmt(consolidationData.totals.gross_profit)}</td>
                         <td className="px-4 py-3">"</td>

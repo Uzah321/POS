@@ -49,6 +49,7 @@
 <table>
   <tr><th>Item</th><th>Amount</th></tr>
   <tr><td>Revenue</td><td>${{ number_format($data['total_revenue'] ?? 0, 2) }}</td></tr>
+  <tr><td>Refunds</td><td>-${{ number_format($data['total_refunds'] ?? 0, 2) }}</td></tr>
   <tr><td>Cost of Goods Sold (COGS)</td><td>-${{ number_format($data['cogs'] ?? 0, 2) }}</td></tr>
   <tr><td><strong>Gross Profit ({{ $data['gross_margin'] ?? 0 }}%)</strong></td><td><strong class="{{ ($data['gross_profit'] ?? 0) >= 0 ? 'badge-positive' : 'badge-negative' }}">${{ number_format($data['gross_profit'] ?? 0, 2) }}</strong></td></tr>
   <tr><td>Expenses</td><td>-${{ number_format($data['total_expenses'] ?? 0, 2) }}</td></tr>

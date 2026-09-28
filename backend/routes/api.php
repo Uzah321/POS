@@ -48,6 +48,11 @@ Route::get('/download/core-shortcut.url', function () {
         ->header('Content-Disposition', 'attachment; filename="Core POS.url"');
 });
 
+// Product/category pictures — public because <img> tags can't send the Bearer
+// token; responses link here instead of inlining the picture (ServesImageByUrl).
+Route::get('/products/{product}/image', [\App\Http\Controllers\Api\ImageController::class, 'product']);
+Route::get('/categories/{category}/image', [\App\Http\Controllers\Api\ImageController::class, 'category']);
+
 // KDS — public so kitchen/queue screens don't need to log in
 Route::get('/kds/orders', [\App\Http\Controllers\Api\KdsController::class, 'orders']);
 Route::patch('/kds/orders/{sale}/status', [\App\Http\Controllers\Api\KdsController::class, 'updateStatus']);

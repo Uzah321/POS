@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ServesImageByUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, ServesImageByUrl;
+
+    protected function imageRouteSegment(): string { return 'products'; }
 
     protected $fillable = [
         'name', 'slug', 'sku', 'barcode', 'plu_code', 'hs_code', 'branch_id', 'category_id', 'business_type', 'brand_id', 'tax_rate_id', 'unit_id',

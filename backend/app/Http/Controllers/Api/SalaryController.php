@@ -122,6 +122,7 @@ class SalaryController extends BaseApiController
             'total_deductions'=> $totalDed,
             'net_salary'      => $gross - $totalDed,
         ]));
+        $this->bustDashboardCache($salary->branch_id);
 
         return $this->success($salary->fresh()->load('branch:id,name'), 'Salary updated');
     }
@@ -138,6 +139,8 @@ class SalaryController extends BaseApiController
             'payment_method' => $data['payment_method'],
             'paid_at'        => $data['paid_at'],
         ]);
+        // A paid salary is now deducted from sales on the dashboard and in reports.
+        $this->bustDashboardCache($salary->branch_id);
 
         return $this->success($salary, 'Marked as paid');
     }
@@ -145,6 +148,7 @@ class SalaryController extends BaseApiController
     public function destroy(Salary $salary)
     {
         $salary->delete();
+        $this->bustDashboardCache($salary->branch_id);
         return $this->success(null, 'Record deleted');
     }
 

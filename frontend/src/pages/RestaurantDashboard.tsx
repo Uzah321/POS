@@ -142,7 +142,7 @@ export default function RestaurantDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="green"  sub={`${d.today?.transactions ?? 0} orders`} />
+        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="green"  sub={`${formatCurrency(d.today?.net ?? d.today?.revenue ?? 0)} after expenses, salaries & rent`} />
         <StatCard label="Orders Today"   value={d.today?.transactions ?? 0}                  icon={ShoppingCart}  color="orange" sub="Completed" />
         <StatCard label="Avg Order"      value={formatCurrency(d.today?.avg_sale ?? 0)}      icon={TrendingUp} color="violet" sub="Per cover" />
         <StatCard label="Active Kitchen" value={totalActive}                                  icon={Clock}         color="amber"  sub="In progress" />
@@ -263,16 +263,19 @@ export default function RestaurantDashboard() {
       </div>
 
       {/* Month summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0),  icon: DollarSign,   color: 'green' },
+          { label: 'Month After Costs', value: formatCurrency(d.month?.net ?? d.month?.revenue ?? 0), icon: DollarSign, color: (d.month?.net ?? 0) < 0 ? 'red' : 'green',
+            sub: `Less ${formatCurrency(d.month?.deductions ?? 0)} expenses, salaries & rent` },
           { label: 'Month Orders',   value: `${d.month?.transactions ?? 0} orders`, icon: ShoppingCart, color: 'orange' },
           { label: 'Month Customers', value: d.month?.customers ?? 0,               icon: TrendingUp,   color: 'violet' },
-        ].map(({ label, value, icon: Icon, color }) => {
+        ].map(({ label, value, icon: Icon, color, sub }: { label: string; value: string | number; icon: any; color: string; sub?: string }) => {
           const iconColors: Record<string, string> = {
             green:  'bg-green-50 text-green-600',
             orange: 'bg-orange-50 text-orange-600',
             violet: 'bg-violet-50 text-violet-600',
+            red:    'bg-red-50 text-red-600',
           };
           return (
           <div key={label} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 flex items-center gap-4">
@@ -281,7 +284,8 @@ export default function RestaurantDashboard() {
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-              <p className="text-lg font-bold text-gray-900">{value}</p>
+              <p className={`text-lg font-bold ${color === 'red' ? 'text-red-700' : 'text-gray-900'}`}>{value}</p>
+              {sub && <p className="text-xs text-gray-400">{sub}</p>}
             </div>
           </div>
           );

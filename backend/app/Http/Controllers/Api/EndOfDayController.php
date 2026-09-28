@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\EndOfDay;
 use App\Models\Sale;
-use App\Models\Expense;
 use App\Models\HeldSale;
 use App\Models\SaleItem;
 use App\Models\ShiftEnd;
 use App\Models\Register;
 use App\Services\Zimra\FiscalDeviceService;
 use App\Services\Zimra\FiscalSubmissionService;
+use App\Support\OperatingCosts;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -41,13 +41,10 @@ class EndOfDayController extends BaseApiController
             }
         }
 
+        $costs = OperatingCosts::forPeriod($branchId ? (int) $branchId : null, $date, $date);
+
         // ->sum()/->value() bypass Eloquent's decimal casts (they don't hydrate a model), so
         // Postgres returns these as numeric strings — cast explicitly or they'll render as $0.00.
-        $expenses = (float) Expense::where('status', 'approved')
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->whereDate('expense_date', $date)
-            ->sum('amount');
-
         $totalRefunds = (float) DB::table('refunds')
             ->join('sales', 'sales.id', '=', 'refunds.sale_id')
             ->where('refunds.status', 'completed')
@@ -59,8 +56,8 @@ class EndOfDayController extends BaseApiController
         $cogs        = (float) (SaleItem::whereIn('sale_id', $sales->pluck('id'))
             ->selectRaw('SUM(cost_price * quantity) as total')->value('total') ?? 0);
         $grossProfit = $totalSales - $cogs;
-        $netProfit   = $grossProfit - $expenses;
-        $netRevenue  = $totalSales - $totalRefunds - $expenses;
+        $netProfit   = $grossProfit - $costs['total'];
+        $netRevenue  = $totalSales - $totalRefunds - $costs['total'];
 
         // Per-cashier breakdown
         $cashierBreakdown = Sale::revenueCounted()
@@ -93,7 +90,10 @@ class EndOfDayController extends BaseApiController
             'other_sales'        => $otherSales,
             // Cash that should be in the drawer: cash taken minus cash refunded.
             'expected_cash'      => $cashSales - $totalRefunds,
-            'total_expenses'     => $expenses,
+            'total_expenses'     => $costs['expenses'],
+            'total_salaries'     => $costs['salaries'],
+            'total_rent_paid'    => $costs['rent'],
+            'total_deductions'   => $costs['total'],
             'total_refunds'      => $totalRefunds,
             'cogs'               => $cogs,
             'gross_profit'       => $grossProfit,
@@ -143,15 +143,13 @@ class EndOfDayController extends BaseApiController
             ->where('sales.branch_id', $data['branch_id'])
             ->whereDate('refunds.completed_at', $data['report_date'])
             ->sum('refunds.amount');
-        $totalExpenses = Expense::where('status', 'approved')
-            ->where('branch_id', $data['branch_id'])
-            ->whereDate('expense_date', $data['report_date'])->sum('amount');
+        $costs = OperatingCosts::forPeriod((int) $data['branch_id'], $data['report_date'], $data['report_date']);
 
         // "Opening cash" is the float for the NEXT day, so it isn't part of today's expected cash.
         $expectedCash = $cashSales - $totalRefunds;
         $difference   = $data['actual_cash'] - $expectedCash;
 
-        [$eod, $clearedOrders] = DB::transaction(function () use ($data, $request, $cashSales, $cardSales, $mobileSales, $otherSales, $sales, $totalRefunds, $totalExpenses, $expectedCash, $difference) {
+        [$eod, $clearedOrders] = DB::transaction(function () use ($data, $request, $cashSales, $cardSales, $mobileSales, $otherSales, $sales, $totalRefunds, $costs, $expectedCash, $difference) {
             $eod = EndOfDay::create([
                 'branch_id'            => $data['branch_id'],
                 'user_id'              => $request->user()->id,
@@ -163,7 +161,9 @@ class EndOfDayController extends BaseApiController
                 'other_sales'          => $otherSales,
                 'total_sales'          => $sales->sum('total'),
                 'total_refunds'        => $totalRefunds,
-                'total_expenses'       => $totalExpenses,
+                'total_expenses'       => $costs['expenses'],
+                'total_salaries'       => $costs['salaries'],
+                'total_rent_paid'      => $costs['rent'],
                 'expected_cash'        => $expectedCash,
                 'actual_cash'          => $data['actual_cash'],
                 'difference'           => $difference,

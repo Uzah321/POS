@@ -32,6 +32,7 @@ class ExpenseController extends BaseApiController
         ]);
 
         $expense = Expense::create(array_merge($data, ['user_id' => $request->user()->id]));
+        $this->bustDashboardCache($expense->branch_id);
         return $this->success($expense->load('category'), 'Expense recorded', 201);
     }
 
@@ -44,12 +45,14 @@ class ExpenseController extends BaseApiController
             'expense_date'        => 'sometimes|date',
         ]);
         $expense->update($data);
+        $this->bustDashboardCache($expense->branch_id);
         return $this->success($expense, 'Expense updated');
     }
 
     public function destroy(Expense $expense): \Illuminate\Http\JsonResponse
     {
         $expense->delete();
+        $this->bustDashboardCache($expense->branch_id);
         return $this->success(null, 'Expense deleted');
     }
 

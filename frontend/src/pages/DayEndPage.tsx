@@ -21,6 +21,8 @@ interface EodSummary {
   mobile_money_sales: number;
   other_sales: number;
   total_expenses: number;
+  total_salaries?: number;
+  total_rent_paid?: number;
   total_refunds: number;
   net_revenue: number;
   expected_cash?: number;
@@ -75,6 +77,8 @@ function downloadDayEndPdf(opts: {
     ['Mobile Money', format(summary?.mobile_money_sales ?? 0)],
     ['Other Payments', format(summary?.other_sales ?? 0)],
     ['Total Expenses', format(summary?.total_expenses ?? 0)],
+    ['Salaries Paid', format(summary?.total_salaries ?? 0)],
+    ['Rent Paid', format(summary?.total_rent_paid ?? 0)],
     ['Total Refunds', format(summary?.total_refunds ?? 0)],
     ['Net Revenue', format(summary?.net_revenue ?? 0)],
   ];
@@ -345,7 +349,10 @@ export default function DayEndPage() {
             <Stat label="Mobile Money"    value={format(summary.mobile_money_sales ?? 0)} />
             <Stat label="Other Payments"  value={format(summary.other_sales ?? 0)} />
             <Stat label="Total Expenses"  value={format(summary.total_expenses ?? 0)} />
-            <Stat label="Net Revenue"     value={format(summary.net_revenue ?? 0)} sub="After expenses &amp; refunds" />
+            <Stat label="Salaries Paid"   value={format(summary.total_salaries ?? 0)} />
+            <Stat label="Rent Paid"       value={format(summary.total_rent_paid ?? 0)} />
+            <Stat label="Total Refunds"   value={format(summary.total_refunds ?? 0)} />
+            <Stat label="Net Revenue"     value={format(summary.net_revenue ?? 0)} sub="After expenses, salaries, rent &amp; refunds" />
           </div>
 
           {/* Cashier Breakdown */}
@@ -571,8 +578,12 @@ export default function DayEndPage() {
                             mobile_money_sales: h.mobile_money_sales ?? 0,
                             other_sales: h.other_sales ?? 0,
                             total_expenses: h.total_expenses ?? 0,
+                            total_salaries: h.total_salaries ?? 0,
+                            total_rent_paid: h.total_rent_paid ?? 0,
                             total_refunds: h.total_refunds ?? 0,
-                            net_revenue: h.net_revenue ?? h.total_sales ?? 0,
+                            // A closed day stores its parts, not the net — rebuild it the same way the live summary does.
+                            net_revenue: Number(h.total_sales ?? 0) - Number(h.total_refunds ?? 0)
+                              - Number(h.total_expenses ?? 0) - Number(h.total_salaries ?? 0) - Number(h.total_rent_paid ?? 0),
                             cashier_breakdown: [],
                             shift_ends: [],
                           } as EodSummary,

@@ -51,7 +51,9 @@
   <tr><td>Revenue</td><td>${{ number_format($data['total_revenue'] ?? 0, 2) }}</td></tr>
   <tr><td>Cost of Goods Sold (COGS)</td><td>-${{ number_format($data['cogs'] ?? 0, 2) }}</td></tr>
   <tr><td><strong>Gross Profit ({{ $data['gross_margin'] ?? 0 }}%)</strong></td><td><strong class="{{ ($data['gross_profit'] ?? 0) >= 0 ? 'badge-positive' : 'badge-negative' }}">${{ number_format($data['gross_profit'] ?? 0, 2) }}</strong></td></tr>
-  <tr><td>Total Expenses</td><td>-${{ number_format($data['total_expenses'] ?? 0, 2) }}</td></tr>
+  <tr><td>Expenses</td><td>-${{ number_format($data['total_expenses'] ?? 0, 2) }}</td></tr>
+  <tr><td>Salaries paid</td><td>-${{ number_format($data['total_salaries'] ?? 0, 2) }}</td></tr>
+  <tr><td>Rent paid</td><td>-${{ number_format($data['total_rent_paid'] ?? 0, 2) }}</td></tr>
   <tr><td><strong>Net Profit ({{ $data['net_margin'] ?? 0 }}%)</strong></td><td><strong class="{{ ($data['net_profit'] ?? 0) >= 0 ? 'badge-positive' : 'badge-negative' }}">${{ number_format($data['net_profit'] ?? 0, 2) }}</strong></td></tr>
 </table>
 

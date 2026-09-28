@@ -83,12 +83,14 @@ class RentalController extends BaseApiController
         ]);
 
         $rental->update($data);
+        $this->bustDashboardCache($rental->branch_id);
         return $this->success($rental->fresh()->load('branch:id,name', 'payments'), 'Rental updated');
     }
 
     public function destroy(Rental $rental)
     {
         $rental->delete();
+        $this->bustDashboardCache($rental->branch_id);
         return $this->success(null, 'Rental deleted');
     }
 
@@ -117,6 +119,9 @@ class RentalController extends BaseApiController
             'payment_method' => $data['payment_method'] ?? 'cash',
             'notes'          => $data['notes'] ?? null,
         ]);
+
+        // Rent the business pays is deducted from sales on the dashboard and in reports.
+        $this->bustDashboardCache($rental->branch_id);
 
         return $this->success($payment, 'Payment recorded', 201);
     }

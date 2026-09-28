@@ -69,10 +69,10 @@ export default function BranchComparisonPage() {
 
           <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px]">
+              <table className="w-full min-w-[900px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Branch', 'Revenue', 'Gross Profit', 'GP %', 'Expenses', 'Net Profit', 'Transactions'].map(h => (
+                    {['Branch', 'Revenue', 'Gross Profit', 'GP %', 'Expenses', 'Salaries', 'Rent Paid', 'Net Profit', 'Transactions'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -87,6 +87,8 @@ export default function BranchComparisonPage() {
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{formatAmount(r.gross_profit)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{r.gp_percent}%</td>
                       <td className="px-4 py-3 text-sm text-red-600 tabular-nums">{formatAmount(r.expenses)}</td>
+                      <td className="px-4 py-3 text-sm text-red-600 tabular-nums">{formatAmount(r.salaries ?? 0)}</td>
+                      <td className="px-4 py-3 text-sm text-red-600 tabular-nums">{formatAmount(r.rent_paid ?? 0)}</td>
                       <td className={`px-4 py-3 text-sm font-semibold tabular-nums ${r.net_profit < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatAmount(r.net_profit)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">{r.transaction_count}</td>
                     </tr>
@@ -100,6 +102,8 @@ export default function BranchComparisonPage() {
                       <td className="px-4 py-3 text-sm font-bold text-gray-900 tabular-nums">{formatAmount(totals.gross_profit)}</td>
                       <td className="px-4 py-3 text-sm"></td>
                       <td className="px-4 py-3 text-sm font-bold text-red-600 tabular-nums">{formatAmount(totals.expenses)}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-red-600 tabular-nums">{formatAmount(totals.salaries ?? 0)}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-red-600 tabular-nums">{formatAmount(totals.rent_paid ?? 0)}</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900 tabular-nums">{formatAmount(totals.net_profit)}</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900 tabular-nums">{totals.transaction_count}</td>
                     </tr>

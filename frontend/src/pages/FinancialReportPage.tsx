@@ -196,7 +196,10 @@ export default function FinancialReportPage() {
               <PLRow label="Less: Cost of Goods Sold (COGS)" value={report.less_cost_of_sales} isNegative fmt={formatAmount} />
               <PLRow label="Gross Profit" value={report.gross_profit} isBold fmt={formatAmount} />
               <PLRow label="% Gross Profit Margin" value={report.gp_percent} isPercent fmt={formatAmount} />
-              <PLRow label="Less: Expenses / Deductions" value={report.less_deductions} isNegative fmt={formatAmount} />
+              <PLRow label="Less: Expenses" value={report.less_expenses ?? 0} isNegative fmt={formatAmount} />
+              <PLRow label="Less: Salaries Paid" value={report.less_salaries ?? 0} isNegative fmt={formatAmount} />
+              <PLRow label="Less: Rent Paid" value={report.less_rent_paid ?? 0} isNegative fmt={formatAmount} />
+              <PLRow label="Total Deductions" value={report.less_deductions} isNegative fmt={formatAmount} />
               <PLRow label="Net Profit (Profit B/d)" value={report.profit_bd} isBold isHighlight fmt={formatAmount} />
             </div>
 

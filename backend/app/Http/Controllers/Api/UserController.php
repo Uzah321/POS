@@ -32,7 +32,7 @@ class UserController extends BaseApiController
             'username'  => 'required|string|max:50|unique:users|alpha_dash',
             'email'     => 'nullable|email|unique:users',
             'phone'     => 'nullable|string|max:20',
-            'password'      => ['required', 'string', Password::min(8)->mixedCase()->numbers()],
+            'password'      => ['required', 'string', Password::min(8)->numbers()],
             'branch_id'     => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
             // Which shop this person works in. Empty = follows the system-wide mode.
@@ -76,7 +76,7 @@ class UserController extends BaseApiController
             'is_active' => 'sometimes|boolean',
             'roles'     => 'sometimes|array',
             'roles.*'   => 'exists:roles,name',
-            'password'  => ['sometimes', 'string', Password::min(8)->mixedCase()->numbers()],
+            'password'  => ['sometimes', 'string', Password::min(8)->numbers()],
         ]);
 
         if (isset($data['password'])) {

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
 import { Clock, LogIn, LogOut, Calendar } from 'lucide-react';
+import PasswordInput from '../components/ui/PasswordInput';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 
@@ -132,12 +133,11 @@ export default function AttendancePage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-xs p-6 space-y-4">
             <h2 className="font-bold text-gray-900 text-center">Enter PIN to {pinAction === 'clock_in' ? 'Clock In' : 'Clock Out'}</h2>
-            <input
-              type="password"
+            <PasswordInput
               value={pin}
               onChange={e => setPin(e.target.value)}
               maxLength={6}
-              placeholder="-¢â‚¬Â¢-¢â‚¬Â¢-¢â‚¬Â¢"
+              placeholder="PIN"
               autoFocus
               className="w-full text-center text-2xl tracking-widest border border-gray-200 rounded-md px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onKeyDown={e => { if (e.key === 'Enter' && pin.length >= 4) pinLoginMutation.mutate(pin); }}

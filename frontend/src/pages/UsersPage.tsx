@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AUTH_ME_QUERY_KEY } from '../components/auth/RouteGuards';
 import { usersApi, branchesApi, departmentsApi } from '../api';
 import { Plus, Search, Edit, Trash2, Loader2, X, Users, WifiOff, Building2 } from 'lucide-react';
+import PasswordInput from '../components/ui/PasswordInput';
 import Pagination from '../components/ui/Pagination';
 import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { useForm } from 'react-hook-form';
@@ -37,8 +38,6 @@ const schema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   password: z.string()
     .min(8, 'At least 8 characters')
-    .regex(/[a-z]/, 'Include a lowercase letter')
-    .regex(/[A-Z]/, 'Include an uppercase letter')
     .regex(/[0-9]/, 'Include a number')
     .optional().or(z.literal('')),
   role: z.string().min(1),
@@ -171,7 +170,7 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">{user ? 'New Password' : 'Password *'}</label>
-              <input type="password" {...register('password')} className={field} placeholder={user ? 'Leave blank to keep' : 'Min 8 chars, upper+lower+number'} />
+              <PasswordInput {...register('password')} autoComplete="new-password" className={field} placeholder={user ? 'Leave blank to keep' : 'At least 8 characters, with a number'} />
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
             </div>
           </div>

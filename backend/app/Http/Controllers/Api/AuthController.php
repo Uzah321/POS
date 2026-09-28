@@ -114,7 +114,7 @@ class AuthController extends BaseApiController
             'name'         => 'sometimes|string|max:255',
             'phone'        => 'sometimes|nullable|string|max:20',
             'current_password' => 'required_with:new_password|string',
-            'new_password' => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+            'new_password' => ['sometimes', 'confirmed', Password::min(8)->numbers()],
         ]);
 
         $changedOwnPassword = isset($data['new_password']);

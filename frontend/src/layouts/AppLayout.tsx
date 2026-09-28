@@ -8,8 +8,9 @@ import {
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
-  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, CalendarDays
+  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, CalendarDays, Keyboard
 } from 'lucide-react';
+import KeyboardShortcuts, { type ShortcutDestination } from '../components/KeyboardShortcuts';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { useCartStore, TABLES } from '../stores/cartStore';
@@ -280,6 +281,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const canSee = (perm: string) =>
     !isCashier && (hasPermission(perm) || user?.roles?.includes('admin'));
 
+  // Alt+1..9 — fixed numbers so they're easy to learn; each user only gets the
+  // pages they can open (cashiers: the till screens, same as their sidebar).
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const tillPath = isRestaurant ? '/pos' : isSupermarket ? '/cashier' : null;
+  const shortcutDestinations: ShortcutDestination[] = ([
+    { key: '1', to: '/',          label: 'Dashboard',     perm: 'view_dashboard' },
+    ...(tillPath ? [{ key: '2', to: tillPath, label: isRestaurant ? 'Advanced POS' : 'Cashier Register', perm: 'create_sales', till: true }] : []),
+    ...(isRestaurant ? [{ key: '3', to: '/tables', label: 'Tables', perm: 'create_sales', till: true }] : []),
+    { key: '4', to: '/sales',     label: 'Sales History', perm: 'view_sales' },
+    { key: '5', to: '/products',  label: 'Products',      perm: 'view_products' },
+    { key: '6', to: '/inventory', label: 'Stock Levels',  perm: 'view_inventory' },
+    { key: '7', to: '/customers', label: 'Customers',     perm: 'view_customers' },
+    { key: '8', to: '/reports',   label: 'Reports',       perm: 'view_reports' },
+    { key: '9', to: '/shift-end', label: 'Cashup',        perm: 'create_sales', till: true },
+  ] as Array<ShortcutDestination & { perm: string; till?: boolean }>)
+    .filter(d => (d.till ? (hasPermission(d.perm) || hasRole('admin')) : canSee(d.perm)))
+    .map(({ key, to, label }) => ({ key, to, label }));
+  const shortcutsButton = (
+    <button
+      type="button"
+      onClick={() => setShowShortcuts(true)}
+      title="Keyboard shortcuts (?)"
+      aria-label="Keyboard shortcuts"
+      className="hidden sm:flex items-center justify-center w-9 h-9 rounded-lg text-white/70 hover:text-white hover:bg-white/10"
+    >
+      <Keyboard size={18} />
+    </button>
+  );
+
   const userInitials = user?.name
     ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
@@ -480,6 +510,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </select>
 
+            {shortcutsButton}
             <NotificationBell dark />
 
             <div className="flex items-center gap-2.5">
@@ -635,6 +666,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
+          {shortcutsButton}
           <NotificationBell dark />
 
           {/* Cashier Register already names the logged-in cashier in its own
@@ -660,6 +692,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <main> lets content grow to its natural size and scrolls the whole page instead of
             the page's own internal scroll regions. */}
         <LicenseBanner />
+        <KeyboardShortcuts open={showShortcuts} onOpenChange={setShowShortcuts} destinations={shortcutDestinations} />
         <main ref={mainRef} className="app-workspace flex-1 flex flex-col overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6">
           <TopbarSlotContext.Provider value={topbarSlotEl}>
             {children}

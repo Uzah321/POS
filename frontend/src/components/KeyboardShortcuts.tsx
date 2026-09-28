@@ -22,10 +22,15 @@ const PAGE_SHORTCUTS: Record<string, Array<[string, string]>> = {
   ],
   '/cashier': [
     ['F9', 'Complete sale'],
-    ['F8', 'Hold order'],
-    ['F5', 'Clear cart'],
     ['F1 · F2 · F3', 'Pay by cash / card / mobile money'],
-    ['Esc', 'Clear the code box'],
+    ['F10', 'Type the cash tendered'],
+    ['F6', 'Change quantity of the last item'],
+    ['Delete', 'Remove the last item (scan box empty)'],
+    ['F8', 'Save (hold) order'],
+    ['F4', 'Held orders'],
+    ['F7', 'Void a sale'],
+    ['F5', 'Clear cart'],
+    ['Esc', 'Clear the scan box'],
   ],
 };
 

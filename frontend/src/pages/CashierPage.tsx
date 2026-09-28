@@ -539,13 +539,24 @@ export default function CashierPage() {
 
   // Keep latest handlers in ref to avoid stale closures in keydown listener
   useEffect(() => {
-    kbRef.current = { handleProcessSale, handleHoldOrder, saleMutation, holdMutation, cart };
+    kbRef.current = {
+      handleProcessSale, handleHoldOrder, saleMutation, holdMutation, cart, codeInput, voidOpen: showVoidModal,
+      // Any popup open — the till's F-keys stay out of its way (popups handle Enter/Esc themselves).
+      popupOpen: showSearchModal || showOpenTables || showVoidModal || !!editingQtyItem || !!pendingWeightProduct,
+    };
   });
 
   // ── Global keyboard shortcuts ────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { handleProcessSale, handleHoldOrder, saleMutation, holdMutation, cart } = kbRef.current;
+      const { handleProcessSale, handleHoldOrder, saleMutation, holdMutation, cart, codeInput, voidOpen, popupOpen } = kbRef.current;
+
+      if (e.key === 'F4') { e.preventDefault(); if (!voidOpen) setShowOpenTables((v) => !v); return; }
+      if (popupOpen) {
+        // Esc closes Held Orders / Void (the keypads and on-screen keyboard close themselves).
+        if (e.key === 'Escape') { setShowOpenTables(false); setShowVoidModal(false); setVoidSearch(''); }
+        return;
+      }
 
       if (e.key === 'F9') { e.preventDefault(); if (!saleMutation.isPending) handleProcessSale(); }
       if (e.key === 'F8') { e.preventDefault(); if (!holdMutation.isPending) handleHoldOrder(); }
@@ -554,6 +565,28 @@ export default function CashierPage() {
       if (e.key === 'F2') { e.preventDefault(); setPayMethod('card'); }
       if (e.key === 'F3') { e.preventDefault(); setPayMethod('mobile_money'); }
       if (e.key === 'Escape') { setCodeInput(''); codeRef.current?.focus(); }
+      // Change the quantity of the last item added.
+      if (e.key === 'F6') {
+        e.preventDefault();
+        const last = cart.items[cart.items.length - 1];
+        if (last) { setEditingQtyItem(last); setQtyInput(String(last.quantity)); }
+      }
+      if (e.key === 'F7') { e.preventDefault(); setShowVoidModal(true); }
+      // Straight to the Cash Tendered box (keyboard mode; touch mode has no text box).
+      if (e.key === 'F10') {
+        e.preventDefault();
+        setPayMethod('cash');
+        setTimeout(() => { tenderedRef.current?.focus(); tenderedRef.current?.select(); }, 40);
+      }
+      // Delete removes the last item — only from the empty scan box or outside any field,
+      // so it never eats a Delete meant for text being edited.
+      if (e.key === 'Delete') {
+        const target = e.target as HTMLElement;
+        const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+        const inEmptyScanBox = target === codeRef.current && !codeInput;
+        const last = cart.items[cart.items.length - 1];
+        if (last && (!inField || inEmptyScanBox)) { e.preventDefault(); cart.removeItem(last.line_id); }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -637,7 +670,7 @@ export default function CashierPage() {
               className="relative flex items-center gap-2 rounded-xl h-11 text-white hover:brightness-125 text-xs font-semibold px-3.5 transition touch-manipulation flex-shrink-0"
               style={{ background: '#16305e' }}
             >
-              <LayoutGrid size={16} className="text-amber-300" /> <span className="hidden sm:inline">{isRestaurant ? 'Open Tables' : 'Held Orders'}</span>
+              <LayoutGrid size={16} className="text-amber-300" /> <span className="hidden sm:inline">{isRestaurant ? 'Open Tables' : 'Held Orders'} <span className="opacity-50">F4</span></span>
               {heldOrders.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{heldOrders.length}</span>
               )}
@@ -648,7 +681,7 @@ export default function CashierPage() {
               className="flex items-center gap-2 rounded-xl h-11 text-red-200 hover:text-white hover:bg-red-500/80 text-xs font-semibold px-3.5 transition-colors touch-manipulation flex-shrink-0"
               style={{ background: '#16305e' }}
             >
-              <Ban size={16} /> <span className="hidden sm:inline">Void</span>
+              <Ban size={16} /> <span className="hidden sm:inline">Void <span className="opacity-50">F7</span></span>
             </button>
 
             {scales.length > 0 && (
@@ -827,7 +860,7 @@ export default function CashierPage() {
                   disabled={cart.items.length === 0 || holdMutation.isPending}
                   className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 disabled:opacity-40 transition-colors touch-manipulation"
                 >
-                  {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PlayCircle size={13} />} Save order
+                  {holdMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PlayCircle size={13} />} Save order <span className="opacity-50">F8</span>
                 </button>
               </div>
             </div>
@@ -864,7 +897,7 @@ export default function CashierPage() {
                       <span className="w-16 flex justify-center flex-shrink-0">
                         <button type="button"
                           onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}
-                          title="Tap to set quantity"
+                          title="Tap to set quantity (F6 = last item)"
                           className="min-w-[44px] h-8 px-2 text-center text-sm font-bold text-blue-700 tabular-nums bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 hover:border-blue-300 transition-colors touch-manipulation">
                           {item.sold_by_weight ? `${item.quantity.toFixed(3)}kg` : item.quantity}
                         </button>
@@ -875,7 +908,7 @@ export default function CashierPage() {
                       <span className="w-8 flex justify-center flex-shrink-0">
                         <button type="button"
                           onClick={() => cart.removeItem(item.line_id)}
-                          title="Remove item"
+                          title="Remove item (Delete = last item)"
                           className="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-white hover:bg-red-500 transition-colors touch-manipulation">
                           <Trash2 size={14} />
                         </button>

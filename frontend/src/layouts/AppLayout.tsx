@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, ClipboardCheck, UserCheck, TrendingUp, Shield,
   Zap, Database, Key, ChevronDown, Smartphone, Banknote, PieChart,
   Building2, GitCompare, Monitor, UtensilsCrossed, ChefHat, Tv2,
-  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, CalendarDays, Keyboard
+  Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, CalendarDays, Keyboard, RotateCw
 } from 'lucide-react';
 import KeyboardShortcuts, { type ShortcutDestination } from '../components/KeyboardShortcuts';
 import { useQuery } from '@tanstack/react-query';
@@ -310,6 +310,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </button>
   );
 
+  // The app usually runs full screen (kiosk/touch), where the browser's own
+  // reload button and F5 aren't reachable. Safe mid-sale: the cart is persisted.
+  const [reloading, setReloading] = useState(false);
+  const reloadButton = (
+    <button
+      type="button"
+      onClick={() => { setReloading(true); window.location.reload(); }}
+      disabled={reloading}
+      title="Reload page"
+      aria-label="Reload page"
+      className="flex items-center justify-center w-9 h-9 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-60"
+    >
+      <RotateCw size={18} className={reloading ? 'animate-spin' : ''} />
+    </button>
+  );
+
   const userInitials = user?.name
     ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
@@ -510,6 +526,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </select>
 
+            {reloadButton}
             {shortcutsButton}
             <NotificationBell dark />
 
@@ -666,6 +683,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
+          {reloadButton}
           {shortcutsButton}
           <NotificationBell dark />
 

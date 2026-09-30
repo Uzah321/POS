@@ -141,6 +141,7 @@ export const weighingScalesApi = {
 };
 
 export const usersApi = {
+  waiters: () => api.get('/waiters'),
   list: (params?: object) => api.get('/users', { params }),
   get: (id: number) => api.get(`/users/${id}`),
   create: (data: object) => api.post('/users', data),

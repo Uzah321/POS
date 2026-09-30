@@ -120,6 +120,8 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
 
     // Restaurant tables — tile grid + open tabs
     Route::get('/tables', [TableController::class, 'index']);
+    // Waiter picker on the POS — readable by anyone who takes orders (see UserController::waiters).
+    Route::get('/waiters', [UserController::class, 'waiters']);
     Route::middleware('permission:manage_tables')->group(function () {
         Route::post('/tables', [TableController::class, 'store']);
         Route::put('/tables/{table}', [TableController::class, 'update']);

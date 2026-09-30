@@ -25,6 +25,24 @@ class UserController extends BaseApiController
         return $this->paginated($query->orderBy('name')->paginate($request->per_page ?? 15));
     }
 
+    /**
+     * GET /waiters — active staff with the waiter role, for the POS waiter
+     * picker. Open to anyone who can ring up sales (the full /users list needs
+     * manage_users, which cashiers and managers don't have — so the picker came
+     * up empty for them). Covers the caller's branch plus waiters with no
+     * branch set; an admin sees every branch. Only id and name are returned.
+     */
+    public function waiters(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $branchId = $this->effectiveBranchId($request);
+        $waiters = User::whereHas('roles', fn($r) => $r->where('name', 'waiter'))
+            ->where('is_active', true)
+            ->when($branchId, fn($q) => $q->where(fn($b) => $b->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        return $this->success($waiters);
+    }
+
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
@@ -32,7 +50,7 @@ class UserController extends BaseApiController
             'username'  => 'required|string|max:50|unique:users|alpha_dash',
             'email'     => 'nullable|email|unique:users',
             'phone'     => 'nullable|string|max:20',
-            'password'      => ['required', 'string', Password::min(8)->numbers()],
+            'password'      => ['required', 'string', Password::min(4)],
             'branch_id'     => 'nullable|exists:branches,id',
             'department_id' => 'nullable|exists:departments,id',
             // Which shop this person works in. Empty = follows the system-wide mode.
@@ -76,7 +94,7 @@ class UserController extends BaseApiController
             'is_active' => 'sometimes|boolean',
             'roles'     => 'sometimes|array',
             'roles.*'   => 'exists:roles,name',
-            'password'  => ['sometimes', 'string', Password::min(8)->numbers()],
+            'password'  => ['sometimes', 'string', Password::min(4)],
         ]);
 
         if (isset($data['password'])) {

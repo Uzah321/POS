@@ -320,8 +320,9 @@ export default function POSPage() {
 
   // Waiters — staff with the "waiter" role, mandatory on every sit-in order.
   const { data: waitersData } = useQuery({
+    // Under ['users'] so adding/editing staff on the Users page refreshes it.
     queryKey: ['users', 'role-waiter'],
-    queryFn: () => usersApi.list({ role: 'waiter', per_page: 200 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    queryFn: () => usersApi.waiters().then(r => r.data?.data ?? []),
     staleTime: 60000,
   });
   const waiters: any[] = Array.isArray(waitersData) ? waitersData : [];

@@ -11,6 +11,14 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { db, type LocalUser } from '../lib/db';
+import { offlineMutate } from '../lib/offlineMutation';
+
+// The server's reason for rejecting a save ("The username has already been taken."), else a fallback.
+function serverError(e: any, fallback: string): string {
+  const errors = e?.response?.data?.errors;
+  const first = errors && typeof errors === 'object' ? Object.values(errors).flat()[0] : null;
+  return (typeof first === 'string' && first) || e?.response?.data?.message || fallback;
+}
 import { useOfflineStore } from '../stores/offlineStore';
 import BranchFilter from '../components/BranchFilter';
 import { SUPERMARKET_ENABLED } from '../lib/shops';
@@ -53,10 +61,6 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-function makeMutId() {
-  return `mut-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 function UserModal({ user, branches, departments, onClose }: { user?: any; branches: any[]; departments: any[]; onClose: () => void }) {
   const qc = useQueryClient();
   const isOnline = useOfflineStore((s) => s.isOnline);
@@ -72,36 +76,25 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
       const payload: any = { ...d, roles: [d.role], business_type: d.business_type || null };
       if (!payload.password) delete payload.password;
 
-      // Try the server first; fall back to IndexedDB when unavailable
-      try {
-        const r = user
-          ? await usersApi.update(user.id, payload)
-          : await usersApi.create(payload);
-        const saved = r.data?.data ?? r.data;
+      // Server first. Only when it can't be reached at all does this queue the
+      // save for later (offlineMutate records the URL so the sync can replay
+      // it). A real rejection — e.g. "username already taken" — is thrown and
+      // shown, instead of pretending it was saved offline and quietly losing it.
+      const tempId = user ? undefined : -(Date.now());
+      const res = await offlineMutate(
+        () => (user ? usersApi.update(user.id, payload) : usersApi.create(payload)),
+        'users', user ? 'update' : 'create', payload, user ? user.id : tempId,
+      );
+      if (!res.offline) {
+        const saved = (res.data as any)?.data?.data ?? (res.data as any)?.data;
         if (saved?.id) await db.users.put(saved as LocalUser);
         return { offline: false };
-      } catch {
-        // Server unavailable — persist locally and queue for sync
-        if (user) {
-          const updated: LocalUser = {
-            ...user,
-            ...payload,
-            roles: [{ name: d.role }],
-          };
-          await db.users.put(updated);
-          await db.pendingMutations.add({
-            id: makeMutId(),
-            resource: 'users',
-            action: 'update',
-            resourceId: user.id,
-            payload,
-            queuedAt: Date.now(),
-            attempts: 0,
-          });
-        } else {
-          const tempId = -(Date.now());
-          const tempUser: LocalUser = {
-            id: tempId,
+      }
+      // Offline: show it locally until the queued save syncs.
+      await db.users.put(user
+        ? { ...user, ...payload, roles: [{ name: d.role }] }
+        : {
+            id: tempId!,
             name: d.name,
             username: d.username,
             email: d.email || undefined,
@@ -110,20 +103,8 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
             department_id: d.department_id ?? null,
             business_type: d.business_type || null,
             is_active: d.is_active,
-          };
-          await db.users.put(tempUser);
-          await db.pendingMutations.add({
-            id: makeMutId(),
-            resource: 'users',
-            action: 'create',
-            resourceId: tempId,
-            payload,
-            queuedAt: Date.now(),
-            attempts: 0,
           });
-        }
-        return { offline: true };
-      }
+      return { offline: true };
     },
     onSuccess: (result) => {
       if (result.offline) {
@@ -136,7 +117,7 @@ function UserModal({ user, branches, departments, onClose }: { user?: any; branc
       qc.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
       onClose();
     },
-    onError: () => toast.error('Failed to save'),
+    onError: (e: any) => toast.error(serverError(e, 'Failed to save')),
   });
 
   const field = 'mt-1 w-full border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
@@ -506,32 +487,15 @@ export default function UsersPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      try {
-        await usersApi.delete(id);
+      // Never reached the server (added while offline) — just drop it locally.
+      if (id < 0) {
         await db.users.delete(id);
+        await db.pendingMutations.where('resource').equals('users').filter(m => m.resourceId === id).delete();
         return { offline: false };
-      } catch {
-        // If temp (negative) ID, just delete locally — no server call needed
-        if (id < 0) {
-          await db.users.delete(id);
-          await db.pendingMutations
-            .where('resource').equals('users')
-            .filter(m => m.resourceId === id)
-            .delete();
-          return { offline: false };
-        }
-        await db.users.delete(id);
-        await db.pendingMutations.add({
-          id: makeMutId(),
-          resource: 'users',
-          action: 'delete',
-          resourceId: id,
-          payload: {},
-          queuedAt: Date.now(),
-          attempts: 0,
-        });
-        return { offline: true };
       }
+      const res = await offlineMutate(() => usersApi.delete(id), 'users', 'delete', {}, id);
+      await db.users.delete(id);
+      return { offline: res.offline };
     },
     onSuccess: (result) => {
       if (result.offline) {
@@ -541,7 +505,7 @@ export default function UsersPage() {
       }
       qc.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: () => toast.error('Cannot remove this staff member'),
+    onError: (e: any) => toast.error(serverError(e, 'Cannot remove this staff member')),
   });
 
   const users: any[] = data?.data || [];
@@ -557,7 +521,7 @@ export default function UsersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            {users.length} total · <span className="text-emerald-600 font-medium">{activeCount} active</span>
+            {meta?.total ?? users.length} total · <span className="text-emerald-600 font-medium">{activeCount} active</span>
             {!isOnline && (
               <span className="ml-2 text-amber-600 inline-flex items-center gap-1">
                 <WifiOff size={11} /> offline mode

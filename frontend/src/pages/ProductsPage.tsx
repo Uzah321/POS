@@ -126,11 +126,15 @@ function InlineColorPicker({ value, onChange, image, onImageChange }: {
         <label title="Custom color" className="w-5 h-5 rounded-full border border-white shadow-sm cursor-pointer relative overflow-hidden bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]">
           <input type="color" value={value && !image ? value : '#888888'} onChange={(e) => { onChange(e.target.value); onImageChange?.(undefined); }} className="absolute inset-0 opacity-0 cursor-pointer" />
         </label>
-        {(value || image) && (
-          <button type="button" onClick={() => { onChange(undefined); onImageChange?.(undefined); }} title="Clear" className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500">
+        {image ? (
+          <button type="button" onClick={() => onImageChange?.(undefined)} title="Remove image" className="flex-shrink-0 h-6 px-2 flex items-center gap-1 border border-red-200 bg-red-50 text-red-600 text-[11px] font-semibold hover:bg-red-100 transition-colors">
+            <Trash2 size={11} /> Remove
+          </button>
+        ) : value ? (
+          <button type="button" onClick={() => onChange(undefined)} title="Clear color" className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500">
             <X size={12} />
           </button>
-        )}
+        ) : null}
         {onImageChange && (
           <label title="Upload a photo instead of a color" className="flex-shrink-0 h-6 px-2 flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-600 text-[11px] font-semibold cursor-pointer hover:bg-blue-100 transition-colors">
             {uploading ? <Loader2 size={11} className="animate-spin" /> : <ImageIcon size={11} />}
@@ -189,15 +193,23 @@ function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
               <Package size={18} className="text-gray-300" />
             ) : null}
           </div>
-          {(image || color) && (
+          {image ? (
             <button
               type="button"
-              onClick={() => { onImageChange(undefined); onColorChange(undefined); }}
+              onClick={() => onImageChange(undefined)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-red-500 hover:text-red-600"
+            >
+              <Trash2 size={11} /> Remove image
+            </button>
+          ) : color ? (
+            <button
+              type="button"
+              onClick={() => onColorChange(undefined)}
               className="text-[11px] text-gray-400 hover:text-red-500"
             >
-              Clear
+              Clear color
             </button>
-          )}
+          ) : null}
         </div>
         <div className="flex-1 space-y-2">
           <div className="flex flex-wrap gap-1.5">
@@ -226,7 +238,7 @@ function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
           <div>
             <label className="inline-flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 cursor-pointer">
               {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
-              Upload image...
+              {image ? 'Change image...' : 'Upload image...'}
               <input
                 type="file"
                 accept="image/*"
@@ -297,7 +309,9 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       // USD (the base currency the backend/db always store) before saving.
       const usdSellingPrice = toUsd(data.selling_price);
       const usdCostPrice = toUsd(data.cost_price);
-      const payload = { ...data, selling_price: usdSellingPrice, cost_price: usdCostPrice } as Record<string, unknown>;
+      // null (not undefined) for a cleared color/image — undefined keys are dropped
+      // from the JSON, which left the server keeping the old picture.
+      const payload = { ...data, color: data.color ?? null, image: data.image ?? null, selling_price: usdSellingPrice, cost_price: usdCostPrice } as Record<string, unknown>;
       const saveOffline = async () => {
         if (product) {
           await db.products.put({

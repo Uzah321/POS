@@ -62,7 +62,8 @@ export const useCurrencyStore = create<CurrencyState>()(
         const numeric = typeof usdAmount === 'string' ? parseFloat(usdAmount) : usdAmount;
         const safe = (typeof numeric === 'number' && isFinite(numeric)) ? numeric : 0;
         const converted = safe * cur.exchange_rate;
-        return `${cur.symbol}${converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const sign = converted < 0 ? '-' : '';
+        return `${sign}${cur.symbol}${Math.abs(converted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       },
 
       toUsd: (amount: number) => {

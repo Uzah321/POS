@@ -683,8 +683,12 @@ class SaleController extends BaseApiController
     private function createLineItemsAndDeductStock(Sale $sale, array $lineItems, $productsById, int $warehouseId): void
     {
         $costPrices = $productsById->pluck('cost_price', 'id');
+        // A variant line costs what that variant costs, not its parent product.
+        $variantCosts = \App\Models\ProductVariant::whereIn('id', collect($lineItems)->pluck('product_variant_id')->filter())
+            ->pluck('cost_price', 'id');
 
         foreach ($lineItems as $item) {
+            $variantCost = (float) ($variantCosts[$item['product_variant_id'] ?? 0] ?? 0);
             // Snapshot which scale weighed this line (if any) straight from the
             // product's own assignment — the client never sends this, since a
             // product's scale is configured once in Products, not per-sale.
@@ -696,7 +700,7 @@ class SaleController extends BaseApiController
                 'scale_id'           => $product?->scale_id,
                 'quantity'           => $item['quantity'],
                 'unit_price'         => $item['unit_price'],
-                'cost_price'         => (float) ($costPrices[$item['product_id']] ?? 0),
+                'cost_price'         => $variantCost > 0 ? $variantCost : (float) ($costPrices[$item['product_id']] ?? 0),
                 'discount_amount'    => $item['discount_amount'],
                 'tax_amount'         => $item['tax_amount'],
                 'subtotal'           => $item['subtotal'],

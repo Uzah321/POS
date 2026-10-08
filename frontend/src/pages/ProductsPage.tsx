@@ -127,8 +127,8 @@ function InlineColorPicker({ value, onChange, image, onImageChange }: {
           <input type="color" value={value && !image ? value : '#888888'} onChange={(e) => { onChange(e.target.value); onImageChange?.(undefined); }} className="absolute inset-0 opacity-0 cursor-pointer" />
         </label>
         {image ? (
-          <button type="button" onClick={() => onImageChange?.(undefined)} title="Remove image" className="flex-shrink-0 h-6 px-2 flex items-center gap-1 border border-red-200 bg-red-50 text-red-600 text-[11px] font-semibold hover:bg-red-100 transition-colors">
-            <Trash2 size={11} /> Remove
+          <button type="button" onClick={() => onImageChange?.(undefined)} title="Remove image" className="flex-shrink-0 h-7 px-2.5 flex items-center gap-1 rounded-md border border-red-200 bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors">
+            <Trash2 size={11} /> Remove image
           </button>
         ) : value ? (
           <button type="button" onClick={() => onChange(undefined)} title="Clear color" className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500">
@@ -136,9 +136,9 @@ function InlineColorPicker({ value, onChange, image, onImageChange }: {
           </button>
         ) : null}
         {onImageChange && (
-          <label title="Upload a photo instead of a color" className="flex-shrink-0 h-6 px-2 flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-600 text-[11px] font-semibold cursor-pointer hover:bg-blue-100 transition-colors">
+          <label title="Upload a photo instead of a color" className="flex-shrink-0 h-7 px-2.5 flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold cursor-pointer hover:bg-blue-100 transition-colors">
             {uploading ? <Loader2 size={11} className="animate-spin" /> : <ImageIcon size={11} />}
-            Image
+            {image ? 'Change image' : 'Add image'}
             <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
           </label>
         )}
@@ -193,23 +193,6 @@ function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
               <Package size={18} className="text-gray-300" />
             ) : null}
           </div>
-          {image ? (
-            <button
-              type="button"
-              onClick={() => onImageChange(undefined)}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-red-500 hover:text-red-600"
-            >
-              <Trash2 size={11} /> Remove image
-            </button>
-          ) : color ? (
-            <button
-              type="button"
-              onClick={() => onColorChange(undefined)}
-              className="text-[11px] text-gray-400 hover:text-red-500"
-            >
-              Clear color
-            </button>
-          ) : null}
         </div>
         <div className="flex-1 space-y-2">
           <div className="flex flex-wrap gap-1.5">
@@ -235,10 +218,10 @@ function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
               />
             </label>
           </div>
-          <div>
-            <label className="inline-flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 cursor-pointer">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold cursor-pointer hover:bg-blue-100 transition-colors">
               {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
-              {image ? 'Change image...' : 'Upload image...'}
+              {image ? 'Change image' : 'Add image'}
               <input
                 type="file"
                 accept="image/*"
@@ -246,6 +229,23 @@ function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
             </label>
+            {image ? (
+              <button
+                type="button"
+                onClick={() => onImageChange(undefined)}
+                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors"
+              >
+                <Trash2 size={13} /> Remove image
+              </button>
+            ) : color ? (
+              <button
+                type="button"
+                onClick={() => onColorChange(undefined)}
+                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
+              >
+                <X size={13} /> Clear color
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

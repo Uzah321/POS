@@ -21,7 +21,7 @@ import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import PosProductTile from '../components/pos/PosProductTile';
 import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
-import { decodeEmbeddedBarcode } from '../lib/barcode/embeddedBarcode';
+import { decodeEmbeddedBarcode, findProductByPlu, embeddedCartLine } from '../lib/barcode/embeddedBarcode';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -788,17 +788,15 @@ export default function POSPage() {
   const tryAddEmbeddedBarcode = (code: string): boolean => {
     const decoded = decodeEmbeddedBarcode(code, storeSettings ?? {});
     if (!decoded) return false;
-    const product = allProducts.find((p: any) => p.sold_by_weight && (p.plu_code ?? '') === decoded.pluCode);
+    const product = findProductByPlu(allProducts, decoded.pluCode);
     if (!product) {
       toast.error(`No product with PLU code ${decoded.pluCode}`);
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
-    const added = decoded.kind === 'weight'
-      ? addProductWithQty(product, decoded.value, true)
-      : addProductWithQty(product, 1, false, decoded.value);
-    if (added) {
-      toast.success(decoded.kind === 'weight'
-        ? `Added ${product.name} (${decoded.value.toFixed(3)} kg)`
+    const line = embeddedCartLine(decoded, parseFloat(product.selling_price));
+    if (addProductWithQty(product, line.qty, line.soldByWeight, line.price)) {
+      toast.success(line.soldByWeight
+        ? `Added ${product.name} (${line.qty.toFixed(3)} kg)`
         : `Added ${product.name}`, { duration: 800 });
     }
     return true;

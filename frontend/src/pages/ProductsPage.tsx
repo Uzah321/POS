@@ -658,7 +658,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">PLU Code</label>
                     <input {...register('plu_code')} placeholder="e.g. 123" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white" />
-                    <p className="text-xs text-gray-400 mt-1">Only needed if the scale prints an embedded-weight barcode — must match the PLU/department code the scale encodes. Set up the barcode format in Settings → Barcodes.</p>
+                    <p className="text-xs text-gray-400 mt-1">Only needed if the scale prints a weight or price barcode — must match the code the scale puts in the barcode (on a DIGI SM-110, the PLU's item code; leading zeros don't matter). Set up the barcode format in Settings → Barcodes.</p>
                   </div>
                 </div>
               )}

@@ -20,7 +20,7 @@ import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
-import { decodeEmbeddedBarcode } from '../lib/barcode/embeddedBarcode';
+import { decodeEmbeddedBarcode, findProductByPlu, embeddedCartLine } from '../lib/barcode/embeddedBarcode';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -306,15 +306,13 @@ export default function CashierPage() {
   const tryAddEmbeddedBarcode = (code: string): boolean => {
     const decoded = decodeEmbeddedBarcode(code, storeSettings ?? {});
     if (!decoded) return false;
-    const product = allProducts.find((p: any) => p.sold_by_weight && (p.plu_code ?? '') === decoded.pluCode);
+    const product = findProductByPlu(allProducts, decoded.pluCode);
     if (!product) {
       toast.error(`No product with PLU code ${decoded.pluCode}`);
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
-    const added = decoded.kind === 'weight'
-      ? addProductWithQty(product, decoded.value, true)
-      : addProductWithQty(product, 1, false, decoded.value);
-    if (added) {
+    const line = embeddedCartLine(decoded, parseFloat(product.selling_price));
+    if (addProductWithQty(product, line.qty, line.soldByWeight, line.price)) {
       setCodeInput('');
       setTimeout(() => codeRef.current?.focus(), 40);
     }

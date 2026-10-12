@@ -299,6 +299,9 @@ function WeighingScalesPanel() {
         <p className="text-xs text-gray-500 mb-4">
           Register each physical scale separately — a butchery or supermarket typically runs one per department (Meat, Deli, Produce). Every product marked "Sold by Weight" gets assigned to one scale on the Products page, so each scale keeps its own list of items and its own sales report.
         </p>
+        <p className="text-xs text-gray-500 mb-4">
+          Label-printing scales such as the DIGI SM-110 don't send weight to the till — the scale prints a barcode label and the till scans it. Set those up in Settings → Barcodes instead of adding them here.
+        </p>
 
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center"><Loader2 size={16} className="animate-spin" />Loading scales…</div>

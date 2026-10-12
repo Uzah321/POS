@@ -1,10 +1,16 @@
 ﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi } from '../api';
-import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode } from 'lucide-react';
+import { settingsApi, productsApi } from '../api';
+import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 import FiscalisationPanel from '../components/FiscalisationPanel';
+import { useAuthStore } from '../stores/authStore';
+import { useCurrencyStore } from '../stores/currencyStore';
+import {
+  DIGI_SM110_LAYOUTS, decodeEmbeddedBarcode, embeddedCartLine, findProductByPlu, normalizePlu, scaleLayoutSettings,
+  type ScaleBarcodeLayout,
+} from '../lib/barcode/embeddedBarcode';
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -48,6 +54,131 @@ function DigitField({ label, value, onChange, placeholder }: { label: string; va
         placeholder={placeholder}
         className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors"
       />
+    </div>
+  );
+}
+
+// Fills the Random Weight / Random Price fields below from a DIGI SM-110
+// label scale's own barcode setup, rather than counting digit positions by
+// hand — the layout, flag and price-or-weight choice are all things the
+// scale's programming (or its technician) can tell you.
+function ScaleLabelPreset({ onApply }: { onApply: (kind: 'weight' | 'price', layout: ScaleBarcodeLayout, flag: string) => void }) {
+  const [kind, setKind] = useState<'weight' | 'price'>('price');
+  const [spec, setSpec] = useState(4);
+  const [flag, setFlag] = useState('20');
+  const layout = DIGI_SM110_LAYOUTS.find((l) => l.spec === spec) ?? DIGI_SM110_LAYOUTS[0];
+  const flagOk = /^\d+$/.test(flag) && flag.length <= layout.flagLength;
+  const select = 'w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+
+  return (
+    <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Scale size={15} className="text-blue-600" />
+        <p className="text-sm font-semibold text-gray-900">DIGI SM-110 label scale</p>
+      </div>
+      <p className="text-xs text-gray-500">
+        The scale prints a barcode on each label; the till scans it. Pick the barcode layout the scale is programmed with (its SPEC 00), what it puts in the barcode (SPEC 01) and its flag digits (usually 20), then press Apply and scan a label below to check.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr_80px_auto] gap-3 items-end">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Barcode carries</label>
+          <select value={kind} onChange={(e) => setKind(e.target.value as 'weight' | 'price')} className={select}>
+            <option value="price">Price</option>
+            <option value="weight">Weight</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Barcode layout</label>
+          <select
+            value={spec}
+            onChange={(e) => {
+              const next = DIGI_SM110_LAYOUTS.find((l) => l.spec === Number(e.target.value)) ?? DIGI_SM110_LAYOUTS[0];
+              setSpec(next.spec);
+              setFlag((f) => f.slice(0, next.flagLength));
+            }}
+            className={`${select} font-mono`}
+          >
+            {DIGI_SM110_LAYOUTS.map((l) => <option key={l.spec} value={l.spec}>{l.spec} — {l.pattern}</option>)}
+          </select>
+        </div>
+        <DigitField label="Flag" value={flag} onChange={(e) => setFlag(e.target.value.trim())} placeholder={layout.flagLength === 2 ? '20' : '2'} />
+        <button
+          type="button"
+          disabled={!flagOk}
+          onClick={() => onApply(kind, layout, flag.padStart(layout.flagLength, '0'))}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md disabled:opacity-50"
+        >
+          Apply
+        </button>
+      </div>
+      {!flagOk && flag !== '' && (
+        <p className="text-xs text-red-600">This layout has a {layout.flagLength}-digit flag.</p>
+      )}
+    </div>
+  );
+}
+
+// Scan (or type) a real label and see what the till would make of it —
+// decoded against the fields as they are on screen, before saving, so the
+// layout can be tried and corrected label in hand.
+function ScaleLabelTest({ settings }: { settings: Record<string, unknown> }) {
+  const user = useAuthStore((s) => s.user);
+  const { format: formatCurrency } = useCurrencyStore();
+  const [code, setCode] = useState('');
+  const trimmed = code.trim();
+  const decoded = trimmed ? decodeEmbeddedBarcode(trimmed, settings) : null;
+
+  const { data: products = [], isLoading } = useQuery<any[]>({
+    queryKey: ['plu-check-products', user?.branch?.id],
+    queryFn: () => productsApi.list({ per_page: 500, is_active: 1, branch_id: user?.branch?.id })
+      .then((r) => r.data?.data?.data ?? r.data?.data ?? []),
+    enabled: !!decoded,
+  });
+  const product = decoded ? findProductByPlu(products, decoded.pluCode) : undefined;
+  const line = decoded && product ? embeddedCartLine(decoded, parseFloat(product.selling_price)) : null;
+
+  return (
+    <div className="border-t border-gray-100 pt-5">
+      <label className="block text-sm font-semibold text-gray-900 mb-1">Test a label</label>
+      <p className="text-xs text-gray-400 mb-2">Click in the box and scan a label from the scale (or type the digits under its barcode).</p>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+        onFocus={(e) => e.target.select()}
+        placeholder="e.g. 2000012064356"
+        className={`${field} font-mono`}
+      />
+      {trimmed && (
+        <div className="mt-2 text-sm">
+          {!decoded ? (
+            <p className="text-red-600">
+              Not recognised with the settings above{/^\d{2,}$/.test(trimmed) ? ` — this barcode starts with ${trimmed.slice(0, 2)}` : ''}. Check the flag and layout, and that the matching toggle is on.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-gray-700">
+                {decoded.kind === 'price' ? 'Price' : 'Weight'} label · PLU <span className="font-mono">{decoded.pluCode}</span> ·{' '}
+                <span className="font-semibold">{decoded.kind === 'price' ? formatCurrency(decoded.value) : `${decoded.value.toFixed(3)} kg`}</span>
+                <span className="text-gray-400"> — should match what's printed on the label</span>
+              </p>
+              {isLoading ? (
+                <p className="text-gray-400 flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" />Looking up PLU…</p>
+              ) : product && line ? (
+                <p className="text-green-700">
+                  Rings up as {product.name}
+                  {line.soldByWeight ? `, ${line.qty.toFixed(3)} kg` : ''}
+                  {' = '}{formatCurrency((line.price ?? parseFloat(product.selling_price)) * line.qty)}
+                </p>
+              ) : (
+                <p className="text-red-600">No sold-by-weight product has PLU Code {normalizePlu(decoded.pluCode)} yet — set it on the product's page.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -109,6 +240,21 @@ const { isLoading } = useQuery({
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setValues(v => ({ ...v, [key]: e.target.value }));
+
+  const applyScaleLayout = (kind: 'weight' | 'price', layout: ScaleBarcodeLayout, flag: string) => {
+    setValues(v => ({ ...v, ...scaleLayoutSettings(layout, flag, kind) }));
+    // Two formats can't share a flag — weight is tried first when decoding,
+    // so it would swallow every price label. Switch the other one off if its
+    // flag overlaps.
+    const otherPrefix = String(values[kind === 'weight' ? 'barcode_price_prefix' : 'barcode_weight_prefix'] ?? '');
+    const clash = otherPrefix !== '' && (otherPrefix.startsWith(flag) || flag.startsWith(otherPrefix));
+    setToggles(t => ({
+      ...t,
+      barcode_weight_enabled: kind === 'weight' || (!clash && t.barcode_weight_enabled),
+      barcode_price_enabled: kind === 'price' || (!clash && t.barcode_price_enabled),
+    }));
+    toast.success('Filled in — scan a label to check it, then Save Changes');
+  };
 
   if (isLoading) return (
     <div className="flex justify-center py-16">
@@ -325,6 +471,8 @@ const { isLoading } = useQuery({
             For a scale that prints barcodes with a weight or price embedded in the digits, instead of a literal product barcode. Give each sold-by-weight product a PLU Code (on its product page) matching what the scale encodes — leave both off if your scale prints plain product barcodes.
           </p>
 
+          <ScaleLabelPreset onApply={applyScaleLayout} />
+
           {/* Random Weight */}
           <div>
             <ToggleRow
@@ -366,6 +514,8 @@ const { isLoading } = useQuery({
               </div>
             )}
           </div>
+
+          <ScaleLabelTest settings={{ ...values, ...toggles }} />
         </div>
       </div>
 

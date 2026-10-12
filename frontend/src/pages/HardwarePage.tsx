@@ -5,7 +5,7 @@ import { weighingScalesApi, branchesApi } from '../api';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
-  RefreshCw, Star, Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2
+  RefreshCw, Star, Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2, Download
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
@@ -18,9 +18,10 @@ import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
 } from '../lib/hardware/customerDisplay';
 import {
-  connectScale, disconnectScale, useScaleReading, isNetworkScaleAvailable, ensureScalesAutoConnected,
-  type ScaleDevice,
+  connectScale, disconnectScale, useScaleReading, usesScaleBridge, checkScaleBridge, ensureScalesAutoConnected,
+  type ScaleDevice, type ScaleBridgeStatus,
 } from '../lib/hardware/scale';
+import { downloadScaleBridge } from '../lib/hardware/scaleBridgeDownload';
 import { simulateCardPayment } from '../lib/hardware/cardMachine';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -114,7 +115,7 @@ interface ScaleFormState {
   baud_rate: string;
 }
 
-const EMPTY_SCALE_FORM: ScaleFormState = { name: '', mode: 'network', host: '', port: '4001', baud_rate: '9600' };
+const EMPTY_SCALE_FORM: ScaleFormState = { name: '', mode: 'network', host: '', port: '', baud_rate: '9600' };
 
 function ScaleForm({ initial, onCancel, onSaved }: { initial: ScaleFormState; onCancel: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<ScaleFormState>(initial);
@@ -125,7 +126,8 @@ function ScaleForm({ initial, onCancel, onSaved }: { initial: ScaleFormState; on
         name: form.name.trim(),
         mode: form.mode,
         host: form.mode === 'network' ? form.host.trim() : null,
-        port: form.mode === 'network' ? Number(form.port) : null,
+        // Empty = find it automatically when connecting (see findScalePort).
+        port: form.mode === 'network' && form.port.trim() ? Number(form.port) : null,
         baud_rate: form.mode === 'webserial' ? Number(form.baud_rate) : null,
       };
       return form.id ? weighingScalesApi.update(form.id, payload) : weighingScalesApi.create(payload);
@@ -179,15 +181,16 @@ function ScaleForm({ initial, onCancel, onSaved }: { initial: ScaleFormState; on
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">Port</label>
+            <label className="text-xs text-gray-500 mb-1 block">Port (optional)</label>
             <input
               type="number"
               value={form.port}
               onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
-              placeholder="4001"
+              placeholder="Automatic"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
+          <p className="sm:col-span-3 text-xs text-gray-400 -mt-1">Leave the port empty and the till finds it when it connects.</p>
         </div>
       ) : (
         <div>
@@ -225,6 +228,15 @@ function ScaleForm({ initial, onCancel, onSaved }: { initial: ScaleFormState; on
 function ScaleRow({ scale, onEdit }: { scale: ScaleDevice; onEdit: () => void }) {
   const reading = useScaleReading(scale.id);
   const queryClient = useQueryClient();
+  // A few seconds connected with no weight yet is worth explaining — the
+  // connection is up, but the scale isn't sending anything the till can read.
+  const [quiet, setQuiet] = useState(false);
+  useEffect(() => {
+    setQuiet(false);
+    if (!reading.connected) return;
+    const timer = setTimeout(() => setQuiet(true), 5000);
+    return () => clearTimeout(timer);
+  }, [reading.connected]);
   const deleteMutation = useMutation({
     mutationFn: () => weighingScalesApi.delete(scale.id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['weighing-scales'] }); toast.success('Scale removed'); },
@@ -247,12 +259,18 @@ function ScaleRow({ scale, onEdit }: { scale: ScaleDevice; onEdit: () => void })
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {scale.mode === 'network' ? `${scale.host}:${scale.port}` : `${scale.baud_rate ?? 9600} baud`}
+            {scale.mode === 'network'
+              ? (scale.port != null
+                ? `${scale.host}:${scale.port}`
+                : `${scale.host} · ${reading.connected && reading.port != null ? `found on port ${reading.port}` : 'port found automatically'}`)
+              : `${scale.baud_rate ?? 9600} baud`}
             {' · '}{scale.products_count ?? 0} product{scale.products_count === 1 ? '' : 's'} assigned
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Status ok={reading.connected} label={reading.connected ? 'Connected' : 'Disconnected'} />
+          {reading.connecting
+            ? <span className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 size={13} className="animate-spin" />{scale.mode === 'network' && scale.port == null ? 'Looking for the scale…' : 'Connecting…'}</span>
+            : <Status ok={reading.connected} label={reading.connected ? 'Connected' : 'Disconnected'} />}
           {reading.weight && (
             <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold">
               {reading.weight.value} {reading.weight.unit}
@@ -263,22 +281,72 @@ function ScaleRow({ scale, onEdit }: { scale: ScaleDevice; onEdit: () => void })
 
       {reading.error && (
         <div className="flex items-center gap-2 text-red-600 text-xs mt-2">
-          <AlertTriangle size={13} />{reading.error}
+          <AlertTriangle size={13} className="flex-shrink-0" />{reading.error}
         </div>
       )}
-      {scale.mode === 'network' && !isNetworkScaleAvailable() && (
-        <div className="flex items-center gap-2 text-amber-600 text-xs mt-2 bg-amber-50 border border-amber-100 rounded-md p-2">
-          <AlertTriangle size={13} className="flex-shrink-0" />
-          Ethernet scales only work inside the Core desktop app — this browser tab can't open a network connection directly.
+      {reading.connected && !reading.weight && quiet && (
+        <div className="flex items-start gap-2 text-amber-700 text-xs mt-2 bg-amber-50 border border-amber-100 rounded-md p-2">
+          <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+          <span>
+            {reading.lastRaw
+              ? <>Connected, but the scale is sending something that isn't a weight: <span className="font-mono">{reading.lastRaw}</span></>
+              : <>Connected, but no weight is coming through yet — put something on the scale.</>}
+            {' '}If no weight ever shows, this scale doesn't send its weight to a till. Label-printing scales like the DIGI SM-110 work through Settings → Barcodes instead.
+          </span>
         </div>
       )}
 
       <div className="flex gap-2 mt-3">
         {!reading.connected
-          ? <button onClick={() => connectScale(scale)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"><Wifi size={13} />Connect</button>
+          ? <button onClick={() => connectScale(scale)} disabled={reading.connecting} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50"><Wifi size={13} />Connect</button>
           : <button onClick={() => disconnectScale(scale)} className="px-3 py-1.5 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200">Disconnect</button>}
         <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 text-xs rounded-lg hover:bg-gray-100"><Pencil size={13} />Edit</button>
         <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 text-xs rounded-lg hover:bg-red-50"><Trash2 size={13} />Remove</button>
+      </div>
+    </div>
+  );
+}
+
+// The online system in a browser reaches IP scales through the Core Scale
+// Bridge on the till computer (see lib/hardware/scale.ts) — this is where the
+// till gets it and can see whether it's running. Not shown in the desktop
+// app, which connects to scales itself.
+function ScaleBridgeCard() {
+  const [status, setStatus] = useState<ScaleBridgeStatus | 'checking'>('checking');
+  const recheck = () => {
+    setStatus('checking');
+    checkScaleBridge().then(setStatus);
+  };
+  useEffect(() => { checkScaleBridge().then(setStatus); }, []);
+
+  return (
+    <div className="border border-gray-100 rounded-lg p-4 mb-4 space-y-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Core Scale Bridge</p>
+          <p className="text-xs text-gray-500 mt-1 max-w-xl">
+            The online system reaches IP scales through this small helper on the till computer — a website can't connect to devices in the shop by itself. Only needed for IP / Ethernet scales.
+          </p>
+        </div>
+        {status === 'checking'
+          ? <span className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 size={13} className="animate-spin" />Checking…</span>
+          : <Status ok={status === 'running'} label={status === 'running' ? 'Running on this computer' : status === 'wrong-site' ? 'Downloaded for another site' : 'Not running'} />}
+      </div>
+      <ol className="text-xs text-gray-600 list-decimal pl-4 space-y-1">
+        <li>On the till computer in the shop (on the same network as the scale), download it and double-click it. If Windows warns about it, choose More info → Run anyway.</li>
+        <li>Leave its window open (minimised is fine). To start it with Windows, move the file into the Startup folder: press Win+R, type <span className="font-mono">shell:startup</span> and press Enter.</li>
+        <li>Press Connect on the scale below. If the browser asks to let this site access devices on your local network, choose Allow.</li>
+      </ol>
+      {status === 'wrong-site' && (
+        <p className="text-xs text-amber-700">The bridge running here was downloaded from a different web address — download it again from this page, close the old one and start the new one.</p>
+      )}
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={downloadScaleBridge} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
+          <Download size={13} />Download Scale Bridge
+        </button>
+        <button onClick={recheck} disabled={status === 'checking'} className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 text-xs rounded-lg hover:bg-gray-100 disabled:opacity-50">
+          <RefreshCw size={13} />Check again
+        </button>
       </div>
     </div>
   );
@@ -300,8 +368,10 @@ function WeighingScalesPanel() {
           Register each physical scale separately — a butchery or supermarket typically runs one per department (Meat, Deli, Produce). Every product marked "Sold by Weight" gets assigned to one scale on the Products page, so each scale keeps its own list of items and its own sales report.
         </p>
         <p className="text-xs text-gray-500 mb-4">
-          Label-printing scales such as the DIGI SM-110 don't send weight to the till — the scale prints a barcode label and the till scans it. Set those up in Settings → Barcodes instead of adding them here.
+          For an IP scale, only the IP address is needed — the till finds the port itself. Label-printing scales such as the DIGI SM-110 don't send weight to the till — the scale prints a barcode label and the till scans it. Set those up in Settings → Barcodes.
         </p>
+
+        {usesScaleBridge() && <ScaleBridgeCard />}
 
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center"><Loader2 size={16} className="animate-spin" />Loading scales…</div>
@@ -318,7 +388,7 @@ function WeighingScalesPanel() {
                     scale={scale}
                     onEdit={() => setFormState({
                       id: scale.id, name: scale.name, mode: scale.mode,
-                      host: scale.host ?? '', port: String(scale.port ?? 4001), baud_rate: String(scale.baud_rate ?? 9600),
+                      host: scale.host ?? '', port: scale.port != null ? String(scale.port) : '', baud_rate: String(scale.baud_rate ?? 9600),
                     })}
                   />
                 )

@@ -40,7 +40,9 @@ class WeighingScaleController extends BaseApiController
             'name'      => [$req('required'), 'string', 'max:100'],
             'mode'      => [$req('required'), 'in:network,webserial'],
             'host'      => 'nullable|required_if:mode,network|string|max:255',
-            'port'      => 'nullable|required_if:mode,network|integer|min:1|max:65535',
+            // Optional even for a network scale — left empty, the till tries
+            // the ports scales usually listen on (lib/hardware/scale.ts).
+            'port'      => 'nullable|integer|min:1|max:65535',
             'baud_rate' => 'nullable|integer|min:1200|max:921600',
             'is_active' => 'boolean',
         ]);

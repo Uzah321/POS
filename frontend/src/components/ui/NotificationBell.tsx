@@ -12,7 +12,14 @@ interface StockRow {
   sku?: string;
   reorder_level?: number;
   stocks_sum_quantity?: number | null;
+  made_to_order?: boolean;
+  total_stock?: number;
 }
+
+// A made-to-order product's real stock is how many its recipe's ingredients
+// can still make (total_stock) — the same figure the backend flags it low on.
+// Its own stock rows are leftovers from before it was made to order.
+const stockLeft = (p: StockRow) => Number(p.made_to_order ? (p.total_stock ?? 0) : (p.stocks_sum_quantity ?? 0));
 
 /** Bell icon in the top nav — click to see low/out-of-stock products and,
  * for managers, cash-ups still awaiting approval. */
@@ -167,7 +174,7 @@ export default function NotificationBell({ dark = false }: { dark?: boolean }) {
                     {lowRows.map((p) => (
                       <li key={p.id} className="text-sm text-gray-700 flex items-center justify-between gap-2">
                         <span className="truncate">{p.name}</span>
-                        <span className="text-xs text-amber-600 font-medium flex-shrink-0">{/* "5.000" -> 5, but a weighed 2.5 stays 2.5 */}{Number(p.stocks_sum_quantity ?? 0)} left</span>
+                        <span className="text-xs text-amber-600 font-medium flex-shrink-0">{/* "5.000" -> 5, but a weighed 2.5 stays 2.5 */}{stockLeft(p)} left</span>
                       </li>
                     ))}
                   </ul>

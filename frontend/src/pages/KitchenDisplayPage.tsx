@@ -201,6 +201,7 @@ export default function KitchenDisplayPage() {
               <path d="M9 12l2 2 4-4"/>
             </svg>
             <p className="text-2xl font-semibold">All clear — no pending orders</p>
+            <p className={`text-sm ${t.textMuted}`}>Only orders with a "Made on Order" item come to this screen.</p>
           </div>
         ) : (
           <div className={`grid ${colsClass} gap-4`}>

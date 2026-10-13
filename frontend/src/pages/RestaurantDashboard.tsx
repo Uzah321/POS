@@ -104,9 +104,13 @@ export default function RestaurantDashboard() {
     },
   });
 
+  // The KDS endpoint is always scoped to one branch (it 422s without one) — an
+  // admin viewing "all branches" sees their own branch's kitchen.
+  const kdsBranchId = branchId ?? user?.branch?.id;
   const { data: kdsData } = useQuery({
-    queryKey: ['kds-orders'],
-    queryFn: () => axios.get('/api/kds/orders').then(r => r.data),
+    queryKey: ['kds-orders', kdsBranchId],
+    queryFn: () => axios.get('/api/kds/orders', { params: { branch_id: kdsBranchId } }).then(r => r.data),
+    enabled: !!kdsBranchId,
     refetchInterval: 3000,
     refetchOnWindowFocus: true,
   });

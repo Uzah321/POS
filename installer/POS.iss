@@ -1,5 +1,5 @@
 ﻿; ==============================================================================
-; Core Self-Contained Windows Installer  v1.2
+; Core Self-Contained Windows Installer  v1.3
 ; Requires Inno Setup 6 - https://jrsoftware.org/isdl.php
 ;
 ; BEFORE COMPILING:
@@ -9,11 +9,11 @@
 ;   4. powershell -File installer\prepare-installer.ps1  (downloads PHP)
 ;   5. iscc POS.iss  (compile this file)
 ;
-; Output: installer\Output\Core-Setup-1.2.exe
+; Output: installer\Output\Core-Setup-1.3.exe
 ; ==============================================================================
 
 #define AppName      "Core"
-#define AppVersion   "1.2"
+#define AppVersion   "1.3"
 #define AppPublisher "Core POS"
 
 [Setup]
@@ -28,7 +28,7 @@ DefaultDirName=C:\POS
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 OutputDir=Output
-OutputBaseFilename=Core-Setup-1.2
+OutputBaseFilename=Core-Setup-1.3
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -39,7 +39,7 @@ UninstallDisplayName={#AppName} {#AppVersion}
 UninstallDisplayIcon={app}\desktop\Core.exe
 MinVersion=10.0.17763
 SetupMutex=CoreSetupMutex
-VersionInfoVersion=1.2.0.0
+VersionInfoVersion=1.3.0.0
 VersionInfoProductName={#AppName}
 VersionInfoDescription={#AppName} {#AppVersion} Setup
 

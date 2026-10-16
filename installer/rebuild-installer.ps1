@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-    Builds Core-Setup-1.2.exe (offline touchscreen POS - local database server).
-  Run on your development machine. Output: installer\Output\Core-Setup-1.2.exe
+    Builds Core-Setup-1.3.exe (offline touchscreen POS - local database server).
+  Run on your development machine. Output: installer\Output\Core-Setup-1.3.exe
 #>
 
 $ErrorActionPreference = "Stop"
@@ -180,9 +180,9 @@ if (!(Test-Path $vendorAutoload)) {
 OK "backend/vendor verified"
 
 # 7. Compile the installer
-Step "Compiling Core-Setup-1.2.exe"
+Step "Compiling Core-Setup-1.3.exe"
 $issFile   = "$ScriptDir\POS.iss"
-$outputExe = "$ScriptDir\Output\Core-Setup-1.2.exe"
+$outputExe = "$ScriptDir\Output\Core-Setup-1.3.exe"
 
 Push-Location $ScriptDir
 try {
@@ -190,13 +190,13 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail "Inno Setup compilation failed (exit $LASTEXITCODE)." }
 } finally { Pop-Location }
 
-if (!(Test-Path $outputExe)) { Fail "Core-Setup-1.2.exe not found after compilation." }
+if (!(Test-Path $outputExe)) { Fail "Core-Setup-1.3.exe not found after compilation." }
 $mb = [math]::Round((Get-Item $outputExe).Length / 1MB, 1)
-OK "Core-Setup-1.2.exe built - $mb MB"
+OK "Core-Setup-1.3.exe built - $mb MB"
 
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Green
-Write-Host "    Build complete!  Core POS v1.2" -ForegroundColor Green
+Write-Host "    Build complete!  Core POS v1.3" -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Installer : $outputExe" -ForegroundColor Cyan

@@ -17,6 +17,48 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // An earlier version of this migration stopped partway on
+        // MySQL/MariaDB — after adding ingredient_id and copying the data, at
+        // the index swap further down — and with no transactional DDL there,
+        // left that column behind. Re-run on such a database, pick up from the
+        // index swap rather than adding the column or copying the rows twice.
+        if (! Schema::hasColumn('product_ingredients', 'ingredient_id')) {
+            $this->copyIngredients();
+        }
+
+        // New unique first: on MySQL/MariaDB the old (product_id,
+        // ingredient_product_id) index is what backs the product_id foreign
+        // key, so it can only be dropped once another index starting with
+        // product_id exists.
+        Schema::table('product_ingredients', function (Blueprint $table) {
+            $table->unique(['product_id', 'ingredient_id']);
+        });
+        Schema::table('product_ingredients', function (Blueprint $table) {
+            $table->dropUnique('product_ingredients_product_id_ingredient_product_id_unique');
+            $table->dropForeign(['ingredient_product_id']);
+            $table->dropColumn('ingredient_product_id');
+        });
+        // No doctrine/dbal in this project, so Blueprint::change() isn't
+        // available to flip nullable — every row is already populated above,
+        // so enforce NOT NULL directly. Driver-specific: production runs on
+        // Postgres or MySQL/MariaDB (see installer), but the test suite's own
+        // phpunit.xml runs migrations against sqlite, which can't ALTER a
+        // column's nullability without a full table rebuild — skip it there
+        // since this is a defensive DB-level constraint, not something the
+        // app depends on the database to enforce.
+        match (DB::getDriverName()) {
+            'sqlite' => null,
+            'mysql', 'mariadb' => DB::statement('ALTER TABLE product_ingredients MODIFY ingredient_id BIGINT UNSIGNED NOT NULL'),
+            default => DB::statement('ALTER TABLE product_ingredients ALTER COLUMN ingredient_id SET NOT NULL'),
+        };
+
+        Schema::table('products', function (Blueprint $table) {
+            $table->dropColumn('is_ingredient');
+        });
+    }
+
+    private function copyIngredients(): void
+    {
         Schema::table('product_ingredients', function (Blueprint $table) {
             $table->foreignId('ingredient_id')->nullable()->after('ingredient_product_id')->constrained('ingredients')->cascadeOnDelete();
         });
@@ -72,30 +114,6 @@ return new class extends Migration
                 ->where('ingredient_product_id', $productId)
                 ->update(['ingredient_id' => $ingredientId]);
         }
-
-        Schema::table('product_ingredients', function (Blueprint $table) {
-            $table->dropUnique('product_ingredients_product_id_ingredient_product_id_unique');
-            $table->dropForeign(['ingredient_product_id']);
-            $table->dropColumn('ingredient_product_id');
-            $table->unique(['product_id', 'ingredient_id']);
-        });
-        // No doctrine/dbal in this project, so Blueprint::change() isn't
-        // available to flip nullable — every row is already populated above,
-        // so enforce NOT NULL directly. Driver-specific: production runs on
-        // Postgres or MySQL/MariaDB (see installer), but the test suite's own
-        // phpunit.xml runs migrations against sqlite, which can't ALTER a
-        // column's nullability without a full table rebuild — skip it there
-        // since this is a defensive DB-level constraint, not something the
-        // app depends on the database to enforce.
-        match (DB::getDriverName()) {
-            'sqlite' => null,
-            'mysql' => DB::statement('ALTER TABLE product_ingredients MODIFY ingredient_id BIGINT UNSIGNED NOT NULL'),
-            default => DB::statement('ALTER TABLE product_ingredients ALTER COLUMN ingredient_id SET NOT NULL'),
-        };
-
-        Schema::table('products', function (Blueprint $table) {
-            $table->dropColumn('is_ingredient');
-        });
     }
 
     public function down(): void

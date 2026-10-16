@@ -23,7 +23,7 @@ Workstation 2, 3, 4…
 
 ## Setup order matters
 
-1. **Install the Main Server first.** Run `Core-Setup-1.2.exe` on the machine
+1. **Install the Main Server first.** Run `Core-Setup-1.3.exe` on the machine
    that should hold the shared database, choose **[1] Main Server** when
    asked. This installs MariaDB locally (as before), then additionally:
    - Opens MariaDB to listen on all network interfaces (not just loopback).

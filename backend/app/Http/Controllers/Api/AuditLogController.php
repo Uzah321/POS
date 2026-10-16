@@ -13,7 +13,7 @@ class AuditLogController extends BaseApiController
                 $s = '%' . mb_strtolower($request->search) . '%';
                 // Search inside the captured values too, so typing a product
                 // name finds every sale/adjustment/transfer that touched it.
-                $text = $q->getConnection()->getDriverName() === 'mysql' ? 'CHAR' : 'TEXT';
+                $text = in_array($q->getConnection()->getDriverName(), ['mysql', 'mariadb'], true) ? 'CHAR' : 'TEXT';
                 $q->where(fn($sq) => $sq
                     ->whereRaw('LOWER(event) LIKE ?', [$s])
                     ->orWhereRaw('LOWER(auditable_type) LIKE ?', [$s])

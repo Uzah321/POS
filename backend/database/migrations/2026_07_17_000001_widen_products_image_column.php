@@ -17,7 +17,7 @@ return new class extends Migration
     public function up(): void
     {
         $driver = DB::connection()->getDriverName();
-        if ($driver === 'mysql') {
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
             DB::statement('ALTER TABLE products MODIFY image LONGTEXT NULL');
         } elseif ($driver === 'pgsql') {
             DB::statement('ALTER TABLE products ALTER COLUMN image TYPE TEXT');
@@ -27,7 +27,7 @@ return new class extends Migration
     public function down(): void
     {
         $driver = DB::connection()->getDriverName();
-        if ($driver === 'mysql') {
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
             DB::statement('ALTER TABLE products MODIFY image VARCHAR(255) NULL');
         } elseif ($driver === 'pgsql') {
             DB::statement('ALTER TABLE products ALTER COLUMN image TYPE VARCHAR(255)');

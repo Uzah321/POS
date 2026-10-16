@@ -1372,7 +1372,10 @@ class ReportController extends BaseApiController
 
         $rows = $this->scopedSales($request, $request->date_from, $request->date_to)
             ->selectRaw("{$tableExpr} as table_name, COUNT(*) as transactions, SUM(total) as revenue, AVG(total) as avg_sale, SUM(discount_amount) as discounts")
-            ->groupByRaw($tableExpr)
+            // By the alias, not the expression again: MariaDB (the offline
+            // install) doesn't see a repeated COALESCE(...) as the same
+            // expression and rejects the query under ONLY_FULL_GROUP_BY.
+            ->groupBy('table_name')
             ->orderByDesc('revenue')
             ->get()
             ->map(fn($r) => [

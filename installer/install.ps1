@@ -85,7 +85,7 @@ function Test-LocalCoreServer([int]$port = 8080, [int]$attempts = 20) {
 
 Clear-Host
 Write-Host ""
-Write-Host "  Core POS v1.2 - First-Time Setup" -ForegroundColor Cyan
+Write-Host "  Core POS v1.3 - First-Time Setup" -ForegroundColor Cyan
 Write-Host "  =================================" -ForegroundColor Cyan
 Write-Host "  Installing to: $AppDir" -ForegroundColor Gray
 Write-Host ""
@@ -1004,7 +1004,7 @@ try {
 # DONE
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Green
-Write-Host "    Core POS v1.2 setup complete!" -ForegroundColor Green
+Write-Host "    Core POS v1.3 setup complete!" -ForegroundColor Green
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
 if ($isUpdateInstall) {

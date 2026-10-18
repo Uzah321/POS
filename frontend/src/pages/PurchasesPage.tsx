@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
 import { db } from '../lib/db';
+import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -51,7 +52,8 @@ function extractErrorMessage(err: any): string {
 /** Searchable product picker for a PO line item — filters the already-loaded,
  *  branch-scoped `products` list client-side (no separate API call, and no
  *  risk of surfacing another branch's catalog the way a global product
- *  search would) by name, SKU, or barcode. */
+ *  search would) by name, SKU, or barcode — or PLU code, typed or inside a
+ *  scale label. */
 function POProductPicker({ products, value, onSelect }: { products: any[] | undefined; value: string; onSelect: (id: string) => void }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -65,13 +67,21 @@ function POProductPicker({ products, value, onSelect }: { products: any[] | unde
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
+  const { data: storeSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsApi.get().then((r) => r.data?.data || {}),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const selected = products?.find((p: any) => String(p.id) === value);
   const q = query.trim().toLowerCase();
+  const pluMatches = productsNamedByPlu(q, storeSettings ?? {}, products ?? []);
   const results = (products ?? [])
     .filter((p: any) => !q
       || (p.name ?? '').toLowerCase().includes(q)
       || (p.sku ?? '').toLowerCase().includes(q)
-      || (p.barcode ?? '').toLowerCase().includes(q))
+      || (p.barcode ?? '').toLowerCase().includes(q)
+      || pluMatches.has(p))
     .slice(0, 20);
 
   return (

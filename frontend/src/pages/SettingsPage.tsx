@@ -8,7 +8,7 @@ import FiscalisationPanel from '../components/FiscalisationPanel';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import {
-  DIGI_SM110_LAYOUTS, decodeEmbeddedBarcode, embeddedCartLine, findProductByPlu, normalizePlu, scaleLayoutSettings,
+  DIGI_SM110_LAYOUTS, embeddedCartLine, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
   type ScaleBarcodeLayout,
 } from '../lib/barcode/embeddedBarcode';
 
@@ -120,22 +120,31 @@ function ScaleLabelPreset({ onApply }: { onApply: (kind: 'weight' | 'price', lay
 
 // Scan (or type) a real label and see what the till would make of it —
 // decoded against the fields as they are on screen, before saving, so the
-// layout can be tried and corrected label in hand.
-function ScaleLabelTest({ settings }: { settings: Record<string, unknown> }) {
+// layout can be tried and corrected label in hand. When the fields don't
+// read it right, the label's own check digits usually say which layout the
+// scale prints, and one press fills the fields in.
+type ApplyLayout = (kind: 'weight' | 'price', layout: ScaleBarcodeLayout, flag: string) => void;
+
+function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknown>; onApply: ApplyLayout }) {
   const user = useAuthStore((s) => s.user);
   const { format: formatCurrency } = useCurrencyStore();
   const [code, setCode] = useState('');
   const trimmed = code.trim();
-  const decoded = trimmed ? decodeEmbeddedBarcode(trimmed, settings) : null;
 
   const { data: products = [], isLoading } = useQuery<any[]>({
     queryKey: ['plu-check-products', user?.branch?.id],
     queryFn: () => productsApi.list({ per_page: 500, is_active: 1, branch_id: user?.branch?.id })
       .then((r) => r.data?.data?.data ?? r.data?.data ?? []),
-    enabled: !!decoded,
+    enabled: trimmed !== '',
   });
-  const product = decoded ? findProductByPlu(products, decoded.pluCode) : undefined;
+  const label = trimmed && !isLoading ? resolveEmbeddedBarcode(trimmed, settings, products) : null;
+  const decoded = label?.decoded;
+  const product = label?.product;
   const line = decoded && product ? embeddedCartLine(decoded, parseFloat(product.selling_price)) : null;
+  // What the label says by itself, for when the fields above don't get to a product.
+  const reading = trimmed && !isLoading && !product ? singleReading(readScaleLabel(trimmed, products)) : null;
+  const layoutName = (l: ScaleBarcodeLayout) => <>layout {l.spec} (<span className="font-mono">{l.pattern}</span>)</>;
+  const applyButton = 'px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md';
 
   return (
     <div className="border-t border-gray-100 pt-5">
@@ -152,30 +161,57 @@ function ScaleLabelTest({ settings }: { settings: Record<string, unknown> }) {
         className={`${field} font-mono`}
       />
       {trimmed && (
-        <div className="mt-2 text-sm">
-          {!decoded ? (
-            <p className="text-red-600">
-              Not recognised with the settings above{/^\d{2,}$/.test(trimmed) ? ` — this barcode starts with ${trimmed.slice(0, 2)}` : ''}. Check the flag and layout, and that the matching toggle is on.
-            </p>
-          ) : (
+        <div className="mt-2 text-sm space-y-2">
+          {isLoading ? (
+            <p className="text-gray-400 flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" />Looking up products…</p>
+          ) : decoded && product && line ? (
             <div className="space-y-1">
               <p className="text-gray-700">
                 {decoded.kind === 'price' ? 'Price' : 'Weight'} label · PLU <span className="font-mono">{decoded.pluCode}</span> ·{' '}
                 <span className="font-semibold">{decoded.kind === 'price' ? formatCurrency(decoded.value) : `${decoded.value.toFixed(3)} kg`}</span>
                 <span className="text-gray-400"> — should match what's printed on the label</span>
               </p>
-              {isLoading ? (
-                <p className="text-gray-400 flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" />Looking up PLU…</p>
-              ) : product && line ? (
-                <p className="text-green-700">
-                  Rings up as {product.name}
-                  {line.soldByWeight ? `, ${line.qty.toFixed(3)} kg` : ''}
-                  {' = '}{formatCurrency((line.price ?? parseFloat(product.selling_price)) * line.qty)}
-                </p>
-              ) : (
-                <p className="text-red-600">No sold-by-weight product has PLU Code {normalizePlu(decoded.pluCode)} yet — set it on the product's page.</p>
+              <p className="text-green-700">
+                Rings up as {product.name}
+                {line.soldByWeight ? `, ${line.qty.toFixed(3)} kg` : ''}
+                {' = '}{formatCurrency((line.price ?? parseFloat(product.selling_price)) * line.qty)}
+              </p>
+              {label?.layout && (
+                <div className="flex flex-wrap items-center gap-2 text-amber-700">
+                  <span>Read from the label's own check digits as {layoutName(label.layout)} — the positions above don't match this label.</span>
+                  <button type="button" className={applyButton} onClick={() => onApply(decoded.kind, label.layout!, trimmed.slice(0, label.layout!.flagLength))}>
+                    Use layout {label.layout.spec}
+                  </button>
+                </div>
               )}
             </div>
+          ) : reading ? (
+            <div className="space-y-2">
+              <p className="text-gray-700">
+                {label?.conflict ? 'The positions above read this label as a different item. ' : ''}
+                This label was printed with {layoutName(reading.layout)}, flag <span className="font-mono">{reading.flag}</span>, for{' '}
+                <span className="font-semibold">{reading.product.name}</span>. Is the label's{' '}
+                <span className="font-mono">{reading.digits}</span> a weight or a price?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={applyButton} onClick={() => onApply('weight', reading.layout, reading.flag)}>
+                  Weight — {(parseInt(reading.digits, 10) / 1000).toFixed(3)} kg
+                </button>
+                <button type="button" className={applyButton} onClick={() => onApply('price', reading.layout, reading.flag)}>
+                  Price — {formatCurrency(parseInt(reading.digits, 10) / 100)}
+                </button>
+              </div>
+            </div>
+          ) : label?.conflict ? (
+            <p className="text-red-600">The positions above and the label's check digits name different items, so the till won't ring this up. Pick the scale's layout in the box above.</p>
+          ) : decoded ? (
+            <p className="text-red-600">
+              No product has PLU Code {normalizePlu(decoded.pluCode)} yet — tick Sold by weight on the product's page and set its PLU Code to {normalizePlu(decoded.pluCode)}.
+            </p>
+          ) : (
+            <p className="text-red-600">
+              Not recognised with the settings above{/^\d{2,}$/.test(trimmed) ? ` — this barcode starts with ${trimmed.slice(0, 2)}` : ''}. Check the flag and layout, that the matching toggle is on, and that the item has a PLU Code.
+            </p>
           )}
         </div>
       )}
@@ -469,6 +505,7 @@ const { isLoading } = useQuery({
         <div className="p-6 space-y-6">
           <p className="text-xs text-gray-400 -mt-2">
             For a scale that prints barcodes with a weight or price embedded in the digits, instead of a literal product barcode. Give each sold-by-weight product a PLU Code (on its product page) matching what the scale encodes — leave both off if your scale prints plain product barcodes.
+            A field left blank uses the grey value shown in it. Scanning a label (or typing a PLU Code) into any product search finds its product too.
           </p>
 
           <ScaleLabelPreset onApply={applyScaleLayout} />
@@ -484,7 +521,6 @@ const { isLoading } = useQuery({
             {toggles.barcode_weight_enabled && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
                 <DigitField label="Barcode Prefix" value={values.barcode_weight_prefix} onChange={set('barcode_weight_prefix')} placeholder="20" />
-                <DigitField label="Prefix Length" value={values.barcode_weight_prefix_length} onChange={set('barcode_weight_prefix_length')} placeholder="2" />
                 <DigitField label="PLU Code Position" value={values.barcode_weight_code_position} onChange={set('barcode_weight_code_position')} placeholder="4" />
                 <DigitField label="PLU Code Length" value={values.barcode_weight_code_length} onChange={set('barcode_weight_code_length')} placeholder="3" />
                 <DigitField label="Weight Position" value={values.barcode_weight_qty_position} onChange={set('barcode_weight_qty_position')} placeholder="8" />
@@ -505,7 +541,6 @@ const { isLoading } = useQuery({
             {toggles.barcode_price_enabled && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
                 <DigitField label="Barcode Prefix" value={values.barcode_price_prefix} onChange={set('barcode_price_prefix')} placeholder="2" />
-                <DigitField label="Prefix Length" value={values.barcode_price_prefix_length} onChange={set('barcode_price_prefix_length')} placeholder="1" />
                 <DigitField label="PLU Code Position" value={values.barcode_price_code_position} onChange={set('barcode_price_code_position')} placeholder="4" />
                 <DigitField label="PLU Code Length" value={values.barcode_price_code_length} onChange={set('barcode_price_code_length')} placeholder="4" />
                 <DigitField label="Price Position" value={values.barcode_price_value_position} onChange={set('barcode_price_value_position')} placeholder="9" />
@@ -515,7 +550,7 @@ const { isLoading } = useQuery({
             )}
           </div>
 
-          <ScaleLabelTest settings={{ ...values, ...toggles }} />
+          <ScaleLabelTest settings={{ ...values, ...toggles }} onApply={applyScaleLayout} />
         </div>
       </div>
 

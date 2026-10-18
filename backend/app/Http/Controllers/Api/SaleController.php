@@ -25,8 +25,9 @@ class SaleController extends BaseApiController
         $businessType = $this->effectiveBusinessType($request);
 
         // The search box matches a sale reference or anything that identifies
-        // a product on it (name, SKU, barcode), case-insensitively, so typing
-        // "hunters" lists every sale that included Hunters.
+        // a product on it (name, SKU, barcode, PLU code or a scale label),
+        // case-insensitively, so typing "hunters" lists every sale that
+        // included Hunters.
         $term = trim((string) $request->search);
         $like = '%' . mb_strtolower($term) . '%';
         $productIds = [];
@@ -34,9 +35,12 @@ class SaleController extends BaseApiController
             $productIds = [(int) $request->product_id];
         } elseif ($term !== '') {
             $productIds = \App\Models\Product::withoutGlobalScopes()
-                ->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(sku) LIKE ?', [$like])
-                    ->orWhere('barcode', $term))
+                ->where(function ($q) use ($like, $term) {
+                    $q->whereRaw('LOWER(name) LIKE ?', [$like])
+                      ->orWhereRaw('LOWER(sku) LIKE ?', [$like])
+                      ->orWhere('barcode', $term);
+                    \App\Support\ScaleBarcode::orWherePlu($q, $term);
+                })
                 ->pluck('id')->all();
         }
 

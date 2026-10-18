@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 
 /** Searchable product picker for a quotation line item — mirrors the PO line
  *  item picker (PurchasesPage.tsx). Selecting a product fills in its name and
@@ -30,12 +31,20 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
+  const { data: storeSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const q = query.trim().toLowerCase();
+  const pluMatches = productsNamedByPlu(q, storeSettings ?? {}, products ?? []);
   const results = (products ?? [])
     .filter((p: any) => !q
       || (p.name ?? '').toLowerCase().includes(q)
       || (p.sku ?? '').toLowerCase().includes(q)
-      || (p.barcode ?? '').toLowerCase().includes(q))
+      || (p.barcode ?? '').toLowerCase().includes(q)
+      || pluMatches.has(p))
     .slice(0, 20);
 
   return (

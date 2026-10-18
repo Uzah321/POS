@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\Product;
 use App\Models\ProductCaseUnit;
 use App\Models\Stock;
+use App\Support\ScaleBarcode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,10 +24,11 @@ class ProductController extends BaseApiController
             ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
-                $q->where(function ($q) use ($s) {
+                $q->where(function ($q) use ($s, $request) {
                     $q->whereRaw('LOWER(name) LIKE ?', [$s])
                       ->orWhereRaw('LOWER(sku) LIKE ?', [$s])
                       ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
+                    ScaleBarcode::orWherePlu($q, (string) $request->search);
                 });
             })
             ->when($request->category_id, fn($q) => $q->where('category_id', $request->category_id))
@@ -251,6 +253,7 @@ class ProductController extends BaseApiController
                 $q->where('name', 'like', "%{$term}%")
                   ->orWhere('barcode', $term)
                   ->orWhere('sku', 'like', "%{$term}%");
+                ScaleBarcode::orWherePlu($q, (string) $term);
             })
             ->when($warehouseId, fn($q) => $q->whereHas('stocks', fn($s) => $s->where('warehouse_id', $warehouseId)->where('quantity', '>', 0)))
             ->limit(20)

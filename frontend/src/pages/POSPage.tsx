@@ -21,7 +21,7 @@ import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import PosProductTile from '../components/pos/PosProductTile';
 import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
-import { decodeEmbeddedBarcode, findProductByPlu, embeddedCartLine } from '../lib/barcode/embeddedBarcode';
+import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -384,10 +384,12 @@ export default function POSPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
-  // Filter products
+  // Filter products — by name or SKU, or by PLU code (typed, or inside a scale label)
+  const pluMatches = productsNamedByPlu(search, storeSettings ?? {}, allProducts);
   const filteredProducts = allProducts.filter((p: any) => {
     const matchCat = activeCategory === 'All' || p.category?.name === activeCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(search.toLowerCase())
+      || pluMatches.has(p);
     return matchCat && matchSearch;
   });
 
@@ -790,11 +792,13 @@ export default function POSPage() {
   // does nothing) for any code that doesn't match the configured format, so
   // a store that hasn't set this up sees no change in behavior.
   const tryAddEmbeddedBarcode = (code: string): boolean => {
-    const decoded = decodeEmbeddedBarcode(code, storeSettings ?? {});
-    if (!decoded) return false;
-    const product = findProductByPlu(allProducts, decoded.pluCode);
+    const label = resolveEmbeddedBarcode(code, storeSettings ?? {}, allProducts);
+    if (!label) return false;
+    const { decoded, product } = label;
     if (!product) {
-      toast.error(`No product with PLU code ${decoded.pluCode}`);
+      toast.error(label.conflict
+        ? 'This scale label could be two different items — scan it in Settings → Barcodes → Test a label to fix the layout'
+        : `No product with PLU code ${decoded.pluCode}`, { duration: 5000 });
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
     const line = embeddedCartLine(decoded, parseFloat(product.selling_price));

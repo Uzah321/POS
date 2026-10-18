@@ -20,7 +20,7 @@ import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
-import { decodeEmbeddedBarcode, findProductByPlu, embeddedCartLine } from '../lib/barcode/embeddedBarcode';
+import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -168,11 +168,13 @@ export default function CashierPage() {
   // fallback in handleCodeSubmit below, the on-screen-keyboard close handler,
   // and the results dropdown shown under the input while typing.
   const browseQuery = codeInput.trim().toLowerCase();
+  const pluMatches = productsNamedByPlu(browseQuery, storeSettings ?? {}, allProducts);
   const browseMatches = allProducts.filter(p =>
     !browseQuery ||
     p.name.toLowerCase().includes(browseQuery) ||
     (p.sku ?? '').toLowerCase().includes(browseQuery) ||
-    (p.barcode ?? '').toLowerCase().includes(browseQuery)
+    (p.barcode ?? '').toLowerCase().includes(browseQuery) ||
+    pluMatches.has(p)
   );
   // Capped so a one-letter query doesn't render the whole catalog, but high
   // enough that arrow-down keyboard navigation can actually reach most real
@@ -304,11 +306,13 @@ export default function CashierPage() {
   // does nothing) for any code that doesn't match the configured format, so
   // a store that hasn't set this up sees no change in behavior.
   const tryAddEmbeddedBarcode = (code: string): boolean => {
-    const decoded = decodeEmbeddedBarcode(code, storeSettings ?? {});
-    if (!decoded) return false;
-    const product = findProductByPlu(allProducts, decoded.pluCode);
+    const label = resolveEmbeddedBarcode(code, storeSettings ?? {}, allProducts);
+    if (!label) return false;
+    const { decoded, product } = label;
     if (!product) {
-      toast.error(`No product with PLU code ${decoded.pluCode}`);
+      toast.error(label.conflict
+        ? 'This scale label could be two different items — scan it in Settings → Barcodes → Test a label to fix the layout'
+        : `No product with PLU code ${decoded.pluCode}`, { duration: 5000 });
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
     const line = embeddedCartLine(decoded, parseFloat(product.selling_price));

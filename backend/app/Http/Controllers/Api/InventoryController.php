@@ -14,6 +14,7 @@ use App\Models\StockCount;
 use App\Models\StockCountItem;
 use App\Models\Unit;
 use App\Models\AuditLog;
+use App\Support\ScaleBarcode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -57,10 +58,11 @@ class InventoryController extends BaseApiController
             ))
             ->when($search, function ($q) use ($search) {
                 $s = "%{$search}%";
-                $q->where(function ($q) use ($s) {
+                $q->where(function ($q) use ($s, $search) {
                     $q->whereRaw('LOWER(name) LIKE ?', [$s])
                       ->orWhereRaw('LOWER(sku) LIKE ?', [$s])
                       ->orWhereRaw('LOWER(barcode) LIKE ?', [$s]);
+                    ScaleBarcode::orWherePlu($q, $search);
                 });
             })
             ->when($filter === 'low', fn($q) => $q->where(function ($q) use ($madeToOrderIds) {

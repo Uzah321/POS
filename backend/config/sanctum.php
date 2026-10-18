@@ -18,12 +18,20 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        // Sanctum::currentRequestHost(),
-    ))),
+    // The SPA is always served by the same server as the API, so whatever
+    // address the browser used to open it (localhost:8080, a till's LAN IP,
+    // the VPS by IP...) is trusted too. Without this, signing in from an
+    // address missing from the list "succeeds" but no session is started,
+    // and the next request 401s the user straight back to the login screen.
+    // Sanctum swaps the placeholder for the request's own Host at runtime.
+    'stateful' => array_merge(
+        explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
+            '%s%s',
+            'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+            Sanctum::currentApplicationUrlWithPort(),
+        ))),
+        [Sanctum::$currentRequestHostPlaceholder],
+    ),
 
     /*
     |--------------------------------------------------------------------------

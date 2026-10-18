@@ -146,7 +146,9 @@ class AuthController extends BaseApiController
     {
         $data = $request->validate(['pin' => 'required|string|size:4']);
         $user = User::where('pin', $data['pin'])->first();
-        if (!$user || !$user->is_active) return $this->error('Invalid PIN', 401);
+        // 422, not 401: the caller is already signed in, and the SPA treats any
+        // 401 as "session expired" and logs them out (lib/axios.ts).
+        if (!$user || !$user->is_active) return $this->error('Invalid PIN', 422);
         return $this->success(['user' => $user]);
     }
 

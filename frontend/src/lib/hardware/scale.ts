@@ -41,6 +41,7 @@
  */
 
 import { create } from 'zustand';
+import { isPoleDisplayPort } from './poleDisplay';
 
 export interface ScaleReading {
   value: number;
@@ -328,14 +329,15 @@ async function disconnectSerialScale(scaleId: number) {
 }
 
 // Only safe to auto-reconnect a webserial scale when there's exactly one of
-// them and exactly one previously-granted port — see module docblock.
+// them and exactly one previously-granted port — see module docblock. A pole
+// display's port (poleDisplay.ts) doesn't count.
 async function autoReconnectSerialScales(scales: ScaleDevice[]) {
   const serialScales = scales.filter((s) => s.mode === 'webserial' && s.is_active);
   if (serialScales.length !== 1 || !('serial' in navigator)) return;
   const scale = serialScales[0];
   if (serialPorts.has(scale.id)) return;
   try {
-    const ports = await (navigator as any).serial.getPorts();
+    const ports = (await (navigator as any).serial.getPorts()).filter((p: any) => !isPoleDisplayPort(p));
     if (ports.length === 1) await openSerialPort(scale, ports[0]);
   } catch {
     // No prior grant, or the port is busy elsewhere — stay disconnected

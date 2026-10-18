@@ -225,16 +225,16 @@ export default function CashierPage() {
     }
   }, [liveKg, pendingWeightProduct, weightInput]);
 
-  // Broadcast cart to customer display
+  // Broadcast cart to customer display / pole display
   useEffect(() => {
-    if (!hw.customerDisplayEnabled) return;
+    if (!hw.customerDisplayEnabled && !hw.poleDisplayEnabled) return;
     broadcastCart({
       type: cart.items.length > 0 ? 'cart' : 'idle',
       storeName, currency,
       items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
       subtotal: cart.subtotal(), tax: cart.taxTotal(), discount: cart.discount, total: cart.total(),
     });
-  }, [cart.items, hw.customerDisplayEnabled]);
+  }, [cart.items, hw.customerDisplayEnabled, hw.poleDisplayEnabled, storeName]);
 
   // Shared by both the direct-add path (live scale reading, or a plain
   // count item) and the manual-weight-entry path below — keeps the price
@@ -416,7 +416,11 @@ export default function CashierPage() {
         hw.printerName
       ).catch((err: any) => toast.error(err?.message ?? 'Receipt printing failed'));
 
-      broadcastCart({ type: 'thankyou', storeName, currency });
+      broadcastCart({
+        type: 'thankyou', storeName, currency,
+        total: cart.total(),
+        change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - totalDue) : undefined,
+      });
       setTimeout(() => broadcastCart({ type: 'idle', storeName, currency }), 4000);
 
       cart.clearCart();

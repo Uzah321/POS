@@ -3,15 +3,19 @@
  *
  * Opens a second browser window showing the live cart to the customer.
  * The POS page posts cart updates via BroadcastChannel; the display
- * page listens and renders them.
+ * page listens and renders them. The same updates also drive a USB pole
+ * display, when one is connected (poleDisplay.ts).
  *
  * Open the display:  openCustomerDisplay()
  * Push cart state:   broadcastCart(data)
  * Close display:     closeCustomerDisplay()
  */
 
+import { showOnPoleDisplay } from './poleDisplay';
+
 export const CHANNEL_NAME = 'customer-display';
 
+/** Amounts are in the base currency (USD), as the cart keeps them — except `change`. */
 export interface CartDisplayData {
   type: 'cart' | 'idle' | 'thankyou';
   storeName?: string;
@@ -21,6 +25,8 @@ export interface CartDisplayData {
   tax?: number;
   discount?: number;
   total?: number;
+  /** 'thankyou' after a cash sale: the change handed back, in the currency the customer paid in (as on the receipt). */
+  change?: number;
 }
 
 let displayWindow: Window | null = null;
@@ -53,6 +59,7 @@ export function broadcastCart(data: CartDisplayData): void {
   } catch {
     // BroadcastChannel may not be available in all environments
   }
+  showOnPoleDisplay(data);
 }
 
 export function isDisplayOpen(): boolean {

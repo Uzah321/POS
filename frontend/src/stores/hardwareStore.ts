@@ -39,6 +39,13 @@ export interface HardwareConfig {
   // Customer display
   customerDisplayEnabled: boolean;
 
+  // Pole display — a 2x20 character display on a USB virtual COM port
+  // (e.g. HP LM940), driven over Web Serial. The port's USB ids pick it back
+  // out of the browser's granted ports after a reload.
+  poleDisplayEnabled: boolean;
+  poleDisplayVendorId: number | null;
+  poleDisplayProductId: number | null;
+
   // Label printer
   labelPrinterMode: PrinterMode;
   labelWidth: number;  // mm
@@ -78,6 +85,10 @@ const DEFAULTS: HardwareConfig = {
   barcodeAutoAdd: true,
 
   customerDisplayEnabled: false,
+
+  poleDisplayEnabled: false,
+  poleDisplayVendorId: null,
+  poleDisplayProductId: null,
 
   labelPrinterMode: 'browser',
   labelWidth: 50,

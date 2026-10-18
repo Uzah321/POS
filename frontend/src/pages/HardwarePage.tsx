@@ -18,6 +18,9 @@ import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
 } from '../lib/hardware/customerDisplay';
 import {
+  connectPoleDisplay, disconnectPoleDisplay, ensurePoleDisplayOpen, testPoleDisplay, usePoleDisplayState,
+} from '../lib/hardware/poleDisplay';
+import {
   connectScale, disconnectScale, useScaleReading, usesScaleBridge, checkScaleBridge, ensureScalesAutoConnected,
   type ScaleDevice, type ScaleBridgeStatus,
 } from '../lib/hardware/scale';
@@ -419,6 +422,80 @@ function WeighingScalesPanel() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pole display — a 2x20 character screen on a stand by the till (e.g. HP
+// LM940), plugged into the till's USB as a virtual COM port. Fed by the same
+// cart updates as the second-screen display; see lib/hardware/poleDisplay.ts.
+// ---------------------------------------------------------------------------
+function PoleDisplayCard() {
+  const hw = useHardwareStore();
+  const { connected, error } = usePoleDisplayState();
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => { ensurePoleDisplayOpen(); }, []);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      if (await connectPoleDisplay()) toast.success('Pole display connected');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleTest = () => {
+    if (testPoleDisplay()) toast.success('Sample sale sent to the pole display');
+    else toast.error('Connect the pole display first');
+  };
+
+  const handleTurnOff = async () => {
+    await disconnectPoleDisplay();
+    toast.success('Pole display turned off');
+  };
+
+  return (
+    <Card title="Pole Display (2 lines x 20)">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <p className="text-sm text-gray-600">
+          A small two-line screen on a stand by the till, such as the HP LM940. It shows the last item rung up and the
+          running total, then the total and change after a cash sale, and your store name between sales.
+        </p>
+        <Status ok={connected} label={connected ? 'Connected' : hw.poleDisplayEnabled ? 'Not connected' : 'Off'} />
+      </div>
+
+      <div className="space-y-2 text-sm text-gray-600 mb-4">
+        <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Plug the display into this till's USB port. Windows lists it under <strong>Ports (COM &amp; LPT)</strong>.</p></div>
+        <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Click <strong>Connect Pole Display</strong> and pick it from the list (e.g. "USB Serial Device (COM3)"). Chrome or Edge only.</p></div>
+        <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>This till remembers it — it reconnects by itself after a reload, or when it's plugged back in.</p></div>
+      </div>
+
+      {error && (
+        <p className="flex gap-1.5 text-xs text-red-600 mb-3">
+          <AlertTriangle size={14} className="flex-shrink-0 mt-px" />{error}
+        </p>
+      )}
+
+      <div className="flex gap-3 flex-wrap">
+        <button onClick={handleConnect} disabled={connecting}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          {connecting ? <Loader2 size={14} className="animate-spin" /> : <Usb size={14} />}
+          {connected ? 'Change Port' : 'Connect Pole Display'}
+        </button>
+        <button onClick={handleTest} disabled={!connected}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 disabled:opacity-50">
+          <Globe size={14} />Send Test
+        </button>
+        {hw.poleDisplayEnabled && (
+          <button onClick={handleTurnOff}
+            className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">
+            Turn Off
+          </button>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -958,6 +1035,8 @@ export default function HardwarePage() {
               </button>
             </div>
           </Card>
+
+          <PoleDisplayCard />
         </div>
       );
 

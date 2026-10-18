@@ -419,9 +419,9 @@ export default function POSPage() {
     }
   }, [filteredProducts]);
 
-  // Broadcast cart to customer display on every cart change
+  // Broadcast cart to customer display / pole display on every cart change
   useEffect(() => {
-    if (!hw.customerDisplayEnabled) return;
+    if (!hw.customerDisplayEnabled && !hw.poleDisplayEnabled) return;
     broadcastCart({
       type: cart.items.length > 0 ? 'cart' : 'idle',
       storeName,
@@ -432,7 +432,7 @@ export default function POSPage() {
       discount: cart.discount,
       total: cart.total(),
     });
-  }, [cart.items, hw.customerDisplayEnabled]);
+  }, [cart.items, hw.customerDisplayEnabled, hw.poleDisplayEnabled, storeName]);
 
   // Snapshot of cart data captured at the moment Process Order is clicked.
   // Allows cart to be cleared immediately (no freeze) while mutation is in-flight.
@@ -571,7 +571,11 @@ export default function POSPage() {
         });
       }
 
-      broadcastCart({ type: 'thankyou', storeName, currency });
+      broadcastCart({
+        type: 'thankyou', storeName, currency,
+        total: snap?.total,
+        change: snapPayMethod === 'cash' ? Math.max(0, (parseFloat(snapTendered) || 0) - snapTotal) : undefined,
+      });
       setTimeout(() => broadcastCart({ type: 'idle', storeName, currency }), 4000);
       saleSnapshotRef.current = null;
 

@@ -17,6 +17,7 @@ import { useCartStore, TABLES } from '../stores/cartStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useDBSync } from '../hooks/useDBSync';
+import { db } from '../lib/db';
 import { authApi, currenciesApi, settingsApi } from '../api';
 import LicenseBanner from '../components/LicenseBanner';
 import NotificationBell from '../components/ui/NotificationBell';
@@ -48,6 +49,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     queryKey: ['settings'],
     queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
   });
+
+  // After a factory reset (system:factory-reset on the server), this device's
+  // own copies of the old data — sales kept for offline reports, changes
+  // queued while offline, held orders — belong to a system that's gone.
+  // Dropped once per reset.
+  const dataResetAt: string | undefined = settings?.data_reset_at;
+  useEffect(() => {
+    if (!dataResetAt) return;
+    let seen: string | null = null;
+    try { seen = localStorage.getItem('Core-data-reset-at'); } catch { /* storage blocked */ }
+    if (seen === dataResetAt) return;
+    void Promise.all([db.sales.clear(), db.pendingMutations.clear()]).then(() => {
+      useCartStore.setState({ heldOrders: [] });
+      useCartStore.getState().clearCart();
+      try { localStorage.setItem('Core-data-reset-at', dataResetAt); } catch { /* storage blocked */ }
+    }).catch(() => { /* try again on the next load */ });
+  }, [dataResetAt]);
+
   // A user assigned to a shop always sees that shop; otherwise follow the system-wide mode.
   const businessType = effectiveShop((user?.business_type ?? settings?.business_type ?? null) as 'restaurant' | 'supermarket' | null);
   const isRestaurant  = businessType === 'restaurant';

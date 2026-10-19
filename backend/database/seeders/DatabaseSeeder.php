@@ -5,13 +5,9 @@ namespace Database\Seeders;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Brand;
-use App\Models\TaxRate;
-use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Models\User;
 use App\Models\Setting;
-use App\Models\ExpenseCategory;
-use App\Models\Currency;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
@@ -77,24 +73,8 @@ class DatabaseSeeder extends Seeder
         if (!$cashier->username) { $cashier->update(['username' => 'cashier1']); }
         $cashier->syncRoles(['cashier']);
 
-        // Tax rates
-        TaxRate::firstOrCreate(['name'=>'Standard VAT (15%)'],['rate'=>15,'is_default'=>true,'is_active'=>true]);
-        TaxRate::firstOrCreate(['name'=>'Zero Rated (0%)'],['rate'=>0,'is_default'=>false,'is_active'=>true]);
-
-        // Currencies (USD as default) — trimmed to the three this store actually trades in
-        $currencies = [
-            ['code'=>'USD','name'=>'US Dollar',           'symbol'=>'$',   'exchange_rate'=>1.000000, 'is_default'=>true],
-            ['code'=>'ZAR','name'=>'South African Rand',  'symbol'=>'R',   'exchange_rate'=>18.450000],
-            ['code'=>'ZWG','name'=>'Zimbabwe Gold',       'symbol'=>'ZiG', 'exchange_rate'=>26.800000],
-        ];
-        foreach ($currencies as $c) {
-            Currency::firstOrCreate(['code' => $c['code']], array_merge(['is_default'=>false,'is_active'=>true], $c));
-        }
-
-        // Units
-        foreach ([['Piece','pc'],['Kilogram','kg'],['Litre','l'],['Box','box'],['Carton','ctn'],['Bottle','btl'],['Can','can'],['Pack','pk']] as [$name,$abbr]) {
-            Unit::firstOrCreate(['abbreviation'=>$abbr],['name'=>$name,'abbreviation'=>$abbr]);
-        }
+        // Tax rates, currencies, units, expense categories, till defaults
+        $this->call(ReferenceDataSeeder::class);
 
         // Categories — a lean set covering bottle store, butcher, and supermarket
         // (kept small on purpose so the POS grid stays easy to test with)
@@ -117,11 +97,6 @@ class DatabaseSeeder extends Seeder
             Brand::firstOrCreate(['slug'=>\Illuminate\Support\Str::slug($name)],['name'=>$name,'slug'=>\Illuminate\Support\Str::slug($name),'is_active'=>true]);
         }
 
-        // Expense categories
-        foreach (['Rent','Utilities','Salaries','Marketing','Maintenance','Transport','Office Supplies','Miscellaneous'] as $name) {
-            ExpenseCategory::firstOrCreate(['name'=>$name],['name'=>$name,'is_active'=>true]);
-        }
-
         // Settings
         foreach ([
             ['company_name','Core','company'],
@@ -129,13 +104,6 @@ class DatabaseSeeder extends Seeder
             ['company_phone','+27 11 000 0000','company'],
             ['company_email','info@corepos.local','company'],
             ['company_vat_number','4123456789','company'],
-            ['currency','USD','pos'],
-            ['currency_symbol','$','pos'],
-            ['default_currency','USD','pos'],
-            ['loyalty_points_rate','10','pos'],
-            ['receipt_footer','Thank you for shopping with us!','pos'],
-            ['low_stock_threshold','5','inventory'],
-            ['multi_currency_enabled','true','pos'],
             ['business_type','restaurant','company'],
         ] as [$key,$value,$group]) {
             Setting::firstOrCreate(['key'=>$key],['key'=>$key,'value'=>$value,'group'=>$group]);

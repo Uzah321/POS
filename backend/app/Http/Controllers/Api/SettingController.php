@@ -21,6 +21,8 @@ class SettingController extends BaseApiController
         'require_table_number', 'pos_tile_theme',
         'fiscal_day', 'fiscal_device_id', 'fiscal_rec_gn', 'fiscal_rec_68',
         'kds', 'queue',
+        // Set by system:factory-reset; tells each till to drop its local copy of the old sales.
+        'data_reset_at',
     ];
 
     /** Scale-barcode layouts (barcode_weight_*, barcode_price_*) the till decodes with. */

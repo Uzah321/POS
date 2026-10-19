@@ -169,6 +169,8 @@ class EndOfDayController extends BaseApiController
                 'difference'           => $difference,
                 'notes'                => $data['notes'] ?? null,
                 'status'               => 'closed',
+                // Order numbers start again at 1 after this sale (Sale::nextOrderNumber)
+                'last_sale_id'         => Sale::where('branch_id', $data['branch_id'])->max('id') ?? 0,
             ]);
 
             // Completed sales already live permanently in the `sales` table and

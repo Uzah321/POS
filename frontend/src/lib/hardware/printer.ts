@@ -235,7 +235,9 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     currencyRate: options.currencyRate ?? 1,
     orderType: options.orderType,
     branchName: options.branchName ?? sale?.branch?.name,
-    orderNum: options.orderNum ?? (sale?.id != null ? String(sale.id) : undefined),
+    // The order number (resets after each Day End); sales from before order
+    // numbers existed show their id as they always did.
+    orderNum: options.orderNum ?? (sale?.order_number != null ? String(sale.order_number) : sale?.id != null ? String(sale.id) : undefined),
     customerName: options.customerName ?? sale?.customer?.name,
     covers: options.covers,
     tableNumber: options.tableNumber ?? sale?.table_number ?? undefined,
@@ -330,7 +332,7 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
 
   // Order-info block
   parts.push(ESC_ALIGN_LEFT);
-  if (d.orderNum) parts.push(line(`Order Num : ${d.orderNum}`));
+  if (d.orderNum) parts.push(ESC_BOLD_ON, line(`Order Num : ${d.orderNum}`), ESC_BOLD_OFF);
   parts.push(line(`Tax Inv No : ${d.reference}`));
   if (d.customerName) parts.push(line(`Customer : ${d.customerName}`));
   if (d.covers) parts.push(line(`Covers : ${d.covers}`));
@@ -623,6 +625,11 @@ export interface KitchenTicketData {
   date?: Date;
 }
 
+/** What a kitchen ticket calls the order: the sale's order number once it exists, else `fallback` (the cart's own ticket number). */
+export function kitchenOrderLabel(sale: any, fallback: string): string {
+  return sale?.order_number != null ? `#${sale.order_number}` : sale?.reference ?? fallback;
+}
+
 function kitchenQty(item: KitchenTicketItem): string {
   return item.soldByWeight ? `${item.qty.toFixed(3)}kg` : `${+item.qty.toFixed(3)}`;
 }
@@ -652,7 +659,8 @@ function buildEscPosKitchenTicket(d: KitchenTicketData): Uint8Array {
   if (d.table) parts.push(ESC_DWIDTH_ON, line(d.table), ESC_DWIDTH_OFF);
   else if (d.orderType && d.orderType !== 'sit_in') parts.push(ESC_DWIDTH_ON, line(orderTypeLabel(d.orderType).toUpperCase()), ESC_DWIDTH_OFF);
   parts.push(ESC_ALIGN_LEFT, divider('='));
-  parts.push(line(`Time: ${time}${d.ticket ? `   Ticket: ${d.ticket}` : ''}`));
+  if (d.ticket) parts.push(ESC_BOLD_ON, line(`Order: ${d.ticket}`), ESC_BOLD_OFF);
+  parts.push(line(`Time: ${time}`));
   if (d.waiter) parts.push(line(`Waiter: ${d.waiter}`));
   if (d.covers) parts.push(line(`Covers: ${d.covers}`));
   if (d.customerName) parts.push(line(`Customer: ${d.customerName}`));
@@ -683,8 +691,8 @@ export function buildKitchenTicketHtml(d: KitchenTicketData): string {
   const date = d.date ?? new Date();
   const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const where = d.table || (d.orderType && d.orderType !== 'sit_in' ? orderTypeLabel(d.orderType) : '');
-  const meta = [
-    `Time: ${time}`, d.ticket && `Ticket: ${d.ticket}`, d.waiter && `Waiter: ${d.waiter}`,
+  const meta = (d.ticket ? `<div class="order">Order: ${escapeHtml(d.ticket)}</div>` : '') + [
+    `Time: ${time}`, d.waiter && `Waiter: ${d.waiter}`,
     d.covers && `Covers: ${d.covers}`, d.customerName && `Customer: ${d.customerName}`,
   ].filter(Boolean).map((m) => `<div>${escapeHtml(String(m))}</div>`).join('');
   const items = d.items.map((item) =>
@@ -697,6 +705,7 @@ export function buildKitchenTicketHtml(d: KitchenTicketData): string {
   .where { text-align:center; font-size:26px; font-weight:900; margin-top:2px; }
   .rule { border-top:2px dashed #000; margin:6px 0; }
   .meta { font-size:13px; line-height:1.4; }
+  .order { font-size:16px; font-weight:900; }
   table { width:100%; border-collapse:collapse; font-size:20px; font-weight:800; }
   td { padding:3px 0; vertical-align:top; }
   td.qty { width:1%; white-space:nowrap; padding-right:8px; }
@@ -817,7 +826,7 @@ ${d.branchName && d.branchName !== d.storeName ? `<div class="center bold">${d.b
 ${d.tradingName && d.tradingName !== d.storeName ? `<div class="center">T/A</div><div class="center bold">${d.tradingName}</div>` : ''}
 ${addrLines}
 <div class="divider"></div>
-${d.orderNum ? `<div>Order Num : ${d.orderNum}</div>` : ''}
+${d.orderNum ? `<div class="bold">Order Num : ${d.orderNum}</div>` : ''}
 <div>Tax Inv No : ${d.reference}</div>
 ${d.customerName ? `<div>Customer : ${d.customerName}</div>` : ''}
 ${d.covers ? `<div>Covers : ${d.covers}</div>` : ''}

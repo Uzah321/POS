@@ -13,7 +13,7 @@ class EndOfDay extends Model
         'branch_id', 'user_id', 'report_date', 'opening_cash', 'cash_sales', 'card_sales',
         'mobile_money_sales', 'other_sales', 'total_sales', 'total_refunds', 'total_expenses',
         'total_salaries', 'total_rent_paid',
-        'expected_cash', 'actual_cash', 'difference', 'notes', 'status',
+        'expected_cash', 'actual_cash', 'difference', 'notes', 'status', 'last_sale_id',
     ];
 
     protected $casts = [

@@ -29,7 +29,9 @@ class KdsController extends Controller
                 $sale->setRelation('items', $sale->items->filter(fn ($i) => $i->product?->made_to_order)->values());
                 return [
                     'id'           => $sale->id,
-                    'ticket'       => '#' . str_pad($sale->id % 1000, 3, '0', STR_PAD_LEFT),
+                    // The order number the receipt shows (resets after each Day End);
+                    // sales from before order numbers existed fall back to their id.
+                    'ticket'       => '#' . ($sale->order_number ?? str_pad($sale->id % 1000, 3, '0', STR_PAD_LEFT)),
                     'reference'    => $sale->reference,
                     'kds_status'   => $sale->kds_status,
                     'table_number' => $sale->table_number,

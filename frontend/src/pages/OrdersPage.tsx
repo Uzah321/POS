@@ -71,6 +71,8 @@ interface HeldOrder {
 interface CompletedSale {
   id: number;
   reference: string;
+  /** Resets after each Day End; null on sales from before order numbers existed. */
+  order_number?: number | null;
   table_number?: string | null;
   created_at: string;
   total: number;
@@ -166,8 +168,8 @@ function CompletedCard({ sale, format }: { sale: CompletedSale; format: (v: numb
     <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-4 opacity-75">
       <div className="flex items-start justify-between mb-2">
         <div>
-          <p className="font-bold text-gray-700 text-sm">{sale.reference}</p>
-          <p className="text-xs text-gray-400">{timeAgo}</p>
+          <p className="font-bold text-gray-700 text-sm">{sale.order_number != null ? `Order #${sale.order_number}` : sale.reference}</p>
+          <p className="text-xs text-gray-400">{sale.order_number != null ? `${sale.reference} · ` : ''}{timeAgo}</p>
         </div>
         {sale.table_number && (
           <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">

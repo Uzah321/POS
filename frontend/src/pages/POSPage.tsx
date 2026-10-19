@@ -9,7 +9,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
-import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode } from '../lib/hardware/printer';
+import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode, kitchenOrderLabel } from '../lib/hardware/printer';
 import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, type ScaleDevice } from '../lib/hardware/scale';
@@ -563,7 +563,7 @@ export default function POSPage() {
 
       if (snap) {
         sendKitchenTicket(snap.items, {
-          ticket: sale?.reference ?? snap.ticketNum,
+          ticket: kitchenOrderLabel(sale, snap.ticketNum),
           table: snap.tableNumber,
           orderType: snap.orderType,
           covers: snap.covers,
@@ -641,7 +641,7 @@ export default function POSPage() {
     onSuccess: (result, vars) => {
       const sale = (result as any).data?.data;
       sendKitchenTicket(vars.unsyncedItems, {
-        ticket: sale?.reference ?? cart.ticketNum,
+        ticket: kitchenOrderLabel(sale, cart.ticketNum),
         table: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : '',
         orderType: vars.orderType,
         covers: cart.covers,
@@ -729,7 +729,7 @@ export default function POSPage() {
 
       if (snap) {
         sendKitchenTicket(snap.items, {
-          ticket: sale?.reference ?? snap.ticketNum,
+          ticket: kitchenOrderLabel(sale, snap.ticketNum),
           table: snap.tableNumber,
           orderType: snap.orderType,
           covers: snap.covers,

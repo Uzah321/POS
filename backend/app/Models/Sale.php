@@ -43,6 +43,7 @@ class Sale extends Model
         'change_due' => 'decimal:2',
         'discount_value' => 'decimal:2',
         'is_offline' => 'boolean',
+        'order_number' => 'integer',
         'completed_at' => 'datetime',
         'voided_at' => 'datetime',
     ];
@@ -53,7 +54,31 @@ class Sale extends Model
             if (! $sale->reference) {
                 $sale->reference = 'SALE-' . strtoupper(uniqid());
             }
+            if ($sale->order_number === null && $sale->branch_id) {
+                $sale->order_number = static::nextOrderNumber((int) $sale->branch_id);
+            }
         });
+    }
+
+    /**
+     * The branch's next order number — the short number a customer is called
+     * by. Counts up from 1 and starts again after each Day End run for the
+     * branch. Locks the branch row so two tills ringing up at once can't take
+     * the same number; inside the sale's transaction (as the creating hook
+     * is) the lock holds until the sale is saved.
+     */
+    public static function nextOrderNumber(int $branchId): int
+    {
+        Branch::whereKey($branchId)->lockForUpdate()->first();
+        $dayEnd = EndOfDay::where('branch_id', $branchId)->latest('id')->first(['id', 'created_at', 'last_sale_id']);
+
+        return (int) static::where('branch_id', $branchId)
+            ->when($dayEnd, fn ($q) => $dayEnd->last_sale_id !== null
+                // The sales rung up since the Day End: past the last sale it saw
+                ? $q->where('id', '>', $dayEnd->last_sale_id)
+                // A Day End from before it recorded that — by time instead
+                : $q->where('created_at', '>=', $dayEnd->created_at))
+            ->max('order_number') + 1;
     }
 
     /** Sales that count toward revenue/transaction reporting — see REVENUE_STATUSES. */

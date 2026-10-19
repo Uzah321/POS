@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Branch;
 use App\Models\EndOfDay;
 use App\Models\Sale;
 use App\Models\HeldSale;
@@ -17,10 +18,26 @@ use Illuminate\Support\Facades\Log;
 
 class EndOfDayController extends BaseApiController
 {
+    /**
+     * The branch a Day End is for — each branch closes its own day, from its
+     * own sales. An admin picks the branch (else their own, else the main
+     * one); everyone else only ever gets their own branch.
+     */
+    private function dayEndBranchId(Request $request): ?int
+    {
+        $user = $request->user();
+        if (! $user->hasRole('admin')) {
+            return $user->branch_id;
+        }
+        return $request->filled('branch_id')
+            ? (int) $request->branch_id
+            : ($user->branch_id ?? Branch::where('is_main', true)->value('id') ?? Branch::orderBy('id')->value('id'));
+    }
+
     /** GET /end-of-day/summary — live preview for manager */
     public function summary(Request $request): \Illuminate\Http\JsonResponse
     {
-        $branchId = $request->branch_id ?? $request->user()->branch_id;
+        $branchId = $this->dayEndBranchId($request);
         $date     = $request->date ?? now()->toDateString();
 
         $sales = Sale::revenueCounted()
@@ -82,6 +99,7 @@ class EndOfDayController extends BaseApiController
 
         return $this->success([
             'date'               => $date,
+            'branch'             => $branchId ? Branch::find($branchId, ['id', 'name']) : null,
             'total_sales'        => $totalSales,
             'total_transactions' => $sales->count(),
             'cash_sales'         => $cashSales,
@@ -108,12 +126,22 @@ class EndOfDayController extends BaseApiController
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
-            'branch_id'    => 'required|exists:branches,id',
+            'branch_id'    => 'nullable|exists:branches,id',
             'report_date'  => 'required|date',
             'opening_cash' => 'required|numeric|min:0',
             'actual_cash'  => 'required|numeric|min:0',
             'notes'        => 'nullable|string|max:1000',
         ]);
+
+        // Each branch closes its own day — only an admin may close another branch's.
+        $branchId = $this->dayEndBranchId($request);
+        if (! $branchId) {
+            return $this->error('You need to belong to a branch to close its day.', 422);
+        }
+        if ($request->filled('branch_id') && (int) $request->branch_id !== $branchId) {
+            return $this->error("You can only close your own branch's day.", 403);
+        }
+        $data['branch_id'] = $branchId;
 
         // Prevent duplicate EOD for same branch+date
         if (EndOfDay::where('branch_id', $data['branch_id'])->where('report_date', $data['report_date'])->exists()) {
@@ -222,8 +250,10 @@ class EndOfDayController extends BaseApiController
     /** GET /end-of-day — list EOD reports */
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
+        // An admin sees the branch asked for, or every branch; anyone else only their own.
+        $branchId = $this->effectiveBranchId($request);
         $query = EndOfDay::with('user:id,name,username', 'branch:id,name')
-            ->when($request->branch_id, fn($q) => $q->where('branch_id', $request->branch_id))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($request->month, function ($q) use ($request) {
                 [$year, $month] = explode('-', $request->month);
                 $q->whereYear('report_date', $year)->whereMonth('report_date', $month);

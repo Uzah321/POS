@@ -1,18 +1,20 @@
-﻿import { useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import api from '../lib/axios';
-import { settingsApi } from '../api';
+import { branchesApi, settingsApi } from '../api';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
-import { Printer } from 'lucide-react';
+import { Building2, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 interface EodSummary {
   date: string;
+  /** The branch these figures are for — each branch closes its own day. */
+  branch?: { id: number; name: string } | null;
   total_sales: number;
   total_revenue: number;
   total_transactions: number;
@@ -40,6 +42,7 @@ interface FormData {
 /** Builds and downloads a printable day-end (EOD) sheet as a PDF. */
 function downloadDayEndPdf(opts: {
   companyName: string;
+  branchName?: string;
   date: string;
   format: (n: number) => string;
   summary: EodSummary | undefined;
@@ -49,7 +52,7 @@ function downloadDayEndPdf(opts: {
   variance?: number;
   notes?: string;
 }) {
-  const { companyName, date, format, summary, openingCash, actualCash, expectedCash, variance, notes } = opts;
+  const { companyName, branchName, date, format, summary, openingCash, actualCash, expectedCash, variance, notes } = opts;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
@@ -64,7 +67,7 @@ function downloadDayEndPdf(opts: {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(203, 213, 225);
-  doc.text('Day End / EOD Report', margin, 50);
+  doc.text(branchName ? `Day End / EOD Report — ${branchName}` : 'Day End / EOD Report', margin, 50);
   doc.setFontSize(9);
   doc.text(`Date: ${date}`, pageWidth - margin, 32, { align: 'right' });
   doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin, 46, { align: 'right' });
@@ -187,12 +190,14 @@ function downloadDayEndPdf(opts: {
   doc.line(pageWidth - margin - 180, signY, pageWidth - margin, signY);
   doc.text('Verified by (Manager)', pageWidth - margin - 180, signY + 12);
 
-  doc.save(`day-end-${date}.pdf`);
+  const branchSlug = branchName ? `${branchName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-` : '';
+  doc.save(`day-end-${branchSlug}${date}.pdf`);
 }
 
 export default function DayEndPage() {
   const { format, currencies } = useCurrencyStore();
   const { user } = useAuthStore();
+  const isAdmin = useAuthStore((s) => s.hasRole('admin'));
   const qc = useQueryClient();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -200,11 +205,33 @@ export default function DayEndPage() {
   const activeCurrencies = currencies.filter((c) => c.is_active);
   const [currencyCash, setCurrencyCash] = useState<Record<string, string>>({});
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, reset, getValues, formState: { errors } } = useForm<FormData>({
     defaultValues: { date: today, notes: '', opening_cash: 0, actual_cash: 0 },
   });
 
   const selectedDate = watch('date');
+
+  // Each branch closes its own day, from its own sales. An admin picks the
+  // branch (their own, else the main one, to start with); everyone else is
+  // locked to their own — the server enforces that too.
+  const [branchId, setBranchId] = useState<string>(user?.branch?.id != null ? String(user.branch.id) : '');
+  const { data: branches = [] } = useQuery<any[]>({
+    queryKey: ['branches'],
+    queryFn: () => branchesApi.list().then(r => r.data?.data || []),
+    staleTime: 120000,
+    enabled: isAdmin,
+  });
+  useEffect(() => {
+    if (branchId || branches.length === 0) return;
+    setBranchId(String((branches.find((b) => b.is_main) ?? branches[0]).id));
+  }, [branches, branchId]);
+  // A count typed for one branch mustn't be submitted for another
+  useEffect(() => {
+    setCurrencyCash({});
+    reset({ date: getValues('date'), notes: '', opening_cash: 0, actual_cash: 0 });
+  }, [branchId, reset, getValues]);
+  const branchParams = branchId ? { branch_id: Number(branchId) } : {};
+  const branchReady = !isAdmin || branchId !== '';
 
   // Total actual cash converted to base currency from all per-currency entries
   const totalActualFromCurrencies = activeCurrencies.reduce((sum, c) => {
@@ -213,8 +240,9 @@ export default function DayEndPage() {
   }, 0);
 
   const { data: summary, isLoading } = useQuery({
-    queryKey: ['eod-summary', selectedDate],
-    queryFn: () => api.get('/end-of-day/summary', { params: { date: selectedDate } }).then(r => r.data.data as EodSummary),
+    queryKey: ['eod-summary', selectedDate, branchId],
+    queryFn: () => api.get('/end-of-day/summary', { params: { date: selectedDate, ...branchParams } }).then(r => r.data.data as EodSummary),
+    enabled: branchReady,
   });
 
   const { data: storeSettings } = useQuery({
@@ -224,9 +252,11 @@ export default function DayEndPage() {
   });
 
   const { data: historyData } = useQuery({
-    queryKey: ['eod-history'],
-    queryFn: () => api.get('/end-of-day').then(r => r.data.data),
+    queryKey: ['eod-history', branchId],
+    queryFn: () => api.get('/end-of-day', { params: branchParams }).then(r => r.data.data),
+    enabled: branchReady,
   });
+  const branchName: string = summary?.branch?.name ?? branches.find((b) => String(b.id) === branchId)?.name ?? user?.branch?.name ?? '';
 
   const history: any[] = Array.isArray(historyData) ? historyData : historyData?.data ?? [];
   // Live figures — variance is always derived (counted − expected), never typed.
@@ -245,7 +275,7 @@ export default function DayEndPage() {
       const actualCash = activeCurrencies.length > 1 ? totalActualFromCurrencies : Number(data.actual_cash);
       // Map frontend field names → backend field names
       const payload = {
-        branch_id:    user?.branch?.id ?? 1,
+        ...branchParams,
         report_date:  data.date,
         opening_cash: Number(data.opening_cash),
         actual_cash:  actualCash,
@@ -296,8 +326,21 @@ export default function DayEndPage() {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Day End &mdash; EOD</h1>
-        <div className="flex items-center gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Day End &mdash; EOD</h1>
+          {!isAdmin && branchName && (
+            <p className="flex items-center gap-1.5 text-sm text-gray-500 mt-0.5"><Building2 size={14} />{branchName}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {isAdmin && branches.length > 0 && (
+            <label className="inline-flex items-center gap-2 border border-gray-300 bg-white rounded-lg px-3 py-1.5 text-sm">
+              <Building2 size={14} className="text-gray-400" />
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="bg-transparent focus:outline-none" aria-label="Branch">
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </label>
+          )}
           <label className="text-sm text-gray-600">Date:</label>
           <input
             type="date"
@@ -312,6 +355,7 @@ export default function DayEndPage() {
               // it blank ("-") if nothing's been entered, rather than a false 0.00.
               downloadDayEndPdf({
                 companyName: storeSettings?.company_name || 'Core POS',
+                branchName,
                 date: selectedDate,
                 format,
                 summary,
@@ -423,7 +467,7 @@ export default function DayEndPage() {
 
       {/* Submit EOD form */}
       <div className="bg-white rounded-md border border-gray-200 p-6">
-        <h2 className="font-semibold text-gray-700 mb-4">Submit End of Day</h2>
+        <h2 className="font-semibold text-gray-700 mb-4">Submit End of Day{branchName ? ` — ${branchName}` : ''}</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {activeCurrencies.length > 1 ? (
             <div className="md:col-span-2">
@@ -525,7 +569,7 @@ export default function DayEndPage() {
       {history.length > 0 && (
         <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">
-            End-of-Day Records
+            End-of-Day Records{branchName ? ` — ${branchName}` : ''}
             <span className="ml-2 text-xs text-gray-400 font-normal">(stored in <code>end_of_day</code> table)</span>
           </div>
           <div className="overflow-x-auto">
@@ -566,6 +610,7 @@ export default function DayEndPage() {
                         title="Print this day's PDF"
                         onClick={() => downloadDayEndPdf({
                           companyName: storeSettings?.company_name || 'Core POS',
+                          branchName: h.branch?.name ?? branchName,
                           date: h.report_date ?? h.date,
                           format,
                           summary: {

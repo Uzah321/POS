@@ -24,6 +24,9 @@ export interface HardwareConfig {
   printerName: string;
   // 'system': every bill prints on each of these.
   receiptPrinters: ChosenPrinter[];
+  // Mode 'system' in a browser: the program on this computer that reaches
+  // the chosen printers. (The desktop app prints to them itself.)
+  printConnector: 'qz' | 'bridge';
   autoPrintReceipt: boolean;
 
   // Kitchen printer — prints an order ticket (no prices) for the back when a
@@ -82,6 +85,7 @@ const DEFAULTS: HardwareConfig = {
   printerProductId: null,
   printerName: '',
   receiptPrinters: [],
+  printConnector: 'qz',
   autoPrintReceipt: true,
 
   kitchenPrinterEnabled: false,

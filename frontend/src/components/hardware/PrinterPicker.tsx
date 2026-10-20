@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Cable, Loader2, RefreshCw, Star } from 'lucide-react';
-import type { ChosenPrinter } from '../../stores/hardwareStore';
+import { useHardwareStore, type ChosenPrinter } from '../../stores/hardwareStore';
 import { isSystemPrintAvailable, listPrinters, type AvailablePrinter } from '../../lib/hardware/printer';
 import CoreBridgeCard from './CoreBridgeCard';
+import QzTrayCard from './QzTrayCard';
 
 // Hardware → Receipt / Kitchen Printer, "Choose Printers": every printer
 // Windows has installed on this computer, to tick as many as should print
@@ -23,6 +24,8 @@ const PAPER_LABEL: Record<ChosenPrinter['paper'], string> = { '58mm': '58 mm rol
 
 export default function PrinterPicker({ role, chosen, onChange, categories = [], otherRole = [] }: Props) {
   const desktop = isSystemPrintAvailable();
+  const connector = useHardwareStore((s) => s.printConnector);
+  const setConnector = (printConnector: 'qz' | 'bridge') => useHardwareStore.getState().update({ printConnector });
   const [printers, setPrinters] = useState<AvailablePrinter[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,8 @@ export default function PrinterPicker({ role, chosen, onChange, categories = [],
     setError(null);
     void load();
   };
-  useEffect(() => { void load(); }, []);
+  // Again whenever this till switches between QZ Tray and the Core Bridge.
+  useEffect(() => { void load(); }, [connector]);
 
   const pick = (name: string) => chosen.find((c) => c.name === name);
   const toggle = (name: string) => onChange(pick(name)
@@ -63,7 +67,23 @@ export default function PrinterPicker({ role, chosen, onChange, categories = [],
 
   return (
     <div>
-      {!desktop && <CoreBridgeCard use="printers" onRunning={() => { if (error) void refresh(); }} />}
+      {!desktop && (
+        <div className="mb-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Print through</span>
+            {(['qz', 'bridge'] as const).map((c) => (
+              <button key={c} type="button" onClick={() => { if (c !== connector) { setLoading(true); setError(null); setConnector(c); } }}
+                className={`px-2.5 py-1 rounded-md border font-medium whitespace-nowrap ${connector === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                {c === 'qz' ? 'QZ Tray' : 'Core Bridge'}
+              </button>
+            ))}
+          </div>
+          <p className="text-gray-400 mt-1">The program on this computer that reaches its printers — set per till.</p>
+        </div>
+      )}
+      {!desktop && (connector === 'qz'
+        ? <QzTrayCard key="qz" onRunning={() => { if (error) refresh(); }} />
+        : <CoreBridgeCard key="bridge" use="printers" onRunning={() => { if (error) refresh(); }} />)}
 
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className="text-sm text-gray-600">

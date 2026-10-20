@@ -243,6 +243,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
         Route::patch('/fiscal/tax-mappings/{fiscalTaxMapping}', [\App\Http\Controllers\Api\FiscalController::class, 'updateTaxMapping']);
     });
 
+    // QZ Tray — silent printing from the browser on a till (see App\Support\QzTraySigning).
+    Route::get('/qz-tray/certificate', [\App\Http\Controllers\Api\QzTrayController::class, 'certificate']);
+    Route::get('/qz-tray/override-certificate', [\App\Http\Controllers\Api\QzTrayController::class, 'trustCertificate']);
+    Route::post('/qz-tray/sign', [\App\Http\Controllers\Api\QzTrayController::class, 'sign'])->middleware('throttle:600,1');
+
     // Settings — saving matches the /settings frontend route's manage_settings gate.
     // Reading is open to everyone signed in (non-managers get only the
     // non-secret keys — see SettingController::PUBLIC_KEYS); saving isn't.

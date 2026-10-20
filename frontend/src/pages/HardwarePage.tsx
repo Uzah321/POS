@@ -645,7 +645,7 @@ export default function HardwarePage() {
                       ? "This browser can't reach printers — use Chrome or Edge, or the Core desktop app"
                       : isSystemPrintAvailable()
                         ? "Tick one or more of this computer's printers, once — every bill then prints on each of them silently, with no dialog and nothing for the cashier to select"
-                        : "Tick one or more of this computer's printers, once — every bill then prints on each of them silently, through the Core Bridge on this computer"}
+                        : "Tick one or more of this computer's printers, once — every bill then prints on each of them silently, through QZ Tray (or the Core Bridge) on this computer"}
                   </p>
                 </div>
               </label>

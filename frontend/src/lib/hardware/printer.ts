@@ -16,7 +16,8 @@
  */
 import { drawOnWhite, loadImage } from '../companyLogo';
 import { bridgePrint, bridgePrinters } from './printBridge';
-import type { ChosenPrinter } from '../../stores/hardwareStore';
+import { qzPrintRaw, qzPrinters } from './qzTray';
+import { useHardwareStore, type ChosenPrinter } from '../../stores/hardwareStore';
 
 interface ElectronPrinterBridge {
   isElectron: true;
@@ -54,15 +55,18 @@ export interface AvailablePrinter {
 /**
  * Every printer Windows has installed on this computer — USB, Bluetooth-
  * paired or network — for choosing bill and kitchen printers: the desktop
- * app asks Windows itself; a browser asks the Core Bridge (and throws when
- * it isn't running).
+ * app asks Windows itself; a browser asks QZ Tray or the Core Bridge,
+ * whichever this till prints through (and throws when it isn't running).
  */
 export async function listPrinters(): Promise<AvailablePrinter[]> {
   if (electronBridge()) return listSystemPrinters();
+  if (useHardwareStore.getState().printConnector === 'qz') {
+    return (await qzPrinters()).map((p) => ({ name: p.name, displayName: p.name, isDefault: p.isDefault }));
+  }
   return (await bridgePrinters()).map((p) => ({ name: p.name, displayName: p.name, isDefault: p.isDefault, offline: p.offline }));
 }
 
-/** Whether printers can be chosen from that list here: the desktop app, or a browser (through the Core Bridge). */
+/** Whether printers can be chosen from that list here: the desktop app, or a browser (through QZ Tray or the Core Bridge). */
 export function canChoosePrinters(): boolean {
   return isSystemPrintAvailable() || typeof WebSocket !== 'undefined';
 }
@@ -74,19 +78,21 @@ function escPosColumns(paper: ChosenPrinter['paper']): number {
 
 /**
  * Prints on each printer at once: rendered HTML in the desktop app, or the
- * printer's own ESC/POS bytes through the Core Bridge in a browser. Returns
- * what went wrong on any that didn't print, grouped by reason.
+ * printer's own ESC/POS bytes through QZ Tray or the Core Bridge in a
+ * browser. Returns what went wrong on any that didn't print, grouped by
+ * reason.
  */
 async function printOnChosen<T extends { name: string }>(
   targets: T[], html: (t: T) => string, escpos: (t: T) => Uint8Array,
 ): Promise<{ failed: number; problems: string }> {
   const desktop = electronBridge();
+  const sendRaw = useHardwareStore.getState().printConnector === 'qz' ? qzPrintRaw : bridgePrint;
   const results = await Promise.allSettled(targets.map(async (t) => {
     if (desktop) {
       const result = await desktop.printSilent(html(t), t.name);
       if (!result.success) throw new Error(result.failureReason || 'Print failed');
     } else {
-      await bridgePrint(t.name, escpos(t));
+      await sendRaw(t.name, escpos(t));
     }
   }));
   const byReason = new Map<string, string[]>();

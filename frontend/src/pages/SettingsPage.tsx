@@ -8,7 +8,7 @@ import FiscalisationPanel from '../components/FiscalisationPanel';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import {
-  DIGI_SM110_LAYOUTS, embeddedCartLine, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
+  DIGI_SM110_LAYOUTS, embeddedCartLine, layoutEnabled, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
   type ScaleBarcodeLayout,
 } from '../lib/barcode/embeddedBarcode';
 
@@ -230,7 +230,7 @@ export default function SettingsPage() {
     low_stock_alerts: true,
     require_table_number: false,
     block_negative_stock: true,
-    barcode_weight_enabled: false,
+    barcode_weight_enabled: true,
     barcode_price_enabled: false,
   });
 const { isLoading } = useQuery({
@@ -247,8 +247,8 @@ const { isLoading } = useQuery({
         low_stock_alerts: data.low_stock_alerts !== 'false' && data.low_stock_alerts !== false,
         require_table_number: data.require_table_number === 'true' || data.require_table_number === true,
         block_negative_stock: data.block_negative_stock !== 'false' && data.block_negative_stock !== false,
-        barcode_weight_enabled: data.barcode_weight_enabled === 'true' || data.barcode_weight_enabled === true,
-        barcode_price_enabled: data.barcode_price_enabled === 'true' || data.barcode_price_enabled === true,
+        barcode_weight_enabled: layoutEnabled(data, 'barcode_weight'),
+        barcode_price_enabled: layoutEnabled(data, 'barcode_price'),
       }));
       return data;
     }),
@@ -504,7 +504,8 @@ const { isLoading } = useQuery({
         </div>
         <div className="p-6 space-y-6">
           <p className="text-xs text-gray-400 -mt-2">
-            For a scale that prints barcodes with a weight or price embedded in the digits, instead of a literal product barcode. Give each sold-by-weight product a PLU Code (on its product page) matching what the scale encodes — leave both off if your scale prints plain product barcodes.
+            For a scale that prints barcodes with a weight or price embedded in the digits, instead of a literal product barcode. Give each sold-by-weight product a PLU Code (on its product page) matching what the scale encodes.
+            Random Weight Barcodes are on from the start, set for the counter scale's labels: flag 20, and the item's 3-digit PLU Code from digit 4 (label 2001085010869 is item 108). A product's own barcode still wins if it also starts with the flag.
             A field left blank uses the grey value shown in it. Scanning a label (or typing a PLU Code) into any product search finds its product too.
           </p>
 

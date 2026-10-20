@@ -16,10 +16,13 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  */
 class ScaleBarcode
 {
-    /** Blank Settings → Barcodes fields mean these — the placeholders shown there. */
+    /**
+     * Blank Settings → Barcodes fields mean these — the placeholders shown
+     * there. Weight labels (the counter scale's) are on until switched off.
+     */
     private const DEFAULTS = [
-        'barcode_weight' => ['prefix' => '20', 'code_position' => 4, 'code_length' => 3, 'value_position' => 8, 'value_length' => 5],
-        'barcode_price'  => ['prefix' => '2',  'code_position' => 4, 'code_length' => 4, 'value_position' => 9, 'value_length' => 4],
+        'barcode_weight' => ['enabled' => true,  'prefix' => '20', 'code_position' => 4, 'code_length' => 3, 'value_position' => 8, 'value_length' => 5],
+        'barcode_price'  => ['enabled' => false, 'prefix' => '2',  'code_position' => 4, 'code_length' => 4, 'value_position' => 9, 'value_length' => 4],
     ];
 
     /** The weight/price field's own key in each layout. */
@@ -29,8 +32,8 @@ class ScaleBarcode
      * Adds "or it's the product this search names by PLU code" to a products
      * query's search group: any product whose PLU Code is the search text,
      * and for a scale label, the product with the label's PLU code (or that
-     * code as its SKU, where a shop coming from another till kept it).
-     * Leading zeros don't matter.
+     * code as its SKU or Barcode, where a shop coming from another till kept
+     * it). Leading zeros don't matter.
      */
     public static function orWherePlu(Builder|QueryBuilder $query, string $term): void
     {
@@ -43,7 +46,7 @@ class ScaleBarcode
         $labelPlu = self::pluFromLabel($term);
         if ($labelPlu !== null) {
             $spellings = self::spellings($labelPlu);
-            $query->orWhereIn('plu_code', $spellings)->orWhereIn('sku', $spellings);
+            $query->orWhereIn('plu_code', $spellings)->orWhereIn('sku', $spellings)->orWhereIn('barcode', $spellings);
         }
     }
 
@@ -72,9 +75,17 @@ class ScaleBarcode
         return null;
     }
 
+    /** Whether a layout is on: as saved in Settings, or its default when it never was. */
+    public static function enabled(string $kind, ?string $saved): bool
+    {
+        return $saved === null || trim($saved) === ''
+            ? self::DEFAULTS[$kind]['enabled']
+            : filter_var($saved, FILTER_VALIDATE_BOOLEAN);
+    }
+
     private static function decode(string $code, string $kind, array $settings): ?string
     {
-        if (! filter_var($settings["{$kind}_enabled"] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+        if (! self::enabled($kind, $settings["{$kind}_enabled"] ?? null)) {
             return null;
         }
         $defaults = self::DEFAULTS[$kind];

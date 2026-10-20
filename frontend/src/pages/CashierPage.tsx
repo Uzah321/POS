@@ -202,16 +202,15 @@ export default function CashierPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
   });
 
-  // Barcode scanner — embedded weight/price barcode first, then exact SKU/barcode match
+  // Barcode scanner — exact SKU/barcode match first, then a scale label
   const handleBarcodeScan = useCallback((code: string) => {
-    if (tryAddEmbeddedBarcode(code)) return;
     const product = allProducts.find(p =>
       (p.sku ?? '').toLowerCase() === code.toLowerCase() ||
       (p.barcode ?? '').toLowerCase() === code.toLowerCase()
     );
     if (product) {
       addProduct(product);
-    } else {
+    } else if (!tryAddEmbeddedBarcode(code)) {
       setCodeInput(code);
       codeRef.current?.focus();
     }
@@ -302,9 +301,10 @@ export default function CashierPage() {
 
   // Scale-printed barcode whose digits encode a PLU code plus a weight or
   // price (Settings → Barcodes), rather than being a literal product
-  // barcode. Tried before the normal exact-match lookup; returns false (and
-  // does nothing) for any code that doesn't match the configured format, so
-  // a store that hasn't set this up sees no change in behavior.
+  // barcode. Tried after the exact SKU/barcode lookup, so a product's own
+  // barcode that starts with the scale's flag still rings up as itself;
+  // returns false (and does nothing) for any code that doesn't match the
+  // configured format.
   const tryAddEmbeddedBarcode = (code: string): boolean => {
     const label = resolveEmbeddedBarcode(code, storeSettings ?? {}, allProducts);
     if (!label) return false;
@@ -338,14 +338,14 @@ export default function CashierPage() {
     const q = codeInput.trim();
     if (!q) return;
 
-    if (tryAddEmbeddedBarcode(q)) return;
-
     const ql = q.toLowerCase();
     const exact = allProducts.find(p =>
       (p.sku ?? '').toLowerCase() === ql ||
       (p.barcode ?? '').toLowerCase() === ql
     );
     if (exact) { addProduct(exact); return; }
+
+    if (tryAddEmbeddedBarcode(q)) return;
 
     // Arrow keys may have highlighted a row in the live dropdown — Enter
     // adds that one rather than requiring the search to narrow to exactly

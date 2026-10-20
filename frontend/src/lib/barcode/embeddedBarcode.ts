@@ -40,12 +40,21 @@ function toInt(v: unknown, fallback = 0): number {
 // What a field left blank in Settings → Barcodes means — the placeholders
 // shown there, so a layout that looks filled in really is. The weight one is
 // the counter scale's label: flag "20", a 3-digit PLU code from digit 4 and a
-// 5-digit weight in grams from digit 8. The server's product searches assume
-// the same (App\Support\ScaleBarcode).
+// 5-digit weight in grams from digit 8 — and it's on until switched off, so
+// those labels ring up without a trip to Settings first (a product's own
+// barcode that happens to start with 20 still wins: the tills try an exact
+// barcode match before decoding). The server's product searches assume the
+// same (App\Support\ScaleBarcode).
 const LAYOUT_DEFAULTS = {
-  barcode_weight: { prefix: '20', codePosition: 4, codeLength: 3, valuePosition: 8, valueLength: 5, decimalPoint: 3 },
-  barcode_price: { prefix: '2', codePosition: 4, codeLength: 4, valuePosition: 9, valueLength: 4, decimalPoint: 2 },
+  barcode_weight: { enabled: true, prefix: '20', codePosition: 4, codeLength: 3, valuePosition: 8, valueLength: 5, decimalPoint: 3 },
+  barcode_price: { enabled: false, prefix: '2', codePosition: 4, codeLength: 4, valuePosition: 9, valueLength: 4, decimalPoint: 2 },
 };
+
+/** Whether a layout is on: as saved in Settings, or its default when it never was. */
+export function layoutEnabled(settings: Record<string, any>, prefix: 'barcode_weight' | 'barcode_price'): boolean {
+  const saved = settings[`${prefix}_enabled`];
+  return saved == null || saved === '' ? LAYOUT_DEFAULTS[prefix].enabled : toBool(saved);
+}
 
 function readSpec(settings: Record<string, any>, prefix: 'barcode_weight' | 'barcode_price'): DecodeSpec {
   const defaults = LAYOUT_DEFAULTS[prefix];
@@ -54,7 +63,7 @@ function readSpec(settings: Record<string, any>, prefix: 'barcode_weight' | 'bar
   const num = (field: string, fallback: number) => (text(field) === '' ? fallback : toInt(text(field)));
   const flag = text('prefix') || defaults.prefix;
   return {
-    enabled: toBool(settings[`${prefix}_enabled`]),
+    enabled: layoutEnabled(settings, prefix),
     prefix: flag,
     // The prefix's own length — a separate "Prefix Length" setting left blank
     // used to switch decoding off without saying why.
@@ -112,17 +121,18 @@ export function normalizePlu(code: string): string {
   return code.trim().replace(/^0+(?=\d)/, '');
 }
 
-type PluProduct = { plu_code?: string | null; sku?: string | null; sold_by_weight?: boolean };
+type PluProduct = { plu_code?: string | null; sku?: string | null; barcode?: string | null; sold_by_weight?: boolean };
 
 // The product's PLU Code first (a sold-by-weight one if two share it), then
-// its SKU — the stock code a shop coming from another till may have put the
-// scale's item code in instead.
+// its SKU or Barcode — where a shop coming from another till may have put
+// the scale's item code instead.
 export function findProductByPlu<T extends PluProduct>(products: T[], pluCode: string): T | undefined {
   const want = normalizePlu(pluCode);
   const same = (v: unknown) => v != null && String(v).trim() !== '' && normalizePlu(String(v)) === want;
   return products.find((p) => p.sold_by_weight && same(p.plu_code))
     ?? products.find((p) => same(p.plu_code))
-    ?? products.find((p) => same(p.sku));
+    ?? products.find((p) => same(p.sku))
+    ?? products.find((p) => same(p.barcode));
 }
 
 /**

@@ -222,7 +222,7 @@ export default function POSPage() {
   // render is cheap (a capture-phase keydown listener), unlike the risk of a
   // stale product list silently missing newly-added PLU codes.
   const handleBarcodeScan = (code: string) => {
-    if (tryAddEmbeddedBarcode(code)) return;
+    if (!exactCodeMatch(code) && tryAddEmbeddedBarcode(code)) return;
     setSearch(code);
     searchRef.current?.focus();
     if (hw.barcodeAutoAdd) {
@@ -384,12 +384,12 @@ export default function POSPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
-  // Filter products — by name or SKU, or by PLU code (typed, or inside a scale label)
+  // Filter products — by name, SKU or barcode, or by PLU code (typed, or inside a scale label)
   const pluMatches = productsNamedByPlu(search, storeSettings ?? {}, allProducts);
   const filteredProducts = allProducts.filter((p: any) => {
     const matchCat = activeCategory === 'All' || p.category?.name === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(search.toLowerCase())
-      || pluMatches.has(p);
+      || (p.barcode ?? '').toLowerCase().includes(search.toLowerCase()) || pluMatches.has(p);
     return matchCat && matchSearch;
   });
 
@@ -788,9 +788,12 @@ export default function POSPage() {
 
   // Scale-printed barcode whose digits encode a PLU code plus a weight or
   // price (Settings → Barcodes), rather than being a literal product
-  // barcode. Tried before the normal exact-match lookup; returns false (and
-  // does nothing) for any code that doesn't match the configured format, so
-  // a store that hasn't set this up sees no change in behavior.
+  // barcode. Tried after the exact SKU/barcode lookup, so a product's own
+  // barcode that starts with the scale's flag still rings up as itself;
+  // returns false (and does nothing) for any code that doesn't match the
+  // configured format.
+  const exactCodeMatch = (code: string) =>
+    allProducts.find((p: any) => (p.sku ?? '') === code || (p.barcode ?? '') === code);
   const tryAddEmbeddedBarcode = (code: string): boolean => {
     const label = resolveEmbeddedBarcode(code, storeSettings ?? {}, allProducts);
     if (!label) return false;
@@ -853,9 +856,9 @@ export default function POSPage() {
     }
     const code = search.trim();
     if (!code) return;
-    if (tryAddEmbeddedBarcode(code)) { setSearch(''); return; }
-    const exact = allProducts.find((p: any) => (p.sku ?? '') === code || (p.barcode ?? '') === code);
+    const exact = exactCodeMatch(code);
     if (exact) { handleAddProduct(exact); setSearch(''); return; }
+    if (tryAddEmbeddedBarcode(code)) { setSearch(''); return; }
     if (filteredProducts.length === 1) { handleAddProduct(filteredProducts[0]); setSearch(''); return; }
     toast.error(`No exact match for "${code}"`);
   };

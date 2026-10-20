@@ -77,9 +77,43 @@ class ScaleBarcodeSearchTest extends TestCase
         $this->assertSame(['Beef Mince'], $this->names('/api/products?search=' . self::LABEL));
     }
 
-    public function test_labels_are_left_alone_while_weight_barcodes_are_off(): void
+    public function test_labels_work_before_settings_are_ever_saved(): void
     {
+        $this->assertSame(['Beef Mince'], $this->names('/api/products?search=' . self::LABEL));
+        $this->assertSame(['Beef Mince'], $this->names('/api/products/search?q=' . self::LABEL));
+    }
+
+    public function test_labels_are_left_alone_while_weight_barcodes_are_switched_off(): void
+    {
+        Setting::set('barcode_weight_enabled', 'false');
+
         $this->assertSame([], $this->names('/api/products?search=' . self::LABEL));
+    }
+
+    public function test_a_label_finds_the_item_code_kept_as_a_barcode(): void
+    {
+        $this->product('Boerewors', ['barcode' => '108', 'sold_by_weight' => true]);
+
+        $this->assertSame(['Boerewors'], $this->names('/api/products?search=2001085010869'));
+    }
+
+    public function test_the_migration_turns_weight_labels_on_unless_price_labels_share_the_flag(): void
+    {
+        $migration = require database_path('migrations/2026_10_19_000002_turn_on_scale_weight_labels.php');
+
+        Setting::set('barcode_weight_enabled', 'false');
+        $migration->up();
+        $this->assertSame('true', Setting::get('barcode_weight_enabled'));
+
+        Setting::set('barcode_weight_enabled', 'false');
+        Setting::set('barcode_price_enabled', 'true');
+        Setting::set('barcode_price_prefix', '2');
+        $migration->up();
+        $this->assertSame('false', Setting::get('barcode_weight_enabled'));
+
+        Setting::set('barcode_price_prefix', '02');
+        $migration->up();
+        $this->assertSame('true', Setting::get('barcode_weight_enabled'));
     }
 
     public function test_a_typed_plu_code_finds_its_product_whatever_the_leading_zeros(): void

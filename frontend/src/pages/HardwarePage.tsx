@@ -6,14 +6,16 @@ import { companyLogo } from '../lib/companyLogo';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
-  RefreshCw, Star, Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2, Download
+  Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
-  printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, isSystemPrintAvailable, listSystemPrinters,
+  printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, canChoosePrinters, isSystemPrintAvailable,
   isPrinterConnected,
 } from '../lib/hardware/printer';
 import KitchenPrinterSettings from '../components/hardware/KitchenPrinterSettings';
+import CoreBridgeCard from '../components/hardware/CoreBridgeCard';
+import PrinterPicker from '../components/hardware/PrinterPicker';
 import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
 import {
   openCustomerDisplay, closeCustomerDisplay, broadcastCart
@@ -22,10 +24,9 @@ import {
   connectPoleDisplay, disconnectPoleDisplay, ensurePoleDisplayOpen, testPoleDisplay, usePoleDisplayState,
 } from '../lib/hardware/poleDisplay';
 import {
-  connectScale, disconnectScale, useScaleReading, usesScaleBridge, checkScaleBridge, ensureScalesAutoConnected,
-  type ScaleDevice, type ScaleBridgeStatus,
+  connectScale, disconnectScale, useScaleReading, usesScaleBridge, ensureScalesAutoConnected,
+  type ScaleDevice,
 } from '../lib/hardware/scale';
-import { downloadScaleBridge } from '../lib/hardware/scaleBridgeDownload';
 import { simulateCardPayment } from '../lib/hardware/cardMachine';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -311,51 +312,6 @@ function ScaleRow({ scale, onEdit }: { scale: ScaleDevice; onEdit: () => void })
   );
 }
 
-// The online system in a browser reaches IP scales through the Core Scale
-// Bridge on the till computer (see lib/hardware/scale.ts) — this is where the
-// till gets it and can see whether it's running. Not shown in the desktop
-// app, which connects to scales itself.
-function ScaleBridgeCard() {
-  const [status, setStatus] = useState<ScaleBridgeStatus | 'checking'>('checking');
-  const recheck = () => {
-    setStatus('checking');
-    checkScaleBridge().then(setStatus);
-  };
-  useEffect(() => { checkScaleBridge().then(setStatus); }, []);
-
-  return (
-    <div className="border border-gray-100 rounded-lg p-4 mb-4 space-y-3">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <p className="text-sm font-semibold text-gray-900">Core Scale Bridge</p>
-          <p className="text-xs text-gray-500 mt-1 max-w-xl">
-            The online system reaches IP scales through this small helper on the till computer — a website can't connect to devices in the shop by itself. Only needed for IP / Ethernet scales.
-          </p>
-        </div>
-        {status === 'checking'
-          ? <span className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 size={13} className="animate-spin" />Checking…</span>
-          : <Status ok={status === 'running'} label={status === 'running' ? 'Running on this computer' : status === 'wrong-site' ? 'Downloaded for another site' : 'Not running'} />}
-      </div>
-      <ol className="text-xs text-gray-600 list-decimal pl-4 space-y-1">
-        <li>On the till computer in the shop (on the same network as the scale), download it and double-click it. If Windows warns about it, choose More info → Run anyway.</li>
-        <li>Leave its window open (minimised is fine). To start it with Windows, move the file into the Startup folder: press Win+R, type <span className="font-mono">shell:startup</span> and press Enter.</li>
-        <li>Press Connect on the scale below. If the browser asks to let this site access devices on your local network, choose Allow.</li>
-      </ol>
-      {status === 'wrong-site' && (
-        <p className="text-xs text-amber-700">The bridge running here was downloaded from a different web address — download it again from this page, close the old one and start the new one.</p>
-      )}
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={downloadScaleBridge} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
-          <Download size={13} />Download Scale Bridge
-        </button>
-        <button onClick={recheck} disabled={status === 'checking'} className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 text-xs rounded-lg hover:bg-gray-100 disabled:opacity-50">
-          <RefreshCw size={13} />Check again
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function WeighingScalesPanel() {
   const { data: scales = [], isLoading } = useQuery<ScaleDevice[]>({
     queryKey: ['weighing-scales'],
@@ -375,7 +331,7 @@ function WeighingScalesPanel() {
           For an IP scale, only the IP address is needed — the till finds the port itself. Label-printing scales such as the DIGI SM-110 don't send weight to the till — the scale prints a barcode label and the till scans it. Set those up in Settings → Barcodes.
         </p>
 
-        {usesScaleBridge() && <ScaleBridgeCard />}
+        {usesScaleBridge() && <CoreBridgeCard use="scales" />}
 
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center"><Loader2 size={16} className="animate-spin" />Loading scales…</div>
@@ -539,11 +495,9 @@ export default function HardwarePage() {
   // Bluetooth printer connection state
   const [bleConnected, setBleConnected] = useState(() => isPrinterConnected('receipt', 'webbluetooth'));
 
-  // System printer setup (Core desktop app only) — the printers Windows
-  // reports (USB, Bluetooth-paired, network) once "Scan for Printers" runs.
-  const [systemPrinters, setSystemPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
-  const [scanningPrinters, setScanningPrinters] = useState(false);
-  const desktopAppAvailable = isSystemPrintAvailable();
+  // Choosing printers from the ones Windows has installed: the desktop app
+  // lists them itself, a browser through the Core Bridge.
+  const choosePrintersAvailable = canChoosePrinters();
 
   const currency = activeCurrency?.symbol ?? '$';
 
@@ -552,22 +506,6 @@ export default function HardwarePage() {
       hw.update({ printerMode: 'browser' });
     }
   }, [hw]);
-
-  const handleScanPrinters = async () => {
-    setScanningPrinters(true);
-    try {
-      const found = await listSystemPrinters();
-      setSystemPrinters(found);
-      if (found.length === 0) toast.error('No printers found — check it\'s installed/paired in Windows first');
-    } finally {
-      setScanningPrinters(false);
-    }
-  };
-
-  const handleSetDefaultPrinter = (printerName: string) => {
-    hw.update({ printerMode: 'system', printerName });
-    toast.success(`"${printerName}" set as the default receipt printer`);
-  };
 
   // ----------------------------------------------------------
   // Handlers
@@ -630,7 +568,7 @@ export default function HardwarePage() {
       currency,
       logo,
       footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
-    }, resolveReceiptPrintMode(hw.printerMode), hw.printerName).catch((error: any) => {
+    }, resolveReceiptPrintMode(hw.printerMode), hw.receiptPrinters).catch((error: any) => {
       toast.error(error?.message ?? 'Could not print test receipt');
     });
   };
@@ -696,16 +634,18 @@ export default function HardwarePage() {
         <div className="space-y-4">
           <Card title="Printer Mode">
             <div className="space-y-2">
-              <label className={`flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 ${desktopAppAvailable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+              <label className={`flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 ${choosePrintersAvailable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
                 <input type="radio" name="printerMode" value="system" checked={hw.printerMode === 'system'}
-                  disabled={!desktopAppAvailable}
+                  disabled={!choosePrintersAvailable}
                   onChange={() => hw.update({ printerMode: 'system' })} className="accent-blue-600" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Set a Default Printer (recommended)</p>
+                  <p className="text-sm font-medium text-gray-900">Choose Printers (recommended)</p>
                   <p className="text-xs text-gray-500">
-                    {desktopAppAvailable
-                      ? 'Pick one printer below, once — every sale then prints there silently, with no dialog and nothing for the cashier to select'
-                      : 'Requires the Core desktop app (not a browser tab) — install it to set this up'}
+                    {!choosePrintersAvailable
+                      ? "This browser can't reach printers — use Chrome or Edge, or the Core desktop app"
+                      : isSystemPrintAvailable()
+                        ? "Tick one or more of this computer's printers, once — every bill then prints on each of them silently, with no dialog and nothing for the cashier to select"
+                        : "Tick one or more of this computer's printers, once — every bill then prints on each of them silently, through the Core Bridge on this computer"}
                   </p>
                 </div>
               </label>
@@ -731,47 +671,13 @@ export default function HardwarePage() {
           </Card>
 
           {hw.printerMode === 'system' && (
-            <Card title="Setup Printer">
-              <p className="text-sm text-gray-600 mb-3">
-                Scans for every printer Windows currently knows about — connected by USB cable, paired over Bluetooth, or on the network. Pick the receipt printer and it becomes the one every sale prints to automatically.
-              </p>
-              <button onClick={handleScanPrinters} disabled={scanningPrinters}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60 mb-3">
-                <RefreshCw size={14} className={scanningPrinters ? 'animate-spin' : ''} />
-                {scanningPrinters ? 'Scanning-' : 'Scan for Printers'}
-              </button>
-
-              {systemPrinters.length > 0 && (
-                <div className="space-y-2">
-                  {systemPrinters.map((p) => {
-                    const isCurrentDefault = hw.printerName === p.name;
-                    return (
-                      <div key={p.name} className={`flex items-center justify-between gap-3 p-3 rounded-md border ${isCurrentDefault ? 'border-blue-300 bg-blue-50' : 'border-gray-100'}`}>
-                        <div className="flex items-center gap-2 min-w-0">
-                          {/* Windows doesn't tell us cable vs Bluetooth vs network — Cable is just the generic "physical printer" glyph here */}
-                          <Cable size={15} className="text-gray-400 flex-shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{p.displayName}</p>
-                            {p.isDefault && <p className="text-xs text-gray-400">Windows default printer</p>}
-                          </div>
-                        </div>
-                        {isCurrentDefault ? (
-                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-700 flex-shrink-0"><Star size={13} className="fill-blue-700" />Default</span>
-                        ) : (
-                          <button onClick={() => handleSetDefaultPrinter(p.name)}
-                            className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-800 flex-shrink-0">
-                            Set as Default
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
+            <Card title="Bill Printers">
+              <PrinterPicker role="receipt" chosen={hw.receiptPrinters} onChange={(receiptPrinters) => hw.update({ receiptPrinters })}
+                otherRole={hw.kitchenPrinterEnabled && hw.kitchenPrinterMode === 'system' ? hw.kitchenPrinters : []} />
               <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5 text-xs text-gray-500">
-                <div className="flex gap-2 items-start"><Cable size={13} className="mt-0.5 flex-shrink-0" /><p>USB thermal printers: plug in, install its Windows driver once, then scan.</p></div>
-                <div className="flex gap-2 items-start"><Bluetooth size={13} className="mt-0.5 flex-shrink-0" /><p>Bluetooth printers: pair it in Windows Bluetooth settings first (it'll show up as an installed printer), then scan.</p></div>
+                <div className="flex gap-2 items-start"><Cable size={13} className="mt-0.5 flex-shrink-0" /><p>USB thermal printers: plug in, install its Windows driver once, then Refresh list.</p></div>
+                <div className="flex gap-2 items-start"><Bluetooth size={13} className="mt-0.5 flex-shrink-0" /><p>Bluetooth printers: pair it in Windows Bluetooth settings first (it'll show up as an installed printer), then Refresh list.</p></div>
+                <div className="flex gap-2 items-start"><Wifi size={13} className="mt-0.5 flex-shrink-0" /><p>Network printers (e.g. one in the kitchen): add it in Windows Settings → Printers &amp; scanners, then Refresh list.</p></div>
               </div>
             </Card>
           )}
@@ -812,7 +718,7 @@ export default function HardwarePage() {
           )}
 
           <Card title="Settings">
-            <p className="text-sm text-gray-600">Every completed order now triggers a receipt print. Use the mode above to choose a default printer, the system dialog, or direct USB printing.</p>
+            <p className="text-sm text-gray-600">Every completed order triggers a receipt print. Use the mode above to choose the bill printers, the system dialog, or direct USB / Bluetooth printing. The test receipt prints on every ticked printer.</p>
           </Card>
 
           <Card title="Test">

@@ -15,6 +15,8 @@
  * direct-connected at once.
  */
 import { drawOnWhite, loadImage } from '../companyLogo';
+import { bridgePrint, bridgePrinters } from './printBridge';
+import type { ChosenPrinter } from '../../stores/hardwareStore';
 
 interface ElectronPrinterBridge {
   isElectron: true;
@@ -40,6 +42,63 @@ export async function listSystemPrinters(): Promise<Array<{ name: string; displa
   } catch {
     return [];
   }
+}
+
+export interface AvailablePrinter {
+  name: string;
+  displayName: string;
+  isDefault: boolean;
+  offline?: boolean;
+}
+
+/**
+ * Every printer Windows has installed on this computer — USB, Bluetooth-
+ * paired or network — for choosing bill and kitchen printers: the desktop
+ * app asks Windows itself; a browser asks the Core Bridge (and throws when
+ * it isn't running).
+ */
+export async function listPrinters(): Promise<AvailablePrinter[]> {
+  if (electronBridge()) return listSystemPrinters();
+  return (await bridgePrinters()).map((p) => ({ name: p.name, displayName: p.name, isDefault: p.isDefault, offline: p.offline }));
+}
+
+/** Whether printers can be chosen from that list here: the desktop app, or a browser (through the Core Bridge). */
+export function canChoosePrinters(): boolean {
+  return isSystemPrintAvailable() || typeof WebSocket !== 'undefined';
+}
+
+/** Characters per line for a thermal roll, in the printer's normal font. */
+function escPosColumns(paper: ChosenPrinter['paper']): number {
+  return paper === '58mm' ? 32 : 48;
+}
+
+/**
+ * Prints on each printer at once: rendered HTML in the desktop app, or the
+ * printer's own ESC/POS bytes through the Core Bridge in a browser. Returns
+ * what went wrong on any that didn't print, grouped by reason.
+ */
+async function printOnChosen<T extends { name: string }>(
+  targets: T[], html: (t: T) => string, escpos: (t: T) => Uint8Array,
+): Promise<{ failed: number; problems: string }> {
+  const desktop = electronBridge();
+  const results = await Promise.allSettled(targets.map(async (t) => {
+    if (desktop) {
+      const result = await desktop.printSilent(html(t), t.name);
+      if (!result.success) throw new Error(result.failureReason || 'Print failed');
+    } else {
+      await bridgePrint(t.name, escpos(t));
+    }
+  }));
+  const byReason = new Map<string, string[]>();
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') return;
+    const reason = String((r.reason as any)?.message ?? r.reason).trim().replace(/\.$/, '');
+    byReason.set(reason, [...(byReason.get(reason) ?? []), targets[i].name]);
+  });
+  return {
+    failed: results.filter((r) => r.status === 'rejected').length,
+    problems: [...byReason].map(([reason, names]) => `${names.join(', ')}: ${reason}`).join(' · '),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,9 +273,9 @@ function printableDate(value: unknown): string {
 export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' | 'webbluetooth' | 'system' {
   if (mode === 'webusb') return 'webusb';
   if (mode === 'webbluetooth') return 'webbluetooth';
-  // Falls back to the print-dialog path outside the desktop app (e.g. a
-  // plain browser tab), or if the saved mode predates this feature.
-  if (mode === 'system' && isSystemPrintAvailable()) return 'system';
+  // Chosen printers: the desktop app prints to them itself, a browser through
+  // the Core Bridge; anything else falls back to the print dialog.
+  if (mode === 'system' && canChoosePrinters()) return 'system';
   return 'browser';
 }
 
@@ -326,8 +385,7 @@ function vatInfo(d: ReceiptData): { net: number; vat: number; gross: number; pct
 // ---------------------------------------------------------------------------
 // ESC/POS receipt builder
 // ---------------------------------------------------------------------------
-function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uint8Array {
-  const W = 32;
+function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 32): Uint8Array {
   const fmt2 = (n: number) => n.toFixed(2);
   const pad = (l: string, r: string, w = W) => {
     const gap = w - l.length - r.length;
@@ -348,7 +406,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uin
     ...(logo ? [logo, bytes(LF)] : []),
     ESC_BOLD_ON, line('***FISCAL TAX INVOICE***'), ESC_BOLD_OFF,
     bytes(LF),
-    ESC_DWIDTH_ON, line(cut(d.storeName, 16)), ESC_DWIDTH_OFF,
+    ESC_DWIDTH_ON, line(cut(d.storeName, W / 2)), ESC_DWIDTH_OFF,
   ];
 
   if (d.branchName && d.branchName !== d.storeName) {
@@ -362,7 +420,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uin
       parts.push(line(cut(seg, W)));
     }
   }
-  parts.push(divider());
+  parts.push(divider('-', W));
 
   // Order-info block
   parts.push(ESC_ALIGN_LEFT);
@@ -378,11 +436,11 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uin
     parts.push(bytes(LF), ESC_BOLD_ON, line(`** ${orderTypeLabel(d.orderType)} **`), ESC_BOLD_OFF);
   }
   parts.push(ESC_ALIGN_LEFT);
-  parts.push(divider());
+  parts.push(divider('-', W));
 
   parts.push(ESC_BOLD_ON, line('DESCRIPTION'), ESC_BOLD_OFF);
   parts.push(line(pad('QTY', 'PRICE  TOTAL COST')));
-  parts.push(divider());
+  parts.push(divider('-', W));
 
   for (const item of d.items) {
     const code = item.barcode ?? item.sku ?? '';
@@ -390,27 +448,27 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uin
     parts.push(line(cut(item.name, W)));
     parts.push(line(pad(`  ${item.qty} X  ${fmt2(item.price * rateNum)}`, fmt2(item.total * rateNum))));
   }
-  parts.push(divider());
+  parts.push(divider('-', W));
 
   parts.push(
     line(pad('Total Excl', fmt2(net))),
     line(pad(`Output Tax (${pct}%)`, fmt2(vat))),
     ESC_BOLD_ON, line(pad('Total Incl', fmt2(gross))), ESC_BOLD_OFF,
-    divider(),
+    divider('-', W),
     ESC_BOLD_ON, line(pad('TOTAL', fmt2(gross))), ESC_BOLD_OFF,
   );
   if (d.amountTendered !== undefined) parts.push(line(pad('TENDERED', fmt2(d.amountTendered))));
   if (d.change !== undefined && d.change >= 0) parts.push(line(pad('CHANGE', fmt2(d.change))));
   parts.push(line(pad('ITEM#', String(itemCount))));
 
-  parts.push(ESC_BOLD_ON, line('Payment Summary'), ESC_BOLD_OFF, divider());
+  parts.push(ESC_BOLD_ON, line('Payment Summary'), ESC_BOLD_OFF, divider('-', W));
   parts.push(line(`${d.paymentMethod.replace('_', ' ').toUpperCase()} ${currCode}`));
   if (d.amountTendered !== undefined) {
     parts.push(line(`${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}`));
   }
 
   // Fiscal footer — business registration details
-  parts.push(divider());
+  parts.push(divider('-', W));
   if (d.storePhone) parts.push(line(`Tel : ${d.storePhone}`));
   if (d.vatNumber)  parts.push(line(`VAT No : ${d.vatNumber}`));
   if (d.tinNumber)  parts.push(line(`TIN No : ${d.tinNumber}`));
@@ -432,7 +490,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uin
     bytes(LF),
     ESC_ALIGN_CENTER,
     ESC_BOLD_ON, line('FISCAL TAX INVOICE'), ESC_BOLD_OFF,
-    divider('='),
+    divider('=', W),
     line(d.footer ?? 'Core POS'),
     bytes(LF, LF, LF),
     ESC_CUT,
@@ -612,7 +670,8 @@ export async function openCashDrawer(): Promise<void> {
 export async function printReceipt(
   data: ReceiptData,
   mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
-  systemPrinterName?: string,
+  /** Mode 'system': the bill prints on each of these. */
+  printers: ChosenPrinter[] = [],
 ): Promise<void> {
   if (mode === 'webusb' && usbConnections.receipt) {
     await sendToUsb(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'receipt');
@@ -623,13 +682,22 @@ export async function printReceipt(
     return;
   }
   if (mode === 'system') {
-    const bridge = electronBridge();
-    if (!bridge) throw new Error('Silent printing requires the Core desktop app');
-    if (!systemPrinterName) throw new Error('No default printer set — pick one in Hardware > Receipt Printer');
-    const qrImageDataUrl = await renderFiscalQrDataUrl(data.fiscalQrCodeUrl);
-    const html = buildReceiptHtml(data, undefined, qrImageDataUrl);
-    const result = await bridge.printSilent(html, systemPrinterName);
-    if (!result.success) throw new Error(result.failureReason || 'Print failed');
+    if (printers.length === 0) {
+      await browserPrintReceipt(data);
+      throw new Error('No bill printer ticked in Hardware > Receipt Printer — opened the print dialog instead.');
+    }
+    const desktop = isSystemPrintAvailable();
+    const qrImageDataUrl = desktop ? await renderFiscalQrDataUrl(data.fiscalQrCodeUrl) : undefined;
+    const logo = desktop ? null : await escPosLogo(data.logo);
+    const { failed, problems } = await printOnChosen(printers,
+      (p) => buildReceiptHtml(data, { paperWidth: p.paper }, qrImageDataUrl),
+      (p) => buildEscPosReceipt(data, logo, escPosColumns(p.paper)));
+    // The customer still gets a bill when none of the printers could print it.
+    if (failed === printers.length) {
+      await browserPrintReceipt(data);
+      throw new Error(`Bill not printed — ${problems}. Opened the print dialog instead.`);
+    }
+    if (failed > 0) throw new Error(`Bill not printed on ${problems}`);
     return;
   }
   await browserPrintReceipt(data);
@@ -643,6 +711,8 @@ export interface KitchenTicketItem {
   name: string;
   qty: number;
   soldByWeight?: boolean;
+  /** Which chosen kitchen printers take this line (their categories). */
+  categoryId?: number;
 }
 
 export interface KitchenTicketData {
@@ -683,7 +753,7 @@ function wrapText(textValue: string, width: number): string[] {
   return lines.length ? lines : [''];
 }
 
-function buildEscPosKitchenTicket(d: KitchenTicketData): Uint8Array {
+function buildEscPosKitchenTicket(d: KitchenTicketData, cols = 32): Uint8Array {
   const date = d.date ?? new Date();
   const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const parts: Uint8Array[] = [
@@ -692,28 +762,28 @@ function buildEscPosKitchenTicket(d: KitchenTicketData): Uint8Array {
   ];
   if (d.table) parts.push(ESC_DWIDTH_ON, line(d.table), ESC_DWIDTH_OFF);
   else if (d.orderType && d.orderType !== 'sit_in') parts.push(ESC_DWIDTH_ON, line(orderTypeLabel(d.orderType).toUpperCase()), ESC_DWIDTH_OFF);
-  parts.push(ESC_ALIGN_LEFT, divider('='));
+  parts.push(ESC_ALIGN_LEFT, divider('=', cols));
   if (d.ticket) parts.push(ESC_BOLD_ON, line(`Order: ${d.ticket}`), ESC_BOLD_OFF);
   parts.push(line(`Time: ${time}`));
   if (d.waiter) parts.push(line(`Waiter: ${d.waiter}`));
   if (d.covers) parts.push(line(`Covers: ${d.covers}`));
   if (d.customerName) parts.push(line(`Customer: ${d.customerName}`));
-  parts.push(divider('='));
-  // Double-height/width items: 16 columns per line at 58mm.
+  parts.push(divider('=', cols));
+  // Double-height/width items: half the columns (16 at 58mm).
   parts.push(ESC_BOLD_ON, ESC_DWIDTH_ON);
   for (const item of d.items) {
     const prefix = `${kitchenQty(item)} x `;
-    wrapText(item.name, 16 - prefix.length).forEach((segment, i) => {
+    wrapText(item.name, cols / 2 - prefix.length).forEach((segment, i) => {
       parts.push(line(i === 0 ? prefix + segment : ' '.repeat(prefix.length) + segment));
     });
   }
   parts.push(ESC_DWIDTH_OFF, ESC_BOLD_OFF);
   if (d.note) {
-    parts.push(divider());
+    parts.push(divider('-', cols));
     parts.push(ESC_BOLD_ON, line('NOTE:'), ESC_BOLD_OFF);
-    wrapText(d.note, 32).forEach((l) => parts.push(line(l)));
+    wrapText(d.note, cols).forEach((l) => parts.push(line(l)));
   }
-  parts.push(divider('='), line(), line(), line(), ESC_CUT);
+  parts.push(divider('=', cols), line(), line(), line(), ESC_CUT);
   return concat(...parts);
 }
 
@@ -758,7 +828,9 @@ ${d.note ? `<div class="rule"></div><div class="note">NOTE: ${escapeHtml(d.note)
 export async function printKitchenTicket(
   data: KitchenTicketData,
   mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
-  systemPrinterName?: string,
+  /** Mode 'system': each prints the lines in its categories (all of them with `allItems`, for a test ticket). */
+  printers: ChosenPrinter[] = [],
+  { allItems = false }: { allItems?: boolean } = {},
 ): Promise<void> {
   if (mode === 'webusb' && usbConnections.kitchen) {
     await sendToUsb(buildEscPosKitchenTicket(data), 'kitchen');
@@ -769,13 +841,31 @@ export async function printKitchenTicket(
     return;
   }
   if (mode === 'system') {
-    const bridge = electronBridge();
-    if (!bridge) throw new Error('Silent printing requires the Core desktop app');
-    if (!systemPrinterName) throw new Error('No kitchen printer set — pick one in Hardware > Kitchen Printer');
-    const result = await bridge.printSilent(buildKitchenTicketHtml(data), systemPrinterName);
-    if (!result.success) throw new Error(result.failureReason || 'Kitchen print failed');
+    if (printers.length === 0) {
+      browserPrintKitchenTicket(data);
+      throw new Error('No kitchen printer ticked in Hardware > Kitchen Printer — opened the print dialog instead.');
+    }
+    const takes = (p: ChosenPrinter, item: KitchenTicketItem) =>
+      allItems || p.categoryIds.length === 0 || (item.categoryId != null && p.categoryIds.includes(item.categoryId));
+    const jobs = printers
+      .map((p) => ({ name: p.name, paper: p.paper, ticket: { ...data, items: data.items.filter((i) => takes(p, i)) } }))
+      .filter((job) => job.ticket.items.length > 0);
+    if (jobs.length === 0) return; // nothing on this order for any of them
+    const { failed, problems } = await printOnChosen(jobs,
+      (job) => buildKitchenTicketHtml(job.ticket),
+      (job) => buildEscPosKitchenTicket(job.ticket, escPosColumns(job.paper)));
+    // The kitchen still gets the order when none of the printers could print it.
+    if (failed === jobs.length) {
+      browserPrintKitchenTicket({ ...data, items: data.items.filter((i) => jobs.some((job) => job.ticket.items.includes(i))) });
+      throw new Error(`Kitchen ticket not printed — ${problems}. Opened the print dialog instead.`);
+    }
+    if (failed > 0) throw new Error(`Kitchen ticket not printed on ${problems}`);
     return;
   }
+  browserPrintKitchenTicket(data);
+}
+
+function browserPrintKitchenTicket(data: KitchenTicketData): void {
   const w = window.open('', '_blank', 'width=320,height=600,toolbar=0,scrollbars=1');
   if (!w) throw new Error('Allow popups to print kitchen orders');
   w.document.write(buildKitchenTicketHtml(data));

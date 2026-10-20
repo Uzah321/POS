@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Printer, Usb, Bluetooth, RefreshCw, Star, Cable, CheckCircle, WifiOff, ChefHat } from 'lucide-react';
+import { Printer, Usb, Bluetooth, CheckCircle, WifiOff, ChefHat } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { categoriesApi } from '../../api';
 import { useHardwareStore, type PrinterMode } from '../../stores/hardwareStore';
 import { useAuthStore } from '../../stores/authStore';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
-  isPrinterConnected, isSystemPrintAvailable, listSystemPrinters, printKitchenTicket, resolveReceiptPrintMode,
+  isPrinterConnected, canChoosePrinters, printKitchenTicket, resolveReceiptPrintMode,
 } from '../../lib/hardware/printer';
+import PrinterPicker from './PrinterPicker';
 
-// Hardware > Kitchen Printer: a second printer, chosen independently of the
-// front receipt printer, that gets an order ticket (no prices) for the back
+// Hardware > Kitchen Printer: printers, chosen independently of the front
+// receipt printers, that get an order ticket (no prices) for the back
 // whenever a restaurant order is sent to a table or paid.
 
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
@@ -32,8 +33,8 @@ function Status({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-const MODES: Array<{ mode: Exclude<PrinterMode, 'none'>; title: string; help: string; desktopOnly?: boolean }> = [
-  { mode: 'system', title: 'Choose a Printer (recommended)', help: 'Pick the kitchen printer once — tickets then print there silently, no dialog', desktopOnly: true },
+const MODES: Array<{ mode: Exclude<PrinterMode, 'none'>; title: string; help: string; choosePrinters?: boolean }> = [
+  { mode: 'system', title: 'Choose Printers (recommended)', help: 'Tick every printer that should get kitchen orders — tickets then print on each of them silently, no dialog', choosePrinters: true },
   { mode: 'browser', title: 'System Print Dialog', help: 'Opens the print dialog for every ticket — choose the kitchen printer in it each time' },
   { mode: 'webusb', title: 'Direct USB / ESC-POS', help: 'Prints instantly to a USB thermal printer plugged into this device (Chrome/Edge)' },
   { mode: 'webbluetooth', title: 'Direct Bluetooth / ESC-POS', help: 'Prints instantly to a Bluetooth LE thermal printer (Chrome/Edge, including Android tablets)' },
@@ -42,11 +43,9 @@ const MODES: Array<{ mode: Exclude<PrinterMode, 'none'>; title: string; help: st
 export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnected: boolean }) {
   const hw = useHardwareStore();
   const { user } = useAuthStore();
-  const desktopAppAvailable = isSystemPrintAvailable();
+  const choosePrintersAvailable = canChoosePrinters();
   const [usbConnected, setUsbConnected] = useState(() => isPrinterConnected('kitchen', 'webusb'));
   const [bleConnected, setBleConnected] = useState(() => isPrinterConnected('kitchen', 'webbluetooth'));
-  const [systemPrinters, setSystemPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
-  const [scanning, setScanning] = useState(false);
 
   useEffect(() => { if (usbReconnected) setUsbConnected(true); }, [usbReconnected]);
 
@@ -55,17 +54,6 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
     queryFn: () => categoriesApi.list().then((r) => r.data?.data ?? []),
     staleTime: 60000,
   });
-
-  const handleScan = async () => {
-    setScanning(true);
-    try {
-      const found = await listSystemPrinters();
-      setSystemPrinters(found);
-      if (found.length === 0) toast.error("No printers found — check it's installed/paired in Windows first");
-    } finally {
-      setScanning(false);
-    }
-  };
 
   const handleConnectUsb = async () => {
     try {
@@ -110,7 +98,7 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
         { name: 'Greek Salad', qty: 1 },
       ],
       note: 'No onions on one burger',
-    }, resolveReceiptPrintMode(hw.kitchenPrinterMode), hw.kitchenPrinterName).catch((e: any) => {
+    }, resolveReceiptPrintMode(hw.kitchenPrinterMode), hw.kitchenPrinters, { allItems: true }).catch((e: any) => {
       toast.error(e?.message ?? 'Could not print test ticket');
     });
   };
@@ -129,7 +117,7 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
           <div>
             <p className="text-sm font-medium text-gray-900">Print kitchen order tickets from this device</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              On the restaurant POS, a ticket (table, waiter, items — no prices) prints on this printer when an order is <b>held / sent to a table</b> or <b>paid</b>.
+              On the restaurant POS, a ticket (table, waiter, items — no prices) prints on the kitchen printers when an order is <b>held / sent to a table</b> or <b>paid</b>.
               The customer's receipt still prints on the Receipt Printer. Adding items to a table later prints an "ADD TO ORDER" ticket with only the new items.
             </p>
           </div>
@@ -140,15 +128,15 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
         <>
           <Card title="Which Printer">
             <div className="space-y-2">
-              {MODES.map(({ mode, title, help, desktopOnly }) => {
-                const disabled = !!desktopOnly && !desktopAppAvailable;
+              {MODES.map(({ mode, title, help, choosePrinters }) => {
+                const disabled = !!choosePrinters && !choosePrintersAvailable;
                 return (
                   <label key={mode} className={`flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input type="radio" name="kitchenPrinterMode" checked={hw.kitchenPrinterMode === mode} disabled={disabled}
                       onChange={() => hw.update({ kitchenPrinterMode: mode })} className="accent-blue-600" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{title}</p>
-                      <p className="text-xs text-gray-500">{disabled ? 'Requires the Core desktop app (not a browser tab)' : help}</p>
+                      <p className="text-xs text-gray-500">{disabled ? "This browser can't reach printers — use Chrome or Edge, or the Core desktop app" : help}</p>
                     </div>
                   </label>
                 );
@@ -157,44 +145,14 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
           </Card>
 
           {hw.kitchenPrinterMode === 'system' && (
-            <Card title="Choose Kitchen Printer">
-              <p className="text-sm text-gray-600 mb-3">
-                Scans every printer Windows knows about — USB, Bluetooth-paired or network (e.g. an Ethernet printer in the kitchen installed in Windows). Pick the one in the kitchen.
+            <Card title="Kitchen Printers">
+              <PrinterPicker role="kitchen" chosen={hw.kitchenPrinters} onChange={(kitchenPrinters) => hw.update({ kitchenPrinters })}
+                categories={categories as Array<{ id: number; name: string }>}
+                otherRole={hw.printerMode === 'system' ? hw.receiptPrinters : []} />
+              <p className="text-xs text-gray-400 mt-3">
+                "All items" sends every line to that printer; pick categories to send it only those (e.g. drinks to the bar printer, food to the kitchen).
+                A printer an order has nothing for prints nothing.
               </p>
-              <button onClick={handleScan} disabled={scanning}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60 mb-3">
-                <RefreshCw size={14} className={scanning ? 'animate-spin' : ''} />
-                {scanning ? 'Scanning…' : 'Scan for Printers'}
-              </button>
-              {hw.kitchenPrinterName && systemPrinters.length === 0 && (
-                <p className="text-sm text-gray-700">Current kitchen printer: <b>{hw.kitchenPrinterName}</b></p>
-              )}
-              {systemPrinters.length > 0 && (
-                <div className="space-y-2">
-                  {systemPrinters.map((p) => {
-                    const selected = hw.kitchenPrinterName === p.name;
-                    return (
-                      <div key={p.name} className={`flex items-center justify-between gap-3 p-3 rounded-md border ${selected ? 'border-blue-300 bg-blue-50' : 'border-gray-100'}`}>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Cable size={15} className="text-gray-400 flex-shrink-0" />
-                          <p className="text-sm font-medium text-gray-900 truncate">{p.displayName}</p>
-                        </div>
-                        {selected ? (
-                          <span className="flex items-center gap-1 text-xs font-semibold text-blue-700 flex-shrink-0"><Star size={13} className="fill-blue-700" />Kitchen</span>
-                        ) : (
-                          <button onClick={() => { hw.update({ kitchenPrinterMode: 'system', kitchenPrinterName: p.name }); toast.success(`"${p.displayName}" is now the kitchen printer`); }}
-                            className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-800 flex-shrink-0">
-                            Use for Kitchen
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {hw.printerMode === 'system' && hw.printerName && hw.printerName === hw.kitchenPrinterName && (
-                <p className="text-xs text-amber-600 mt-3">This is also the receipt printer — both tickets will come out of the same printer.</p>
-              )}
             </Card>
           )}
 
@@ -222,31 +180,37 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
             </Card>
           )}
 
-          <Card title="What Goes to the Kitchen">
-            <p className="text-sm text-gray-600 mb-3">
-              Tick the categories the kitchen should get. Leave all unticked to send every item (tick e.g. food only to keep bar drinks off the kitchen ticket).
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(categories as any[]).map((c: any) => {
-                const on = hw.kitchenCategoryIds.includes(c.id);
-                return (
-                  <button key={c.id} type="button" onClick={() => toggleCategory(c.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
-                    {c.name}
-                  </button>
-                );
-              })}
-              {(categories as any[]).length === 0 && <p className="text-xs text-gray-400">No categories yet.</p>}
-            </div>
-            <p className="text-xs text-gray-400 mt-3">
-              {hw.kitchenCategoryIds.length === 0 ? 'Sending: every item' : `Sending: ${hw.kitchenCategoryIds.length} categor${hw.kitchenCategoryIds.length === 1 ? 'y' : 'ies'} only`}
-            </p>
-          </Card>
+          {/* Chosen printers each have their own categories, above. */}
+          {hw.kitchenPrinterMode !== 'system' && (
+            <Card title="What Goes to the Kitchen">
+              <p className="text-sm text-gray-600 mb-3">
+                Tick the categories the kitchen should get. Leave all unticked to send every item (tick e.g. food only to keep bar drinks off the kitchen ticket).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(categories as any[]).map((c: any) => {
+                  const on = hw.kitchenCategoryIds.includes(c.id);
+                  return (
+                    <button key={c.id} type="button" onClick={() => toggleCategory(c.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                      {c.name}
+                    </button>
+                  );
+                })}
+                {(categories as any[]).length === 0 && <p className="text-xs text-gray-400">No categories yet.</p>}
+              </div>
+              <p className="text-xs text-gray-400 mt-3">
+                {hw.kitchenCategoryIds.length === 0 ? 'Sending: every item' : `Sending: ${hw.kitchenCategoryIds.length} categor${hw.kitchenCategoryIds.length === 1 ? 'y' : 'ies'} only`}
+              </p>
+            </Card>
+          )}
 
           <Card title="Test">
             <button onClick={handleTest} className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
               <Printer size={14} /><ChefHat size={14} />Print Test Kitchen Ticket
             </button>
+            {hw.kitchenPrinterMode === 'system' && hw.kitchenPrinters.length > 1 && (
+              <p className="text-xs text-gray-400 mt-2">Prints on every ticked kitchen printer.</p>
+            )}
           </Card>
         </>
       )}

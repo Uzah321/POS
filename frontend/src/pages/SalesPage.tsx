@@ -412,7 +412,7 @@ export default function SalesPage() {
           rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode),
-        hw.printerName
+        hw.receiptPrinters
       );
       return sale;
     },

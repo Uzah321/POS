@@ -419,7 +419,7 @@ export default function CashierPage() {
           rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode),
-        hw.printerName
+        hw.receiptPrinters
       ).catch((err: any) => toast.error(err?.message ?? 'Receipt printing failed'));
 
       broadcastCart({

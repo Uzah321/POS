@@ -1,19 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { loadReceiptSettings } from '../lib/receiptSettings';
 
 export type PrinterMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
 export type CardMachineMode = 'webhook' | 'none';
+
+/** A printer ticked in the list of printers Windows has installed (mode 'system'). */
+export interface ChosenPrinter {
+  /** The exact Windows printer name — what gets printed to. */
+  name: string;
+  /** Thermal roll width; A4 only in the desktop app, which prints HTML (the Core Bridge sends ESC/POS). */
+  paper: '58mm' | '80mm' | 'a4';
+  /** Kitchen printers: only lines from these category ids; empty = every item. */
+  categoryIds: number[];
+}
 
 export interface HardwareConfig {
   // Receipt printer
   printerMode: PrinterMode;
   printerVendorId: number | null;
   printerProductId: number | null;
-  // 'webusb': the connected USB device's product name (display only).
-  // 'system': the exact OS printer name (Electron's getPrintersAsync `name`,
-  // not `displayName`) — this is the deviceName silent-printed to, so it must
-  // match precisely.
+  // 'webusb' / 'webbluetooth': the connected device's name (display only).
   printerName: string;
+  // 'system': every bill prints on each of these.
+  receiptPrinters: ChosenPrinter[];
   autoPrintReceipt: boolean;
 
   // Kitchen printer — prints an order ticket (no prices) for the back when a
@@ -24,8 +34,10 @@ export interface HardwareConfig {
   kitchenPrinterName: string;
   kitchenPrinterVendorId: number | null;
   kitchenPrinterProductId: number | null;
-  // Only lines from these category ids go on kitchen tickets; empty = all
-  // (lets a bar's drinks stay off the kitchen printer).
+  // 'system': each ticket prints on every one of these that takes any of its lines.
+  kitchenPrinters: ChosenPrinter[];
+  // The other modes' one kitchen printer: only lines from these category
+  // ids go on its tickets; empty = all (keeps a bar's drinks off it).
   kitchenCategoryIds: number[];
 
   // Cash drawer
@@ -69,6 +81,7 @@ const DEFAULTS: HardwareConfig = {
   printerVendorId: null,
   printerProductId: null,
   printerName: '',
+  receiptPrinters: [],
   autoPrintReceipt: true,
 
   kitchenPrinterEnabled: false,
@@ -76,6 +89,7 @@ const DEFAULTS: HardwareConfig = {
   kitchenPrinterName: '',
   kitchenPrinterVendorId: null,
   kitchenPrinterProductId: null,
+  kitchenPrinters: [],
   kitchenCategoryIds: [],
 
   cashDrawerEnabled: false,
@@ -107,6 +121,25 @@ export const useHardwareStore = create<HardwareStore>()(
       update: (patch) => set((s) => ({ ...s, ...patch })),
       reset: () => set(DEFAULTS),
     }),
-    { name: 'hardware-config' }
+    {
+      name: 'hardware-config',
+      version: 1,
+      // Before version 1, mode 'system' printed to one printer by name: it
+      // becomes the first chosen one (a kitchen one keeps its category list).
+      migrate: (persisted: any, version) => {
+        const state = { ...DEFAULTS, ...(persisted ?? {}) };
+        if (version < 1) {
+          if (state.printerMode === 'system' && state.printerName) {
+            state.receiptPrinters = [{ name: state.printerName, paper: loadReceiptSettings().paperWidth, categoryIds: [] }];
+            state.printerName = '';
+          }
+          if (state.kitchenPrinterMode === 'system' && state.kitchenPrinterName) {
+            state.kitchenPrinters = [{ name: state.kitchenPrinterName, paper: '80mm', categoryIds: state.kitchenCategoryIds ?? [] }];
+            state.kitchenPrinterName = '';
+          }
+        }
+        return state as HardwareStore;
+      },
+    }
   )
 );

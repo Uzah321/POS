@@ -1,11 +1,12 @@
 <# : batch portion
 @echo off
 rem ---------------------------------------------------------------------------
-rem Core Scale Bridge - lets the online Core POS (in Chrome/Edge on this
-rem computer) read an IP weighing scale on the shop's network. A web page
-rem can't open a network connection to a scale itself, and the online server
-rem can't see inside the shop, so this small program relays for it: the till
-rem page talks to it on this computer only (127.0.0.1), it talks to the scale.
+rem Core Bridge - lets the online Core POS (in Chrome/Edge on this computer)
+rem use the shop's hardware: read an IP weighing scale on the shop's network,
+rem and list and print to the printers Windows has installed here. A web page
+rem can't do either by itself, and the online server can't see inside the
+rem shop, so this small program relays for it: the till page talks to it on
+rem this computer only (127.0.0.1), it talks to the scale or the printer.
 rem
 rem Double-click to start; leave the window open (minimised is fine). To start
 rem it with Windows, put this file in the Startup folder (Win+R, shell:startup).
@@ -13,11 +14,11 @@ rem
 rem This file is a batch launcher wrapped around a PowerShell script, which
 rem Windows runs as-is - nothing is installed.
 rem ---------------------------------------------------------------------------
-title Core Scale Bridge
+title Core Bridge
 set "CORE_BRIDGE_SELF=%~f0"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression ([System.IO.File]::ReadAllText($env:CORE_BRIDGE_SELF))"
 echo.
-echo The Core Scale Bridge has stopped. Press any key to close this window.
+echo The Core Bridge has stopped. Press any key to close this window.
 pause >nul
 goto :eof
 #>
@@ -32,19 +33,27 @@ $AllowedOrigin = '__CORE_ALLOWED_ORIGIN__'
 Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 
-// One WebSocket per scale connection, from the browser: GET /connect?host=&port=
-// opens a TCP connection to the scale and relays whatever it sends as
-// {"type":"data","chunk":"..."} messages; {"type":"open"} once connected,
-// {"type":"error","message":"..."} if it can't be reached. GET /ping answers
-// {"type":"hello"} so the page can tell the bridge is running. Nothing the
-// page sends is ever passed on to the scale.
-public static class CoreScaleBridge
+// One WebSocket per request, from the browser:
+// - GET /connect?host=&port= opens a TCP connection to the scale and relays
+//   whatever it sends as {"type":"data","chunk":"..."} messages;
+//   {"type":"open"} once connected. Nothing the page sends goes to the scale.
+// - GET /printers answers {"type":"printers","printers":[...]}: the printers
+//   Windows has installed on this computer.
+// - GET /print?printer= takes one binary message, the job in the printer's
+//   own language (ESC/POS), and hands it to that printer's queue as-is;
+//   {"type":"printed"} once it's there.
+// Any of them answers {"type":"error","message":"..."} when it can't. GET
+// /ping answers {"type":"hello"} so the page can tell the bridge is running.
+public static class CoreBridge
 {
     const string WsGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     static string allowedOrigin;
@@ -56,10 +65,11 @@ public static class CoreScaleBridge
         try { listener.Start(); }
         catch (SocketException)
         {
-            Console.WriteLine("Port " + port + " is already in use - the Core Scale Bridge is probably already running.");
+            Console.WriteLine("Port " + port + " is already in use - the Core Bridge (or an older Core Scale Bridge) is");
+            Console.WriteLine("probably already running. Close that window, then start this one again.");
             return;
         }
-        Log("Core Scale Bridge is running for " + allowedOrigin);
+        Log("Core Bridge is running for " + allowedOrigin + " (scales and printers)");
         Log("Leave this window open (minimised is fine) while the till is in use.");
         while (true)
         {
@@ -111,17 +121,25 @@ public static class CoreScaleBridge
 
             if (route == "/ping")
             {
-                SendText(page, "{\"type\":\"hello\",\"version\":1,\"allowed\":" + (allowed ? "true" : "false") + "}");
+                SendText(page, "{\"type\":\"hello\",\"version\":2,\"printers\":true,\"allowed\":" + (allowed ? "true" : "false") + "}");
                 return;
             }
-            if (route != "/connect") { SendError(page, "Unknown request."); return; }
+            if (route != "/connect" && route != "/printers" && route != "/print") { SendError(page, "Unknown request."); return; }
             if (!allowed)
             {
-                SendError(page, "This Scale Bridge was downloaded for " + allowedOrigin + ". Download it again from the Hardware page of the site you're using.");
+                SendError(page, "This Core Bridge was downloaded for " + allowedOrigin + ". Download it again from the Hardware page of the site you're using.");
                 return;
             }
 
             Dictionary<string, string> args = ParseQuery(query);
+            if (route == "/printers")
+            {
+                try { SendText(page, PrinterList()); }
+                catch (Exception e) { SendError(page, "Couldn't list this computer's printers: " + e.Message); }
+                return;
+            }
+            if (route == "/print") { HandlePrint(page, args); return; }
+
             string host;
             string portText;
             int port;
@@ -134,7 +152,7 @@ public static class CoreScaleBridge
             IPAddress address = ResolveLocal(host);
             if (address == null)
             {
-                SendError(page, host + " isn't an address on this shop's network - the Scale Bridge only connects to local devices.");
+                SendError(page, host + " isn't an address on this shop's network - the Core Bridge only connects to local devices.");
                 return;
             }
 
@@ -217,6 +235,204 @@ public static class CoreScaleBridge
         }
         catch { }
         try { scale.Close(); } catch { }
+    }
+
+    // ---- Printers -----------------------------------------------------------
+
+    static void HandlePrint(NetworkStream page, Dictionary<string, string> args)
+    {
+        string printer;
+        if (!args.TryGetValue("printer", out printer) || printer.Trim().Length == 0)
+        {
+            SendError(page, "No printer named.");
+            return;
+        }
+        byte[] job;
+        try
+        {
+            page.ReadTimeout = 15000;
+            job = ReadMessage(page, 4 * 1024 * 1024);
+        }
+        catch { job = null; }
+        if (job == null || job.Length == 0)
+        {
+            SendError(page, "The print job didn't arrive.");
+            return;
+        }
+        string error;
+        try { error = RawPrint(printer, job); }
+        catch (Exception e) { error = e.Message; }
+        if (error != null)
+        {
+            Log("Couldn't print on " + printer + ": " + error);
+            SendError(page, error);
+            return;
+        }
+        Log("Printed on " + printer + " (" + job.Length + " bytes)");
+        SendText(page, "{\"type\":\"printed\"}");
+    }
+
+    // One whole message from the page, joined from its frames - null if the
+    // page closes first or sends more than `limit` bytes.
+    static byte[] ReadMessage(NetworkStream page, int limit)
+    {
+        MemoryStream message = new MemoryStream();
+        while (true)
+        {
+            int b0 = page.ReadByte();
+            int b1 = page.ReadByte();
+            if (b0 < 0 || b1 < 0) return null;
+            bool fin = (b0 & 0x80) != 0;
+            int opcode = b0 & 0x0F;
+            bool masked = (b1 & 0x80) != 0;
+            long length = b1 & 0x7F;
+            if (length == 126) { byte[] l = ReadExact(page, 2); length = (l[0] << 8) | l[1]; }
+            else if (length == 127) { byte[] l = ReadExact(page, 8); length = 0; for (int i = 0; i < 8; i++) length = (length << 8) | l[i]; }
+            if (length < 0 || message.Length + length > limit) return null;
+            byte[] mask = masked ? ReadExact(page, 4) : null;
+            byte[] payload = ReadExact(page, (int)length);
+            if (masked) for (int i = 0; i < payload.Length; i++) payload[i] ^= mask[i % 4];
+            if (opcode == 8) return null;
+            if (opcode == 9) { SendFrame(page, 10, payload); continue; }
+            if (opcode == 10) continue;
+            message.Write(payload, 0, payload.Length);
+            if (fin) return message.ToArray();
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct PRINTER_INFO_2
+    {
+        public string pServerName;
+        public string pPrinterName;
+        public string pShareName;
+        public string pPortName;
+        public string pDriverName;
+        public string pComment;
+        public string pLocation;
+        public IntPtr pDevMode;
+        public string pSepFile;
+        public string pPrintProcessor;
+        public string pDatatype;
+        public string pParameters;
+        public IntPtr pSecurityDescriptor;
+        public uint Attributes;
+        public uint Priority;
+        public uint DefaultPriority;
+        public uint StartTime;
+        public uint UntilTime;
+        public uint Status;
+        public uint cJobs;
+        public uint AveragePPM;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    class DOC_INFO_1
+    {
+        public string pDocName;
+        public string pOutputFile;
+        public string pDatatype;
+    }
+
+    [DllImport("winspool.drv", EntryPoint = "EnumPrintersW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    static extern bool EnumPrinters(int flags, string name, int level, IntPtr buffer, int size, out int needed, out int returned);
+    [DllImport("winspool.drv", EntryPoint = "GetDefaultPrinterW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    static extern bool GetDefaultPrinter(StringBuilder buffer, ref int size);
+    [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    static extern bool OpenPrinter(string name, out IntPtr handle, IntPtr defaults);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool ClosePrinter(IntPtr handle);
+    [DllImport("winspool.drv", EntryPoint = "StartDocPrinterW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    static extern int StartDocPrinter(IntPtr handle, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOC_INFO_1 info);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool EndDocPrinter(IntPtr handle);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool StartPagePrinter(IntPtr handle);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool EndPagePrinter(IntPtr handle);
+    [DllImport("winspool.drv", SetLastError = true)]
+    static extern bool WritePrinter(IntPtr handle, byte[] data, int count, out int written);
+
+    // This computer's printers and the ones it's connected to on the network.
+    static List<PRINTER_INFO_2> InstalledPrinters()
+    {
+        const int Local = 2, Connections = 4;
+        List<PRINTER_INFO_2> printers = new List<PRINTER_INFO_2>();
+        int needed, returned;
+        EnumPrinters(Local | Connections, null, 2, IntPtr.Zero, 0, out needed, out returned);
+        if (needed <= 0) return printers;
+        IntPtr buffer = Marshal.AllocHGlobal(needed);
+        try
+        {
+            if (!EnumPrinters(Local | Connections, null, 2, buffer, needed, out needed, out returned))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            int size = Marshal.SizeOf(typeof(PRINTER_INFO_2));
+            for (int i = 0; i < returned; i++)
+                printers.Add((PRINTER_INFO_2)Marshal.PtrToStructure(new IntPtr(buffer.ToInt64() + (long)i * size), typeof(PRINTER_INFO_2)));
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+        return printers;
+    }
+
+    static string PrinterList()
+    {
+        StringBuilder defaultBuffer = new StringBuilder(1024);
+        int defaultSize = defaultBuffer.Capacity;
+        string defaultName = GetDefaultPrinter(defaultBuffer, ref defaultSize) ? defaultBuffer.ToString() : "";
+        StringBuilder json = new StringBuilder("{\"type\":\"printers\",\"printers\":[");
+        bool first = true;
+        foreach (PRINTER_INFO_2 p in InstalledPrinters())
+        {
+            // "Use printer offline", or Windows reporting it offline.
+            bool offline = (p.Attributes & 0x400) != 0 || (p.Status & 0x80) != 0;
+            if (!first) json.Append(',');
+            first = false;
+            json.Append("{\"name\":").Append(JsonString(p.pPrinterName ?? ""))
+                .Append(",\"port\":").Append(JsonString(p.pPortName ?? ""))
+                .Append(",\"isDefault\":").Append(p.pPrinterName == defaultName ? "true" : "false")
+                .Append(",\"offline\":").Append(offline ? "true" : "false")
+                .Append('}');
+        }
+        return json.Append("]}").ToString();
+    }
+
+    // Hands the job to the printer's queue untouched (RAW) - null once it's
+    // there, else why not. Only to a printer Windows has installed, so a page
+    // can't name some other machine's share.
+    static string RawPrint(string printer, byte[] job)
+    {
+        bool installed = false;
+        foreach (PRINTER_INFO_2 p in InstalledPrinters())
+        {
+            if (string.Equals(p.pPrinterName, printer, StringComparison.OrdinalIgnoreCase)) { installed = true; break; }
+        }
+        if (!installed) return "not installed on this computer - choose the printer again in Hardware";
+
+        IntPtr handle;
+        if (!OpenPrinter(printer, out handle, IntPtr.Zero)) return Win32Message();
+        try
+        {
+            DOC_INFO_1 doc = new DOC_INFO_1();
+            doc.pDocName = "Core POS";
+            doc.pDatatype = "RAW";
+            if (StartDocPrinter(handle, 1, doc) == 0) return Win32Message();
+            try
+            {
+                if (!StartPagePrinter(handle)) return Win32Message();
+                int written;
+                bool ok = WritePrinter(handle, job, job.Length, out written);
+                string error = !ok ? Win32Message() : written != job.Length ? "The printer took only part of the job." : null;
+                EndPagePrinter(handle);
+                return error;
+            }
+            finally { EndDocPrinter(handle); }
+        }
+        finally { ClosePrinter(handle); }
+    }
+
+    static string Win32Message()
+    {
+        return new Win32Exception(Marshal.GetLastWin32Error()).Message;
     }
 
     static void Drain(NetworkStream page)
@@ -383,4 +599,4 @@ public static class CoreScaleBridge
 }
 '@
 
-[CoreScaleBridge]::Run($BridgePort, $AllowedOrigin)
+[CoreBridge]::Run($BridgePort, $AllowedOrigin)

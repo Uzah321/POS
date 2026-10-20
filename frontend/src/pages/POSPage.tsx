@@ -457,8 +457,9 @@ export default function POSPage() {
   };
   const saleSnapshotRef = useRef<CartSnapshot | null>(null);
 
-  // Prints a kitchen ticket for the lines on `items` the kitchen hasn't had yet
-  // (optionally only the categories this device's kitchen printer handles).
+  // Prints a kitchen ticket for the lines on `items` the kitchen hasn't had yet:
+  // on each chosen kitchen printer, the lines in its categories; on the other
+  // modes' one printer, the categories set for it.
   // Returns true when kitchen printing is on, i.e. the caller should record
   // these lines as sent — even if the category filter left nothing to print.
   const sendKitchenTicket = (
@@ -471,8 +472,9 @@ export default function POSPage() {
       const product = allProducts.find((p: any) => p.id === productId);
       return product?.category_id ?? product?.category?.id;
     };
+    const mode = resolveReceiptPrintMode(hw.kitchenPrinterMode);
     const lines = unsentKitchenItems(items).filter((i) =>
-      hw.kitchenCategoryIds.length === 0 || hw.kitchenCategoryIds.includes(categoryOf(i.product_id)));
+      mode === 'system' || hw.kitchenCategoryIds.length === 0 || hw.kitchenCategoryIds.includes(categoryOf(i.product_id)));
     if (lines.length === 0) return true;
     void printKitchenTicket({
       title: items.some((i) => (i.kitchen_sent_qty ?? 0) > 0) ? 'ADD TO ORDER' : 'NEW ORDER',
@@ -482,9 +484,9 @@ export default function POSPage() {
       covers: meta.table ? meta.covers : undefined,
       waiter: meta.waiter || user?.name,
       customerName: meta.customerName || undefined,
-      items: lines.map((i) => ({ name: i.name, qty: i.unsent, soldByWeight: i.sold_by_weight })),
+      items: lines.map((i) => ({ name: i.name, qty: i.unsent, soldByWeight: i.sold_by_weight, categoryId: categoryOf(i.product_id) })),
       note: meta.note || undefined,
-    }, resolveReceiptPrintMode(hw.kitchenPrinterMode), hw.kitchenPrinterName).catch((error: any) => {
+    }, mode, hw.kitchenPrinters).catch((error: any) => {
       toast.error(error?.message ?? 'Kitchen ticket failed to print');
     });
     return true;
@@ -558,7 +560,7 @@ export default function POSPage() {
           rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode),
-        hw.printerName
+        hw.receiptPrinters
       ).catch((error: any) => {
         toast.error(error?.message ?? 'Sale completed, but receipt printing failed');
       });
@@ -725,7 +727,7 @@ export default function POSPage() {
           rec68: storeSettings?.fiscal_rec_68 || undefined,
         }),
         resolveReceiptPrintMode(hw.printerMode),
-        hw.printerName
+        hw.receiptPrinters
       ).catch((error: any) => {
         toast.error(error?.message ?? 'Tab closed, but receipt printing failed');
       });

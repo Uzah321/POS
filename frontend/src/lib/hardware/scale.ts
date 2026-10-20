@@ -11,7 +11,7 @@
  *               online server can't see into the shop's network), so the
  *               socket is opened on the till computer by either the Core
  *               desktop app's main process (electron/main.cjs) or, for the
- *               online system in a browser, the Core Scale Bridge — a small
+ *               online system in a browser, the Core Bridge — a small
  *               helper the till runs (core-scale-bridge.bat) that the page
  *               reaches over a WebSocket on 127.0.0.1. Both look the same
  *               from here (ScaleSocketBridge). The port is optional: with
@@ -63,7 +63,7 @@ export interface ScaleDevice {
   products_count?: number;
 }
 
-/** Opens TCP sockets to network scales on the till's behalf, one per scale id — the desktop app's main process, or the Core Scale Bridge. */
+/** Opens TCP sockets to network scales on the till's behalf, one per scale id — the desktop app's main process, or the Core Bridge. */
 interface ScaleSocketBridge {
   connectScale: (scaleId: number, host: string, port: number) => Promise<{ success: boolean; error?: string }>;
   disconnectScale: (scaleId: number) => Promise<{ success: boolean }>;
@@ -76,13 +76,13 @@ function electronScaleBridge(): ScaleSocketBridge | undefined {
   return api?.isElectron ? (api as ScaleSocketBridge) : undefined;
 }
 
-/** True in a browser (the online system), where network scales go through the Core Scale Bridge; false in the desktop app, which connects itself. */
+/** True in a browser (the online system), where network scales go through the Core Bridge; false in the desktop app, which connects itself. */
 export function usesScaleBridge(): boolean {
   return !electronScaleBridge();
 }
 
 // ---------------------------------------------------------------------------
-// Core Scale Bridge (core-scale-bridge.bat) — one WebSocket per scale socket,
+// Core Bridge (core-scale-bridge.bat) — one WebSocket per scale socket,
 // to the helper on this same computer. It answers {"type":"open"} once the
 // scale is connected, {"type":"error"} if it can't be, then relays what the
 // scale sends as {"type":"data"} messages until either side closes.
@@ -91,7 +91,7 @@ export const SCALE_BRIDGE_PORT = 47321;
 const SCALE_BRIDGE_URL = `ws://127.0.0.1:${SCALE_BRIDGE_PORT}`;
 
 export const SCALE_BRIDGE_DOWN =
-  "The Core Scale Bridge isn't running on this computer (or the browser blocked it). Start it — see Hardware → Weighing Scale — then press Connect.";
+  "The Core Bridge isn't running on this computer (or the browser blocked it). Start it — see Hardware → Weighing Scale — then press Connect.";
 
 export type ScaleBridgeStatus = 'running' | 'not-running' | 'wrong-site';
 
@@ -412,7 +412,7 @@ async function connectNetworkScale(scale: ScaleDevice) {
   patchState(scale.id, { error: null });
   const bridge = networkBridge();
   if (!bridge) {
-    patchState(scale.id, { error: "This browser can't reach network scales — use Chrome or Edge with the Core Scale Bridge, or the Core desktop app." });
+    patchState(scale.id, { error: "This browser can't reach network scales — use Chrome or Edge with the Core Bridge, or the Core desktop app." });
     return;
   }
   const host = scale.host?.trim();
@@ -429,7 +429,7 @@ async function connectNetworkScale(scale: ScaleDevice) {
       if (status !== 'running') {
         patchState(scale.id, {
           error: status === 'wrong-site'
-            ? `The Core Scale Bridge on this computer was downloaded for a different web address — download it again from this page's Hardware → Weighing Scale.`
+            ? `The Core Bridge on this computer was downloaded for a different web address — download it again from this page's Hardware → Weighing Scale.`
             : SCALE_BRIDGE_DOWN,
         });
         return;

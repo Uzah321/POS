@@ -10,6 +10,7 @@ import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode, kitchenOrderLabel } from '../lib/hardware/printer';
+import { companyLogo } from '../lib/companyLogo';
 import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, type ScaleDevice } from '../lib/hardware/scale';
@@ -540,6 +541,7 @@ export default function POSPage() {
             price: item.price,
             total: item.price * item.quantity,
           })),
+          logo: companyLogo(storeSettings),
           vatNumber: storeSettings?.company_vat_number,
           tinNumber: storeSettings?.company_tin_number,
           currencyCode: activeCurrency?.code ?? 'USD',
@@ -706,6 +708,7 @@ export default function POSPage() {
             price: item.price,
             total: item.price * item.quantity,
           })),
+          logo: companyLogo(storeSettings),
           vatNumber: storeSettings?.company_vat_number,
           tinNumber: storeSettings?.company_tin_number,
           currencyCode: activeCurrency?.code ?? 'USD',

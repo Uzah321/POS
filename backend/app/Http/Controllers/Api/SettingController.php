@@ -14,7 +14,7 @@ class SettingController extends BaseApiController
     private const PUBLIC_KEYS = [
         'business_type',
         'company_name', 'company_address', 'company_phone', 'company_email',
-        'company_vat_number', 'company_tin_number',
+        'company_vat_number', 'company_tin_number', 'company_logo',
         'currency', 'currency_symbol', 'default_currency', 'multi_currency_enabled',
         'tax_enabled', 'tax_rate', 'block_negative_stock', 'low_stock_threshold',
         'loyalty_points_rate', 'receipt_footer', 'receipt_auto_print',

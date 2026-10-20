@@ -14,6 +14,7 @@
  * for the back). USB/Bluetooth connections are held per role, so both can be
  * direct-connected at once.
  */
+import { drawOnWhite, loadImage } from '../companyLogo';
 
 interface ElectronPrinterBridge {
   isElectron: true;
@@ -71,6 +72,34 @@ const CASH_DRAWER     = bytes(ESC, 0x70, 0x00, 0x19, 0x78);
 function line(s = ''): Uint8Array { return concat(text(s), bytes(LF)); }
 function divider(char = '-', len = 32): Uint8Array { return line(char.repeat(len)); }
 
+/**
+ * The company logo as an ESC/POS raster image (GS v 0, which nearly every
+ * thermal printer understands): fitted inside 320 × 120 dots — about 40 ×
+ * 15 mm, inside a 58 mm roll's 384 — and black wherever the picture is
+ * darker than mid-grey. Null with no logo, or one that won't load: a
+ * receipt never waits on its logo.
+ */
+async function escPosLogo(logo?: string): Promise<Uint8Array | null> {
+  if (!logo) return null;
+  try {
+    const canvas = drawOnWhite(await loadImage(logo), 320, 120);
+    const { width: w, height: h } = canvas;
+    const px = canvas.getContext('2d')!.getImageData(0, 0, w, h).data;
+    const rowBytes = Math.ceil(w / 8);
+    const out = new Uint8Array(8 + rowBytes * h);
+    out.set([GS, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, h & 0xff, h >> 8]);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 128) out[8 + y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+      }
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Receipt data shape
 // ---------------------------------------------------------------------------
@@ -100,6 +129,8 @@ export interface ReceiptData {
   change?: number;
   currency: string;
   footer?: string;
+  /** Company logo data URL (Settings → Business Profile), printed at the top. */
+  logo?: string;
   // Fiscal invoice extras
   vatNumber?: string;
   tinNumber?: string;
@@ -140,6 +171,7 @@ export interface BuildReceiptOptions {
   amountTendered?: number;
   change?: number;
   footer?: string;
+  logo?: string;
   date?: string;
   itemsFallback?: ReceiptLine[];
   // Fiscal invoice extras
@@ -226,6 +258,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     change: options.change ?? money(sale?.change_due),
     currency: options.currency ?? '$',
     footer: options.footer,
+    logo: options.logo,
     vatNumber: options.vatNumber,
     tinNumber: options.tinNumber,
     vatRate: options.vatRate,
@@ -293,7 +326,7 @@ function vatInfo(d: ReceiptData): { net: number; vat: number; gross: number; pct
 // ---------------------------------------------------------------------------
 // ESC/POS receipt builder
 // ---------------------------------------------------------------------------
-function buildEscPosReceipt(d: ReceiptData): Uint8Array {
+function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null): Uint8Array {
   const W = 32;
   const fmt2 = (n: number) => n.toFixed(2);
   const pad = (l: string, r: string, w = W) => {
@@ -312,6 +345,7 @@ function buildEscPosReceipt(d: ReceiptData): Uint8Array {
   const parts: Uint8Array[] = [
     ESC_INIT,
     ESC_ALIGN_CENTER,
+    ...(logo ? [logo, bytes(LF)] : []),
     ESC_BOLD_ON, line('***FISCAL TAX INVOICE***'), ESC_BOLD_OFF,
     bytes(LF),
     ESC_DWIDTH_ON, line(cut(d.storeName, 16)), ESC_DWIDTH_OFF,
@@ -581,11 +615,11 @@ export async function printReceipt(
   systemPrinterName?: string,
 ): Promise<void> {
   if (mode === 'webusb' && usbConnections.receipt) {
-    await sendToUsb(buildEscPosReceipt(data), 'receipt');
+    await sendToUsb(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'receipt');
     return;
   }
   if (mode === 'webbluetooth' && bleConnections.receipt) {
-    await sendToBluetooth(buildEscPosReceipt(data), 'receipt');
+    await sendToBluetooth(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'receipt');
     return;
   }
   if (mode === 'system') {
@@ -790,6 +824,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
     ? d.storeAddress.split(/[,\n]/).map(x => x.trim()).filter(Boolean)
         .map(x => `<div class="center">${x}</div>`).join('')
     : '';
+  const logoHtml = d.logo ? `<img class="logo" src="${escapeHtml(d.logo)}" alt="">` : '';
 
   const commonCss = `
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -805,6 +840,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   .item-name { font-weight:bold; padding:1px 0; }
   .item-detail { display:flex; justify-content:space-between; padding:1px 8px 3px; }
   .col-hdr { display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px dashed #000; padding-bottom:2px; margin-bottom:2px; }
+  .logo { display:block; max-width:70%; max-height:25mm; margin:0 auto 4px; }
   @media print { @page { margin:0; size:${pageSize}; } body { padding:1mm; } }`;
 
   // ── Fiscal layout (default) ──────────────────────────────────────────────
@@ -819,6 +855,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Receipt ${d.reference}</title>
 <style>${commonCss}</style></head><body>
+${logoHtml}
 <div class="center bold">${s.headerTitle || '***FISCAL TAX INVOICE***'}</div>
 <br>
 <div class="center large">${d.storeName}</div>
@@ -886,6 +923,7 @@ ${d.fiscalQrCodeUrl ? `<div class="center" style="font-size:${9}px;word-break:br
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Receipt ${d.reference}</title>
 <style>${commonCss}</style></head><body>
+${logoHtml}
 <div class="center large">${d.storeName}</div>
 ${addrLines}
 ${d.storePhone ? `<div class="center">${d.storePhone}</div>` : ''}
@@ -919,6 +957,7 @@ ${s.showCashierName ? `<div>Cashier: ${d.cashier}</div>` : ''}
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Receipt ${d.reference}</title>
 <style>${commonCss}</style></head><body>
+${logoHtml}
 <div class="center bold">${d.storeName}</div>
 <div class="center">${dateStr}</div>
 <div class="divider"></div>

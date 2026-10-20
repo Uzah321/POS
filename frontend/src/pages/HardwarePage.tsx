@@ -1,7 +1,8 @@
 ﻿import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHardwareStore } from '../stores/hardwareStore';
-import { weighingScalesApi, branchesApi } from '../api';
+import { weighingScalesApi, branchesApi, settingsApi } from '../api';
+import { companyLogo } from '../lib/companyLogo';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
@@ -522,6 +523,14 @@ export default function HardwarePage() {
     staleTime: 120000,
   });
 
+  // For the company logo on the test print and the preview.
+  const { data: storeSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsApi.get().then(r => r.data?.data || {}),
+    staleTime: 5 * 60 * 1000,
+  });
+  const logo = companyLogo(storeSettings);
+
   // USB printer connection state — reopened automatically if it was connected before
   const reconnected = usePrinterReconnect();
   const [usbConnected, setUsbConnected] = useState(() => isPrinterConnected('receipt', 'webusb'));
@@ -619,6 +628,7 @@ export default function HardwarePage() {
       amountTendered: 50,
       change: 9.53,
       currency,
+      logo,
       footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
     }, resolveReceiptPrintMode(hw.printerMode), hw.printerName).catch((error: any) => {
       toast.error(error?.message ?? 'Could not print test receipt');
@@ -898,6 +908,7 @@ export default function HardwarePage() {
               <Card title="Preview">
                 <div className="border border-gray-200 rounded-lg bg-gray-50 p-3 max-w-[180px]"
                   style={{ fontFamily: FONT_FAMILY_MAP[receipt.fontFamily], fontSize: `${receipt.fontSize}px`, lineHeight: '1.5' }}>
+                  {logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-[70%] max-h-12" />}
                   <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
                   <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? 'My Store' : ''}</div>
                   {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>My Store</div>}

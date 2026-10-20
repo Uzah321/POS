@@ -8,6 +8,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useAuthStore } from '../stores/authStore';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
+import { companyLogo } from '../lib/companyLogo';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
@@ -402,6 +403,7 @@ export default function SalesPage() {
           storeName: storeSettings?.company_name,
           storeAddress: storeSettings?.company_address,
           storePhone: storeSettings?.company_phone,
+          logo: companyLogo(storeSettings),
           vatNumber: storeSettings?.company_vat_number,
           tinNumber: storeSettings?.company_tin_number,
           deviceId: storeSettings?.fiscal_device_id || undefined,

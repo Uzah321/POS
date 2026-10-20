@@ -1,12 +1,13 @@
 ﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi, productsApi } from '../api';
-import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale } from 'lucide-react';
+import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale, Image as ImageIcon, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 import FiscalisationPanel from '../components/FiscalisationPanel';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
+import { companyLogo, logoFileToDataUrl } from '../lib/companyLogo';
 import {
   DIGI_SM110_LAYOUTS, embeddedCartLine, layoutEnabled, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
   type ScaleBarcodeLayout,
@@ -37,6 +38,52 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
 }
 
 const field = 'w-full border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
+
+// The company logo for receipts / tax invoices and quotation and purchase
+// order PDFs. Held with the other fields until Save Changes.
+function CompanyLogoField({ value, onChange }: { value?: string; onChange: (logo: string) => void }) {
+  const [reading, setReading] = useState(false);
+  const logo = companyLogo({ company_logo: value });
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setReading(true);
+    try {
+      onChange(await logoFileToDataUrl(file));
+      toast.success('Logo added — Save Changes to keep it');
+    } catch {
+      toast.error('Could not read that image — try a PNG or JPG');
+    } finally {
+      setReading(false);
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Logo</label>
+      <div className="flex items-center gap-4">
+        <div className="w-36 h-20 flex-shrink-0 border border-gray-200 rounded-md bg-gray-50 flex items-center justify-center overflow-hidden">
+          {logo ? <img src={logo} alt="Company logo" className="max-w-full max-h-full object-contain" /> : <ImageIcon size={22} className="text-gray-300" />}
+        </div>
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <label className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold cursor-pointer hover:bg-blue-100 transition-colors">
+              {reading ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
+              {logo ? 'Change logo' : 'Add logo'}
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => { void handleFile(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {logo && (
+              <button type="button" onClick={() => onChange('')} className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors">
+                <Trash2 size={13} /> Remove logo
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">Printed at the top of receipts / tax invoices, and on quotation and purchase order PDFs. A simple black-and-white logo prints best on a receipt printer.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Text (not number) inputs on purpose — a prefix/position/length is a digit
 // string where a leading zero matters (e.g. prefix "02" vs "2"); a <input
@@ -329,6 +376,9 @@ const { isLoading } = useQuery({
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Name</label>
               <input value={values.company_name ?? ''} onChange={set('company_name')} placeholder="Core" className={field} />
+            </div>
+            <div className="sm:col-span-2">
+              <CompanyLogoField value={values.company_logo} onChange={(logo) => setValues(v => ({ ...v, company_logo: logo }))} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number</label>

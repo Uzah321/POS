@@ -15,6 +15,7 @@ import { useAuthStore } from '../stores/authStore';
 import { db } from '../lib/db';
 import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 import jsPDF from 'jspdf';
+import { companyLogo, drawPdfLogo } from '../lib/companyLogo';
 import autoTable from 'jspdf-autotable';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -285,7 +286,7 @@ function POModal({ onClose }: { onClose: () => void }) {
 }
 
 /** Builds and downloads a print-ready PDF of a purchase order (letterhead, items table, totals, sign-off block). */
-function downloadPurchaseOrderPdf(po: any, companyName: string, currencySymbol: string) {
+function downloadPurchaseOrderPdf(po: any, companyName: string, currencySymbol: string, logo?: string) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
@@ -321,14 +322,16 @@ function downloadPurchaseOrderPdf(po: any, companyName: string, currencySymbol: 
       // Header band
       doc.setFillColor(30, 41, 59);
       doc.rect(0, 0, pageWidth, 70, 'F');
+      const logoWidth = drawPdfLogo(doc, logo, margin, 12, 110, 46);
+      const titleX = logoWidth ? margin + logoWidth + 12 : margin;
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
-      doc.text(companyName, margin, 32);
+      doc.text(companyName, titleX, 32);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(203, 213, 225);
-      doc.text('Purchase Order', margin, 50);
+      doc.text('Purchase Order', titleX, 50);
       doc.setFontSize(9);
       doc.text(po.reference ?? '', pageWidth - margin, 32, { align: 'right' });
       doc.text(`Status: ${(po.status ?? '').replace('_', ' ')}`, pageWidth - margin, 46, { align: 'right' });
@@ -623,7 +626,7 @@ function PODetailModal({ id, onClose, onReceive }: { id: number; onClose: () => 
             {po && (
               <button
                 type="button"
-                onClick={() => downloadPurchaseOrderPdf(po, storeSettings?.company_name || 'Core POS', activeCurrency?.symbol ?? '$')}
+                onClick={() => downloadPurchaseOrderPdf(po, storeSettings?.company_name || 'Core POS', activeCurrency?.symbol ?? '$', companyLogo(storeSettings))}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors"
               >
                 <Printer size={13} /> Print PDF

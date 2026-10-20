@@ -9,6 +9,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
+import { companyLogo } from '../lib/companyLogo';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, useConnectedScaleCount, type ScaleDevice } from '../lib/hardware/scale';
 import { db } from '../lib/db';
@@ -405,6 +406,7 @@ export default function CashierPage() {
           amountTendered: payMethod === 'cash' ? parseFloat(cashTendered) || totalDue : undefined,
           change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - totalDue) : undefined,
           itemsFallback: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+          logo: companyLogo(storeSettings),
           vatNumber: storeSettings?.company_vat_number,
           tinNumber: storeSettings?.company_tin_number,
           currencyCode: activeCurrency?.code ?? 'USD',

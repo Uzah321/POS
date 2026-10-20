@@ -10,6 +10,7 @@ import RowActionsMenu from '../components/ui/RowActionsMenu';
 import toast from 'react-hot-toast';
 import { offlineMutate, handleOfflineSuccess } from '../lib/offlineMutation';
 import jsPDF from 'jspdf';
+import { companyLogo, drawPdfLogo } from '../lib/companyLogo';
 import autoTable from 'jspdf-autotable';
 import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 
@@ -81,7 +82,7 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
 }
 
 /** Builds and downloads a print-ready PDF of a quotation — same house style as the Purchase Order PDF. */
-function downloadQuotationPdf(q: any, companyName: string, currencySymbol: string) {
+function downloadQuotationPdf(q: any, companyName: string, currencySymbol: string, logo?: string) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
@@ -117,14 +118,16 @@ function downloadQuotationPdf(q: any, companyName: string, currencySymbol: strin
       // Header band
       doc.setFillColor(30, 41, 59);
       doc.rect(0, 0, pageWidth, 70, 'F');
+      const logoWidth = drawPdfLogo(doc, logo, margin, 12, 110, 46);
+      const titleX = logoWidth ? margin + logoWidth + 12 : margin;
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
-      doc.text(companyName, margin, 32);
+      doc.text(companyName, titleX, 32);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(203, 213, 225);
-      doc.text('Quotation', margin, 50);
+      doc.text('Quotation', titleX, 50);
       doc.setFontSize(9);
       doc.text(q.reference ?? '', pageWidth - margin, 32, { align: 'right' });
       doc.text(`Status: ${(q.status ?? '').replace('_', ' ')}`, pageWidth - margin, 46, { align: 'right' });
@@ -423,7 +426,7 @@ export default function QuotationsPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => downloadQuotationPdf(quotationDetail, storeSettings?.company_name || 'Core POS', activeCurrency?.symbol ?? '$')}
+                  onClick={() => downloadQuotationPdf(quotationDetail, storeSettings?.company_name || 'Core POS', activeCurrency?.symbol ?? '$', companyLogo(storeSettings))}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors"
                 >
                   <Download size={13} /> Download PDF

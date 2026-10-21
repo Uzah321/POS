@@ -14,7 +14,7 @@
  * for the back). USB/Bluetooth connections are held per role, so both can be
  * direct-connected at once.
  */
-import { drawOnWhite, loadImage } from '../companyLogo';
+import { companyLogo, drawOnWhite, loadImage } from '../companyLogo';
 import { bridgePrint, bridgePrinters } from './printBridge';
 import { qzPrintRaw, qzPrinters } from './qzTray';
 import { useHardwareStore, type ChosenPrinter } from '../../stores/hardwareStore';
@@ -211,6 +211,7 @@ export interface ReceiptData {
   storeName: string;
   storeAddress?: string;
   storePhone?: string;
+  storeEmail?: string;
   reference: string;
   cashier: string;
   date: string;
@@ -261,6 +262,8 @@ export interface ReceiptData {
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
 
 export interface BuildReceiptOptions {
+  /** Settings (GET /settings): the business details every receipt prints — see companyDetails. */
+  settings?: Record<string, any> | null;
   storeName?: string;
   storeAddress?: string;
   storePhone?: string;
@@ -319,7 +322,31 @@ export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'we
   return 'browser';
 }
 
+/**
+ * The business as Settings describes it — name, address, phone, email,
+ * VAT / TIN numbers, logo and receipt footer — for the top and bottom of
+ * every receipt. Blank ones are left out, so whatever's passed in instead
+ * (or the sale's branch) fills in.
+ */
+export function companyDetails(settings?: Record<string, any> | null): Pick<ReceiptData, 'storeAddress' | 'storePhone' | 'storeEmail' | 'vatNumber' | 'tinNumber' | 'logo' | 'footer'> & { storeName?: string } {
+  const text = (key: string): string | undefined => {
+    const value = settings?.[key];
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  };
+  return {
+    storeName: text('company_name'),
+    storeAddress: text('company_address'),
+    storePhone: text('company_phone'),
+    storeEmail: text('company_email'),
+    vatNumber: text('company_vat_number'),
+    tinNumber: text('company_tin_number'),
+    logo: companyLogo(settings),
+    footer: text('receipt_footer'),
+  };
+}
+
 export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions = {}): ReceiptData {
+  const company = companyDetails(options.settings);
   const items = Array.isArray(sale?.items) && sale.items.length > 0
     ? sale.items.map((item: any) => {
         const qty = money(item?.quantity ?? item?.qty);
@@ -341,9 +368,12 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
   const discount = money(sale?.discount_total ?? sale?.discount_amount ?? sale?.discount_value);
 
   return {
-    storeName: options.storeName ?? 'Core',
-    storeAddress: sale?.branch?.address ?? options.storeAddress,
-    storePhone: sale?.branch?.phone ?? options.storePhone,
+    // The business details saved in Settings come first; a branch's own
+    // address / phone only fill in where Settings has none.
+    storeName: company.storeName ?? options.storeName ?? 'Core',
+    storeAddress: company.storeAddress ?? sale?.branch?.address ?? options.storeAddress,
+    storePhone: company.storePhone ?? sale?.branch?.phone ?? options.storePhone,
+    storeEmail: company.storeEmail,
     reference: sale?.reference ?? `#${sale?.id ?? 'SALE'}`,
     cashier: sale?.cashier?.name ?? options.cashier ?? '',
     date: options.date ?? printableDate(sale?.completed_at ?? sale?.created_at),
@@ -356,10 +386,10 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     amountTendered: options.amountTendered,
     change: options.change ?? money(sale?.change_due),
     currency: options.currency ?? '$',
-    footer: options.footer,
-    logo: options.logo,
-    vatNumber: options.vatNumber,
-    tinNumber: options.tinNumber,
+    footer: options.footer ?? company.footer,
+    logo: company.logo ?? options.logo,
+    vatNumber: company.vatNumber ?? options.vatNumber,
+    tinNumber: company.tinNumber ?? options.tinNumber,
     vatRate: options.vatRate,
     tradingName: options.tradingName,
     posNumber: options.posNumber,
@@ -542,6 +572,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   // Fiscal footer — business registration details
   parts.push(divider('-', W));
   if (d.storePhone) parts.push(line(`Tel : ${d.storePhone}`));
+  if (d.storeEmail) parts.push(line(`Email : ${d.storeEmail}`));
   if (d.vatNumber)  parts.push(line(`VAT No : ${d.vatNumber}`));
   if (d.tinNumber)  parts.push(line(`TIN No : ${d.tinNumber}`));
   if (!isFiscalised(d)) {
@@ -1064,6 +1095,7 @@ ${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>CHANGE</span
 ${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}</div>` : ''}
 <div class="divider"></div>
 ${d.storePhone ? `<div>Tel : ${d.storePhone}</div>` : ''}
+${d.storeEmail ? `<div>Email : ${escapeHtml(d.storeEmail)}</div>` : ''}
 ${d.vatNumber ? `<div>VAT No : ${d.vatNumber}</div>` : ''}
 ${d.tinNumber ? `<div>TIN No : ${d.tinNumber}</div>` : ''}
 ${!isFiscalised(d) ? `
@@ -1101,6 +1133,9 @@ ${logoHtml}
 <div class="center large">${d.storeName}</div>
 ${addrLines}
 ${d.storePhone ? `<div class="center">${d.storePhone}</div>` : ''}
+${d.storeEmail ? `<div class="center">${escapeHtml(d.storeEmail)}</div>` : ''}
+${d.vatNumber ? `<div class="center">VAT No: ${d.vatNumber}</div>` : ''}
+${d.tinNumber ? `<div class="center">TIN No: ${d.tinNumber}</div>` : ''}
 <div class="divider"></div>
 <div class="row"><span>Ref</span><span class="v">${d.reference}</span></div>
 <div class="row"><span>Date</span><span class="v">${dateStr} ${timeStr}</span></div>

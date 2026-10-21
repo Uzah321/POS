@@ -397,6 +397,7 @@ export default function SalesPage() {
       const sale = (await salesApi.receipt(saleId)).data?.data;
       await printReceipt(
         buildReceiptDataFromSale(sale, {
+          settings: storeSettings,
           currency,
           currencyCode: activeCurrency?.code ?? 'USD',
           currencyRate: activeCurrency?.exchange_rate ?? 1,

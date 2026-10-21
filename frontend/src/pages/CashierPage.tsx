@@ -404,6 +404,7 @@ export default function CashierPage() {
 
       void printReceipt(
         buildReceiptDataFromSale(sale ?? null, {
+          settings: storeSettings,
           storeName, storeAddress, storePhone,
           cashier: user?.name ?? '', currency,
           paymentMethod: payMethod,

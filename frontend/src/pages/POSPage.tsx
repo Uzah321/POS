@@ -530,6 +530,7 @@ export default function POSPage() {
 
       void printReceipt(
         buildReceiptDataFromSale(sale ?? null, {
+          settings: storeSettings,
           storeName,
           storeAddress,
           storePhone,
@@ -697,6 +698,7 @@ export default function POSPage() {
 
       void printReceipt(
         buildReceiptDataFromSale(sale ?? null, {
+          settings: storeSettings,
           storeName,
           storeAddress,
           storePhone,

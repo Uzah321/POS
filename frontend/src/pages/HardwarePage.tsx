@@ -11,7 +11,7 @@ import {
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
   printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, canChoosePrinters, isSystemPrintAvailable,
-  isPrinterConnected,
+  isPrinterConnected, companyDetails,
 } from '../lib/hardware/printer';
 import KitchenPrinterSettings from '../components/hardware/KitchenPrinterSettings';
 import CoreBridgeCard from '../components/hardware/CoreBridgeCard';
@@ -486,6 +486,8 @@ export default function HardwarePage() {
     staleTime: 5 * 60 * 1000,
   });
   const logo = companyLogo(storeSettings);
+  const previewCompany = companyDetails(storeSettings);
+  const previewName = previewCompany.storeName ?? 'My Store';
 
   // USB printer connection state — reopened automatically if it was connected before
   const reconnected = usePrinterReconnect();
@@ -547,10 +549,11 @@ export default function HardwarePage() {
   };
 
   const handleTestPrint = () => {
+    // The business details saved in Settings, as a real bill prints them.
+    const { storeName, ...company } = companyDetails(storeSettings);
     void printReceipt({
-      storeName: 'Core',
-      storeAddress: '123 Main Street',
-      storePhone: '+27 11 000 0000',
+      ...company,
+      storeName: storeName ?? 'Core',
       reference: 'TEST-001',
       cashier: user?.name ?? 'Cashier',
       date: new Date().toLocaleString(),
@@ -816,8 +819,9 @@ export default function HardwarePage() {
                   style={{ fontFamily: FONT_FAMILY_MAP[receipt.fontFamily], fontSize: `${receipt.fontSize}px`, lineHeight: '1.5' }}>
                   {logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-[70%] max-h-12" />}
                   <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
-                  <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? 'My Store' : ''}</div>
-                  {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>My Store</div>}
+                  <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? previewName : ''}</div>
+                  {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>{previewName}</div>}
+                  {receipt.layout !== 'minimal' && previewCompany.storeAddress && <div className="text-center text-[10px] text-gray-600">{previewCompany.storeAddress}</div>}
                   <div className="my-1" style={{ borderTop: receipt.dividerStyle === 'solid' ? '1px solid #000' : receipt.dividerStyle === 'double' ? '3px double #000' : '1px dashed #000' }} />
                   {receipt.layout !== 'minimal' && <><div className="flex justify-between"><span>Ref</span><span>001</span></div><div className="flex justify-between"><span>Date</span><span>17 Jun</span></div><div className="my-1" style={{ borderTop: '1px dashed #999' }} /></>}
                   <div className="flex justify-between"><span>Coca Cola</span><span>50.00</span></div>

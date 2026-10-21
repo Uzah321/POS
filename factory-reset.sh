@@ -2,6 +2,8 @@
 # =============================================================
 # NexaPOS — Factory reset: ERASES ALL DATA AND USERS
 # Run on the server as: sudo bash /var/www/nexapos/factory-reset.sh
+# It resets the site it's in: /var/www/<name>/factory-reset.sh resets
+# that site (see add-site.sh) and leaves the others alone.
 #
 # Keeps the licences and the ZIMRA fiscal registration, backs the
 # database up into backend/storage/app/backups first, and asks you to
@@ -14,7 +16,7 @@ if [ "${EUID}" -ne 0 ]; then
   exec sudo --preserve-env=APP_DIR,PHP_BIN "$0" "$@"
 fi
 
-APP_DIR="${APP_DIR:-/var/www/nexapos}"
+APP_DIR="${APP_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 PHP_BIN="${PHP_BIN:-php}"
 BACKEND_DIR="${APP_DIR}/backend"
 

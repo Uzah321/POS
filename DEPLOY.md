@@ -236,7 +236,7 @@ cd /var/www/nexapos
 sudo bash update.sh
 ```
 
-What it does:
+What it does, for every site on the server (see below; the main site goes first):
 - pulls the latest code from `origin/main`
 - installs backend dependencies
 - runs `php artisan migrate --force`
@@ -267,3 +267,33 @@ cd ../frontend
 npm install
 npm run build
 ```
+
+---
+
+## More than one site on the server (client subdomains)
+
+Each client can have its own site, e.g. `mazinyane.mycorre.com`, while
+`mycorre.com` stays the demo (and the licence server). A client site shares
+nothing with the others but the server: its own checkout in `/var/www/<name>`
+(uploads, logos, backups, logs), its own Postgres database `<name>_prod` that
+only `<name>_user` can open, its own PHP-FPM pool and Nginx site, and its own
+HTTPS certificate.
+
+1. At the DNS provider for mycorre.com, add an **A record**: host `mazinyane`,
+   pointing at the server's IP. Wait until it resolves.
+2. On the server:
+
+   ```bash
+   sudo nexapos-update     # pulls add-site.sh onto the server
+   sudo bash /var/www/nexapos/add-site.sh mazinyane mazinyane.mycorre.com "Mazinyane Butchery"
+   ```
+
+   Near the end it asks you to type `ERASE ALL DATA` (that clears the sample
+   records from the **new, empty** database only) and to set the site's admin
+   login. Run it again if it stops part-way: finished steps are kept. If DNS
+   wasn't ready it skips HTTPS and prints the `certbot` command to run later.
+
+From then on `sudo nexapos-update` updates every site. To update only one:
+`sudo APP_DIR=/var/www/mazinyane nexapos-update`. A factory reset only resets
+the site it's run from: `sudo bash /var/www/mazinyane/factory-reset.sh` resets
+Mazinyane, `sudo bash /var/www/nexapos/factory-reset.sh` resets the demo.

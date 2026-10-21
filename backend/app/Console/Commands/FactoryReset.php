@@ -25,7 +25,8 @@ use Symfony\Component\Process\Process;
  *  - the ZIMRA fiscal registration: fiscal devices (certificate, keys,
  *    receipt numbering), their fiscal days and fiscal receipts as ZIMRA's
  *    record, the tax mappings, and the registers, branches and tax rates
- *    those hang off;
+ *    those hang off — and likewise GoFiscal's: its API key, its receipts,
+ *    and the tills linked to its devices;
  *  - the roles/permissions structure and the migrations table.
  *
  * Takes a database backup first, then wipes and starts over in one
@@ -44,11 +45,11 @@ class FactoryReset extends Command
     /** Never touched. */
     private const KEEP_TABLES = [
         'migrations', 'licenses', 'roles', 'permissions', 'role_has_permissions',
-        'fiscal_devices', 'fiscal_days', 'fiscal_receipts', 'fiscal_tax_mappings',
+        'fiscal_devices', 'fiscal_days', 'fiscal_receipts', 'fiscal_tax_mappings', 'gofiscal_receipts',
     ];
 
-    /** Settings kept: the licence, and the fiscal fields printed on receipts. */
-    private const KEEP_SETTING_PREFIXES = ['license_', 'fiscal_'];
+    /** Settings kept: the licence, the fiscal fields printed on receipts, and GoFiscal's API key and HS code. */
+    private const KEEP_SETTING_PREFIXES = ['license_', 'fiscal_', 'gofiscal_'];
 
     /** @var array<string, \Closure(Builder): Builder> Tables only partly erased: narrows a query to the rows that go. */
     private array $partial = [];
@@ -195,6 +196,9 @@ class FactoryReset extends Command
         $has = fn (string $table) => in_array($table, $tables, true);
 
         $fiscalRegisterIds = $has('fiscal_devices') ? DB::table('fiscal_devices')->pluck('register_id')->all() : [];
+        if ($has('registers') && Schema::hasColumn('registers', 'gofiscal_device_id')) {
+            $fiscalRegisterIds = array_merge($fiscalRegisterIds, DB::table('registers')->whereNotNull('gofiscal_device_id')->pluck('id')->all());
+        }
         $fiscalBranchIds = $fiscalRegisterIds ? DB::table('registers')->whereIn('id', $fiscalRegisterIds)->pluck('branch_id')->all() : [];
         $mappedTaxRateIds = $has('fiscal_tax_mappings') ? DB::table('fiscal_tax_mappings')->whereNotNull('local_tax_rate_id')->pluck('local_tax_rate_id')->all() : [];
 

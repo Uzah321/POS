@@ -301,9 +301,7 @@ class SaleController extends BaseApiController
         }
 
         $payload = $sale->toArray();
-        $payload['fiscal_receipt'] = $fiscalReceipt?->only([
-            'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
-        ]);
+        $payload['fiscal_receipt'] = app(FiscalSubmissionService::class)->summary($fiscalReceipt);
 
         return $this->success($payload, 'Sale completed', 201);
     }
@@ -380,7 +378,11 @@ class SaleController extends BaseApiController
 
     public function receipt(Sale $sale): \Illuminate\Http\JsonResponse
     {
-        return $this->success($sale->load('items.product', 'payments', 'customer', 'cashier', 'branch'));
+        $payload = $sale->load('items.product', 'payments', 'customer', 'cashier', 'branch')->toArray();
+        // A reprint carries the same verification code and QR as the original.
+        $payload['fiscal_receipt'] = app(FiscalSubmissionService::class)->summary($sale->goFiscalReceipt ?? $sale->fiscalReceipt);
+
+        return $this->success($payload);
     }
 
     /**
@@ -522,9 +524,7 @@ class SaleController extends BaseApiController
         }
 
         $payload = $sale->toArray();
-        $payload['fiscal_receipt'] = $fiscalReceipt?->only([
-            'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
-        ]);
+        $payload['fiscal_receipt'] = app(FiscalSubmissionService::class)->summary($fiscalReceipt);
 
         return $this->success($payload, 'Tab closed');
     }

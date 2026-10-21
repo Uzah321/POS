@@ -17,6 +17,9 @@ class FiscalDevice extends Model
         'next_receipt_global_no', 'status', 'last_error',
     ];
 
+    // The device's own secrets never go out in an API response.
+    protected $hidden = ['private_key', 'activation_key'];
+
     protected $casts = [
         'certificate_valid_till' => 'date',
         'branch_address'         => 'array',

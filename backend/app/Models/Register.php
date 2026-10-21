@@ -9,9 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Register extends Model
 {
-    protected $fillable = ['branch_id', 'name', 'code', 'is_active'];
+    protected $fillable = ['branch_id', 'name', 'code', 'is_active', 'gofiscal_device_id'];
 
-    protected $casts = ['is_active' => 'boolean'];
+    protected $casts = ['is_active' => 'boolean', 'gofiscal_device_id' => 'integer'];
 
     public function branch(): BelongsTo { return $this->belongsTo(Branch::class); }
     public function fiscalDevice(): HasOne { return $this->hasOne(FiscalDevice::class); }

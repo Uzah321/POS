@@ -76,6 +76,8 @@ class ProductController extends BaseApiController
             'sku'             => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId)->where('business_type', $businessType))],
             'barcode'         => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId)->where('business_type', $businessType))],
             'plu_code'        => ['nullable', 'string', 'max:20', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $branchId)->where('business_type', $businessType))],
+            // ZIMRA's harmonised system code, sent on each fiscal receipt line
+            'hs_code'         => ['nullable', 'regex:/^\d{4,8}$/'],
             'category_id'     => 'nullable|exists:categories,id',
             'business_type'   => 'nullable|in:restaurant,supermarket,both',
             'brand_id'        => 'nullable|exists:brands,id',
@@ -183,6 +185,7 @@ class ProductController extends BaseApiController
             'sku'            => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id)->where('business_type', $businessType))->ignore($product->id)],
             'barcode'        => ['nullable', 'string', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id)->where('business_type', $businessType))->ignore($product->id)],
             'plu_code'       => ['nullable', 'string', 'max:20', Rule::unique('products')->where(fn($q) => $q->where('branch_id', $product->branch_id)->where('business_type', $businessType))->ignore($product->id)],
+            'hs_code'        => ['nullable', 'regex:/^\d{4,8}$/'],
             'category_id'    => 'nullable|exists:categories,id',
             'business_type'  => 'sometimes|in:restaurant,supermarket,both',
             'brand_id'       => 'nullable|exists:brands,id',

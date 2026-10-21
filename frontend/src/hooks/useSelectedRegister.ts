@@ -17,7 +17,7 @@ const STORAGE_KEY = 'core_register_id';
 export function useSelectedRegister(branchId: number | undefined) {
   const { data: registers } = useQuery({
     queryKey: ['registers', 'select', branchId],
-    queryFn: () => registersApi.list({ branch_id: branchId }).then(r => (r.data?.data ?? []) as any[]),
+    queryFn: () => registersApi.tills({ branch_id: branchId }).then(r => (r.data?.data ?? []) as any[]),
     enabled: !!branchId,
     staleTime: 60_000,
   });

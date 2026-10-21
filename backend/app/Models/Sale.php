@@ -99,4 +99,5 @@ class Sale extends Model
     public function payments(): HasMany { return $this->hasMany(SalePayment::class); }
     public function refunds(): HasMany { return $this->hasMany(Refund::class); }
     public function fiscalReceipt(): HasOne { return $this->hasOne(FiscalReceipt::class); }
+    public function goFiscalReceipt(): HasOne { return $this->hasOne(GoFiscalReceipt::class); }
 }

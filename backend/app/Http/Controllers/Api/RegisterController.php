@@ -16,6 +16,22 @@ class RegisterController extends BaseApiController
         );
     }
 
+    /**
+     * The branch's tills, for the till to say which one it is
+     * (useSelectedRegister) — open to anyone who sells, unlike index(),
+     * so names only. Anyone but an admin sees only their own branch's.
+     */
+    public function tills(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $branchId = $this->effectiveBranchId($request);
+
+        return $this->success(
+            Register::when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->orderBy('name')
+                ->get(['id', 'branch_id', 'name', 'code', 'is_active'])
+        );
+    }
+
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([

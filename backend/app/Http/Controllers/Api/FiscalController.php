@@ -144,7 +144,7 @@ class FiscalController extends BaseApiController
         ]);
     }
 
-    /** Retries every pending/failed fiscal receipt for a branch — called by the frontend's existing offline-sync poll. */
+    /** Retries every pending/failed fiscal receipt for a branch — called by the frontend's existing offline-sync poll, and by Sync Now (force). */
     public function sync(Request $request): \Illuminate\Http\JsonResponse
     {
         $branchId = (int) ($request->branch_id ?? $request->user()->branch_id);
@@ -152,6 +152,6 @@ class FiscalController extends BaseApiController
             return $this->success(['submitted' => 0, 'still_pending' => 0]);
         }
 
-        return $this->success($this->submissionService->retryPendingForBranch($branchId));
+        return $this->success($this->submissionService->retryPendingForBranch($branchId, $request->boolean('force')));
     }
 }

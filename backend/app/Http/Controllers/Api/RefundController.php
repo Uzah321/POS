@@ -137,9 +137,7 @@ class RefundController extends BaseApiController
         }
 
         $payload = $refund->toArray();
-        $payload['fiscal_receipt'] = $fiscalReceipt?->only([
-            'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
-        ]);
+        $payload['fiscal_receipt'] = app(FiscalSubmissionService::class)->summary($fiscalReceipt);
 
         return $this->success($payload, 'Refund processed', 201);
     }

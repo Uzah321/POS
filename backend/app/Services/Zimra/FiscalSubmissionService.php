@@ -5,8 +5,10 @@ namespace App\Services\Zimra;
 use App\Models\FiscalDay;
 use App\Models\FiscalDevice;
 use App\Models\FiscalReceipt;
+use App\Models\GoFiscalReceipt;
 use App\Models\Refund;
 use App\Models\Sale;
+use App\Services\GoFiscal\GoFiscalService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -16,6 +18,9 @@ use Illuminate\Support\Facades\Log;
  * never changes on retry; only ZIMRA's own acceptance moves a receipt out of
  * "pending" (see §9 rule 13). attemptSubmit() never throws, so it's safe to
  * call from a controller after its own transaction has already committed.
+ *
+ * A till linked to a GoFiscal device fiscalises through the engine instead
+ * (App\Services\GoFiscal\GoFiscalService) — the same calls, a GoFiscalReceipt.
  */
 class FiscalSubmissionService
 {
@@ -23,7 +28,20 @@ class FiscalSubmissionService
         private readonly FiscalDeviceService $deviceService,
         private readonly FiscalReceiptBuilder $builder,
         private readonly ZimraCryptoService $crypto,
+        private readonly GoFiscalService $goFiscal,
     ) {
+    }
+
+    /** What the till needs to print a receipt's fiscal block, for either kind of receipt. */
+    public function summary(FiscalReceipt|GoFiscalReceipt|null $receipt): ?array
+    {
+        if ($receipt instanceof GoFiscalReceipt) {
+            return $this->goFiscal->summary($receipt);
+        }
+
+        return $receipt ? ['provider' => 'zimra'] + $receipt->only([
+            'id', 'status', 'receipt_global_no', 'fiscal_day_id', 'qr_data', 'qr_code_url', 'last_error',
+        ]) : null;
     }
 
     /** Resolves the registered, ready-to-submit fiscal device for a register, or null if fiscalisation isn't set up for it. */
@@ -39,8 +57,12 @@ class FiscalSubmissionService
     }
 
     /** Allocates numbering + builds/signs the FiscalInvoice payload for $sale. Returns null if fiscalisation isn't configured for its register. */
-    public function prepareForSale(Sale $sale): ?FiscalReceipt
+    public function prepareForSale(Sale $sale): FiscalReceipt|GoFiscalReceipt|null
     {
+        if ($this->goFiscal->deviceForRegister($sale->register_id)) {
+            return $this->goFiscal->prepareForSale($sale);
+        }
+
         $device = $this->deviceForRegister($sale->register_id);
         if (! $device) {
             return null;
@@ -61,8 +83,12 @@ class FiscalSubmissionService
     }
 
     /** Allocates numbering + builds/signs a CreditNote payload for $refund. Returns null if fiscalisation isn't set up, or the original sale's receipt isn't accepted by ZIMRA yet (RCPT032 requires it to exist first). */
-    public function prepareForRefund(Refund $refund): ?FiscalReceipt
+    public function prepareForRefund(Refund $refund): FiscalReceipt|GoFiscalReceipt|null
     {
+        if ($refund->sale?->goFiscalReceipt) {
+            return $this->goFiscal->prepareForRefund($refund);
+        }
+
         $device = $this->deviceForRegister($refund->register_id);
         if (! $device) {
             return null;
@@ -118,8 +144,14 @@ class FiscalSubmissionService
     }
 
     /** Submits a pending/failed receipt to ZIMRA. Never throws — returns whether it succeeded. */
-    public function attemptSubmit(FiscalReceipt $receipt): bool
+    public function attemptSubmit(FiscalReceipt|GoFiscalReceipt $receipt): bool
     {
+        if ($receipt instanceof GoFiscalReceipt) {
+            // Short, so the sale's own response reaches the till in time — a
+            // receipt still pending is fetched by the till before it prints.
+            return $this->goFiscal->submit($receipt, GoFiscalService::SALE_TIMEOUT);
+        }
+
         if ($receipt->status === 'submitted') {
             return true;
         }
@@ -167,11 +199,14 @@ class FiscalSubmissionService
      * ascending submission order, so a device stops at its first still-failing
      * receipt — submitting a later one out of order would only compound the gap.
      *
+     * Then the branch's GoFiscal receipts — $force (Sync Now) resends even
+     * ones the engine refused that haven't changed since.
+     *
      * @return array{submitted: int, still_pending: int}
      */
-    public function retryPendingForBranch(int $branchId): array
+    public function retryPendingForBranch(int $branchId, bool $force = false): array
     {
-        $results = ['submitted' => 0, 'still_pending' => 0];
+        $results = $this->goFiscal->retryPendingForBranch($branchId, $force);
 
         $devices = FiscalDevice::whereHas('register', fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'registered')->get();

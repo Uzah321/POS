@@ -211,6 +211,8 @@ export const taxRatesApi = {
 
 export const registersApi = {
   list: (params?: object) => api.get('/registers', { params }),
+  // Names only, for a till to pick itself — readable without manage_settings.
+  tills: (params?: object) => api.get('/tills', { params }),
   get: (id: number) => api.get(`/registers/${id}`),
   create: (data: object) => api.post('/registers', data),
   update: (id: number, data: object) => api.put(`/registers/${id}`, data),
@@ -228,7 +230,20 @@ export const fiscalApi = {
   closeDay: (fiscalDeviceId: number) => api.post(`/fiscal/devices/${fiscalDeviceId}/close-day`),
   status: (fiscalDeviceId: number) => api.get(`/fiscal/devices/${fiscalDeviceId}/status`),
   updateTaxMapping: (id: number, data: { local_tax_rate_id: number | null }) => api.patch(`/fiscal/tax-mappings/${id}`, data),
-  sync: (branchId?: number) => api.post('/fiscal/sync', branchId ? { branch_id: branchId } : {}),
+  sync: (branchId?: number, force = false) => api.post('/fiscal/sync', { ...(branchId ? { branch_id: branchId } : {}), ...(force ? { force: true } : {}) }),
+};
+
+// GoFiscal — the engine that fiscalises receipts for tills linked to its
+// devices. The API key goes in once and never comes back (only its last 4).
+export const goFiscalApi = {
+  get: () => api.get('/fiscal/gofiscal'),
+  update: (data: { api_key?: string; default_hs_code?: string | null }) => api.put('/fiscal/gofiscal', data, { timeout: 45000 }),
+  devices: () => api.get('/fiscal/gofiscal/devices', { timeout: 45000 }),
+  linkRegister: (registerId: number, deviceId: number | null) => api.put(`/fiscal/gofiscal/registers/${registerId}`, { device_id: deviceId }),
+  status: (deviceId: number, refresh = false) => api.get(`/fiscal/gofiscal/devices/${deviceId}/status`, { params: refresh ? { refresh: 1 } : {}, timeout: 58000 }),
+  closeDay: (deviceId: number) => api.post(`/fiscal/gofiscal/devices/${deviceId}/close-day`, {}, { timeout: 58000 }),
+  // The server waits up to 45 s on the engine, under Nginx's 60 s.
+  submit: (receiptId: number) => api.post(`/fiscal/gofiscal/receipts/${receiptId}/submit`, {}, { timeout: 55000 }),
 };
 
 export const ecocashApi = {

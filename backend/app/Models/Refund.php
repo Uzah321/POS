@@ -21,4 +21,5 @@ class Refund extends Model
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function items(): HasMany { return $this->hasMany(RefundItem::class); }
     public function fiscalReceipt(): HasOne { return $this->hasOne(FiscalReceipt::class); }
+    public function goFiscalReceipt(): HasOne { return $this->hasOne(GoFiscalReceipt::class); }
 }

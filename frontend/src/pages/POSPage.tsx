@@ -24,6 +24,7 @@ import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
 import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
 import { useServerHealth } from '../hooks/useServerHealth';
+import SelectTillModal from '../components/SelectTillModal';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
@@ -1909,29 +1910,7 @@ export default function POSPage() {
       </div>
     )}
 
-    {/* Till selection — only ever shown when this branch has more than one
-        active register configured for ZIMRA fiscalisation (Settings ›
-        Fiscalisation); a single-till branch never sees this. */}
-    {needsRegisterSelection && (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-          <h2 className="font-bold text-gray-900 mb-1">Select this till</h2>
-          <p className="text-sm text-gray-500 mb-4">This branch has more than one till registered with ZIMRA — pick which one this device is, so receipts fiscalise correctly.</p>
-          <div className="space-y-2">
-            {fiscalRegisters.map((r: any) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => selectRegister(r.id)}
-                className="w-full text-left px-4 py-3 rounded-none border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors font-semibold text-gray-800"
-              >
-                {r.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )}
+    {needsRegisterSelection && <SelectTillModal registers={fiscalRegisters} onSelect={selectRegister} />}
     </>
   );
 }

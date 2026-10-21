@@ -231,7 +231,16 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     // resubmits receipts that were already built and signed); every device
     // registration/config action is manage_settings-gated.
     Route::post('/fiscal/sync', [\App\Http\Controllers\Api\FiscalController::class, 'sync']);
+    Route::get('/tills', [\App\Http\Controllers\Api\RegisterController::class, 'tills']);
+    // The till finishing a GoFiscal receipt before printing it (idempotent — the engine dedups by invoice number).
+    Route::post('/fiscal/gofiscal/receipts/{goFiscalReceipt}/submit', [\App\Http\Controllers\Api\GoFiscalController::class, 'submit']);
     Route::middleware('permission:manage_settings')->group(function () {
+        Route::get('/fiscal/gofiscal', [\App\Http\Controllers\Api\GoFiscalController::class, 'show']);
+        Route::put('/fiscal/gofiscal', [\App\Http\Controllers\Api\GoFiscalController::class, 'update']);
+        Route::get('/fiscal/gofiscal/devices', [\App\Http\Controllers\Api\GoFiscalController::class, 'devices']);
+        Route::get('/fiscal/gofiscal/devices/{device}/status', [\App\Http\Controllers\Api\GoFiscalController::class, 'status'])->whereNumber('device');
+        Route::post('/fiscal/gofiscal/devices/{device}/close-day', [\App\Http\Controllers\Api\GoFiscalController::class, 'closeDay'])->whereNumber('device');
+        Route::put('/fiscal/gofiscal/registers/{register}', [\App\Http\Controllers\Api\GoFiscalController::class, 'linkRegister']);
         Route::apiResource('registers', \App\Http\Controllers\Api\RegisterController::class);
         Route::post('/fiscal/registers/{register}/verify-taxpayer', [\App\Http\Controllers\Api\FiscalController::class, 'verifyTaxpayer']);
         Route::post('/fiscal/registers/{register}/register-device', [\App\Http\Controllers\Api\FiscalController::class, 'registerDevice']);

@@ -22,6 +22,8 @@ import NumericKeypad from '../components/ui/NumericKeypad';
 import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
 import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
+import { useSelectedRegister } from '../hooks/useSelectedRegister';
+import SelectTillModal from '../components/SelectTillModal';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -75,6 +77,8 @@ export default function CashierPage() {
   const hw           = useHardwareStore();
   const currency     = activeCurrency?.symbol ?? '$';
   const branchId     = user?.branch?.id ?? 1;
+  // Which till this is — its sales are fiscalised (ZIMRA / GoFiscal) by that till's device.
+  const { registerId, registers: fiscalRegisters, needsSelection: needsRegisterSelection, selectRegister } = useSelectedRegister(branchId);
   // Registered weighing scales — a store can run several (one per
   // department), each owning its own list of products (product.scale_id).
   // Connections are managed centrally in lib/hardware/scale.ts; this just
@@ -507,6 +511,7 @@ export default function CashierPage() {
   const buildSalePayload = () => ({
     branch_id:      branchId,
     warehouse_id:   1,
+    register_id:    registerId,
     customer_id:    null,
     table_number:   cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,
     items: cart.items.map(i => ({
@@ -1179,6 +1184,8 @@ Reason (optional):`);
         confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
       />
     )}
+
+    {needsRegisterSelection && <SelectTillModal registers={fiscalRegisters} onSelect={selectRegister} />}
     </>
   );
 }

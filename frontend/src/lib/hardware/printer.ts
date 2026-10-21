@@ -18,6 +18,7 @@ import { drawOnWhite, loadImage } from '../companyLogo';
 import { bridgePrint, bridgePrinters } from './printBridge';
 import { qzPrintRaw, qzPrinters } from './qzTray';
 import { useHardwareStore, type ChosenPrinter } from '../../stores/hardwareStore';
+import { goFiscalApi } from '../../api';
 
 interface ElectronPrinterBridge {
   isElectron: true;
@@ -165,6 +166,35 @@ async function escPosLogo(logo?: string): Promise<Uint8Array | null> {
   }
 }
 
+/**
+ * The fiscal QR code as a raster image too (GS v 0, like the logo — far more
+ * printers take it than the GS ( k QR command): each module 3–6 dots, about
+ * 25 mm across with its quiet zone. Null without a link, or if it won't encode.
+ */
+function escPosQr(url?: string): Uint8Array | null {
+  if (!url) return null;
+  try {
+    const { modules } = QRCode.create(url, { errorCorrectionLevel: 'M' });
+    const n = modules.size;
+    const quiet = 4;
+    const scale = Math.max(3, Math.min(6, Math.floor(200 / (n + 2 * quiet))));
+    const w = (n + 2 * quiet) * scale;
+    const rowBytes = Math.ceil(w / 8);
+    const out = new Uint8Array(8 + rowBytes * w);
+    out.set([GS, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, w & 0xff, w >> 8]);
+    for (let y = 0; y < w; y++) {
+      const row = Math.floor(y / scale) - quiet;
+      for (let x = 0; x < w; x++) {
+        const col = Math.floor(x / scale) - quiet;
+        if (row >= 0 && col >= 0 && row < n && col < n && modules.get(row, col)) out[8 + y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+      }
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Receipt data shape
 // ---------------------------------------------------------------------------
@@ -222,6 +252,10 @@ export interface ReceiptData {
   fiscalVerificationCode?: string;
   fiscalQrCodeUrl?: string;
   fiscalReceiptGlobalNo?: number;
+  fiscalDeviceId?: number;
+  fiscalDayNo?: number;
+  /** A GoFiscal receipt that wasn't through when the sale saved — finished just before printing (withFiscalResult). */
+  fiscalPendingId?: number;
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
@@ -343,9 +377,19 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     fiscalDay: options.fiscalDay,
     recGn: options.recGn,
     rec68: options.rec68,
-    fiscalVerificationCode: groupedVerificationCode(sale?.fiscal_receipt?.qr_data),
-    fiscalQrCodeUrl: sale?.fiscal_receipt?.qr_code_url ?? undefined,
-    fiscalReceiptGlobalNo: sale?.fiscal_receipt?.receipt_global_no ?? undefined,
+    ...fiscalFields(sale?.fiscal_receipt),
+  };
+}
+
+/** The fiscal block's fields from a sale's / refund's fiscal_receipt (ZIMRA direct or GoFiscal). */
+function fiscalFields(fr: any): Partial<ReceiptData> {
+  return {
+    fiscalVerificationCode: groupedVerificationCode(fr?.qr_data),
+    fiscalQrCodeUrl: fr?.qr_code_url ?? undefined,
+    fiscalReceiptGlobalNo: fr?.receipt_global_no ?? undefined,
+    fiscalDeviceId: fr?.device_id ?? undefined,
+    fiscalDayNo: fr?.fiscal_day_no ?? undefined,
+    fiscalPendingId: fr?.provider === 'gofiscal' && fr?.status === 'pending' ? fr.id : undefined,
   };
 }
 
@@ -353,6 +397,28 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
 function groupedVerificationCode(qrData?: string): string | undefined {
   if (!qrData) return undefined;
   return qrData.match(/.{1,4}/g)?.join('-');
+}
+
+/** Whether the bill carries a real fiscal result (and not the static fields from Settings). */
+function isFiscalised(d: ReceiptData): boolean {
+  return d.fiscalReceiptGlobalNo != null || !!d.fiscalVerificationCode;
+}
+
+/**
+ * A GoFiscal receipt that wasn't through when the sale saved (the engine,
+ * or ZIMRA behind it, was slow) is finished here, just before printing, so
+ * the customer's copy carries its verification code and QR. If it still
+ * isn't through, the bill prints without them and the sync poll sends the
+ * receipt later.
+ */
+async function withFiscalResult(d: ReceiptData): Promise<ReceiptData> {
+  if (!d.fiscalPendingId) return d;
+  try {
+    const fr = (await goFiscalApi.submit(d.fiscalPendingId)).data?.data;
+    return { ...d, ...(fr?.status === 'submitted' ? fiscalFields(fr) : {}), fiscalPendingId: undefined };
+  } catch {
+    return { ...d, fiscalPendingId: undefined };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -478,24 +544,29 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   if (d.storePhone) parts.push(line(`Tel : ${d.storePhone}`));
   if (d.vatNumber)  parts.push(line(`VAT No : ${d.vatNumber}`));
   if (d.tinNumber)  parts.push(line(`TIN No : ${d.tinNumber}`));
-  if (d.fiscalReceiptGlobalNo == null) {
+  if (!isFiscalised(d)) {
     if (d.deviceId)   parts.push(line(`Device Id : ${d.deviceId}`));
     if (d.recGn)      parts.push(line(`REC GN : ${d.recGn}`));
     if (d.rec68)      parts.push(line(`REC 68 : ${d.rec68}`));
     if (d.fiscalDay)  parts.push(line(`Fiscal Day : ${d.fiscalDay}`));
   } else {
-    // Thermal ESC/POS printers vary too much in raster/QR command support to
-    // reliably print the QR bitmap here — the printed verification code is
-    // spec-compliant on its own (§11 marks the QR picture as optional when a
-    // printer can't render it); the customer can still verify manually via it.
-    parts.push(line(`Rec No : ${d.fiscalReceiptGlobalNo}`));
-    if (d.fiscalVerificationCode) parts.push(line(`Verify : ${d.fiscalVerificationCode}`));
+    if (d.fiscalDeviceId != null) parts.push(line(`Device Id : ${d.fiscalDeviceId}`));
+    if (d.fiscalDayNo != null) parts.push(line(`Fiscal Day : ${d.fiscalDayNo}`));
+    if (d.fiscalReceiptGlobalNo != null) parts.push(line(`Rec No : ${d.fiscalReceiptGlobalNo}`));
   }
 
   parts.push(
     bytes(LF),
     ESC_ALIGN_CENTER,
     ESC_BOLD_ON, line('FISCAL TAX INVOICE'), ESC_BOLD_OFF,
+  );
+  if (isFiscalised(d)) {
+    const qr = escPosQr(d.fiscalQrCodeUrl);
+    if (qr) parts.push(qr, bytes(LF));
+    if (d.fiscalVerificationCode) parts.push(line('Verification code:'), ESC_BOLD_ON, line(d.fiscalVerificationCode), ESC_BOLD_OFF);
+    if (d.fiscalQrCodeUrl) parts.push(line(cut(`Verify at ${d.fiscalQrCodeUrl.split('/').slice(2, 3).join('')}`, W)));
+  }
+  parts.push(
     divider('=', W),
     line(d.footer ?? 'Core POS'),
     bytes(LF, LF, LF),
@@ -679,6 +750,11 @@ export async function printReceipt(
   /** Mode 'system': the bill prints on each of these. */
   printers: ChosenPrinter[] = [],
 ): Promise<void> {
+  // Printing straight to a printer can wait for the receipt's fiscal result;
+  // the print dialog's window can't open late (popup blockers), so it waits inside.
+  const direct = (mode === 'webusb' && !!usbConnections.receipt) || (mode === 'webbluetooth' && !!bleConnections.receipt) || (mode === 'system' && printers.length > 0);
+  if (direct) data = await withFiscalResult(data);
+
   if (mode === 'webusb' && usbConnections.receipt) {
     await sendToUsb(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'receipt');
     return;
@@ -990,16 +1066,18 @@ ${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} 
 ${d.storePhone ? `<div>Tel : ${d.storePhone}</div>` : ''}
 ${d.vatNumber ? `<div>VAT No : ${d.vatNumber}</div>` : ''}
 ${d.tinNumber ? `<div>TIN No : ${d.tinNumber}</div>` : ''}
-${d.fiscalReceiptGlobalNo == null ? `
+${!isFiscalised(d) ? `
 ${d.deviceId ? `<div>Device Id : ${d.deviceId}</div>` : ''}
 ${d.recGn ? `<div>REC GN : ${d.recGn}</div>` : ''}
 ${d.rec68 ? `<div>REC 68 : ${d.rec68}</div>` : ''}
-${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}` : ''}
+${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}` : `
+${d.fiscalDeviceId != null ? `<div>Device Id : ${d.fiscalDeviceId}</div>` : ''}
+${d.fiscalDayNo != null ? `<div>Fiscal Day : ${d.fiscalDayNo}</div>` : ''}`}
 <br>
 <div class="center bold">FISCAL TAX INVOICE</div>
 <div class="solid"></div>
-${d.fiscalReceiptGlobalNo != null ? `
-<div class="center">Rec No : ${d.fiscalReceiptGlobalNo}</div>
+${isFiscalised(d) ? `
+${d.fiscalReceiptGlobalNo != null ? `<div class="center">Rec No : ${d.fiscalReceiptGlobalNo}</div>` : ''}
 ${qrImageDataUrl ? `<div class="center"><img src="${qrImageDataUrl}" width="130" height="130" alt="QR"></div>` : ''}
 ${d.fiscalVerificationCode ? `<div class="center">Verification code:</div><div class="center bold">${d.fiscalVerificationCode}</div>` : ''}
 ${d.fiscalQrCodeUrl ? `<div class="center" style="font-size:${9}px;word-break:break-all;">You can verify this receipt manually at<br>${d.fiscalQrCodeUrl.split('/').slice(0, 3).join('/')}/</div>` : ''}
@@ -1073,6 +1151,11 @@ export async function browserPrintReceipt(d: ReceiptData): Promise<void> {
   // then fill it in once the QR image is ready.
   const w = window.open('', '_blank', 'width=320,height=700,toolbar=0,scrollbars=1');
   if (!w) { alert('Allow popups to print receipts'); return; }
+  if (d.fiscalPendingId) {
+    w.document.write('<p style="font:14px sans-serif;padding:16px">Getting the ZIMRA verification code…</p>');
+    d = await withFiscalResult(d);
+    w.document.open();
+  }
   const qrImageDataUrl = await renderFiscalQrDataUrl(d.fiscalQrCodeUrl);
   const html = buildReceiptHtml(d, undefined, qrImageDataUrl);
   w.document.write(html);

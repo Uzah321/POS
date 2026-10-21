@@ -28,9 +28,12 @@ class SettingController extends BaseApiController
     /** Scale-barcode layouts (barcode_weight_*, barcode_price_*) the till decodes with. */
     private const PUBLIC_PREFIXES = ['barcode_weight_', 'barcode_price_'];
 
+    /** Never sent to a browser, not even an admin's, nor saved from here — see GoFiscalController. */
+    private const SERVER_ONLY_KEYS = [\App\Services\GoFiscal\GoFiscalClient::KEY_SETTING];
+
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $settings = Setting::all()->keyBy('key')->map(fn($s) => $s->value);
+        $settings = Setting::all()->keyBy('key')->map(fn($s) => $s->value)->except(self::SERVER_ONLY_KEYS);
         if (! $request->user()?->can('manage_settings')) {
             $settings = $settings->filter(fn($v, $key) => in_array($key, self::PUBLIC_KEYS, true)
                 || \Illuminate\Support\Str::startsWith($key, self::PUBLIC_PREFIXES));
@@ -40,7 +43,7 @@ class SettingController extends BaseApiController
 
     public function update(Request $request): \Illuminate\Http\JsonResponse
     {
-        foreach ($request->all() as $key => $value) {
+        foreach ($request->except(self::SERVER_ONLY_KEYS) as $key => $value) {
             Setting::set($key, $value);
         }
         return $this->success(null,'Settings saved');

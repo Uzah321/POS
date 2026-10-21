@@ -9,6 +9,7 @@ use App\Models\HeldSale;
 use App\Models\SaleItem;
 use App\Models\ShiftEnd;
 use App\Models\Register;
+use App\Services\GoFiscal\GoFiscalService;
 use App\Services\Zimra\FiscalDeviceService;
 use App\Services\Zimra\FiscalSubmissionService;
 use App\Support\OperatingCosts;
@@ -239,6 +240,9 @@ class EndOfDayController extends BaseApiController
                 Log::warning('ZIMRA closeDay at EOD failed', ['fiscal_device_id' => $device->id, 'error' => $e->getMessage()]);
             }
         }
+
+        // Tills that fiscalise through GoFiscal: the engine closes their days.
+        app(GoFiscalService::class)->closeDaysForBranch($data['branch_id']);
 
         return $this->success(
             ['end_of_day' => $eod->load('user', 'branch'), 'cleared_orders' => $clearedOrders],

@@ -28,6 +28,13 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // ZIMRA fiscalisation through the GoFiscal engine. The API key is set per
+    // site in Settings › ZIMRA Fiscalisation and kept encrypted in the
+    // database (App\Services\GoFiscal\GoFiscalClient), never sent to a browser.
+    'gofiscal' => [
+        'url' => env('GOFISCAL_URL', 'https://api.gofiscal.app'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

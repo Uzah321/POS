@@ -58,6 +58,7 @@ const schema = z.object({
   sku: z.string().min(1),
   barcode: optionalText,
   plu_code: optionalText,
+  hs_code: z.preprocess((value) => (value === null ? undefined : value), z.union([z.literal(''), z.string().regex(/^\d{4,8}$/, 'An HS code is 4 to 8 digits')]).optional()),
   selling_price: z.coerce.number().min(0),
   cost_price: z.coerce.number().min(0),
   category_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
@@ -466,6 +467,13 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                   </button>
                 )}
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700">HS Code <span className="text-gray-400 font-medium">(ZIMRA)</span></label>
+              <input {...register('hs_code')} inputMode="numeric" maxLength={8} className={field} placeholder="e.g. 02013000" />
+              {errors.hs_code
+                ? <p className="text-red-500 text-xs mt-1">{String(errors.hs_code.message)}</p>
+                : <p className="text-xs text-gray-400 mt-1">Printed on fiscal receipts. Empty uses the default in Settings › ZIMRA Fiscalisation.</p>}
             </div>
             <div>
               <label className="text-sm font-semibold text-gray-700">Selling Price * <span className="text-gray-400 font-medium">({activeCurrency?.code || 'USD'})</span></label>

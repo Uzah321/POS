@@ -510,8 +510,7 @@ export default function CashierPage() {
   });
 
   const buildSalePayload = () => ({
-    branch_id:      branchId,
-    warehouse_id:   1,
+    branch_id:      branchId, // the server takes the stock from this branch's own warehouse
     register_id:    registerId,
     customer_id:    null,
     table_number:   cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,

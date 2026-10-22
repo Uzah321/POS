@@ -633,7 +633,6 @@ export default function POSPage() {
       }
       return salesApi.create({
         branch_id: branchId,
-        warehouse_id: 1,
         register_id: registerId,
         customer_id: vars.customerId,
         table_id: vars.tableId,
@@ -975,9 +974,9 @@ export default function POSPage() {
       return;
     }
 
+    // No warehouse_id: the server takes the stock from the branch's own warehouse.
     const salePayload = {
       branch_id: branchId,
-      warehouse_id: 1,
       register_id: registerId,
       customer_id: cart.customerId,
       table_number: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : null,

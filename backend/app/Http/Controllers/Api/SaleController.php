@@ -117,7 +117,7 @@ class SaleController extends BaseApiController
     {
         $data = $request->validate([
             'branch_id'      => 'required|exists:branches,id',
-            'warehouse_id'   => 'required|exists:warehouses,id',
+            'warehouse_id'   => 'nullable|integer', // see saleWarehouseId()
             'register_id'    => 'nullable|exists:registers,id',
             'customer_id'    => 'nullable|exists:customers,id',
             'items'          => 'required|array|min:1',
@@ -157,6 +157,11 @@ class SaleController extends BaseApiController
         $ownedCount = \App\Models\Product::whereIn('id', $productIds)->where('branch_id', $data['branch_id'])->count();
         if ($ownedCount !== $productIds->count()) {
             return $this->error('One or more items do not belong to this branch.', 422);
+        }
+
+        $data['warehouse_id'] = $this->saleWarehouseId((int) $data['branch_id'], $data['warehouse_id'] ?? null);
+        if (! $data['warehouse_id']) {
+            return $this->error('This branch has no warehouse to sell from — add one first.', 422);
         }
 
         try {
@@ -585,6 +590,26 @@ class SaleController extends BaseApiController
     {
         HeldSale::findOrFail($id)->delete();
         return $this->success(null, 'Held sale removed');
+    }
+
+    /**
+     * The warehouse a sale's stock comes out of: the one asked for if it's
+     * the branch's own, else the branch's default — where a new product's
+     * opening stock goes too (ProductController::store). The tills used to
+     * send warehouse 1 whatever the branch: gone once a factory reset had
+     * recreated the warehouses, so every sale was refused ("The selected
+     * warehouse id is invalid"), and on another branch it took the stock
+     * out of the first branch's warehouse.
+     */
+    private function saleWarehouseId(int $branchId, ?int $asked): ?int
+    {
+        if ($asked && \App\Models\Warehouse::whereKey($asked)->where('branch_id', $branchId)->exists()) {
+            return $asked;
+        }
+
+        return \App\Models\Warehouse::where('branch_id', $branchId)->orderByDesc('is_default')->orderBy('id')->value('id')
+            ?? \App\Models\Warehouse::where('is_default', true)->orderBy('id')->value('id')
+            ?? \App\Models\Warehouse::orderBy('id')->value('id');
     }
 
     /**

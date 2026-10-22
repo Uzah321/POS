@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyTransaction;
 use App\Models\CustomerCreditTransaction;
 use App\Models\HeldSale;
+use App\Models\RestaurantTable;
 use App\Models\ShiftEnd;
 use App\Services\Zimra\FiscalSubmissionService;
 use Illuminate\Http\Request;
@@ -162,6 +163,12 @@ class SaleController extends BaseApiController
         $data['warehouse_id'] = $this->saleWarehouseId((int) $data['branch_id'], $data['warehouse_id'] ?? null);
         if (! $data['warehouse_id']) {
             return $this->error('This branch has no warehouse to sell from — add one first.', 422);
+        }
+
+        // A tab opened on a table sends only the table's id — stamp its name
+        // too, which receipts and the table/waiter reports read.
+        if (! empty($data['table_id']) && empty($data['table_number'])) {
+            $data['table_number'] = mb_substr((string) RestaurantTable::whereKey($data['table_id'])->value('name'), 0, 20) ?: null;
         }
 
         try {

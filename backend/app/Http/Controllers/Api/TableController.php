@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Branch;
 use App\Models\RestaurantTable;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class TableController extends BaseApiController
 {
@@ -40,28 +42,58 @@ class TableController extends BaseApiController
 
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
+        $request->validate(['branch_id' => 'nullable|exists:branches,id']);
+        $branchId = $this->branchForNewTable($request);
+        if (! $branchId) {
+            return $this->error('Add a branch first (Settings › Branches) — every table belongs to one.', 422);
+        }
+
         $data = $request->validate([
-            'branch_id'  => 'required|exists:branches,id',
-            'name'       => 'required|string|max:50',
+            'name'       => ['required', 'string', 'max:50', $this->uniqueName($branchId)],
             'seats'      => 'nullable|integer|min:1',
             'sort_order' => 'nullable|integer|min:0',
-        ]);
+        ], ['name.unique' => 'There is already a table with that name.']);
 
-        $table = RestaurantTable::create($data);
+        // Blank seats / order keep their defaults (2, 0) — the columns take no null.
+        $table = RestaurantTable::create(array_filter($data, fn ($v) => $v !== null) + ['branch_id' => $branchId, 'seats' => 2]);
 
         return $this->success($table, 'Table created', 201);
+    }
+
+    /**
+     * The branch a new table goes in. An admin can say which; anyone else
+     * gets their own. Staff with no branch (allowed for admins and managers)
+     * get the main branch — the screen used to send none for them, or a
+     * branch id that didn't exist, and every new table was refused.
+     */
+    private function branchForNewTable(Request $request): ?int
+    {
+        $user = $request->user();
+        if ($user->branch_id && ! $user->hasRole('admin')) {
+            return $user->branch_id;
+        }
+
+        return $request->integer('branch_id') ?: $user->branch_id
+            ?: Branch::where('is_main', true)->value('id')
+            ?: Branch::orderBy('id')->value('id');
+    }
+
+    /** Two tables called "Table 4" in one branch can't be told apart on the floor plan or the kitchen ticket. */
+    private function uniqueName(int $branchId, ?RestaurantTable $ignore = null): \Illuminate\Validation\Rules\Unique
+    {
+        return Rule::unique('restaurant_tables', 'name')->where('branch_id', $branchId)->ignore($ignore?->id);
     }
 
     public function update(Request $request, RestaurantTable $table): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
-            'name'       => 'sometimes|string|max:50',
+            'name'       => ['sometimes', 'string', 'max:50', $this->uniqueName($table->branch_id, $table)],
             'seats'      => 'nullable|integer|min:1',
             'sort_order' => 'nullable|integer|min:0',
             'is_active'  => 'sometimes|boolean',
-        ]);
+        ], ['name.unique' => 'There is already a table with that name.']);
 
-        $table->update($data);
+        $table->update(array_filter($data, fn ($v) => $v !== null));
 
         return $this->success($table, 'Table updated');
     }

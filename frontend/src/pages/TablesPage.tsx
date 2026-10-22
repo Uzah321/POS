@@ -72,17 +72,21 @@ export default function TablesPage() {
   // Manage mode always shows every table so any of them can be edited.
   const shownTables = manageMode || filter === 'all' ? tables : tables.filter((t) => (filter === 'occupied') === !!t.open_sale);
 
+  // The same list (and cache) as the POS waiter picker: /waiters is open to
+  // whoever takes orders, where the full /users list needs manage_users — a
+  // manager or cashier opening a table here used to find no waiters at all.
   const { data: waiters } = useQuery({
     queryKey: ['users', 'role-waiter'],
-    queryFn: () => usersApi.list({ role: 'waiter', per_page: 200 }).then((r) => r.data?.data?.data ?? r.data?.data ?? []),
-    enabled: !!waiterPickerFor,
+    queryFn: () => usersApi.waiters().then((r) => r.data?.data ?? []),
+    staleTime: 60000,
   });
 
   const saveMutation = useMutation({
     mutationFn: (payload: { id?: number; name: string; seats: number }) =>
       payload.id
         ? tablesApi.update(payload.id, { name: payload.name, seats: payload.seats })
-        : tablesApi.create({ branch_id: branchId, name: payload.name, seats: payload.seats }),
+        // Staff with no branch send none — the server puts the table in the main branch.
+        : tablesApi.create({ ...(branchId ? { branch_id: branchId } : {}), name: payload.name, seats: payload.seats }),
     onSuccess: () => {
       toast.success('Table saved');
       qc.invalidateQueries({ queryKey: ['tables'] });

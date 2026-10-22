@@ -55,7 +55,11 @@ return Application::configure(basePath: dirname(__DIR__))
         });
         $exceptions->render(function (\Illuminate\Validation\ValidationException $e, $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
+                // The first actual reason ("There is already a table with that
+                // name.") rather than "Validation failed." — most screens show
+                // only the message, so that told nobody what to fix.
+                $first = collect($e->errors())->flatten()->first();
+                return response()->json(['success' => false, 'message' => $first ?: 'Validation failed.', 'errors' => $e->errors()], 422);
             }
         });
         // Catch-all: any unhandled exception on an API route returns JSON, never an HTML 500 page.

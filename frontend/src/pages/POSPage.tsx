@@ -1066,8 +1066,10 @@ export default function POSPage() {
   // New table created from the Add to Tab picker — it's free, so it goes
   // straight through pickTableForTab to start the tab there.
   const createTableForTabMutation = useMutation({
+    // Not branchId, which falls back to 1 — a branch that may not exist. With
+    // no branch of its own the server puts the table in the main branch.
     mutationFn: (payload: { name: string; seats: number }) =>
-      tablesApi.create({ branch_id: branchId, ...payload }).then((r) => r.data?.data),
+      tablesApi.create({ ...(user?.branch?.id ? { branch_id: user.branch.id } : {}), ...payload }).then((r) => r.data?.data),
     onSuccess: (table: any) => {
       toast.success('Table added');
       qc.invalidateQueries({ queryKey: ['tables'] });

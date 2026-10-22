@@ -61,6 +61,19 @@ class OrderNumberTest extends TestCase
         $this->assertSame([1, 2], [$this->sale()->order_number, $this->sale()->order_number]);
     }
 
+    public function test_the_till_is_told_the_number_coming_up(): void
+    {
+        $next = fn () => $this->actingAs($this->admin, 'sanctum')
+            ->getJson("/api/sales/next-order-number?branch_id={$this->branch->id}")->assertOk()->json('data.order_number');
+
+        $this->runDayEnd();
+        $this->assertSame(1, $next());
+        $this->assertSame(1, $next()); // only looking doesn't take it
+
+        $this->assertSame(1, $this->sale()->order_number);
+        $this->assertSame(2, $next());
+    }
+
     public function test_a_day_end_from_before_order_numbers_resets_by_its_time(): void
     {
         \App\Models\EndOfDay::create([

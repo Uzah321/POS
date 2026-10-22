@@ -65,11 +65,14 @@ class Sale extends Model
      * by. Counts up from 1 and starts again after each Day End run for the
      * branch. Locks the branch row so two tills ringing up at once can't take
      * the same number; inside the sale's transaction (as the creating hook
-     * is) the lock holds until the sale is saved.
+     * is) the lock holds until the sale is saved. Without $lock it only
+     * looks — for the till to show the number coming up.
      */
-    public static function nextOrderNumber(int $branchId): int
+    public static function nextOrderNumber(int $branchId, bool $lock = true): int
     {
-        Branch::whereKey($branchId)->lockForUpdate()->first();
+        if ($lock) {
+            Branch::whereKey($branchId)->lockForUpdate()->first();
+        }
         $dayEnd = EndOfDay::where('branch_id', $branchId)->latest('id')->first(['id', 'created_at', 'last_sale_id']);
 
         return (int) static::where('branch_id', $branchId)

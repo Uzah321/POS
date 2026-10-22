@@ -88,6 +88,8 @@ interface CartState {
   waiterId: number | null;
   waiterName: string;
   openSaleId: number | null;
+  /** The open tab's order number — fixed by the server when the tab was first saved. */
+  orderNumber: number | null;
   // Payment-form state — also shared so "New Ticket" from the top nav can
   // reset it, even though the form itself renders inside POSPage.
   paymentMethod: string;
@@ -106,7 +108,7 @@ interface CartState {
   setOrderType: (t: 'sit_in' | 'takeaway' | 'delivery') => void;
   cycleOrderType: () => void;
   setWaiter: (id: number | null, name: string) => void;
-  setTableTab: (v: { tableId: number | null; waiterId?: number | null; waiterName?: string; openSaleId?: number | null }) => void;
+  setTableTab: (v: { tableId: number | null; waiterId?: number | null; waiterName?: string; openSaleId?: number | null; orderNumber?: number | null }) => void;
   setPaymentMethod: (m: string) => void;
   setCashTendered: (v: string) => void;
   setIsSplitPayment: (v: boolean) => void;
@@ -139,6 +141,7 @@ export const useCartStore = create<CartState>()(
       waiterId: null,
       waiterName: '',
       openSaleId: null,
+      orderNumber: null,
       paymentMethod: 'cash',
       cashTendered: '',
       isSplitPayment: false,
@@ -170,6 +173,8 @@ export const useCartStore = create<CartState>()(
         ...(v.waiterId !== undefined ? { waiterId: v.waiterId } : {}),
         ...(v.waiterName !== undefined ? { waiterName: v.waiterName } : {}),
         ...(v.openSaleId !== undefined ? { openSaleId: v.openSaleId } : {}),
+        // A different tab (or none yet) has a different number — or none.
+        ...(v.orderNumber !== undefined ? { orderNumber: v.orderNumber } : v.openSaleId !== undefined ? { orderNumber: null } : {}),
       }),
       setPaymentMethod: (m) => set({ paymentMethod: m }),
       setCashTendered: (v) => set({ cashTendered: v }),
@@ -179,7 +184,7 @@ export const useCartStore = create<CartState>()(
       newTicket: () => set({
         items: [], customerId: null, customerName: '', discount: 0, note: '',
         tableNumber: 'Walk-in', covers: 1, orderType: 'sit_in', ticketNum: randomTicketNum(),
-        tableId: null, waiterId: null, waiterName: '', openSaleId: null,
+        tableId: null, waiterId: null, waiterName: '', openSaleId: null, orderNumber: null,
         paymentMethod: 'cash', cashTendered: '', isSplitPayment: false, splitPayments: [],
       }),
       holdCurrentCart: (label?: string) => {

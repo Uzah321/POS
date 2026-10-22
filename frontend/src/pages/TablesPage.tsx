@@ -16,6 +16,7 @@ interface TableRow {
   open_sale: {
     id: number;
     reference: string;
+    order_number: number | null;
     total: number;
     waiter_name: string | null;
     opened_at: string;
@@ -218,6 +219,7 @@ export default function TablesPage() {
                     <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Users size={11} /> {table.seats}</p>
                     {occupied && table.open_sale && (
                       <div className="mt-2 space-y-0.5">
+                        {table.open_sale.order_number != null && <p className="text-xs font-bold text-amber-800">Order #{table.open_sale.order_number}</p>}
                         <p className="text-xs font-semibold text-amber-700">{table.open_sale.waiter_name ?? 'No waiter'}</p>
                         <p className="text-xs text-amber-600">{format(Number(table.open_sale.total))}</p>
                         <p className="text-[10px] text-amber-500">{formatDistanceToNow(new Date(table.open_sale.opened_at), { addSuffix: true })}</p>

@@ -367,6 +367,7 @@ export default function POSPage() {
         waiterId: sale.waiter_id ?? null,
         waiterName: sale.waiter?.name ?? '',
         openSaleId: sale.id,
+        orderNumber: sale.order_number ?? null,
       });
       cart.setOrderType('sit_in');
       if (sale.table?.name) cart.setTableNumber(sale.table.name);
@@ -441,6 +442,8 @@ export default function POSPage() {
   // Snapshot of cart data captured at the moment Process Order is clicked.
   // Allows cart to be cleared immediately (no freeze) while mutation is in-flight.
   type CartSnapshot = {
+    /** The whole cart as it was — put back if the server refuses the sale. */
+    cart: Partial<ReturnType<typeof useCartStore.getState>>;
     items: CartItem[];
     subtotal: number;
     tax: number;
@@ -457,6 +460,20 @@ export default function POSPage() {
     note: string;
   };
   const saleSnapshotRef = useRef<CartSnapshot | null>(null);
+
+  /**
+   * After the server refused a sale (or a tab's closing): the order goes back
+   * in the cart, as it was — unless the cashier has already started the next
+   * one, which mustn't be overwritten. Says why it was refused either way.
+   */
+  const putBackRefusedOrder = (error: any, what: string) => {
+    const snap = saleSnapshotRef.current;
+    saleSnapshotRef.current = null;
+    const reason = String(error?.response?.data?.message ?? error?.message ?? 'no answer from the server').replace(/\.$/, '');
+    const restored = !!snap && useCartStore.getState().items.length === 0;
+    if (restored) useCartStore.setState(snap!.cart);
+    toast.error(`${what} — ${reason}.${restored ? ' The order is back in the cart.' : ''}`, { duration: 7000 });
+  };
 
   // Prints a kitchen ticket for the lines on `items` the kitchen hasn't had yet:
   // on each chosen kitchen printer, the lines in its categories; on the other
@@ -522,7 +539,8 @@ export default function POSPage() {
       }).catch(() => {});
 
       if (result.offline) toast.success('Sale finalized — saved locally, will sync automatically', { duration: 4000 });
-      else toast.success('Sale finalized');
+      else toast.success(sale?.order_number != null ? `Sale finalized — Order #${sale.order_number}` : 'Sale finalized', { duration: 4000 });
+      qc.invalidateQueries({ queryKey: ['next-order-number'] });
 
       const snapPayMethod = snap?.paymentMethod ?? 'cash';
       const snapTendered = snap?.cashTendered ?? '';
@@ -594,13 +612,8 @@ export default function POSPage() {
       qc.invalidateQueries({ queryKey: ['inventory-low-count'] });
       qc.invalidateQueries({ queryKey: ['inventory-out-count'] });
     },
-    onError: () => {
-      // Restore cart from snapshot if the sale failed
-      if (saleSnapshotRef.current) {
-        toast.error('Sale failed. Your cart has been restored.');
-        saleSnapshotRef.current = null;
-      }
-    },
+    // (Offline isn't an error: offlineMutate queues the sale instead.)
+    onError: (error: any) => putBackRefusedOrder(error, 'Sale not saved'),
   });
 
   const holdMutation = useMutation({
@@ -659,8 +672,13 @@ export default function POSPage() {
           vars.unsyncedItems.some((u) => u.line_id === i.line_id) ? { ...i, synced_to_tab: true, kitchen_sent_qty: i.quantity } : i
         ),
       });
-      cart.setTableTab({ tableId: sale?.table_id ?? vars.tableId, openSaleId: sale?.id ?? vars.openSaleId });
-      toast.success('Sent to kitchen — tab stays open');
+      cart.setTableTab({
+        tableId: sale?.table_id ?? vars.tableId,
+        openSaleId: sale?.id ?? vars.openSaleId,
+        orderNumber: sale?.order_number ?? useCartStore.getState().orderNumber,
+      });
+      qc.invalidateQueries({ queryKey: ['next-order-number'] });
+      toast.success(sale?.order_number != null ? `Order #${sale.order_number} sent to kitchen — tab stays open` : 'Sent to kitchen — tab stays open');
       qc.invalidateQueries({ queryKey: ['tables'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
     },
@@ -689,7 +707,8 @@ export default function POSPage() {
       const sale = (result as any).data?.data;
       const snap = saleSnapshotRef.current;
 
-      toast.success('Tab closed — payment received');
+      toast.success(sale?.order_number != null ? `Order #${sale.order_number} closed — payment received` : 'Tab closed — payment received');
+      qc.invalidateQueries({ queryKey: ['next-order-number'] });
 
       const snapPayMethod = snap?.paymentMethod ?? 'cash';
       const snapTendered = snap?.cashTendered ?? '';
@@ -756,9 +775,7 @@ export default function POSPage() {
       qc.invalidateQueries({ queryKey: ['tables'] });
       navigate('/tables');
     },
-    onError: (e: any) => {
-      toast.error(e?.response?.data?.message ?? 'Could not close the tab');
-    },
+    onError: (e: any) => putBackRefusedOrder(e, 'Tab not closed'),
   });
 
   // Shared by both the direct-add path (live scale reading, or a plain
@@ -943,7 +960,14 @@ export default function POSPage() {
     }
 
     // Capture snapshot BEFORE clearing — allows immediate cart reset without freezing
+    const c = useCartStore.getState();
     const snap: CartSnapshot = {
+      cart: {
+        items: [...c.items], customerId: c.customerId, customerName: c.customerName, discount: c.discount, note: c.note,
+        tableNumber: c.tableNumber, covers: c.covers, orderType: c.orderType, ticketNum: c.ticketNum,
+        tableId: c.tableId, waiterId: c.waiterId, waiterName: c.waiterName, openSaleId: c.openSaleId, orderNumber: c.orderNumber,
+        paymentMethod: c.paymentMethod, cashTendered: c.cashTendered, isSplitPayment: c.isSplitPayment, splitPayments: [...c.splitPayments],
+      },
       items: [...cart.items],
       subtotal: cart.subtotal(),
       tax: cart.taxTotal(),
@@ -1048,7 +1072,7 @@ export default function POSPage() {
     cart.setOrderType('sit_in');
     if (table.open_sale) {
       cart.setTableTab({
-        tableId: table.id, openSaleId: table.open_sale.id,
+        tableId: table.id, openSaleId: table.open_sale.id, orderNumber: table.open_sale.order_number ?? null,
         waiterId: table.open_sale.waiter_id ?? null, waiterName: table.open_sale.waiter_name ?? '',
       });
     } else {

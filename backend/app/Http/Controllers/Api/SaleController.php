@@ -311,6 +311,19 @@ class SaleController extends BaseApiController
         return $this->success($payload, 'Sale completed', 201);
     }
 
+    /**
+     * The order number the branch's next sale will get, for the till to show
+     * before it's rung up. Another till may take it first — a sale's own
+     * number is fixed when it's saved, and comes back with it.
+     */
+    public function nextOrderNumber(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $branchId = $this->effectiveBranchId($request) ?? $request->user()->branch_id
+            ?? \App\Models\Branch::where('is_main', true)->value('id');
+
+        return $this->success(['order_number' => $branchId ? Sale::nextOrderNumber((int) $branchId, lock: false) : 1]);
+    }
+
     public function show(Sale $sale): \Illuminate\Http\JsonResponse
     {
         return $this->success($sale->load('items.product', 'items.variant', 'payments', 'customer', 'cashier', 'branch', 'refunds'));

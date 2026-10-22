@@ -18,7 +18,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useServerHealth } from '../hooks/useServerHealth';
 import { useDBSync } from '../hooks/useDBSync';
 import { db } from '../lib/db';
-import { authApi, currenciesApi, settingsApi } from '../api';
+import { authApi, currenciesApi, salesApi, settingsApi } from '../api';
 import LicenseBanner from '../components/LicenseBanner';
 import NotificationBell from '../components/ui/NotificationBell';
 import { TopbarSlotContext } from './TopbarSlot';
@@ -180,6 +180,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Cashier Register keeps its own simpler inline table selector.
   // Front-of-house screens (Advanced POS and Tables) share the navy POS top bar.
   const isPosPage = location.pathname === '/pos' || location.pathname === '/tables';
+  // The order number on the POS bar: an open tab's own, else the one the
+  // branch's next sale will get (counts from 1 again after each Day End).
+  const { data: nextOrderNumber } = useQuery({
+    queryKey: ['next-order-number', user?.branch?.id],
+    queryFn: () => salesApi.nextOrderNumber(user?.branch?.id ? { branch_id: user.branch.id } : {})
+      .then((r) => (r.data?.data?.order_number ?? null) as number | null),
+    enabled: isPosPage,
+    refetchInterval: 15000,
+  });
+  const orderNo = cart.orderNumber ?? nextOrderNumber;
+  const orderNoText = orderNo != null ? String(orderNo) : '—';
   // Cashier Register renders its own online-status pill + user avatar in its
   // header card right below this bar — skip the topbar's copies here so the
   // two bars read as one continuous toolbar instead of repeating the same info.
@@ -509,7 +520,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
               {[
                 { icon: ListChecks, label: 'CV / TN', value: `${cart.covers} / ${user?.branch?.id ?? 1}`, cls: 'hidden xl:flex' },
-                { icon: FileText, label: 'Invoice No', value: cart.ticketNum.replace('#', '') },
+                { icon: FileText, label: 'Order No', value: orderNoText },
               ].map(({ icon: Icon, label, value, cls }: { icon: any; label: string; value: string; cls?: string }) => (
                 <div key={label} className={`${cls ?? 'flex'} items-center gap-2.5 rounded-xl px-3 h-11 flex-shrink-0`} style={{ background: '#16305e' }}>
                   <Icon size={18} className="text-blue-200" />
@@ -599,7 +610,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 { label: 'Customer', value: cart.customerName || 'Walk-in' },
                 { label: 'Cv', value: String(cart.covers) },
                 { label: 'TN', value: String(user?.branch?.id ?? 1) },
-                { label: 'Inv No', value: cart.ticketNum.replace('#', '') },
+                { label: 'Order No', value: orderNoText },
                 { label: 'Order', value: cart.orderType === 'delivery' ? 'Delivery' : cart.orderType === 'takeaway' ? 'Takeaway' : 'Walk-in' },
               ].map((seg) => (
                 <div key={seg.label} className="px-2.5 py-1.5 flex flex-col justify-center whitespace-nowrap border-r border-slate-700 last:border-r-0">

@@ -50,6 +50,8 @@ export const salesApi = {
   hold: (data: object) => api.post('/sales/hold', data),
   listHeld: (params?: object) => api.get('/sales/held', { params }),
   heldSales: () => api.get('/sales/held'),
+  // The branch's next order number, shown on the till before the sale is rung up.
+  nextOrderNumber: (params?: object) => api.get('/sales/next-order-number', { params }),
   deleteHeld: (id: number) => api.delete(`/sales/held/${id}`),
   updateHeldStatus: (id: number, status: string) => api.patch(`/sales/held/${id}/status`, { order_status: status }),
   receipt: (id: number) => api.get(`/sales/${id}/receipt`),

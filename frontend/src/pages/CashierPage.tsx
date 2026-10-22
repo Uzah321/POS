@@ -400,7 +400,7 @@ export default function CashierPage() {
       }).catch(() => {});
 
       if (result.offline) toast.success('Sale finalized — saved locally, will sync automatically', { duration: 4000 });
-      else toast.success('Sale finalized');
+      else toast.success(sale?.order_number != null ? `Sale finalized — Order #${sale.order_number}` : 'Sale finalized', { duration: 4000 });
 
       void printReceipt(
         buildReceiptDataFromSale(sale ?? null, {

@@ -109,6 +109,7 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
 
     // Sales
     Route::get('/sales/held', [SaleController::class, 'heldSales']);
+    Route::get('/sales/next-order-number', [SaleController::class, 'nextOrderNumber']);
     Route::post('/sales/hold', [SaleController::class, 'hold']);
     Route::delete('/sales/held/{id}', [SaleController::class, 'deleteHeld']);
     Route::patch('/sales/held/{id}/status', [SaleController::class, 'updateHeldStatus']);

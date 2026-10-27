@@ -94,6 +94,9 @@ export default defineConfig({
     }),
   ],
   build: {
+    // Shop tills don't always get browser updates: the Posiflex terminals run
+    // Edge 92 (2021). Vite's default target is far newer than that.
+    target: ['chrome92', 'edge92', 'firefox90', 'safari15'],
     outDir: '../backend/public',
     emptyOutDir: false,
   },

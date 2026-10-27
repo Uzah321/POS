@@ -15,7 +15,7 @@ import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, useC
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { effectiveTaxRate } from '../lib/taxSettings';
-import { useServerHealth } from '../hooks/useServerHealth';
+import { useServerHealth, isLocalServer } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
 import NumericKeypad from '../components/ui/NumericKeypad';
@@ -712,7 +712,7 @@ export default function CashierPage() {
 
             <span className={`flex items-center gap-2 rounded-xl px-3 h-11 text-xs font-semibold flex-shrink-0 ${isOnline ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
               <span className={`w-1.5 h-1.5 rounded-full inline-block ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
-              <span className="hidden sm:inline">{isOnline ? 'Online & synced' : 'Server starting...'}</span>
+              <span className="hidden sm:inline">{isOnline ? 'Online & synced' : isLocalServer() ? 'Server starting...' : 'Reconnecting...'}</span>
             </span>
 
             <div className="text-right leading-tight pl-1 flex-shrink-0 hidden sm:block">

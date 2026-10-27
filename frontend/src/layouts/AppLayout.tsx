@@ -15,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { useCartStore, TABLES } from '../stores/cartStore';
 import { useCurrencyStore } from '../stores/currencyStore';
-import { useServerHealth } from '../hooks/useServerHealth';
+import { useServerHealth, isLocalServer } from '../hooks/useServerHealth';
 import { useDBSync } from '../hooks/useDBSync';
 import { db } from '../lib/db';
 import { authApi, currenciesApi, salesApi, settingsApi } from '../api';
@@ -709,7 +709,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {!isServerUp && !isCashierRegisterPage && (
             <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
               <WifiOff size={11} />
-              Server starting...
+              {isLocalServer() ? 'Server starting...' : 'Reconnecting...'}
             </span>
           )}
 

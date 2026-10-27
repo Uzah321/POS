@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { authApi } from '../api';
 import { primeCsrf } from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
-import { useServerHealth } from '../hooks/useServerHealth';
+import { useServerHealth, isLocalServer } from '../hooks/useServerHealth';
 import toast from 'react-hot-toast';
 import {
   Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings,
@@ -49,6 +49,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const { isServerUp } = useServerHealth();
+  // Only the desktop install has a "Core" shortcut to start; a hosted site is reached over the internet.
+  const local = isLocalServer();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -89,7 +91,9 @@ export default function LoginPage() {
       navigate(destination, { replace: true });
     } catch (err: any) {
       if (!err.response) {
-        toast.error('Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.');
+        toast.error(local
+          ? 'Cannot reach the Core POS server. Double-click the "Core" shortcut on your Desktop to start it, then try again.'
+          : `Cannot reach ${window.location.hostname}. Check this computer's internet connection, then try again.`);
       } else {
         // 422 = the credentials didn't match; anything else, show the server's reason (e.g. account disabled).
         toast.error(err.response?.status === 422 ? 'Incorrect username or password.' : (err.response?.data?.message || 'Could not sign in.'));
@@ -124,10 +128,21 @@ export default function LoginPage() {
             <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
               <WifiOff size={18} className="text-red-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-red-700">Server not running</p>
-                <p className="text-xs text-red-600 mt-0.5">
-                  Double-click the <strong>Core</strong> shortcut on your Desktop to start it, then refresh this page.
-                </p>
+                {local ? (
+                  <>
+                    <p className="text-sm font-semibold text-red-700">Server not running</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      Double-click the <strong>Core</strong> shortcut on your Desktop to start it, then refresh this page.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-red-700">Can't reach the server</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      Check this computer's internet connection. This page reconnects by itself.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -211,13 +226,14 @@ export default function LoginPage() {
               <button type="button" onClick={askAdmin} className="text-sm text-blue-600 hover:underline">Forgot password?</button>
             </div>
 
+            {/* Never locked by the server check: if the check is wrong, signing in still works; if it's right, the attempt says why it failed. */}
             <button
               type="submit"
-              disabled={isSubmitting || !isServerUp}
+              disabled={isSubmitting}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg shadow-blue-600/25"
             >
               {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
-              {!isServerUp ? 'Server offline' : isSubmitting ? 'Signing in...' : 'Sign In'}
+              {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 

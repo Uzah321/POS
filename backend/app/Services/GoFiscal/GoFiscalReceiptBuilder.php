@@ -17,24 +17,30 @@ use Illuminate\Support\Collection;
  *
  * Every line has price × quantity = total; discounts go on Discount lines,
  * one per tax code, so the lines still add up to what the customer paid.
+ *
+ * $taxes is the device's tax list (GoFiscalService::taxes): where it has more
+ * than one tax on a code, the line says which by its taxID.
  */
 class GoFiscalReceiptBuilder
 {
-    public function forSale(Sale $sale): array
+    public function forSale(Sale $sale, array $taxes = []): array
     {
         $sale->loadMissing('items.product.taxRate', 'payments', 'branch');
         $hsDefault = $this->defaultHsCode();
         $taxEnabled = filter_var(Setting::get('tax_enabled', false), FILTER_VALIDATE_BOOLEAN);
         $globalRate = (float) Setting::get('tax_rate', 0);
+        $date = ($sale->created_at ?? now())->toDateString();
 
         $lines = [];
         $discounts = [];   // tax code => amount
         $groupTotals = []; // tax code => what its lines come to after their own discounts
         $groupHs = [];     // tax code => an HS code for its Discount line
+        $groupTax = [];    // tax code => the taxID its Discount line goes under
         foreach ($sale->items as $item) {
             $product = $item->product;
-            $code = $this->taxCode($product, $taxEnabled, $globalRate);
-            $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', (float) $item->unit_price, (float) $item->quantity, $product?->hs_code ?: $hsDefault, $code);
+            [$code, $percent] = $this->tax($product, $taxEnabled, $globalRate);
+            $taxId = $this->taxId($taxes, $code, $percent, $date);
+            $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', (float) $item->unit_price, (float) $item->quantity, $product?->hs_code ?: $hsDefault, $code, $taxId);
             $lines[] = $line;
 
             $discount = round($line['receiptLineTotal'] - (float) $item->total, 2);
@@ -43,6 +49,7 @@ class GoFiscalReceiptBuilder
             }
             $groupTotals[$code] = ($groupTotals[$code] ?? 0) + (float) $item->total;
             $groupHs[$code] ??= $line['receiptLineHSCode'] ?? null;
+            $groupTax[$code] ??= $taxId;
         }
 
         // A discount on the whole sale is shared between the tax codes in
@@ -61,7 +68,7 @@ class GoFiscalReceiptBuilder
 
         foreach ($discounts as $code => $amount) {
             if (round($amount, 2) > 0) {
-                $lines[] = $this->line(count($lines) + 1, 'Discount', 'Discount', -round($amount, 2), 1, $groupHs[$code] ?? $hsDefault, $code);
+                $lines[] = $this->line(count($lines) + 1, 'Discount', 'Discount', -round($amount, 2), 1, $groupHs[$code] ?? $hsDefault, $code, $groupTax[$code] ?? null);
             }
         }
 
@@ -82,34 +89,36 @@ class GoFiscalReceiptBuilder
      * — the same lines, negative. A refund of a discounted line gives back
      * less than price × quantity; the difference goes back on a Discount line.
      */
-    public function forRefund(Refund $refund, GoFiscalReceipt $original): array
+    public function forRefund(Refund $refund, GoFiscalReceipt $original, array $taxes = []): array
     {
         $refund->loadMissing('items.saleItem.product.taxRate', 'sale.payments', 'sale.branch');
         $hsDefault = $this->defaultHsCode();
         $taxEnabled = filter_var(Setting::get('tax_enabled', false), FILTER_VALIDATE_BOOLEAN);
         $globalRate = (float) Setting::get('tax_rate', 0);
+        $date = ($refund->created_at ?? now())->toDateString();
 
         $lines = [];
-        $kept = []; // tax code => [amount, HS code]
+        $kept = []; // tax code => [amount, HS code, taxID]
         foreach ($refund->items as $refundItem) {
             $product = $refundItem->saleItem?->product;
-            $code = $this->taxCode($product, $taxEnabled, $globalRate);
+            [$code, $percent] = $this->tax($product, $taxEnabled, $globalRate);
+            $taxId = $this->taxId($taxes, $code, $percent, $date);
             $price = (float) ($refundItem->saleItem?->unit_price ?? 0);
             $qty = (float) $refundItem->quantity;
             if ($price <= 0 || $qty <= 0) {
                 $price = (float) $refundItem->amount;
                 $qty = 1;
             }
-            $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', -$price, $qty, $product?->hs_code ?: $hsDefault, $code);
+            $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', -$price, $qty, $product?->hs_code ?: $hsDefault, $code, $taxId);
             $lines[] = $line;
 
             $notRefunded = round(abs($line['receiptLineTotal']) - (float) $refundItem->amount, 2);
             if ($notRefunded > 0) {
-                $kept[$code] = [($kept[$code][0] ?? 0) + $notRefunded, $line['receiptLineHSCode'] ?? null];
+                $kept[$code] = [($kept[$code][0] ?? 0) + $notRefunded, $line['receiptLineHSCode'] ?? null, $taxId];
             }
         }
-        foreach ($kept as $code => [$amount, $hs]) {
-            $lines[] = $this->line(count($lines) + 1, 'Discount', 'Discount', round($amount, 2), 1, $hs, $code);
+        foreach ($kept as $code => [$amount, $hs, $taxId]) {
+            $lines[] = $this->line(count($lines) + 1, 'Discount', 'Discount', round($amount, 2), 1, $hs, $code, $taxId);
         }
 
         $total = $this->total($lines);
@@ -137,7 +146,7 @@ class GoFiscalReceiptBuilder
         return round(array_sum(array_column($lines, 'receiptLineTotal')), 2);
     }
 
-    private function line(int $no, string $type, string $name, float $price, float $qty, ?string $hsCode, string $taxCode): array
+    private function line(int $no, string $type, string $name, float $price, float $qty, ?string $hsCode, string $taxCode, ?int $taxId = null): array
     {
         $price = round($price, 2);
         $qty = round($qty, 3);
@@ -151,6 +160,7 @@ class GoFiscalReceiptBuilder
             'receiptLineQuantity' => $qty,
             'receiptLineTotal' => round($price * $qty, 2),
             'taxCode' => $taxCode,
+            'taxID' => $taxId,
         ], fn ($v) => $v !== null);
     }
 
@@ -158,17 +168,44 @@ class GoFiscalReceiptBuilder
      * GoFiscal's tax codes: A standard rated, B zero rated or non-VAT, C
      * exempt. A store that doesn't charge VAT isn't VAT-registered, so
      * everything it sells is B; a product unticked as Taxable is exempt.
+     * With the code, the percent the till charged on it (null: exempt).
+     *
+     * @return array{0: string, 1: ?float}
      */
-    private function taxCode(?Product $product, bool $taxEnabled, float $globalRate): string
+    private function tax(?Product $product, bool $taxEnabled, float $globalRate): array
     {
         if (! $taxEnabled) {
-            return 'B';
+            return ['B', 0.0];
         }
         if (! ($product?->is_taxable ?? true)) {
-            return 'C';
+            return ['C', null];
         }
+        $rate = (float) ($product?->taxRate?->rate ?? $globalRate);
 
-        return (float) ($product?->taxRate?->rate ?? $globalRate) > 0 ? 'A' : 'B';
+        return $rate > 0 ? ['A', $rate] : ['B', 0.0];
+    }
+
+    /**
+     * Which of the device's taxes a line is under, when its code alone doesn't
+     * say: ZIMRA can have several on one code valid at once (B is both "Zero
+     * rated 0%" and "Non-VAT Withholding Tax 5%"), and the engine then refuses
+     * the receipt without a taxID. The one at the percent the till charged is
+     * it. Null when the code is enough — or nothing matches, and the engine
+     * says so.
+     */
+    private function taxId(array $taxes, string $code, ?float $percent, string $date): ?int
+    {
+        $onCode = array_values(array_filter($taxes, fn ($t) => ($t['taxCode'] ?? null) === $code
+            && (empty($t['validFrom']) || substr((string) $t['validFrom'], 0, 10) <= $date)
+            && (empty($t['validTill']) || substr((string) $t['validTill'], 0, 10) >= $date)));
+        if (count($onCode) < 2) {
+            return null;
+        }
+        $charged = array_values(array_filter($onCode, fn ($t) => $percent === null
+            ? ($t['taxPercent'] ?? null) === null
+            : isset($t['taxPercent']) && abs((float) $t['taxPercent'] - $percent) < 0.001));
+
+        return count($charged) === 1 && isset($charged[0]['taxID']) ? (int) $charged[0]['taxID'] : null;
     }
 
     private function defaultHsCode(): ?string

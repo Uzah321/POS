@@ -92,6 +92,16 @@ class GoFiscalController extends BaseApiController
         }
     }
 
+    /** Opens the device's fiscal day now, rather than with its next sale. */
+    public function openDay(int $device): JsonResponse
+    {
+        try {
+            return $this->success((new GoFiscalClient())->openDay($device), 'Fiscal day opened');
+        } catch (GoFiscalException $e) {
+            return $this->error($e->getMessage(), 422, ['error' => $e->errorCode]);
+        }
+    }
+
     public function closeDay(int $device): JsonResponse
     {
         try {

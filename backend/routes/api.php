@@ -240,6 +240,7 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
         Route::put('/fiscal/gofiscal', [\App\Http\Controllers\Api\GoFiscalController::class, 'update']);
         Route::get('/fiscal/gofiscal/devices', [\App\Http\Controllers\Api\GoFiscalController::class, 'devices']);
         Route::get('/fiscal/gofiscal/devices/{device}/status', [\App\Http\Controllers\Api\GoFiscalController::class, 'status'])->whereNumber('device');
+        Route::post('/fiscal/gofiscal/devices/{device}/open-day', [\App\Http\Controllers\Api\GoFiscalController::class, 'openDay'])->whereNumber('device');
         Route::post('/fiscal/gofiscal/devices/{device}/close-day', [\App\Http\Controllers\Api\GoFiscalController::class, 'closeDay'])->whereNumber('device');
         Route::put('/fiscal/gofiscal/registers/{register}', [\App\Http\Controllers\Api\GoFiscalController::class, 'linkRegister']);
         Route::apiResource('registers', \App\Http\Controllers\Api\RegisterController::class);

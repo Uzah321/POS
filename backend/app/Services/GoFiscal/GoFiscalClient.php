@@ -68,6 +68,17 @@ class GoFiscalClient
         return $this->send('get', "/v1/devices/{$deviceId}/status", $refresh ? ['refresh' => 1] : [], 50)['body'];
     }
 
+    /** The device's ZIMRA config as the engine holds it: its taxes (taxID, taxName, taxPercent, taxCode, validFrom, validTill) and taxpayer. */
+    public function config(int $deviceId, int $timeout = 30): array
+    {
+        return $this->send('get', "/v1/devices/{$deviceId}/config", [], $timeout)['body'];
+    }
+
+    public function openDay(int $deviceId, int $timeout = 50): array
+    {
+        return $this->send('post', "/v1/devices/{$deviceId}/day/open", [], $timeout)['body'];
+    }
+
     public function closeDay(int $deviceId, int $timeout = 50): array
     {
         return $this->send('post', "/v1/devices/{$deviceId}/day/close", [], $timeout)['body'];

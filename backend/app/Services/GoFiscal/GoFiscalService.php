@@ -44,7 +44,7 @@ class GoFiscalService
             return null;
         }
 
-        $payload = $this->builder->forSale($sale);
+        $payload = $this->builder->forSale($sale, $this->taxes($deviceId, fetch: false));
 
         // A savepoint: if this fails, the sale's own transaction carries on.
         return DB::transaction(fn () => GoFiscalReceipt::firstOrCreate(['sale_id' => $sale->id], [
@@ -66,11 +66,12 @@ class GoFiscalService
             return null;
         }
 
-        $payload = $original->status === 'submitted' ? $this->builder->forRefund($refund, $original) : [];
+        $deviceId = $this->deviceForRegister($refund->register_id) ?? $original->device_id;
+        $payload = $original->status === 'submitted' ? $this->builder->forRefund($refund, $original, $this->taxes($deviceId, fetch: false)) : [];
 
         return DB::transaction(fn () => GoFiscalReceipt::firstOrCreate(['refund_id' => $refund->id], [
             'register_id' => $refund->register_id,
-            'device_id' => $this->deviceForRegister($refund->register_id) ?? $original->device_id,
+            'device_id' => $deviceId,
             'receipt_type' => 'CreditNote',
             'invoice_no' => $refund->reference,
             'receipt_currency' => $original->receipt_currency,
@@ -183,6 +184,34 @@ class GoFiscalService
         }
     }
 
+    /**
+     * The device's taxes as the engine holds them (its copy of the ZIMRA
+     * config), kept for a few hours: a line needs its tax's taxID when the
+     * device has more than one tax on that line's code. Empty when they
+     * can't be had — the lines then go by code alone, as before. With $fetch
+     * false only what's kept is read: checkout doesn't wait on the engine
+     * inside the sale's transaction (the receipt is rebuilt when it's sent).
+     */
+    public function taxes(int $deviceId, bool $fetch = true): array
+    {
+        $key = "gofiscal-taxes-{$deviceId}";
+        $taxes = Cache::get($key);
+        if (is_array($taxes) || ! $fetch) {
+            return $taxes ?? [];
+        }
+
+        try {
+            $taxes = array_values(array_filter((array) (app(GoFiscalClient::class)->config($deviceId, 5)['taxes'] ?? []), 'is_array'));
+            Cache::put($key, $taxes, now()->addHours(6));
+        } catch (\Throwable $e) {
+            $taxes = [];
+            Cache::put($key, $taxes, now()->addMinutes(5)); // not asked again on every receipt meanwhile
+            Log::warning('GoFiscal device config not available', ['device_id' => $deviceId, 'error' => $e->getMessage()]);
+        }
+
+        return $taxes;
+    }
+
     /** What a till needs to print a receipt's fiscal block. */
     public function summary(GoFiscalReceipt $receipt): array
     {
@@ -195,11 +224,11 @@ class GoFiscalService
     private function freshPayload(GoFiscalReceipt $receipt): array
     {
         if ($receipt->sale_id && $receipt->sale) {
-            return $this->builder->forSale($receipt->sale);
+            return $this->builder->forSale($receipt->sale, $this->taxes($receipt->device_id));
         }
         if ($receipt->refund_id && $receipt->refund) {
             $original = $receipt->refund->sale?->goFiscalReceipt;
-            return $original?->status === 'submitted' ? $this->builder->forRefund($receipt->refund, $original) : [];
+            return $original?->status === 'submitted' ? $this->builder->forRefund($receipt->refund, $original, $this->taxes($receipt->device_id)) : [];
         }
 
         return $receipt->payload ?? [];

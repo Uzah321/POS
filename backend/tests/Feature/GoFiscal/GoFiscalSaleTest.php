@@ -28,6 +28,18 @@ class GoFiscalSaleTest extends TestCase
     use RefreshDatabase;
 
     private const RECEIPTS_URL = 'https://api.gofiscal.app/v1/devices/7/receipts';
+    private const CONFIG_URL = 'https://api.gofiscal.app/v1/devices/7/config';
+
+    /** The device's taxes as ZIMRA has them: two valid on code B at once. */
+    private const TAXES = [
+        ['taxID' => 1, 'taxName' => 'Exempt', 'taxPercent' => null, 'validFrom' => null, 'validTill' => null, 'taxCode' => 'C'],
+        ['taxID' => 2, 'taxName' => 'Zero rated 0%', 'taxPercent' => 0, 'validFrom' => null, 'validTill' => null, 'taxCode' => 'B'],
+        ['taxID' => 514, 'taxName' => 'Non-VAT Withholding Tax', 'taxPercent' => 5, 'validFrom' => null, 'validTill' => null, 'taxCode' => 'B'],
+        ['taxID' => 517, 'taxName' => 'Standard rated 15.5%', 'taxPercent' => 15.5, 'validFrom' => null, 'validTill' => null, 'taxCode' => 'A'],
+    ];
+
+    /** Whether the engine can hand over the device's config. */
+    private bool $configAvailable = true;
 
     private Branch $branch;
     private Warehouse $warehouse;
@@ -64,6 +76,10 @@ class GoFiscalSaleTest extends TestCase
         Permission::firstOrCreate(['name' => 'process_refunds', 'guard_name' => 'web']);
         $this->user = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->user->givePermissionTo(['manage_settings', 'process_refunds']);
+
+        Http::fake([self::CONFIG_URL => fn () => $this->configAvailable
+            ? Http::response(['stale' => false, 'taxes' => self::TAXES], 200)
+            : Http::response(['error' => 'zimra_unavailable', 'detail' => 'ZIMRA could not be reached.'], 503)]);
     }
 
     private function accepted(array $extra = []): array
@@ -141,7 +157,56 @@ class GoFiscalSaleTest extends TestCase
 
         $this->actingAs($this->user, 'sanctum')->postJson('/api/sales', $this->sale())->assertStatus(201);
 
-        $this->assertSame(['B', 'B'], array_column($this->sentReceipts()[0]['receiptLines'], 'taxCode'));
+        $lines = $this->sentReceipts()[0]['receiptLines'];
+        $this->assertSame(['B', 'B'], array_column($lines, 'taxCode'));
+        // B is two taxes on this device: the line says it's the one at the 0% the till charged.
+        $this->assertSame([2, 2], array_column($lines, 'taxID'));
+    }
+
+    public function test_a_line_carries_a_tax_id_only_when_its_code_is_shared(): void
+    {
+        Http::fake([self::RECEIPTS_URL => Http::response($this->accepted(), 200)]);
+
+        $this->actingAs($this->user, 'sanctum')->postJson('/api/sales', $this->sale())->assertStatus(201);
+
+        // A (15.5%) and C (exempt) are one tax each: the code says it, as before.
+        [$steak, $mince] = $this->sentReceipts()[0]['receiptLines'];
+        $this->assertArrayNotHasKey('taxID', $steak);
+        $this->assertArrayNotHasKey('taxID', $mince);
+    }
+
+    public function test_a_receipt_refused_for_want_of_a_tax_id_goes_again_once_the_taxes_are_known(): void
+    {
+        Setting::set('tax_enabled', false);
+        $this->configAvailable = false;
+        Http::fake([self::RECEIPTS_URL => Http::sequence()
+            ->push(['error' => 'invalid_receipt', 'errors' => ['line 1: more than one tax with code B is valid on 2026-10-27; send the taxID']], 422)
+            ->push($this->accepted(), 200)]);
+
+        $this->actingAs($this->user, 'sanctum')->postJson('/api/sales', $this->sale())
+            ->assertStatus(201)
+            ->assertJsonPath('data.fiscal_receipt.status', 'failed');
+        $this->assertArrayNotHasKey('taxID', $this->sentReceipts()[0]['receiptLines'][0]);
+
+        // The engine hands the taxes over again: the tills' next sync sends it with them.
+        $this->configAvailable = true;
+        $this->travel(6)->minutes();
+        $this->actingAs($this->user, 'sanctum')->postJson('/api/fiscal/sync', ['branch_id' => $this->branch->id])
+            ->assertJsonPath('data.submitted', 1);
+        $this->assertSame([2, 2], array_column($this->sentReceipts()[1]['receiptLines'], 'taxID'));
+        $this->assertSame('submitted', GoFiscalReceipt::first()->status);
+    }
+
+    public function test_a_fiscal_day_can_be_opened_from_settings(): void
+    {
+        Http::fake(['https://api.gofiscal.app/v1/devices/7/day/open' => Http::sequence()
+            ->push(['error' => 'zimra_unavailable', 'detail' => 'ZIMRA could not be reached.'], 503)
+            ->push(['status' => 'FiscalDayOpened', 'fiscalDayNo' => 6], 200)]);
+
+        $this->actingAs($this->user, 'sanctum')->postJson('/api/fiscal/gofiscal/devices/7/open-day')
+            ->assertStatus(422)->assertJsonPath('message', 'ZIMRA could not be reached.');
+        $this->actingAs($this->user, 'sanctum')->postJson('/api/fiscal/gofiscal/devices/7/open-day')
+            ->assertOk()->assertJsonPath('message', 'Fiscal day opened')->assertJsonPath('data.fiscalDayNo', 6);
     }
 
     public function test_discounts_go_on_discount_lines_so_the_lines_add_up_to_the_total(): void

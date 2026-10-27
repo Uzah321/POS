@@ -243,6 +243,7 @@ export const goFiscalApi = {
   devices: () => api.get('/fiscal/gofiscal/devices', { timeout: 45000 }),
   linkRegister: (registerId: number, deviceId: number | null) => api.put(`/fiscal/gofiscal/registers/${registerId}`, { device_id: deviceId }),
   status: (deviceId: number, refresh = false) => api.get(`/fiscal/gofiscal/devices/${deviceId}/status`, { params: refresh ? { refresh: 1 } : {}, timeout: 58000 }),
+  openDay: (deviceId: number) => api.post(`/fiscal/gofiscal/devices/${deviceId}/open-day`, {}, { timeout: 58000 }),
   closeDay: (deviceId: number) => api.post(`/fiscal/gofiscal/devices/${deviceId}/close-day`, {}, { timeout: 58000 }),
   // The server waits up to 45 s on the engine, under Nginx's 60 s.
   submit: (receiptId: number) => api.post(`/fiscal/gofiscal/receipts/${receiptId}/submit`, {}, { timeout: 55000 }),

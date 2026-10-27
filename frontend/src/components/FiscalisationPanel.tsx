@@ -166,6 +166,11 @@ function GoFiscalTill({ register, onChange }: { register: any; onChange: () => v
     onSuccess: (r) => { toast.success(r.data?.message ?? 'Saved'); onChange(); },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not save'),
   });
+  const openDay = useMutation({
+    mutationFn: () => goFiscalApi.openDay(deviceId!),
+    onSuccess: () => { toast.success('Fiscal day opened'); qc.invalidateQueries({ queryKey: ['gofiscal-status', deviceId] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not open the fiscal day'),
+  });
   const closeDay = useMutation({
     mutationFn: () => goFiscalApi.closeDay(deviceId!),
     onSuccess: () => { toast.success('Fiscal day closed'); qc.invalidateQueries({ queryKey: ['gofiscal-status', deviceId] }); },
@@ -205,12 +210,15 @@ function GoFiscalTill({ register, onChange }: { register: any; onChange: () => v
             <button type="button" className={btnGhost} disabled={isFetching} onClick={() => void refetch()}>
               {isFetching ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Refresh Status
             </button>
+            <button type="button" className={btnGhost} disabled={openDay.isPending} onClick={() => openDay.mutate()}>
+              {openDay.isPending ? <Loader2 size={13} className="animate-spin" /> : null} Open Fiscal Day
+            </button>
             <button type="button" className={btnGhost} disabled={closeDay.isPending}
               onClick={() => { if (confirm('Close this device\'s fiscal day now? The next sale opens a new one.')) closeDay.mutate(); }}>
               {closeDay.isPending ? <Loader2 size={13} className="animate-spin" /> : null} Close Fiscal Day
             </button>
           </div>
-          <p className="text-[11px] text-gray-400">Day End closes the fiscal day too.</p>
+          <p className="text-[11px] text-gray-400">A sale opens the fiscal day by itself if it isn't open. Day End closes it too.</p>
         </>
       )}
     </div>

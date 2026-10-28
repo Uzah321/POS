@@ -25,6 +25,7 @@ interface SaleSummaryItem {
 interface ShiftSummary {
   shift_start: string;
   total_sales: number;
+  total_refunds?: number;
   total_transactions: number;
   cash_sales: number;
   card_sales: number;
@@ -257,6 +258,7 @@ export default function ShiftEndPage() {
         ['Card Sales', format(summary.card_sales ?? 0)],
         ['Mobile Money', format(summary.mobile_money_sales ?? 0)],
         ['Other Payments', format(summary.other_sales ?? 0)],
+        ['Refunds', format(summary.total_refunds ?? 0)],
         ['Expected Cash in Drawer', format(summary.expected_cash ?? 0)],
         ['Declared Cash', format(effectiveDeclaredCash)],
         ['Variance', `${variance >= 0 ? '+' : ''}${format(variance)}`],
@@ -488,6 +490,12 @@ export default function ShiftEndPage() {
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-50 border-t border-gray-200">
+                    {(summary.total_refunds ?? 0) > 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-2.5 font-semibold text-gray-700 text-right">Refunds</td>
+                        <td className="px-4 py-2.5 text-right font-medium text-red-600">-{format(summary.total_refunds ?? 0)}</td>
+                      </tr>
+                    )}
                     <tr>
                       <td colSpan={4} className="px-4 py-2.5 font-semibold text-gray-700 text-right">Total</td>
                       <td className="px-4 py-2.5 text-right font-bold text-gray-900">{format(summary.total_sales)}</td>
@@ -516,6 +524,9 @@ export default function ShiftEndPage() {
                 <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-green-700">
                   {format(summary?.expected_cash ?? 0)}
                 </div>
+                {(summary?.total_refunds ?? 0) > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">Cash sales less {format(summary?.total_refunds ?? 0)} refunded</p>
+                )}
               </div>
 
               {/* Per-currency cash declaration */}

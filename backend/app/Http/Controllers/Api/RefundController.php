@@ -127,6 +127,9 @@ class RefundController extends BaseApiController
 
         [$refund, $fiscalReceipt] = $result;
 
+        // The refund comes straight off the dashboard's sales figures
+        $this->bustDashboardCache($refund->sale->branch_id);
+
         if ($fiscalReceipt) {
             try {
                 app(FiscalSubmissionService::class)->attemptSubmit($fiscalReceipt);

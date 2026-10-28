@@ -32,6 +32,11 @@ interface EodSummary {
   shift_ends: { user: { name: string }; declared_cash: number; expected_cash: number; variance: number; status: string }[];
 }
 
+/** The day's sales less what was refunded — a Day End keeps the two apart, so its total is worked out here. */
+function salesAfterRefunds(s: { total_sales?: number; total_revenue?: number; total_refunds?: number }): number {
+  return Number(s.total_sales ?? s.total_revenue ?? 0) - Number(s.total_refunds ?? 0);
+}
+
 interface FormData {
   date: string;
   notes: string;
@@ -73,7 +78,7 @@ function downloadDayEndPdf(opts: {
   doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin, 46, { align: 'right' });
 
   const summaryRows: [string, string][] = [
-    ['Total Revenue', format(summary?.total_sales ?? summary?.total_revenue ?? 0)],
+    ['Total Revenue (after refunds)', format(summary ? salesAfterRefunds(summary) : 0)],
     ['Transactions', String(summary?.total_transactions ?? 0)],
     ['Cash Sales', format(summary?.cash_sales ?? 0)],
     ['Card Sales', format(summary?.card_sales ?? 0)],
@@ -386,7 +391,7 @@ export default function DayEndPage() {
       ) : summary ? (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Total Revenue"   value={format(summary.total_sales ?? summary.total_revenue ?? 0)} />
+            <Stat label="Total Revenue"   value={format(salesAfterRefunds(summary))} sub={summary.total_refunds > 0 ? `After ${format(summary.total_refunds)} refunded` : undefined} />
             <Stat label="Transactions"    value={String(summary.total_transactions ?? 0)} />
             <Stat label="Cash Sales"      value={format(summary.cash_sales ?? 0)} />
             <Stat label="Card Sales"      value={format(summary.card_sales ?? 0)} />
@@ -591,7 +596,7 @@ export default function DayEndPage() {
                 {history.map((h) => (
                   <tr key={h.id}>
                     <td className="px-4 py-2 font-medium">{h.report_date ?? h.date}</td>
-                    <td className="px-4 py-2 text-right">{format(h.total_sales ?? h.total_revenue ?? 0)}</td>
+                    <td className="px-4 py-2 text-right">{format(salesAfterRefunds(h))}</td>
                     <td className="px-4 py-2 text-right text-emerald-700">{format(h.cash_sales ?? 0)}</td>
                     <td className="px-4 py-2 text-right text-blue-700">{format(h.card_sales ?? 0)}</td>
                     <td className="px-4 py-2 text-right text-purple-700">{format(h.mobile_money_sales ?? 0)}</td>

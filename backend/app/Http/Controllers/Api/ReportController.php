@@ -177,6 +177,13 @@ class ReportController extends BaseApiController
             // Raw SUM()/COUNT() aggregates come back from the DB driver as strings (not
             // covered by the model's decimal casts), so they must be cast explicitly here —
             // otherwise the frontend's `typeof x === 'number'` currency check silently zeroes them.
+            // Each day's refunds come off that day's sales, as they do for today's figure below.
+            $trendRefunds = $this->refundLinesQuery($businessType, now()->subDays(30)->toDateString(), $todayEnd->toDateString())
+                ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
+                ->groupBy(DB::raw('DATE(refunds.completed_at)'))
+                ->selectRaw('DATE(refunds.completed_at) as date, COALESCE(SUM(refund_items.amount), 0) as amount')
+                ->pluck('amount', 'date');
+
             $salesTrend = Sale::revenueCounted()
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->when($businessType, fn($q) => $this->scopeSalesToBusinessType($q, $businessType))
@@ -187,7 +194,7 @@ class ReportController extends BaseApiController
                 ->get()
                 ->map(fn($row) => [
                     'date' => $row->date,
-                    'revenue' => (float) $row->revenue,
+                    'revenue' => (float) $row->revenue - (float) ($trendRefunds[$row->date] ?? 0),
                     'transactions' => (int) $row->transactions,
                 ]);
 
@@ -225,35 +232,37 @@ class ReportController extends BaseApiController
                     'total' => (float) $row->total,
                 ]);
 
-            // What's left of the sales once refunds, expenses, paid salaries and rent
-            // paid are taken off — sales themselves stay as what customers paid.
+            // Sales are what customers paid less what was refunded to them (by refund
+            // date); `net` then also takes off expenses, paid salaries and rent paid.
             $todayCosts = OperatingCosts::forPeriod($branchId, $todayStart->toDateString(), $todayEnd->toDateString());
             $monthCosts = OperatingCosts::forPeriod($branchId, $monthStart->toDateString(), $todayEnd->toDateString());
             $todayRefunds = $this->refundsFor($branchId, $businessType, $todayStart->toDateString(), $todayEnd->toDateString());
             $monthRefunds = $this->refundsFor($branchId, $businessType, $monthStart->toDateString(), $todayEnd->toDateString());
+            $todayRevenue = $todaySales->sum('total') - $todayRefunds['amount'];
+            $monthRevenue = $monthSales->sum('total') - $monthRefunds['amount'];
 
             return [
                 'today' => [
-                    'revenue' => $todaySales->sum('total'),
+                    'revenue' => $todayRevenue,
                     'transactions' => $todaySales->count(),
-                    'avg_sale' => $todaySales->count() > 0 ? $todaySales->sum('total') / $todaySales->count() : 0,
+                    'avg_sale' => $todaySales->count() > 0 ? $todayRevenue / $todaySales->count() : 0,
                     'expenses' => $todayCosts['expenses'],
                     'salaries' => $todayCosts['salaries'],
                     'rent_paid' => $todayCosts['rent'],
                     'refunds' => $todayRefunds['amount'],
-                    'deductions' => $todayCosts['total'] + $todayRefunds['amount'],
-                    'net' => $todaySales->sum('total') - $todayRefunds['amount'] - $todayCosts['total'],
+                    'deductions' => $todayCosts['total'],
+                    'net' => $todayRevenue - $todayCosts['total'],
                 ],
                 'month' => [
-                    'revenue' => $monthSales->sum('total'),
+                    'revenue' => $monthRevenue,
                     'transactions' => $monthSales->count(),
                     'customers' => $monthCustomers,
                     'expenses' => $monthCosts['expenses'],
                     'salaries' => $monthCosts['salaries'],
                     'rent_paid' => $monthCosts['rent'],
                     'refunds' => $monthRefunds['amount'],
-                    'deductions' => $monthCosts['total'] + $monthRefunds['amount'],
-                    'net' => $monthSales->sum('total') - $monthRefunds['amount'] - $monthCosts['total'],
+                    'deductions' => $monthCosts['total'],
+                    'net' => $monthRevenue - $monthCosts['total'],
                 ],
                 'low_stock_count'  => $lowStockCount,
                 'out_of_stock_count' => $outOfStockCount,

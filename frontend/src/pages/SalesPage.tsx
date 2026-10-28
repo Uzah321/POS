@@ -558,6 +558,7 @@ export default function SalesPage() {
             <div>
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Sales</span>
               <span className="ml-2 text-xl font-bold text-gray-900 tabular-nums">{formatAmount(summary.total)}</span>
+              {summary.refunded > 0 && <span className="ml-2 text-sm text-red-600">after {formatAmount(summary.refunded)} refunded</span>}
             </div>
             <span className="text-sm text-gray-600">{summary.count} sale{summary.count === 1 ? '' : 's'} · {dateRangeLabel}</span>
             {productFocus && (summary.products ?? []).length === 0 && (

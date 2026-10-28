@@ -146,7 +146,7 @@ export default function RestaurantDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="green"  sub={`${formatCurrency(d.today?.net ?? d.today?.revenue ?? 0)} after refunds, expenses, salaries & rent`} />
+        <StatCard label="Revenue Today"  value={formatCurrency(d.today?.revenue ?? 0)}       icon={DollarSign}    color="green"  sub={`${d.today?.refunds > 0 ? `${formatCurrency(d.today.refunds)} refunded · ` : ''}${formatCurrency(d.today?.net ?? d.today?.revenue ?? 0)} after expenses, salaries & rent`} />
         <StatCard label="Orders Today"   value={d.today?.transactions ?? 0}                  icon={ShoppingCart}  color="orange" sub="Completed" />
         <StatCard label="Avg Order"      value={formatCurrency(d.today?.avg_sale ?? 0)}      icon={TrendingUp} color="violet" sub="Per cover" />
         <StatCard label="Active Kitchen" value={totalActive}                                  icon={Clock}         color="amber"  sub="In progress" />
@@ -269,9 +269,10 @@ export default function RestaurantDashboard() {
       {/* Month summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0),  icon: DollarSign,   color: 'green' },
+          { label: 'Month Revenue',  value: formatCurrency(d.month?.revenue ?? 0),  icon: DollarSign,   color: 'green',
+            sub: d.month?.refunds > 0 ? `After ${formatCurrency(d.month.refunds)} refunded` : undefined },
           { label: 'Month After Costs', value: formatCurrency(d.month?.net ?? d.month?.revenue ?? 0), icon: DollarSign, color: (d.month?.net ?? 0) < 0 ? 'red' : 'green',
-            sub: `Less ${formatCurrency(d.month?.deductions ?? 0)} refunds, expenses, salaries & rent` },
+            sub: `Less ${formatCurrency(d.month?.deductions ?? 0)} expenses, salaries & rent` },
           { label: 'Month Orders',   value: `${d.month?.transactions ?? 0} orders`, icon: ShoppingCart, color: 'orange' },
           { label: 'Month Customers', value: d.month?.customers ?? 0,               icon: TrendingUp,   color: 'violet' },
         ].map(({ label, value, icon: Icon, color, sub }: { label: string; value: string | number; icon: any; color: string; sub?: string }) => {

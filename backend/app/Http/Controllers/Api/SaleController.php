@@ -73,10 +73,15 @@ class SaleController extends BaseApiController
 
         // Totals for everything matching the filters (not just this page).
         // Only sales that count as money taken go into the total — voided
-        // sales and still-open tabs are counted separately.
+        // sales and still-open tabs are counted separately — and whatever was
+        // refunded on those sales comes off it.
         $counted = $applyFilters(Sale::query())->whereIn('status', Sale::REVENUE_STATUSES);
+        $refundedAmount = (float) DB::table('refunds')->where('status', 'completed')
+            ->whereIn('sale_id', (clone $counted)->select('sales.id'))
+            ->sum('amount');
         $summary = [
-            'total'        => (float) (clone $counted)->sum('total'),
+            'total'        => (float) (clone $counted)->sum('total') - $refundedAmount,
+            'refunded'     => $refundedAmount,
             'count'        => (clone $counted)->count(),
             'voided_count' => $applyFilters(Sale::query())->where('status', 'voided')->count(),
             'open_count'   => $applyFilters(Sale::query())->where('status', 'open')->count(),

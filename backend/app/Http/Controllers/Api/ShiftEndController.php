@@ -40,6 +40,8 @@ class ShiftEndController extends BaseApiController
             }
         }
 
+        $refunds = $this->shiftRefunds($user->id, $shiftStart);
+
         $salesList = $sales->map(fn($s) => [
             'id'           => $s->id,
             'reference'    => $s->reference ?? $s->receipt_number ?? '#' . $s->id,
@@ -51,15 +53,30 @@ class ShiftEndController extends BaseApiController
 
         return $this->success([
             'shift_start'        => $shiftStart,
-            'total_sales'        => $sales->sum('total'),
+            'total_sales'        => $sales->sum('total') - $refunds,
+            'total_refunds'      => $refunds,
             'total_transactions' => $sales->count(),
             'cash_sales'         => $cashSales,
             'card_sales'         => $cardSales,
             'mobile_money_sales' => $mobileSales,
             'other_sales'        => $otherSales,
-            'expected_cash'      => $cashSales,
+            'expected_cash'      => $cashSales - $refunds,
             'sales'              => $salesList,
         ]);
+    }
+
+    /**
+     * What the cashier refunded since their shift started. A refund is paid
+     * out of the till in cash (as Day End assumes), so it comes off both the
+     * shift's sales and the cash expected in the drawer.
+     */
+    private function shiftRefunds(int $userId, $shiftStart): float
+    {
+        return (float) DB::table('refunds')
+            ->where('status', 'completed')
+            ->where('user_id', $userId)
+            ->where('completed_at', '>=', $shiftStart)
+            ->sum('amount');
     }
 
     /** POST /shift-end — cashier submits their shift end */
@@ -97,7 +114,8 @@ class ShiftEndController extends BaseApiController
             }
         }
 
-        $expectedCash = $cashSales;
+        $refunds      = $this->shiftRefunds($user->id, $shiftStart);
+        $expectedCash = $cashSales - $refunds;
         $variance     = $data['declared_cash'] - $expectedCash;
 
         $shiftEnd = ShiftEnd::create([
@@ -105,7 +123,7 @@ class ShiftEndController extends BaseApiController
             'user_id'            => $user->id,
             'shift_start'        => $shiftStart,
             'shift_end'          => now(),
-            'total_sales'        => $sales->sum('total'),
+            'total_sales'        => $sales->sum('total') - $refunds,
             'cash_sales'         => $cashSales,
             'card_sales'         => $cardSales,
             'mobile_money_sales' => $mobileSales,

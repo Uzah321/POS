@@ -375,7 +375,8 @@ export default function CashierPage() {
   const saleMutation = useMutation({
     mutationFn: (payload: object) => offlineMutate(() => salesApi.create(payload), 'sales', 'create', payload as Record<string, unknown>),
     onSuccess: (result, variables) => {
-      const sale = (result as any).data?.data;
+      // offlineMutate wraps the response: result.data is the axios response, its .data the body, the body's .data the sale.
+      const sale = (result as any).data?.data?.data;
 
       // Persist to IndexedDB so My Sales / Cashup / Dashboard work when API is unavailable
       const paymentsFromPayload = (variables as any).payments ?? [];

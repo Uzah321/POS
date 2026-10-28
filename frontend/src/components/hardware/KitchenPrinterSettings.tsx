@@ -10,10 +10,13 @@ import {
   isPrinterConnected, canChoosePrinters, printKitchenTicket, resolveReceiptPrintMode,
 } from '../../lib/hardware/printer';
 import PrinterPicker from './PrinterPicker';
+import KitchenStationsCard from './KitchenStationsCard';
+import { useKitchenStations } from '../../hooks/useKitchenStations';
 
 // Hardware > Kitchen Printer: printers, chosen independently of the front
 // receipt printers, that get an order ticket (no prices) for the back
-// whenever a restaurant order is sent to a table or paid.
+// whenever a restaurant order is sent to a table or paid — each the items
+// for its kitchen stations, or for its categories.
 
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
@@ -54,6 +57,9 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
     queryFn: () => categoriesApi.list().then((r) => r.data?.data ?? []),
     staleTime: 60000,
   });
+  const { data: stations = [], isLoading: stationsLoading, isError: stationsFailed, refetch: refetchStations } = useKitchenStations();
+  // The single printer's stations, leaving out any since deleted.
+  const stationIds = hw.kitchenStationIds.filter((id) => stations.some((s) => s.id === id));
 
   const handleConnectUsb = async () => {
     try {
@@ -108,6 +114,10 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
     hw.update({ kitchenCategoryIds: ids });
   };
 
+  const toggleStation = (id: number) => {
+    hw.update({ kitchenStationIds: stationIds.includes(id) ? stationIds.filter((s) => s !== id) : [...stationIds, id] });
+  };
+
   return (
     <div className="space-y-4">
       <Card title="Kitchen Printer">
@@ -123,6 +133,9 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
           </div>
         </label>
       </Card>
+
+      <KitchenStationsCard stations={stations} isLoading={stationsLoading} loadError={stationsFailed && stations.length === 0}
+        onRetry={() => void refetchStations()} />
 
       {hw.kitchenPrinterEnabled && (
         <>
@@ -148,10 +161,13 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
             <Card title="Kitchen Printers">
               <PrinterPicker role="kitchen" chosen={hw.kitchenPrinters} onChange={(kitchenPrinters) => hw.update({ kitchenPrinters })}
                 categories={categories as Array<{ id: number; name: string }>}
+                stations={stations}
                 otherRole={hw.printerMode === 'system' ? hw.receiptPrinters : []} />
               <p className="text-xs text-gray-400 mt-3">
+                {stations.length > 0 && 'Pick a station and that printer gets the items set to it (Products → Kitchen Printer). '}
                 "All items" sends every line to that printer; pick categories to send it only those (e.g. drinks to the bar printer, food to the kitchen).
-                A printer an order has nothing for prints nothing.
+                {stations.length > 0 && ' Items for a station no printer here prints go by category.'}
+                {' '}A printer an order has nothing for prints nothing.
               </p>
             </Card>
           )}
@@ -180,27 +196,50 @@ export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnec
             </Card>
           )}
 
-          {/* Chosen printers each have their own categories, above. */}
+          {/* Chosen printers each have their own stations and categories, above. */}
           {hw.kitchenPrinterMode !== 'system' && (
             <Card title="What Goes to the Kitchen">
-              <p className="text-sm text-gray-600 mb-3">
-                Tick the categories the kitchen should get. Leave all unticked to send every item (tick e.g. food only to keep bar drinks off the kitchen ticket).
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {(categories as any[]).map((c: any) => {
-                  const on = hw.kitchenCategoryIds.includes(c.id);
-                  return (
-                    <button key={c.id} type="button" onClick={() => toggleCategory(c.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
-                      {c.name}
-                    </button>
-                  );
-                })}
-                {(categories as any[]).length === 0 && <p className="text-xs text-gray-400">No categories yet.</p>}
-              </div>
-              <p className="text-xs text-gray-400 mt-3">
-                {hw.kitchenCategoryIds.length === 0 ? 'Sending: every item' : `Sending: ${hw.kitchenCategoryIds.length} categor${hw.kitchenCategoryIds.length === 1 ? 'y' : 'ies'} only`}
-              </p>
+              {stations.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Tick the stations this printer is for, to print only the items set to them (Products → Kitchen Printer). Leave all unticked to go by category, below.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {stations.map((s) => (
+                      <button key={s.id} type="button" onClick={() => toggleStation(s.id)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${stationIds.includes(s.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {stationIds.length > 0 ? (
+                <p className="text-xs text-gray-400">
+                  Sending: the items set to {stations.filter((s) => stationIds.includes(s.id)).map((s) => s.name).join(' and ')} only
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Tick the categories the kitchen should get. Leave all unticked to send every item (tick e.g. food only to keep bar drinks off the kitchen ticket).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(categories as any[]).map((c: any) => {
+                      const on = hw.kitchenCategoryIds.includes(c.id);
+                      return (
+                        <button key={c.id} type="button" onClick={() => toggleCategory(c.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                          {c.name}
+                        </button>
+                      );
+                    })}
+                    {(categories as any[]).length === 0 && <p className="text-xs text-gray-400">No categories yet.</p>}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    {hw.kitchenCategoryIds.length === 0 ? 'Sending: every item' : `Sending: ${hw.kitchenCategoryIds.length} categor${hw.kitchenCategoryIds.length === 1 ? 'y' : 'ies'} only`}
+                  </p>
+                </>
+              )}
             </Card>
           )}
 

@@ -142,6 +142,13 @@ export const weighingScalesApi = {
   delete: (id: number) => api.delete(`/weighing-scales/${id}`),
 };
 
+export const kitchenStationsApi = {
+  list: () => api.get('/kitchen-stations'),
+  create: (data: object) => api.post('/kitchen-stations', data),
+  update: (id: number, data: object) => api.put(`/kitchen-stations/${id}`, data),
+  delete: (id: number) => api.delete(`/kitchen-stations/${id}`),
+};
+
 export const usersApi = {
   waiters: () => api.get('/waiters'),
   list: (params?: object) => api.get('/users', { params }),

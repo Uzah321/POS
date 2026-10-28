@@ -13,6 +13,8 @@ export interface ChosenPrinter {
   paper: '58mm' | '80mm' | 'a4';
   /** Kitchen printers: only lines from these category ids; empty = every item. */
   categoryIds: number[];
+  /** Kitchen printers: prints these kitchen stations' items (and not by category); empty/missing = none. */
+  stationIds?: number[];
 }
 
 export interface HardwareConfig {
@@ -42,6 +44,8 @@ export interface HardwareConfig {
   // The other modes' one kitchen printer: only lines from these category
   // ids go on its tickets; empty = all (keeps a bar's drinks off it).
   kitchenCategoryIds: number[];
+  // ...or, set, it prints these kitchen stations' items instead (see kitchenLinesFor).
+  kitchenStationIds: number[];
 
   // Cash drawer
   cashDrawerEnabled: boolean;
@@ -95,6 +99,7 @@ const DEFAULTS: HardwareConfig = {
   kitchenPrinterProductId: null,
   kitchenPrinters: [],
   kitchenCategoryIds: [],
+  kitchenStationIds: [],
 
   cashDrawerEnabled: false,
   cashDrawerViaPrinter: true,

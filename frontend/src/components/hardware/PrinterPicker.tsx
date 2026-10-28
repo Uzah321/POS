@@ -7,8 +7,9 @@ import QzTrayCard from './QzTrayCard';
 
 // Hardware → Receipt / Kitchen Printer, "Choose Printers": every printer
 // Windows has installed on this computer, to tick as many as should print
-// bills (or kitchen tickets). A kitchen printer can take only some
-// categories, e.g. drinks to the bar printer and food to the kitchen.
+// bills (or kitchen tickets). A kitchen printer can print for kitchen
+// stations (the Grill printer gets the products set to Grill), or take only
+// some categories, e.g. drinks to the bar printer and food to the kitchen.
 
 interface Props {
   role: 'receipt' | 'kitchen';
@@ -16,13 +17,15 @@ interface Props {
   onChange: (chosen: ChosenPrinter[]) => void;
   /** Kitchen printers: the categories each can be limited to. */
   categories?: Array<{ id: number; name: string }>;
+  /** Kitchen printers: the kitchen stations each can print. */
+  stations?: Array<{ id: number; name: string }>;
   /** Printers ticked for the other role, to say so on the row. */
   otherRole?: ChosenPrinter[];
 }
 
 const PAPER_LABEL: Record<ChosenPrinter['paper'], string> = { '58mm': '58 mm roll', '80mm': '80 mm roll', a4: 'A4 page' };
 
-export default function PrinterPicker({ role, chosen, onChange, categories = [], otherRole = [] }: Props) {
+export default function PrinterPicker({ role, chosen, onChange, categories = [], stations = [], otherRole = [] }: Props) {
   const desktop = isSystemPrintAvailable();
   const connector = useHardwareStore((s) => s.printConnector);
   const setConnector = (printConnector: 'qz' | 'bridge') => useHardwareStore.getState().update({ printConnector });
@@ -57,6 +60,12 @@ export default function PrinterPicker({ role, chosen, onChange, categories = [],
   const toggleCategory = (p: ChosenPrinter, id: number) => patch(p.name, {
     categoryIds: p.categoryIds.includes(id) ? p.categoryIds.filter((c) => c !== id) : [...p.categoryIds, id],
   });
+  // Stations since deleted aren't shown (and are dropped on the next change).
+  const stationsOf = (p: ChosenPrinter) => (p.stationIds ?? []).filter((id) => stations.some((s) => s.id === id));
+  const toggleStation = (p: ChosenPrinter, id: number) => {
+    const ids = stationsOf(p);
+    patch(p.name, { stationIds: ids.includes(id) ? ids.filter((s) => s !== id) : [...ids, id] });
+  };
 
   // Ticked printers this computer doesn't (or doesn't yet) list stay on show, so they can be unticked.
   const rows: AvailablePrinter[] = [
@@ -133,7 +142,25 @@ export default function PrinterPicker({ role, chosen, onChange, categories = [],
                       </button>
                     ))}
                   </div>
-                  {role === 'kitchen' && (
+                  {role === 'kitchen' && stations.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="text-gray-500 mr-1">Station</span>
+                      <button type="button" onClick={() => patch(p.name, { stationIds: [] })}
+                        className={`px-2.5 py-1 rounded-full border font-semibold ${stationsOf(c).length === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                        None
+                      </button>
+                      {stations.map((st) => (
+                        <button key={st.id} type="button" onClick={() => toggleStation(c, st.id)}
+                          className={`px-2.5 py-1 rounded-full border font-semibold ${stationsOf(c).includes(st.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                          {st.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {role === 'kitchen' && stationsOf(c).length > 0 && (
+                    <p className="text-xs text-gray-500">Prints the items set to {stations.filter((s) => stationsOf(c).includes(s.id)).map((s) => s.name).join(' and ')}.</p>
+                  )}
+                  {role === 'kitchen' && stationsOf(c).length === 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
                       <span className="text-gray-500 mr-1">Prints</span>
                       <button type="button" onClick={() => patch(p.name, { categoryIds: [] })}

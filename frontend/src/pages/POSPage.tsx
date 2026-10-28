@@ -9,7 +9,8 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
-import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode, kitchenOrderLabel } from '../lib/hardware/printer';
+import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode, kitchenOrderLabel, kitchenLinesFor } from '../lib/hardware/printer';
+import { useKitchenStations } from '../hooks/useKitchenStations';
 import { companyLogo } from '../lib/companyLogo';
 import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
@@ -170,6 +171,8 @@ export default function POSPage() {
     queryFn: () => weighingScalesApi.list().then(r => r.data?.data || []),
   });
   useEffect(() => { if (scales.length) ensureScalesAutoConnected(scales); }, [scales]);
+  // Kitchen stations (Grill, Bar, …) — where each product's kitchen ticket prints.
+  const { data: kitchenStations } = useKitchenStations();
 
   // A weight-priced product tapped with no live scale reading — prompts for
   // a hand-entered weight before anything is added to the cart, so a
@@ -476,23 +479,34 @@ export default function POSPage() {
   };
 
   // Prints a kitchen ticket for the lines on `items` the kitchen hasn't had yet:
-  // on each chosen kitchen printer, the lines in its categories; on the other
-  // modes' one printer, the categories set for it.
+  // each line at its product's kitchen station (or the default one), on this
+  // till's printers for that station, and the rest by category — see
+  // kitchenLinesFor. Chosen printers each take their share when printing;
+  // the other modes' one printer takes its share here.
   // Returns true when kitchen printing is on, i.e. the caller should record
-  // these lines as sent — even if the category filter left nothing to print.
+  // these lines as sent — even if none of them were for this till's printers.
   const sendKitchenTicket = (
     items: CartItem[],
     // waiter: the order's assigned waiter; falls back to whoever is logged in (counter orders).
     meta: { ticket: string; table: string; orderType: 'sit_in' | 'takeaway' | 'delivery'; covers: number; customerName: string; note: string; waiter?: string },
   ): boolean => {
     if (!hw.kitchenPrinterEnabled) return false;
-    const categoryOf = (productId: number) => {
-      const product = allProducts.find((p: any) => p.id === productId);
-      return product?.category_id ?? product?.category?.id;
-    };
+    const defaultStation = kitchenStations?.find((s) => s.is_default)?.id;
+    // A station deleted since this till was set up is forgotten, so its printer goes back to printing by category.
+    const known = kitchenStations ? new Set(kitchenStations.map((s) => s.id)) : null;
+    const current = (ids: number[] = []) => (known ? ids.filter((id) => known.has(id)) : ids);
+    const printers = hw.kitchenPrinters.map((p) => ({ ...p, stationIds: current(p.stationIds) }));
     const mode = resolveReceiptPrintMode(hw.kitchenPrinterMode);
-    const lines = unsentKitchenItems(items).filter((i) =>
-      mode === 'system' || hw.kitchenCategoryIds.length === 0 || hw.kitchenCategoryIds.includes(categoryOf(i.product_id)));
+    const unsent = unsentKitchenItems(items).map((i) => {
+      const product = allProducts.find((p: any) => p.id === i.product_id);
+      return {
+        name: i.name, qty: i.unsent, soldByWeight: i.sold_by_weight,
+        categoryId: product?.category_id ?? product?.category?.id,
+        stationId: product?.kitchen_station_id ?? defaultStation,
+      };
+    });
+    const route = { categoryIds: hw.kitchenCategoryIds, stationIds: current(hw.kitchenStationIds) };
+    const lines = mode === 'system' ? unsent : kitchenLinesFor(route, [route], unsent);
     if (lines.length === 0) return true;
     void printKitchenTicket({
       title: items.some((i) => (i.kitchen_sent_qty ?? 0) > 0) ? 'ADD TO ORDER' : 'NEW ORDER',
@@ -502,9 +516,9 @@ export default function POSPage() {
       covers: meta.table ? meta.covers : undefined,
       waiter: meta.waiter || user?.name,
       customerName: meta.customerName || undefined,
-      items: lines.map((i) => ({ name: i.name, qty: i.unsent, soldByWeight: i.sold_by_weight, categoryId: categoryOf(i.product_id) })),
+      items: lines,
       note: meta.note || undefined,
-    }, mode, hw.kitchenPrinters).catch((error: any) => {
+    }, mode, printers).catch((error: any) => {
       toast.error(error?.message ?? 'Kitchen ticket failed to print');
     });
     return true;

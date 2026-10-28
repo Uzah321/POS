@@ -1,8 +1,9 @@
-﻿import { useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { productsApi, categoriesApi, brandsApi, unitsApi, inventoryApi, branchesApi, warehousesApi, weighingScalesApi } from '../api';
 import type { ScaleDevice } from '../lib/hardware/scale';
+import { useKitchenStations } from '../hooks/useKitchenStations';
 import { db, type LocalProduct } from '../lib/db';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { Plus, Search, Edit, Package, X, Loader2, AlertTriangle, Tag, FileSpreadsheet, RefreshCw, WifiOff, Trash2, Layers, BookOpen, Ruler, Image as ImageIcon, ChefHat, PackagePlus, PackageMinus, History } from 'lucide-react';
@@ -73,6 +74,7 @@ const schema = z.object({
   is_taxable: z.coerce.boolean().default(true),
   sold_by_weight: z.coerce.boolean().default(false),
   scale_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
+  kitchen_station_id: z.preprocess((value) => value === '' || value === null ? undefined : value, z.coerce.number().positive().optional()),
 });
 
 // Preset swatches shown for quick-pick — a small, print-friendly palette that
@@ -271,8 +273,10 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
   const { data: brands } = useQuery({ queryKey: ['brands'],    queryFn: () => brandsApi.list().then(r => r.data?.data || []) });
   const { data: units }  = useQuery({ queryKey: ['units'],     queryFn: () => unitsApi.list().then(r => r.data?.data || []) });
   const { data: scales } = useQuery<ScaleDevice[]>({ queryKey: ['weighing-scales'], queryFn: () => weighingScalesApi.list().then(r => r.data?.data || []) });
+  const { data: stations } = useKitchenStations();
+  const defaultStation = stations?.find((s) => s.is_default);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, getValues, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: product ? {
       ...product,
@@ -298,6 +302,8 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       sold_by_weight: false,
     },
   });
+  // The stations usually arrive after the form opens — select the product's own once its option is there.
+  useEffect(() => { if (stations) setValue('kitchen_station_id', getValues('kitchen_station_id')); }, [stations, setValue, getValues]);
   const watchedColor = watch('color');
   const watchedImage = watch('image');
   const watchedMadeToOrder = watch('made_to_order');
@@ -310,9 +316,9 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
       // USD (the base currency the backend/db always store) before saving.
       const usdSellingPrice = toUsd(data.selling_price);
       const usdCostPrice = toUsd(data.cost_price);
-      // null (not undefined) for a cleared color/image — undefined keys are dropped
-      // from the JSON, which left the server keeping the old picture.
-      const payload = { ...data, color: data.color ?? null, image: data.image ?? null, selling_price: usdSellingPrice, cost_price: usdCostPrice } as Record<string, unknown>;
+      // null (not undefined) for a cleared color/image/station — undefined keys are
+      // dropped from the JSON, which left the server keeping the old one.
+      const payload = { ...data, color: data.color ?? null, image: data.image ?? null, kitchen_station_id: data.kitchen_station_id ?? null, selling_price: usdSellingPrice, cost_price: usdCostPrice } as Record<string, unknown>;
       const saveOffline = async () => {
         if (product) {
           await db.products.put({
@@ -616,6 +622,18 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               <label className="text-sm font-semibold text-gray-700">Reorder Level</label>
               <input type="number" step="any" min="0" {...register('reorder_level')} className={field} placeholder="5" />
               <p className="text-xs text-gray-400 mt-1">Flag as low stock at or below this quantity</p>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Kitchen Printer</label>
+              <select {...register('kitchen_station_id')} className={field}>
+                <option value="">{!stations ? 'Default' : defaultStation ? `Default (${defaultStation.name})` : 'Default (by category)'}</option>
+                {stations?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {stations?.length
+                  ? 'Where this item’s kitchen ticket prints.'
+                  : 'No stations yet — add Grill, Bar, etc. in Hardware → Kitchen Printer.'}
+              </p>
             </div>
             <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">

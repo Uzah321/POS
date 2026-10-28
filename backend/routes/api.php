@@ -225,6 +225,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     Route::apiResource('units', \App\Http\Controllers\Api\UnitController::class);
     Route::apiResource('warehouses', \App\Http\Controllers\Api\WarehouseController::class);
     Route::apiResource('weighing-scales', \App\Http\Controllers\Api\WeighingScaleController::class);
+    // Every till routes kitchen tickets by these; Hardware (manage_settings) edits them.
+    Route::get('/kitchen-stations', [\App\Http\Controllers\Api\KitchenStationController::class, 'index']);
+    Route::middleware('permission:manage_settings')->group(function () {
+        Route::apiResource('kitchen-stations', \App\Http\Controllers\Api\KitchenStationController::class)->except(['index', 'show']);
+    });
     Route::get('/tax-rates', [\App\Http\Controllers\Api\TaxRateController::class, 'index']);
 
     // ZIMRA fiscalisation — retry-sync stays open to any authenticated session

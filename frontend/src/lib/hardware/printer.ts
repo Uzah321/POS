@@ -80,12 +80,12 @@ function escPosColumns(paper: ChosenPrinter['paper']): number {
 /**
  * Prints on each printer at once: rendered HTML in the desktop app, or the
  * printer's own ESC/POS bytes through QZ Tray or the Core Bridge in a
- * browser. Returns what went wrong on any that didn't print, grouped by
- * reason.
+ * browser. Returns the ones that didn't print, and what went wrong on them
+ * grouped by reason.
  */
 async function printOnChosen<T extends { name: string }>(
   targets: T[], html: (t: T) => string, escpos: (t: T) => Uint8Array,
-): Promise<{ failed: number; problems: string }> {
+): Promise<{ failed: T[]; problems: string }> {
   const desktop = electronBridge();
   const sendRaw = useHardwareStore.getState().printConnector === 'qz' ? qzPrintRaw : bridgePrint;
   const results = await Promise.allSettled(targets.map(async (t) => {
@@ -103,7 +103,7 @@ async function printOnChosen<T extends { name: string }>(
     byReason.set(reason, [...(byReason.get(reason) ?? []), targets[i].name]);
   });
   return {
-    failed: results.filter((r) => r.status === 'rejected').length,
+    failed: targets.filter((_, i) => results[i].status === 'rejected'),
     problems: [...byReason].map(([reason, names]) => `${names.join(', ')}: ${reason}`).join(' · '),
   };
 }
@@ -140,31 +140,84 @@ function line(s = ''): Uint8Array { return concat(text(s), bytes(LF)); }
 function divider(char = '-', len = 32): Uint8Array { return line(char.repeat(len)); }
 
 /**
- * The company logo as an ESC/POS raster image (GS v 0, which nearly every
- * thermal printer understands): fitted inside 320 × 120 dots — about 40 ×
- * 15 mm, inside a 58 mm roll's 384 — and black wherever the picture is
- * darker than mid-grey. Null with no logo, or one that won't load: a
- * receipt never waits on its logo.
+ * The most room the logo takes on a receipt, in printer dots (8 to the mm):
+ * nearly the roll's whole printable width, and 28 / 32 mm tall. 80 mm stops
+ * at 480 dots so it fits printers 512 dots across as well as 576.
  */
-async function escPosLogo(logo?: string): Promise<Uint8Array | null> {
-  if (!logo) return null;
-  try {
-    const canvas = drawOnWhite(await loadImage(logo), 320, 120);
-    const { width: w, height: h } = canvas;
-    const px = canvas.getContext('2d')!.getImageData(0, 0, w, h).data;
-    const rowBytes = Math.ceil(w / 8);
-    const out = new Uint8Array(8 + rowBytes * h);
-    out.set([GS, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, h & 0xff, h >> 8]);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = (y * w + x) * 4;
-        if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 128) out[8 + y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
-      }
-    }
-    return out;
-  } catch {
-    return null;
+const LOGO_DOTS = {
+  '58mm': { width: 352, height: 224 },
+  '80mm': { width: 480, height: 256 },
+};
+
+const logoRasters = new Map<string, Promise<Uint8Array | null>>();
+
+/**
+ * The company logo as an ESC/POS raster image (GS v 0, which nearly every
+ * thermal printer understands) for the given roll — worked out once, so
+ * printing the next receipt doesn't redo it. Null with no logo, or one that
+ * won't load: a receipt never waits on its logo.
+ */
+function escPosLogo(logo: string | undefined, paper: ChosenPrinter['paper'] = '58mm'): Promise<Uint8Array | null> {
+  if (!logo) return Promise.resolve(null);
+  const box = LOGO_DOTS[paper === '58mm' ? '58mm' : '80mm'];
+  const key = `${box.width}:${logo}`;
+  let raster = logoRasters.get(key);
+  if (!raster) {
+    raster = rasterLogo(logo, box).catch(() => null);
+    if (logoRasters.size >= 4) logoRasters.clear();
+    logoRasters.set(key, raster);
   }
+  return raster;
+}
+
+/**
+ * Black wherever the picture is darker than mid-grey. Its blank margins are
+ * left off, and what's left is fitted inside `box` keeping its shape —
+ * enlarged up to twice over if it's small. Null if nothing in it is dark
+ * enough to print.
+ */
+async function rasterLogo(logo: string, box: { width: number; height: number }): Promise<Uint8Array | null> {
+  const dark = (px: Uint8ClampedArray, i: number) => 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 128;
+
+  const img = await loadImage(logo);
+  const source = drawOnWhite(img, img.width, img.height);
+  const all = source.getContext('2d')!.getImageData(0, 0, source.width, source.height).data;
+  let left = source.width, right = -1, top = source.height, bottom = -1;
+  for (let y = 0; y < source.height; y++) {
+    for (let x = 0; x < source.width; x++) {
+      if (!dark(all, (y * source.width + x) * 4)) continue;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = y;
+    }
+  }
+  if (right < 0) return null;
+  const cropW = right - left + 1;
+  const cropH = bottom - top + 1;
+
+  const scale = Math.min(2, box.width / cropW, box.height / cropH);
+  const w = Math.max(1, Math.round(cropW * scale));
+  const h = Math.max(1, Math.round(cropH * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, left, top, cropW, cropH, 0, 0, w, h);
+
+  const px = ctx.getImageData(0, 0, w, h).data;
+  const rowBytes = Math.ceil(w / 8);
+  const out = new Uint8Array(8 + rowBytes * h);
+  out.set([GS, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, h & 0xff, h >> 8]);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (dark(px, (y * w + x) * 4)) out[8 + y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  }
+  return out;
 }
 
 /**
@@ -810,16 +863,18 @@ export async function printReceipt(
     }
     const desktop = isSystemPrintAvailable();
     const qrImageDataUrl = desktop ? await renderFiscalQrDataUrl(data.fiscalQrCodeUrl) : undefined;
-    const logo = desktop ? null : await escPosLogo(data.logo);
+    // The logo sized for each roll the printers take.
+    const logos = new Map<ChosenPrinter['paper'], Uint8Array | null>();
+    if (!desktop) for (const p of printers) if (!logos.has(p.paper)) logos.set(p.paper, await escPosLogo(data.logo, p.paper));
     const { failed, problems } = await printOnChosen(printers,
       (p) => buildReceiptHtml(data, { paperWidth: p.paper }, qrImageDataUrl),
-      (p) => buildEscPosReceipt(data, logo, escPosColumns(p.paper)));
+      (p) => buildEscPosReceipt(data, logos.get(p.paper) ?? null, escPosColumns(p.paper)));
     // The customer still gets a bill when none of the printers could print it.
-    if (failed === printers.length) {
+    if (failed.length === printers.length) {
       await browserPrintReceipt(data);
       throw new Error(`Bill not printed — ${problems}. Opened the print dialog instead.`);
     }
-    if (failed > 0) throw new Error(`Bill not printed on ${problems}`);
+    if (failed.length > 0) throw new Error(`Bill not printed on ${problems}`);
     return;
   }
   await browserPrintReceipt(data);
@@ -835,6 +890,8 @@ export interface KitchenTicketItem {
   soldByWeight?: boolean;
   /** Which chosen kitchen printers take this line (their categories). */
   categoryId?: number;
+  /** The kitchen station it's made at: its product's, or the default station. */
+  stationId?: number;
 }
 
 export interface KitchenTicketData {
@@ -849,6 +906,23 @@ export interface KitchenTicketData {
   items: KitchenTicketItem[];
   note?: string;
   date?: Date;
+}
+
+type KitchenRoute = Pick<ChosenPrinter, 'categoryIds' | 'stationIds'>;
+
+/**
+ * The lines of an order that `printer`, one of this till's kitchen
+ * `printers`, prints. A line whose station one of them prints goes only to
+ * the printers for that station. Every other line — no station, or one this
+ * till doesn't print — goes by category to the printers with no station, as
+ * before there were stations (no categories = every item).
+ */
+export function kitchenLinesFor<T extends KitchenTicketItem>(printer: KitchenRoute, printers: KitchenRoute[], items: T[]): T[] {
+  const printed = new Set(printers.flatMap((p) => p.stationIds ?? []));
+  const stations = printer.stationIds ?? [];
+  return items.filter((item) => (item.stationId != null && printed.has(item.stationId)
+    ? stations.includes(item.stationId)
+    : stations.length === 0 && (printer.categoryIds.length === 0 || (item.categoryId != null && printer.categoryIds.includes(item.categoryId)))));
 }
 
 /** What a kitchen ticket calls the order: the sale's order number once it exists, else `fallback` (the cart's own ticket number). */
@@ -950,16 +1024,21 @@ ${d.note ? `<div class="rule"></div><div class="note">NOTE: ${escapeHtml(d.note)
 export async function printKitchenTicket(
   data: KitchenTicketData,
   mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
-  /** Mode 'system': each prints the lines in its categories (all of them with `allItems`, for a test ticket). */
+  /** Mode 'system': each prints its share of the lines, kitchenLinesFor (all of them with `allItems`, for a test ticket). */
   printers: ChosenPrinter[] = [],
   { allItems = false }: { allItems?: boolean } = {},
 ): Promise<void> {
-  if (mode === 'webusb' && usbConnections.kitchen) {
-    await sendToUsb(buildEscPosKitchenTicket(data), 'kitchen');
-    return;
-  }
-  if (mode === 'webbluetooth' && bleConnections.kitchen) {
-    await sendToBluetooth(buildEscPosKitchenTicket(data), 'kitchen');
+  if ((mode === 'webusb' && usbConnections.kitchen) || (mode === 'webbluetooth' && bleConnections.kitchen)) {
+    const ticket = buildEscPosKitchenTicket(data);
+    try {
+      await (mode === 'webusb' ? sendToUsb(ticket, 'kitchen') : sendToBluetooth(ticket, 'kitchen'));
+    } catch (error: any) {
+      // Unplugged, switched off or out of Bluetooth range: the kitchen still gets the order.
+      const reason = String(error?.message ?? error).trim().replace(/\.$/, '');
+      console.warn(`Kitchen ticket ${data.ticket ?? ''} not printed: ${reason}`);
+      browserPrintKitchenTicket(data);
+      throw new Error(`Kitchen ticket not printed — ${reason}. Opened the print dialog instead.`, { cause: error });
+    }
     return;
   }
   if (mode === 'system') {
@@ -967,22 +1046,25 @@ export async function printKitchenTicket(
       browserPrintKitchenTicket(data);
       throw new Error('No kitchen printer ticked in Hardware > Kitchen Printer — opened the print dialog instead.');
     }
-    const takes = (p: ChosenPrinter, item: KitchenTicketItem) =>
-      allItems || p.categoryIds.length === 0 || (item.categoryId != null && p.categoryIds.includes(item.categoryId));
     const jobs = printers
-      .map((p) => ({ name: p.name, paper: p.paper, ticket: { ...data, items: data.items.filter((i) => takes(p, i)) } }))
+      .map((p) => ({ name: p.name, paper: p.paper, ticket: { ...data, items: allItems ? data.items : kitchenLinesFor(p, printers, data.items) } }))
       .filter((job) => job.ticket.items.length > 0);
     if (jobs.length === 0) return; // nothing on this order for any of them
     const { failed, problems } = await printOnChosen(jobs,
       (job) => buildKitchenTicketHtml(job.ticket),
       (job) => buildEscPosKitchenTicket(job.ticket, escPosColumns(job.paper)));
-    // The kitchen still gets the order when none of the printers could print it.
-    if (failed === jobs.length) {
-      browserPrintKitchenTicket({ ...data, items: data.items.filter((i) => jobs.some((job) => job.ticket.items.includes(i))) });
-      throw new Error(`Kitchen ticket not printed — ${problems}. Opened the print dialog instead.`);
+    if (failed.length === 0) return;
+    console.warn(`Kitchen ticket ${data.ticket ?? ''} not printed on ${problems}`);
+    // The kitchen still gets every line no printer managed to print.
+    const printed = new Set(jobs.filter((job) => !failed.includes(job)).flatMap((job) => job.ticket.items));
+    const missed = data.items.filter((i) => !printed.has(i) && failed.some((job) => job.ticket.items.includes(i)));
+    if (missed.length > 0) {
+      browserPrintKitchenTicket({ ...data, items: missed });
+      throw new Error(failed.length === jobs.length
+        ? `Kitchen ticket not printed — ${problems}. Opened the print dialog instead.`
+        : `Kitchen ticket not printed on ${problems}. Opened the print dialog for its items instead.`);
     }
-    if (failed > 0) throw new Error(`Kitchen ticket not printed on ${problems}`);
-    return;
+    throw new Error(`Kitchen ticket not printed on ${problems}`);
   }
   browserPrintKitchenTicket(data);
 }
@@ -1056,7 +1138,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   .item-name { font-weight:bold; padding:1px 0; }
   .item-detail { display:flex; justify-content:space-between; padding:1px 8px 3px; }
   .col-hdr { display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px dashed #000; padding-bottom:2px; margin-bottom:2px; }
-  .logo { display:block; max-width:70%; max-height:25mm; margin:0 auto 4px; }
+  .logo { display:block; max-width:90%; max-height:${s.paperWidth === '58mm' ? 28 : 32}mm; margin:0 auto 4px; }
   .order-no { text-align:center; font-weight:bold; border:2px solid #000; padding:2px 0 4px; margin:4px 0; }
   .order-no .num { font-size:${s.fontSize * 3}px; font-weight:900; line-height:1.1; }
   @media print { @page { margin:0; size:${pageSize}; } body { padding:1mm; } }`;

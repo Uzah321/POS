@@ -132,6 +132,7 @@ const ESC_BOLD_ON     = bytes(ESC, 0x45, 0x01);
 const ESC_BOLD_OFF    = bytes(ESC, 0x45, 0x00);
 const ESC_DWIDTH_ON   = bytes(GS,  0x21, 0x11);
 const ESC_DWIDTH_OFF  = bytes(GS,  0x21, 0x00);
+const ESC_TRIPLE_ON   = bytes(GS,  0x21, 0x22); // 3× width and height; ESC_DWIDTH_OFF ends it
 const ESC_CUT         = bytes(GS,  0x56, 0x42, 0x00);
 const CASH_DRAWER     = bytes(ESC, 0x70, 0x00, 0x19, 0x78);
 
@@ -239,6 +240,8 @@ export interface ReceiptData {
   // Order-info block (mirrors a fiscal till slip's header rows)
   branchName?: string;
   orderNum?: string;
+  /** A restaurant sale: the order number prints large at the top, for the customer to listen out for. */
+  restaurant?: boolean;
   customerName?: string;
   covers?: number;
   tableNumber?: string;
@@ -400,6 +403,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     // The order number (resets after each Day End); sales from before order
     // numbers existed show their id as they always did.
     orderNum: options.orderNum ?? (sale?.order_number != null ? String(sale.order_number) : sale?.id != null ? String(sale.id) : undefined),
+    restaurant: sale?.business_type === 'restaurant',
     customerName: options.customerName ?? sale?.customer?.name,
     covers: options.covers,
     tableNumber: options.tableNumber ?? sale?.table_number ?? undefined,
@@ -524,9 +528,14 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   }
   parts.push(divider('-', W));
 
+  // A restaurant calls its orders by number: it goes big, where the customer sees it first.
+  if (d.restaurant && d.orderNum) {
+    parts.push(ESC_BOLD_ON, line('ORDER NO.'), ESC_TRIPLE_ON, line(`#${d.orderNum}`), ESC_DWIDTH_OFF, ESC_BOLD_OFF, divider('-', W));
+  }
+
   // Order-info block
   parts.push(ESC_ALIGN_LEFT);
-  if (d.orderNum) parts.push(ESC_BOLD_ON, line(`Order Num : ${d.orderNum}`), ESC_BOLD_OFF);
+  if (d.orderNum && !d.restaurant) parts.push(ESC_BOLD_ON, line(`Order Num : ${d.orderNum}`), ESC_BOLD_OFF);
   parts.push(line(`Tax Inv No : ${d.reference}`));
   if (d.customerName) parts.push(line(`Customer : ${d.customerName}`));
   if (d.covers) parts.push(line(`Covers : ${d.covers}`));
@@ -1028,6 +1037,10 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
         .map(x => `<div class="center">${x}</div>`).join('')
     : '';
   const logoHtml = d.logo ? `<img class="logo" src="${escapeHtml(d.logo)}" alt="">` : '';
+  // A restaurant calls its orders by number: it goes big, where the customer sees it first.
+  const orderNoHtml = d.restaurant && d.orderNum
+    ? `<div class="order-no"><div>ORDER NO.</div><div class="num">#${escapeHtml(d.orderNum)}</div></div>`
+    : '';
 
   const commonCss = `
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -1044,6 +1057,8 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   .item-detail { display:flex; justify-content:space-between; padding:1px 8px 3px; }
   .col-hdr { display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px dashed #000; padding-bottom:2px; margin-bottom:2px; }
   .logo { display:block; max-width:70%; max-height:25mm; margin:0 auto 4px; }
+  .order-no { text-align:center; font-weight:bold; border:2px solid #000; padding:2px 0 4px; margin:4px 0; }
+  .order-no .num { font-size:${s.fontSize * 3}px; font-weight:900; line-height:1.1; }
   @media print { @page { margin:0; size:${pageSize}; } body { padding:1mm; } }`;
 
   // ── Fiscal layout (default) ──────────────────────────────────────────────
@@ -1066,7 +1081,8 @@ ${d.branchName && d.branchName !== d.storeName ? `<div class="center bold">${d.b
 ${d.tradingName && d.tradingName !== d.storeName ? `<div class="center">T/A</div><div class="center bold">${d.tradingName}</div>` : ''}
 ${addrLines}
 <div class="divider"></div>
-${d.orderNum ? `<div class="bold">Order Num : ${d.orderNum}</div>` : ''}
+${orderNoHtml}
+${d.orderNum && !d.restaurant ? `<div class="bold">Order Num : ${d.orderNum}</div>` : ''}
 <div>Tax Inv No : ${d.reference}</div>
 ${d.customerName ? `<div>Customer : ${d.customerName}</div>` : ''}
 ${d.covers ? `<div>Covers : ${d.covers}</div>` : ''}
@@ -1137,6 +1153,7 @@ ${d.storeEmail ? `<div class="center">${escapeHtml(d.storeEmail)}</div>` : ''}
 ${d.vatNumber ? `<div class="center">VAT No: ${d.vatNumber}</div>` : ''}
 ${d.tinNumber ? `<div class="center">TIN No: ${d.tinNumber}</div>` : ''}
 <div class="divider"></div>
+${orderNoHtml}
 <div class="row"><span>Ref</span><span class="v">${d.reference}</span></div>
 <div class="row"><span>Date</span><span class="v">${dateStr} ${timeStr}</span></div>
 ${s.showOrderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.orderType)}</div>` : ''}
@@ -1169,6 +1186,7 @@ ${s.showCashierName ? `<div>Cashier: ${d.cashier}</div>` : ''}
 ${logoHtml}
 <div class="center bold">${d.storeName}</div>
 <div class="center">${dateStr}</div>
+${orderNoHtml}
 <div class="divider"></div>
 ${itemRows}
 <div class="divider"></div>

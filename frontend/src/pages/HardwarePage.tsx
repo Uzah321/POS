@@ -551,8 +551,11 @@ export default function HardwarePage() {
   const handleTestPrint = () => {
     // The business details saved in Settings, as a real bill prints them.
     const { storeName, ...company } = companyDetails(storeSettings);
+    // A restaurant's bills carry the order number large at the top — so does its test.
+    const restaurant = (user?.business_type ?? storeSettings?.business_type) === 'restaurant';
     void printReceipt({
       ...company,
+      ...(restaurant ? { restaurant, orderNum: '1' } : {}),
       storeName: storeName ?? 'Core',
       reference: 'TEST-001',
       cashier: user?.name ?? 'Cashier',

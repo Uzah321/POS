@@ -820,7 +820,7 @@ export default function HardwarePage() {
               <Card title="Preview">
                 <div className="border border-gray-200 rounded-lg bg-gray-50 p-3 max-w-[180px]"
                   style={{ fontFamily: FONT_FAMILY_MAP[receipt.fontFamily], fontSize: `${receipt.fontSize}px`, lineHeight: '1.5' }}>
-                  {logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-[90%] max-h-16" />}
+                  {logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-full max-h-24" />}
                   <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
                   <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? previewName : ''}</div>
                   {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>{previewName}</div>}

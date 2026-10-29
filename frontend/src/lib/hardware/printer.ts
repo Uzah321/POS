@@ -141,13 +141,58 @@ function divider(char = '-', len = 32): Uint8Array { return line(char.repeat(len
 
 /**
  * The most room the logo takes on a receipt, in printer dots (8 to the mm):
- * nearly the roll's whole printable width, and 28 / 32 mm tall. 80 mm stops
- * at 480 dots so it fits printers 512 dots across as well as 576.
+ * the roll's whole printable width — 384 dots on 58 mm, 576 on 80 mm, the
+ * widths its 32 / 48 columns of text take — and 40 / 50 mm tall.
  */
 const LOGO_DOTS = {
-  '58mm': { width: 352, height: 224 },
-  '80mm': { width: 480, height: 256 },
+  '58mm': { width: 384, height: 320 },
+  '80mm': { width: 576, height: 400 },
 };
+
+/** How much a small logo may be enlarged: past this it prints blocky. */
+const LOGO_MAX_ENLARGE = 3;
+
+const dark = (px: Uint8ClampedArray, i: number) => 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 128;
+
+const logoCrops = new Map<string, Promise<HTMLCanvasElement | null>>();
+
+/**
+ * The logo on white with its blank margins left off — what's printed, worked
+ * out once per logo. Null with no logo, one that won't load, or nothing in
+ * it dark enough to print: a receipt never waits on its logo.
+ */
+function croppedLogo(logo: string | undefined): Promise<HTMLCanvasElement | null> {
+  if (!logo) return Promise.resolve(null);
+  let crop = logoCrops.get(logo);
+  if (!crop) {
+    crop = cropLogo(logo).catch(() => null);
+    if (logoCrops.size >= 2) logoCrops.clear();
+    logoCrops.set(logo, crop);
+  }
+  return crop;
+}
+
+async function cropLogo(logo: string): Promise<HTMLCanvasElement | null> {
+  const img = await loadImage(logo);
+  const source = drawOnWhite(img, img.width, img.height);
+  const all = source.getContext('2d')!.getImageData(0, 0, source.width, source.height).data;
+  let left = source.width, right = -1, top = source.height, bottom = -1;
+  for (let y = 0; y < source.height; y++) {
+    for (let x = 0; x < source.width; x++) {
+      if (!dark(all, (y * source.width + x) * 4)) continue;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = y;
+    }
+  }
+  if (right < 0) return null;
+  const crop = document.createElement('canvas');
+  crop.width = right - left + 1;
+  crop.height = bottom - top + 1;
+  crop.getContext('2d')!.drawImage(source, left, top, crop.width, crop.height, 0, 0, crop.width, crop.height);
+  return crop;
+}
 
 const logoRasters = new Map<string, Promise<Uint8Array | null>>();
 
@@ -163,7 +208,7 @@ function escPosLogo(logo: string | undefined, paper: ChosenPrinter['paper'] = '5
   const key = `${box.width}:${logo}`;
   let raster = logoRasters.get(key);
   if (!raster) {
-    raster = rasterLogo(logo, box).catch(() => null);
+    raster = croppedLogo(logo).then((crop) => crop && rasterLogo(crop, box)).catch(() => null);
     if (logoRasters.size >= 4) logoRasters.clear();
     logoRasters.set(key, raster);
   }
@@ -171,34 +216,13 @@ function escPosLogo(logo: string | undefined, paper: ChosenPrinter['paper'] = '5
 }
 
 /**
- * Black wherever the picture is darker than mid-grey. Its blank margins are
- * left off, and what's left is fitted inside `box` keeping its shape —
- * enlarged up to twice over if it's small. Null if nothing in it is dark
- * enough to print.
+ * Black wherever the cropped logo is darker than mid-grey, fitted inside
+ * `box` keeping its shape — enlarged up to 3× if it's small.
  */
-async function rasterLogo(logo: string, box: { width: number; height: number }): Promise<Uint8Array | null> {
-  const dark = (px: Uint8ClampedArray, i: number) => 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 128;
-
-  const img = await loadImage(logo);
-  const source = drawOnWhite(img, img.width, img.height);
-  const all = source.getContext('2d')!.getImageData(0, 0, source.width, source.height).data;
-  let left = source.width, right = -1, top = source.height, bottom = -1;
-  for (let y = 0; y < source.height; y++) {
-    for (let x = 0; x < source.width; x++) {
-      if (!dark(all, (y * source.width + x) * 4)) continue;
-      left = Math.min(left, x);
-      right = Math.max(right, x);
-      top = Math.min(top, y);
-      bottom = y;
-    }
-  }
-  if (right < 0) return null;
-  const cropW = right - left + 1;
-  const cropH = bottom - top + 1;
-
-  const scale = Math.min(2, box.width / cropW, box.height / cropH);
-  const w = Math.max(1, Math.round(cropW * scale));
-  const h = Math.max(1, Math.round(cropH * scale));
+function rasterLogo(crop: HTMLCanvasElement, box: { width: number; height: number }): Uint8Array {
+  const scale = Math.min(LOGO_MAX_ENLARGE, box.width / crop.width, box.height / crop.height);
+  const w = Math.max(1, Math.round(crop.width * scale));
+  const h = Math.max(1, Math.round(crop.height * scale));
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -206,7 +230,7 @@ async function rasterLogo(logo: string, box: { width: number; height: number }):
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, w, h);
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(source, left, top, cropW, cropH, 0, 0, w, h);
+  ctx.drawImage(crop, 0, 0, w, h);
 
   const px = ctx.getImageData(0, 0, w, h).data;
   const rowBytes = Math.ceil(w / 8);
@@ -218,6 +242,23 @@ async function rasterLogo(logo: string, box: { width: number; height: number }):
     }
   }
   return out;
+}
+
+/** The logo for a receipt's HTML: the cropped picture and its size in pixels. */
+interface HtmlLogo { src: string; width: number; height: number }
+
+const logoSrcs = new WeakMap<HTMLCanvasElement, string>();
+
+/** The logo for the HTML receipt, its blank margins left off like the printer's raster. */
+async function htmlLogo(logo: string | undefined): Promise<HtmlLogo | undefined> {
+  const crop = await croppedLogo(logo);
+  if (!crop) return undefined;
+  let src = logoSrcs.get(crop);
+  if (!src) {
+    src = crop.toDataURL('image/png');
+    logoSrcs.set(crop, src);
+  }
+  return { src, width: crop.width, height: crop.height };
 }
 
 /**
@@ -863,11 +904,12 @@ export async function printReceipt(
     }
     const desktop = isSystemPrintAvailable();
     const qrImageDataUrl = desktop ? await renderFiscalQrDataUrl(data.fiscalQrCodeUrl) : undefined;
+    const logo = desktop ? await htmlLogo(data.logo) : undefined;
     // The logo sized for each roll the printers take.
     const logos = new Map<ChosenPrinter['paper'], Uint8Array | null>();
     if (!desktop) for (const p of printers) if (!logos.has(p.paper)) logos.set(p.paper, await escPosLogo(data.logo, p.paper));
     const { failed, problems } = await printOnChosen(printers,
-      (p) => buildReceiptHtml(data, { paperWidth: p.paper }, qrImageDataUrl),
+      (p) => buildReceiptHtml(data, { paperWidth: p.paper }, qrImageDataUrl, logo),
       (p) => buildEscPosReceipt(data, logos.get(p.paper) ?? null, escPosColumns(p.paper)));
     // The customer still gets a bill when none of the printers could print it.
     if (failed.length === printers.length) {
@@ -1100,7 +1142,7 @@ function dividerCss(style: ReceiptSettings['dividerStyle']): string {
   return 'border-top:1px dashed #000; margin:4px 0;';
 }
 
-export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSettings>, qrImageDataUrl?: string): string {
+export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSettings>, qrImageDataUrl?: string, logo?: HtmlLogo): string {
   const s: ReceiptSettings = { ...loadReceiptSettings(), ...settings };
   const { dateStr, timeStr } = parseReceiptDate(d);
   const { net, vat, gross, pct } = vatInfo(d);
@@ -1118,7 +1160,12 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
     ? d.storeAddress.split(/[,\n]/).map(x => x.trim()).filter(Boolean)
         .map(x => `<div class="center">${x}</div>`).join('')
     : '';
-  const logoHtml = d.logo ? `<img class="logo" src="${escapeHtml(d.logo)}" alt="">` : '';
+  // Sized like the printer's raster (8 dots to the mm): the roll's width,
+  // unless that makes it taller than its box or more than 3× its own size.
+  const logoMaxHeight = s.paperWidth === 'a4' ? 32 : LOGO_DOTS[s.paperWidth === '58mm' ? '58mm' : '80mm'].height / 8;
+  const logoWidth = logo && Math.floor(10 * Math.min(LOGO_MAX_ENLARGE * logo.width / 8, logoMaxHeight * logo.width / logo.height)) / 10;
+  const logoHtml = logo ? `<img class="logo" src="${escapeHtml(logo.src)}" alt="" style="width:min(100%, ${logoWidth}mm)">`
+    : d.logo ? `<img class="logo" src="${escapeHtml(d.logo)}" alt="">` : '';
   // A restaurant calls its orders by number: it goes big, where the customer sees it first.
   const orderNoHtml = d.restaurant && d.orderNum
     ? `<div class="order-no"><div>ORDER NO.</div><div class="num">#${escapeHtml(d.orderNum)}</div></div>`
@@ -1138,7 +1185,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   .item-name { font-weight:bold; padding:1px 0; }
   .item-detail { display:flex; justify-content:space-between; padding:1px 8px 3px; }
   .col-hdr { display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px dashed #000; padding-bottom:2px; margin-bottom:2px; }
-  .logo { display:block; max-width:90%; max-height:${s.paperWidth === '58mm' ? 28 : 32}mm; margin:0 auto 4px; }
+  .logo { display:block; max-width:100%; max-height:${logoMaxHeight}mm; margin:0 auto 4px; }
   .order-no { text-align:center; font-weight:bold; border:2px solid #000; padding:2px 0 4px; margin:4px 0; }
   .order-no .num { font-size:${s.fontSize * 3}px; font-weight:900; line-height:1.1; }
   @media print { @page { margin:0; size:${pageSize}; } body { padding:1mm; } }`;
@@ -1292,7 +1339,7 @@ export async function browserPrintReceipt(d: ReceiptData): Promise<void> {
     w.document.open();
   }
   const qrImageDataUrl = await renderFiscalQrDataUrl(d.fiscalQrCodeUrl);
-  const html = buildReceiptHtml(d, undefined, qrImageDataUrl);
+  const html = buildReceiptHtml(d, undefined, qrImageDataUrl, await htmlLogo(d.logo));
   w.document.write(html);
   w.document.close();
   w.focus();

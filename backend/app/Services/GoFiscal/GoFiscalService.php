@@ -19,6 +19,11 @@ use Illuminate\Support\Facades\Log;
  * The invoiceNo (the sale / refund reference) is the engine's idempotency
  * key, so sending a receipt again is always safe: one it already has comes
  * back as it is, and no second sale is created.
+ *
+ * Fiscal days run with the business day: Day End closes every device the
+ * branch's tills use, and the first order after it opens them again. What's
+ * known of each device's day is kept here (dayState), so an order or the
+ * sync poll doesn't have to ask the engine.
  */
 class GoFiscalService
 {
@@ -26,6 +31,8 @@ class GoFiscalService
     public const SALE_TIMEOUT = 8;
     /** The till waiting to print, and retries: under Nginx's 60 s. */
     public const FOLLOW_UP_TIMEOUT = 45;
+    /** A fiscal day closed or opened ahead of a receipt — leaves it time to go after. */
+    public const DAY_TIMEOUT = 20;
 
     public function __construct(private readonly GoFiscalReceiptBuilder $builder)
     {
@@ -92,6 +99,17 @@ class GoFiscalService
             return true;
         }
 
+        // Rung up after Day End: it belongs to the next fiscal day, so the
+        // one Day End ended is closed first. Not at checkout, which can't
+        // wait that long — the till's follow-up does it.
+        if ($this->closeOwedBefore($receipt)) {
+            if ($timeout < self::FOLLOW_UP_TIMEOUT) {
+                $receipt->update(['status' => 'pending', 'error_code' => 'fiscal_day_closing', 'last_error' => 'Waits until the last Day End\'s fiscal day is closed.']);
+                return false;
+            }
+            $this->closeOwedDay($receipt->device_id, self::DAY_TIMEOUT);
+        }
+
         try {
             $payload = $this->freshPayload($receipt);
             if (! $payload) {
@@ -104,13 +122,13 @@ class GoFiscalService
             try {
                 $result = $client->submitReceipt($receipt->device_id, $payload, $timeout);
             } catch (GoFiscalException $e) {
-                // The day ran out (or was never opened): close it, and this
-                // receipt opens the next. Not at checkout, which can't wait
-                // that long — the till's follow-up does it.
-                if (! $e->dayNeedsClosing() || $timeout < self::FOLLOW_UP_TIMEOUT) {
+                // The day isn't open, or ran out: start a new one and send
+                // this receipt again. Not at checkout, which can't wait that
+                // long — the till's follow-up does it.
+                if (! $e->dayNotReady() || $timeout < self::FOLLOW_UP_TIMEOUT) {
                     throw $e;
                 }
-                $client->closeDay($receipt->device_id, $timeout);
+                $this->startNewDay($receipt->device_id, $e, self::DAY_TIMEOUT);
                 $result = $client->submitReceipt($receipt->device_id, $payload, $timeout);
             }
         } catch (GoFiscalException $e) {
@@ -133,6 +151,9 @@ class GoFiscalService
      * each failed try; a refused one goes again only once something in it
      * has changed — or on $force (Sync Now), regardless.
      *
+     * Then the fiscal day a Day End asked to close, if it isn't yet: after
+     * the receipts rung up before it, so they're on that day.
+     *
      * @return array{submitted: int, still_pending: int}
      */
     public function retryPendingForBranch(int $branchId, bool $force = false): array
@@ -144,12 +165,17 @@ class GoFiscalService
             ->groupBy('device_id');
 
         $submitted = 0;
-        foreach ($byDevice as $deviceId => $receipts) {
+        foreach ($byDevice->keys()->map(fn ($id) => (int) $id)->merge($this->branchDevices($branchId))->unique() as $deviceId) {
+            $receipts = $byDevice->get($deviceId, collect());
+            if ($receipts->isEmpty() && ! $this->dayState($deviceId)['close_owed']) {
+                continue;
+            }
             $lock = Cache::lock("gofiscal-sync-device-{$deviceId}", 300);
             if (! $lock->get()) {
                 continue; // another till's sync is already on this device
             }
             try {
+                $answering = true;
                 foreach ($receipts as $receipt) {
                     if (! $force && ! $this->dueForRetry($receipt)) {
                         continue;
@@ -157,8 +183,12 @@ class GoFiscalService
                     if ($this->submit($receipt)) {
                         $submitted++;
                     } elseif ($receipt->status === 'pending' && $receipt->error_code !== 'waiting_for_original') {
+                        $answering = false;
                         break; // the engine isn't answering for this device — try again later
                     }
+                }
+                if ($answering) {
+                    $this->closeOwedDay($deviceId);
                 }
             } finally {
                 $lock->release();
@@ -171,17 +201,163 @@ class GoFiscalService
         ];
     }
 
-    /** Closes the fiscal day on every GoFiscal device a branch's tills use (Day End). Never throws. */
-    public function closeDaysForBranch(int $branchId): void
+    /**
+     * What's known here of a device's fiscal day: open (true / false, or
+     * null when nothing's known yet), close_owed (when the Day End that
+     * asked for it to close was, until it has), and the last thing that
+     * went wrong opening or closing it — tried again after retry_at.
+     *
+     * @return array{open: ?bool, close_owed: ?int, error: ?string, attempts: int, retry_at: ?int}
+     */
+    public function dayState(int $deviceId): array
     {
-        $devices = Register::where('branch_id', $branchId)->whereNotNull('gofiscal_device_id')->pluck('gofiscal_device_id')->unique();
-        foreach ($devices as $deviceId) {
+        return (array) Cache::get("gofiscal-day-{$deviceId}", []) + ['open' => null, 'close_owed' => null, 'error' => null, 'attempts' => 0, 'retry_at' => null];
+    }
+
+    /** Day End: the fiscal day on every device the branch's tills use is to close, from now. */
+    public function dayEnded(int $branchId): void
+    {
+        foreach ($this->branchDevices($branchId) as $deviceId) {
+            $this->rememberDay($deviceId, ['close_owed' => now()->timestamp, 'attempts' => 0, 'retry_at' => null]);
+        }
+    }
+
+    /**
+     * An order was punched: every device the branch's tills use gets its
+     * fiscal day opened, if it isn't already — in practice, by the first
+     * order after Day End. Never throws. A device known to be open costs
+     * nothing; one the engine wouldn't open is tried by a later order.
+     */
+    public function openDaysForBranch(int $branchId): void
+    {
+        foreach ($this->branchDevices($branchId) as $deviceId) {
+            $state = $this->dayState($deviceId);
+            if (($state['open'] === true && ! $state['close_owed']) || $state['retry_at'] > now()->timestamp) {
+                continue;
+            }
+            // The last Day End's day goes first; the next order opens the new
+            // one. Each order spends one short call at most: on the desktop
+            // server the till waits on this too.
+            if ($state['close_owed']) {
+                $this->closeOwedDay($deviceId, self::SALE_TIMEOUT);
+                continue;
+            }
+
             try {
-                app(GoFiscalClient::class)->closeDay((int) $deviceId);
+                $this->openDay($deviceId, self::SALE_TIMEOUT);
             } catch (\Throwable $e) {
-                Log::warning('GoFiscal closeDay at Day End failed', ['device_id' => $deviceId, 'error' => $e->getMessage()]);
+                if ($e instanceof GoFiscalException && $e->status === 409 && ! $e->dayNotReady()) {
+                    $this->rememberDay($deviceId, ['open' => true]); // it already is
+                    continue;
+                }
+                $this->dayFailed($deviceId, $e);
+                Log::warning('GoFiscal fiscal day not opened', ['device_id' => $deviceId, 'error' => $e->getMessage()]);
             }
         }
+    }
+
+    /** Opens the device's fiscal day now. */
+    public function openDay(int $deviceId, int $timeout = self::FOLLOW_UP_TIMEOUT): array
+    {
+        $body = app(GoFiscalClient::class)->openDay($deviceId, $timeout);
+        $this->rememberDay($deviceId, ['open' => true, 'error' => null, 'attempts' => 0, 'retry_at' => null]);
+
+        return $body;
+    }
+
+    /** Closes the device's fiscal day now — which settles any close a Day End asked for. */
+    public function closeDay(int $deviceId, int $timeout = self::FOLLOW_UP_TIMEOUT): array
+    {
+        $body = app(GoFiscalClient::class)->closeDay($deviceId, $timeout);
+        $this->rememberDay($deviceId, ['open' => false, 'close_owed' => null, 'error' => null, 'attempts' => 0, 'retry_at' => null]);
+
+        return $body;
+    }
+
+    /**
+     * Closes the day a Day End asked to, if it's still open. Never throws —
+     * returns whether it's closed. One that won't is tried again by the
+     * tills' sync poll, backing off from 30 s to 10 min.
+     */
+    public function closeOwedDay(int $deviceId, int $timeout = self::FOLLOW_UP_TIMEOUT): bool
+    {
+        $state = $this->dayState($deviceId);
+        if (! $state['close_owed']) {
+            return true;
+        }
+        if ($state['retry_at'] > now()->timestamp) {
+            return false;
+        }
+
+        try {
+            $this->closeDay($deviceId, $timeout);
+            return true;
+        } catch (\Throwable $e) {
+            if ($e instanceof GoFiscalException && $e->errorCode === 'fiscal_day_not_open') {
+                // Nothing open to close.
+                $this->rememberDay($deviceId, ['open' => false, 'close_owed' => null, 'error' => null, 'attempts' => 0, 'retry_at' => null]);
+                return true;
+            }
+            $this->dayFailed($deviceId, $e);
+            Log::warning('GoFiscal fiscal day not closed', ['device_id' => $deviceId, 'error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * A receipt the engine refused for its fiscal day: one that ran out is
+     * closed and a new one opened. A day that won't open may have an old one
+     * still in the way — that's closed, and the new one opened after it.
+     */
+    private function startNewDay(int $deviceId, GoFiscalException $refused, int $timeout): void
+    {
+        $expired = $refused->errorCode === 'fiscal_day_expired';
+        if ($expired) {
+            $this->closeDay($deviceId, $timeout);
+        }
+
+        try {
+            $this->openDay($deviceId, $timeout);
+        } catch (GoFiscalException $e) {
+            if ($expired) {
+                return; // closed — the receipt opens the next day by itself
+            }
+            if ($e->status === 0) {
+                throw $e;
+            }
+            $this->closeDay($deviceId, $timeout);
+            $this->openDay($deviceId, $timeout);
+        }
+    }
+
+    /** Whether the receipt was rung up after a Day End whose fiscal day hasn't closed yet. */
+    private function closeOwedBefore(GoFiscalReceipt $receipt): bool
+    {
+        $owed = $this->dayState($receipt->device_id)['close_owed'];
+
+        return $owed && $receipt->created_at && $receipt->created_at->timestamp >= $owed;
+    }
+
+    private function rememberDay(int $deviceId, array $changes): void
+    {
+        Cache::forever("gofiscal-day-{$deviceId}", array_merge($this->dayState($deviceId), $changes));
+    }
+
+    private function dayFailed(int $deviceId, \Throwable $e): void
+    {
+        $attempts = $this->dayState($deviceId)['attempts'] + 1;
+        $this->rememberDay($deviceId, [
+            'error' => $e->getMessage(),
+            'attempts' => $attempts,
+            'retry_at' => now()->addSeconds(min(600, 30 * 2 ** min($attempts - 1, 5)))->timestamp,
+        ]);
+    }
+
+    /** @return \Illuminate\Support\Collection<int, int> The GoFiscal devices a branch's tills use. */
+    private function branchDevices(int $branchId): \Illuminate\Support\Collection
+    {
+        return Register::where('branch_id', $branchId)->whereNotNull('gofiscal_device_id')
+            ->pluck('gofiscal_device_id')->map(fn ($id) => (int) $id)->unique()->values();
     }
 
     /**
@@ -286,6 +462,10 @@ class GoFiscalService
             'attempts' => $receipt->attempts + 1,
             'submitted_at' => now(),
         ]);
+
+        if ($this->dayState($receipt->device_id)['open'] !== true) {
+            $this->rememberDay($receipt->device_id, ['open' => true]);
+        }
     }
 
     private function recordFailure(GoFiscalReceipt $receipt, GoFiscalException $e): void
@@ -299,6 +479,9 @@ class GoFiscalService
             'last_error' => $e->getMessage(),
             'attempts' => $receipt->attempts + 1,
         ]);
+        if ($e->errorCode === 'fiscal_day_not_open') {
+            $this->rememberDay($receipt->device_id, ['open' => false]); // the next order opens it
+        }
 
         Log::warning('GoFiscal receipt not through', ['gofiscal_receipt_id' => $receipt->id, 'error' => $e->errorCode, 'detail' => $e->getMessage()]);
     }

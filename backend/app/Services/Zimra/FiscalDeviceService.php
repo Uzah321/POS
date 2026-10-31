@@ -210,6 +210,16 @@ class FiscalDeviceService
             return $day->fresh();
         }
 
+        return $this->refreshCloseStatus($device, $day);
+    }
+
+    /**
+     * Asks ZIMRA how a close it accepted went (it closes days in its own
+     * time). Until it says, the day stays close_initiated and the sync poll
+     * asks again.
+     */
+    public function refreshCloseStatus(FiscalDevice $device, FiscalDay $day): FiscalDay
+    {
         try {
             $status = $this->client($device)->getStatus();
             $day->update([
@@ -223,8 +233,6 @@ class FiscalDeviceService
                 'closed_at' => isset($status['fiscalDayClosed']) ? Carbon::parse($status['fiscalDayClosed']) : now(),
             ]);
         } catch (\Throwable $e) {
-            // closeDay was accepted even if this status poll failed — leave as
-            // close_initiated, the sync job will check again later.
             Log::warning('ZIMRA getStatus after closeDay failed', ['fiscal_day_id' => $day->id, 'error' => $e->getMessage()]);
         }
 

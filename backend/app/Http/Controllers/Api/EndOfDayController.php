@@ -8,14 +8,12 @@ use App\Models\Sale;
 use App\Models\HeldSale;
 use App\Models\SaleItem;
 use App\Models\ShiftEnd;
-use App\Models\Register;
-use App\Services\GoFiscal\GoFiscalService;
-use App\Services\Zimra\FiscalDeviceService;
 use App\Services\Zimra\FiscalSubmissionService;
 use App\Support\OperatingCosts;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+
+use function Illuminate\Support\defer;
 
 class EndOfDayController extends BaseApiController
 {
@@ -120,6 +118,7 @@ class EndOfDayController extends BaseApiController
             'net_revenue'        => $netRevenue,
             'cashier_breakdown'  => $cashierBreakdown,
             'shift_ends'         => $shiftEnds,
+            'fiscal_days'        => $branchId ? app(FiscalSubmissionService::class)->dayStatusForBranch((int) $branchId) : [],
         ]);
     }
 
@@ -212,40 +211,21 @@ class EndOfDayController extends BaseApiController
             return [$eod, $clearedOrders];
         });
 
-        // Give every register's registered fiscal device a natural place to
-        // close its fiscal day — this is the same "day is done" moment as EOD
-        // itself. Never blocks EOD submission: a device that can't reach ZIMRA
-        // right now stays open/close_failed and gets retried by the sync poll.
-        try {
-            app(FiscalSubmissionService::class)->retryPendingForBranch($data['branch_id']);
-        } catch (\Throwable $e) {
-            Log::warning('ZIMRA pending-receipt sync before EOD failed', ['branch_id' => $data['branch_id'], 'error' => $e->getMessage()]);
-        }
-
-        $registers = Register::with('fiscalDevice')
-            ->where('branch_id', $data['branch_id'])
-            ->whereHas('fiscalDevice', fn ($q) => $q->where('status', 'registered'))
-            ->get();
-
-        foreach ($registers as $register) {
-            $device = $register->fiscalDevice;
-            $openDay = $device->currentFiscalDay();
-            if (! $openDay) {
-                continue;
-            }
-
-            try {
-                app(FiscalDeviceService::class)->closeDay($device, $openDay);
-            } catch (\Throwable $e) {
-                Log::warning('ZIMRA closeDay at EOD failed', ['fiscal_device_id' => $device->id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        // Tills that fiscalise through GoFiscal: the engine closes their days.
-        app(GoFiscalService::class)->closeDaysForBranch($data['branch_id']);
+        // The ZIMRA fiscal day closes with the day, on every till of the
+        // branch: owed from now, and closed once the till has this answer —
+        // ZIMRA being slow or out of reach never holds Day End up. A close
+        // that doesn't go through is retried by the tills' sync poll, and the
+        // first order after this opens the next day.
+        $fiscal = app(FiscalSubmissionService::class);
+        $fiscal->dayEnded($data['branch_id']);
+        defer(fn () => $fiscal->closeDaysForBranch($data['branch_id']));
 
         return $this->success(
-            ['end_of_day' => $eod->load('user', 'branch'), 'cleared_orders' => $clearedOrders],
+            [
+                'end_of_day' => $eod->load('user', 'branch'),
+                'cleared_orders' => $clearedOrders,
+                'fiscal_days' => $fiscal->dayStatusForBranch($data['branch_id']),
+            ],
             'End of day submitted successfully',
             201
         );

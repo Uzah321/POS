@@ -34,8 +34,8 @@ class GoFiscalException extends RuntimeException
         return new self($status, $code, $errors ? implode(' ', $errors) : ($detail ?: "GoFiscal answered HTTP {$status} ({$code})."), $errors);
     }
 
-    /** The device's fiscal day has to be closed before it takes another receipt. */
-    public function dayNeedsClosing(): bool
+    /** The device's fiscal day can't take a receipt: it isn't open, or ran out and has to be closed first. */
+    public function dayNotReady(): bool
     {
         return in_array($this->errorCode, ['fiscal_day_not_open', 'fiscal_day_expired'], true);
     }

@@ -18,6 +18,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+use function Illuminate\Support\defer;
+
 class SaleController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
@@ -320,6 +322,9 @@ class SaleController extends BaseApiController
         $payload = $sale->toArray();
         $payload['fiscal_receipt'] = app(FiscalSubmissionService::class)->summary($fiscalReceipt);
 
+        // The first order after Day End opens the branch's fiscal days.
+        defer(fn () => app(FiscalSubmissionService::class)->openDaysForBranch((int) $sale->branch_id));
+
         return $this->success($payload, 'Sale completed', 201);
     }
 
@@ -586,6 +591,8 @@ class SaleController extends BaseApiController
             'order_status'   => 'open',
             'table_number'   => $data['table_number'] ?? null,
         ]);
+
+        defer(fn () => app(FiscalSubmissionService::class)->openDaysForBranch((int) $held->branch_id));
 
         return $this->success($held, 'Sale held successfully', 201);
     }

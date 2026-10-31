@@ -2,14 +2,17 @@
 
 namespace App\Services\Zimra;
 
+use App\Models\EndOfDay;
 use App\Models\FiscalDay;
 use App\Models\FiscalDevice;
 use App\Models\FiscalReceipt;
 use App\Models\GoFiscalReceipt;
 use App\Models\Refund;
+use App\Models\Register;
 use App\Models\Sale;
 use App\Services\GoFiscal\GoFiscalService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -226,13 +229,120 @@ class FiscalSubmissionService
                 }
             }
 
-            $openDay = $device->currentFiscalDay();
-            if ($openDay && $openDay->status === 'close_failed') {
-                $this->deviceService->closeDay($device, $openDay);
+            // Then the day a Day End ended, if it isn't closed yet: a close
+            // that failed goes again, one ZIMRA is still on is asked after,
+            // and one that never went (Day End's own try didn't run) goes now.
+            $day = $device->fiscalDays()->latest('fiscal_day_no')->first();
+            if ($day?->status === 'close_initiated') {
+                $this->deviceService->refreshCloseStatus($device, $day);
+            } elseif ($day && ($day->status === 'close_failed' || ($day->status === 'opened' && $this->dayEndedSince($day)))) {
+                $this->deviceService->closeDay($device, $day);
             }
         }
 
         return $results;
+    }
+
+    /** Day End: every fiscal till of the branch is to close its day — see closeDaysForBranch(). */
+    public function dayEnded(int $branchId): void
+    {
+        $this->goFiscal->dayEnded($branchId);
+    }
+
+    /**
+     * Day End's close, once the till has its answer: what's still pending
+     * goes first, so it's on the day, then every fiscal till of the branch
+     * closes its day. Never throws — whatever doesn't close is retried by
+     * the tills' sync poll (retryPendingForBranch) until it does.
+     */
+    public function closeDaysForBranch(int $branchId): void
+    {
+        try {
+            $this->retryPendingForBranch($branchId);
+        } catch (\Throwable $e) {
+            Log::warning('Closing fiscal days at Day End failed', ['branch_id' => $branchId, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * An order was punched: every fiscal till of the branch whose day isn't
+     * open gets it opened — in practice, by the first order after Day End.
+     * Never throws. A till whose day is open costs no call to ZIMRA; one
+     * still owing Day End's close is left to the sync poll to close first.
+     */
+    public function openDaysForBranch(int $branchId): void
+    {
+        try {
+            $this->goFiscal->openDaysForBranch($branchId);
+        } catch (\Throwable $e) {
+            Log::warning('Opening GoFiscal days failed', ['branch_id' => $branchId, 'error' => $e->getMessage()]);
+        }
+
+        // A till linked to GoFiscal fiscalises there, not through its own device.
+        $devices = FiscalDevice::whereHas('register', fn ($q) => $q->where('branch_id', $branchId)->whereNull('gofiscal_device_id'))
+            ->where('status', 'registered')->get()->filter->isRegistered();
+        foreach ($devices as $device) {
+            $day = $device->currentFiscalDay();
+            if ($day && ($day->opened_remotely_at || $day->status !== 'opened' || $this->dayEndedSince($day))) {
+                continue;
+            }
+            // One try at telling ZIMRA every 2 minutes, while it can't be reached.
+            if (! Cache::add("zimra-day-open-{$device->id}", true, 120)) {
+                continue;
+            }
+            try {
+                $this->deviceService->sendPendingDayOpen($device, $day ?? $this->deviceService->ensureDayOpenLocally($device));
+            } catch (\Throwable $e) {
+                Log::warning('ZIMRA openDay on first order failed', ['fiscal_device_id' => $device->id, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /**
+     * Where each fiscal till of the branch stands with its fiscal day, for
+     * the Day End page: open, closing (Day End asked; not through yet —
+     * error says why) or closed.
+     *
+     * @return list<array{register: string, provider: string, status: string, error: ?string}>
+     */
+    public function dayStatusForBranch(int $branchId): array
+    {
+        $registers = Register::with('fiscalDevice')->where('branch_id', $branchId)->orderBy('name')->get();
+
+        $rows = [];
+        foreach ($registers as $register) {
+            if ($register->gofiscal_device_id) {
+                $state = $this->goFiscal->dayState((int) $register->gofiscal_device_id);
+                $rows[] = [
+                    'register' => $register->name,
+                    'provider' => 'gofiscal',
+                    'status' => $state['close_owed'] ? 'closing' : match ($state['open']) { true => 'open', false => 'closed', null => 'unknown' },
+                    'error' => $state['error'],
+                ];
+            } elseif ($register->fiscalDevice?->isRegistered()) {
+                $day = $register->fiscalDevice->fiscalDays()->latest('fiscal_day_no')->first();
+                $rows[] = [
+                    'register' => $register->name,
+                    'provider' => 'zimra',
+                    'status' => match ($day?->status) {
+                        null, 'closed' => 'closed',
+                        'opened' => $this->dayEndedSince($day) ? 'closing' : 'open',
+                        default => 'closing',
+                    },
+                    'error' => $day?->status === 'close_failed' ? $day->closing_error_code : null,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /** Whether the branch has closed its day since this fiscal day opened — so it's owed a close. */
+    private function dayEndedSince(FiscalDay $day): bool
+    {
+        $branchId = $day->fiscalDevice?->register?->branch_id;
+
+        return $branchId && EndOfDay::where('branch_id', $branchId)->where('created_at', '>', $day->opened_at)->exists();
     }
 
     /** Rolls a submitted receipt's amounts into its fiscal day's running counters (§6). */

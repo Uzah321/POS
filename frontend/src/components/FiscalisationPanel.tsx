@@ -214,11 +214,11 @@ function GoFiscalTill({ register, onChange }: { register: any; onChange: () => v
               {openDay.isPending ? <Loader2 size={13} className="animate-spin" /> : null} Open Fiscal Day
             </button>
             <button type="button" className={btnGhost} disabled={closeDay.isPending}
-              onClick={() => { if (confirm('Close this device\'s fiscal day now? The next sale opens a new one.')) closeDay.mutate(); }}>
+              onClick={() => { if (confirm('Close this device\'s fiscal day now? The next order opens a new one.')) closeDay.mutate(); }}>
               {closeDay.isPending ? <Loader2 size={13} className="animate-spin" /> : null} Close Fiscal Day
             </button>
           </div>
-          <p className="text-[11px] text-gray-400">A sale opens the fiscal day by itself if it isn't open. Day End closes it too.</p>
+          <p className="text-[11px] text-gray-400">Day End closes the fiscal day by itself, and the first order after it opens the next one.</p>
         </>
       )}
     </div>

@@ -30,6 +30,44 @@ interface EodSummary {
   expected_cash?: number;
   cashier_breakdown: { cashier: any; username: any; transactions: number; revenue: number }[];
   shift_ends: { user: { name: string }; declared_cash: number; expected_cash: number; variance: number; status: string }[];
+  /** Where each fiscal till's ZIMRA fiscal day stands now. */
+  fiscal_days?: FiscalDayRow[];
+}
+
+interface FiscalDayRow {
+  register: string;
+  provider: 'gofiscal' | 'zimra';
+  /** closing: Day End asked, and it hasn't gone through yet — error says why. */
+  status: 'open' | 'closing' | 'closed' | 'unknown';
+  error: string | null;
+}
+
+const FISCAL_DAY_LABEL: Record<FiscalDayRow['status'], [string, string]> = {
+  open:    ['Open', 'bg-green-100 text-green-700'],
+  closing: ['Closing…', 'bg-yellow-100 text-yellow-700'],
+  closed:  ['Closed', 'bg-gray-100 text-gray-600'],
+  unknown: ['Not known yet', 'bg-gray-100 text-gray-500'],
+};
+
+/** Each fiscal till's ZIMRA fiscal day: Close Day closes it, and the first order after opens the next. */
+function FiscalDays({ rows }: { rows: FiscalDayRow[] }) {
+  return (
+    <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">ZIMRA Fiscal Day</div>
+      <ul className="divide-y divide-gray-100 text-sm">
+        {rows.map((r) => (
+          <li key={r.register} className="px-5 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-gray-700">{r.register}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FISCAL_DAY_LABEL[r.status][1]}`}>{FISCAL_DAY_LABEL[r.status][0]}</span>
+            {r.status === 'closing' && r.error && <span className="text-xs text-gray-500">{r.error} Trying again by itself.</span>}
+          </li>
+        ))}
+      </ul>
+      <p className="px-5 py-2 border-t border-gray-100 text-[11px] text-gray-400">
+        Close Day closes it on every till, and the first order after opens the next one. Both happen by themselves.
+      </p>
+    </div>
+  );
 }
 
 /** The day's sales less what was refunded — a Day End keeps the two apart, so its total is worked out here. */
@@ -248,6 +286,8 @@ export default function DayEndPage() {
     queryKey: ['eod-summary', selectedDate, branchId],
     queryFn: () => api.get('/end-of-day/summary', { params: { date: selectedDate, ...branchParams } }).then(r => r.data.data as EodSummary),
     enabled: branchReady,
+    // While a fiscal day is closing, keep checking until it has.
+    refetchInterval: (query) => (query.state.data?.fiscal_days ?? []).some((d) => d.status === 'closing') ? 10_000 : false,
   });
 
   const { data: storeSettings } = useQuery({
@@ -286,16 +326,18 @@ export default function DayEndPage() {
         actual_cash:  actualCash,
         notes:        data.notes,
       };
-      return offlineMutate(() => api.post('/end-of-day', payload), 'end_of_day', 'create', { _url: '/end-of-day', _method: 'POST', ...payload });
+      // The desktop server answers only once the fiscal days have closed.
+      return offlineMutate(() => api.post('/end-of-day', payload, { timeout: 58000 }), 'end_of_day', 'create', { _url: '/end-of-day', _method: 'POST', ...payload });
     },
     onSuccess: (result: any) => {
       if (result.offline) toast.success('End-of-day saved offline');
       else {
         const cleared = result?.data?.data?.cleared_orders ?? 0;
+        const fiscal = (result?.data?.data?.fiscal_days ?? []).length > 0 ? ' The ZIMRA fiscal day is closing.' : '';
         toast.success(
-          cleared > 0
-            ? `Day end submitted — ${cleared} open order${cleared !== 1 ? 's' : ''} cleared`
-            : 'Day end submitted successfully!'
+          (cleared > 0
+            ? `Day end submitted — ${cleared} open order${cleared !== 1 ? 's' : ''} cleared.`
+            : 'Day end submitted successfully!') + fiscal
         );
         qc.invalidateQueries({ queryKey: ['eod-summary'] });
         qc.invalidateQueries({ queryKey: ['eod-history'] });
@@ -469,6 +511,8 @@ export default function DayEndPage() {
       ) : (
         <p className="text-gray-400">No data for this date.</p>
       )}
+
+      {(summary?.fiscal_days?.length ?? 0) > 0 && <FiscalDays rows={summary!.fiscal_days!} />}
 
       {/* Submit EOD form */}
       <div className="bg-white rounded-md border border-gray-200 p-6">

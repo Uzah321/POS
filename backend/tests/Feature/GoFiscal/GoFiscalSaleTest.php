@@ -71,6 +71,7 @@ class GoFiscalSaleTest extends TestCase
         Setting::set('tax_enabled', true);
         Setting::set('gofiscal_default_hs_code', '02023000');
         GoFiscalClient::storeKey('gf_live_testkey1234');
+        Http::preventStrayRequests();
 
         Permission::firstOrCreate(['name' => 'manage_settings', 'guard_name' => 'web']);
         Permission::firstOrCreate(['name' => 'process_refunds', 'guard_name' => 'web']);
@@ -316,6 +317,7 @@ class GoFiscalSaleTest extends TestCase
                 ->push(['error' => 'fiscal_day_expired', 'detail' => 'The fiscal day is older than 24 hours.'], 409)
                 ->push($this->accepted(), 200),
             'https://api.gofiscal.app/v1/devices/7/day/close' => Http::response(['status' => 'closed'], 200),
+            'https://api.gofiscal.app/v1/devices/7/day/open' => Http::response(['status' => 'FiscalDayOpened'], 200),
         ]);
 
         // Checkout can't wait for a day to close: it stays pending...

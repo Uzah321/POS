@@ -32,6 +32,7 @@ $AllowedOrigin = '__CORE_ALLOWED_ORIGIN__'
 
 Add-Type -TypeDefinition @'
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -56,11 +57,18 @@ using System.Threading;
 public static class CoreBridge
 {
     const string WsGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    // How long a printer gets to take a job before the page hears why not.
+    const int PrintWait = 20000;
     static string allowedOrigin;
+    static readonly BlockingCollection<string> logLines = new BlockingCollection<string>();
 
     public static void Run(int port, string origin)
     {
         allowedOrigin = origin.TrimEnd('/');
+        KeepWindowFromPausing();
+        Thread writer = new Thread(() => { foreach (string line in logLines.GetConsumingEnumerable()) Console.WriteLine(line); });
+        writer.IsBackground = true;
+        writer.Start();
         TcpListener listener = new TcpListener(IPAddress.Loopback, port);
         try { listener.Start(); }
         catch (SocketException)
@@ -121,7 +129,7 @@ public static class CoreBridge
 
             if (route == "/ping")
             {
-                SendText(page, "{\"type\":\"hello\",\"version\":2,\"printers\":true,\"allowed\":" + (allowed ? "true" : "false") + "}");
+                SendText(page, "{\"type\":\"hello\",\"version\":3,\"printers\":true,\"allowed\":" + (allowed ? "true" : "false") + "}");
                 return;
             }
             if (route != "/connect" && route != "/printers" && route != "/print") { SendError(page, "Unknown request."); return; }
@@ -259,17 +267,31 @@ public static class CoreBridge
             SendError(page, "The print job didn't arrive.");
             return;
         }
-        string error;
-        try { error = RawPrint(printer, job); }
-        catch (Exception e) { error = e.Message; }
-        if (error != null)
+        // A printer that's off or out of paper, with Windows set to print
+        // straight to it, holds the job until it's back - the page hears that
+        // rather than nothing. The job may still come out once it is.
+        string error = null;
+        Thread worker = new Thread(() =>
         {
-            Log("Couldn't print on " + printer + ": " + error);
-            SendError(page, error);
+            try { error = RawPrint(printer, job); }
+            catch (Exception e) { error = e.Message; }
+        });
+        worker.IsBackground = true;
+        worker.Start();
+        if (!worker.Join(PrintWait))
+        {
+            SendError(page, "didn't take the job within " + PrintWait / 1000 + " seconds - check it's switched on, has paper and its lid is shut, and that nothing is stuck in its Windows print queue");
+            Log("Couldn't print on " + printer + ": still waiting for it to take the job");
             return;
         }
-        Log("Printed on " + printer + " (" + job.Length + " bytes)");
+        if (error != null)
+        {
+            SendError(page, error);
+            Log("Couldn't print on " + printer + ": " + error);
+            return;
+        }
         SendText(page, "{\"type\":\"printed\"}");
+        Log("Printed on " + printer + " (" + job.Length + " bytes)");
     }
 
     // One whole message from the page, joined from its frames - null if the
@@ -592,9 +614,29 @@ public static class CoreBridge
         return sb.Append('"').ToString();
     }
 
+    // Written out by a thread of its own: a window someone has clicked in
+    // pauses whatever writes to it, and that mustn't be an answer to the till.
     static void Log(string message)
     {
-        Console.WriteLine(DateTime.Now.ToString("HH:mm:ss") + "  " + message);
+        logLines.Add(DateTime.Now.ToString("HH:mm:ss") + "  " + message);
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern IntPtr GetStdHandle(int handle);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool GetConsoleMode(IntPtr handle, out uint mode);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool SetConsoleMode(IntPtr handle, uint mode);
+
+    // Clicking in the window starts selecting text (Quick Edit), which pauses
+    // the log until Esc - with it off, a click does nothing.
+    static void KeepWindowFromPausing()
+    {
+        const int StdInput = -10;
+        const uint QuickEdit = 0x40, ExtendedFlags = 0x80;
+        IntPtr input = GetStdHandle(StdInput);
+        uint mode;
+        if (GetConsoleMode(input, out mode)) SetConsoleMode(input, (mode & ~QuickEdit) | ExtendedFlags);
     }
 }
 '@

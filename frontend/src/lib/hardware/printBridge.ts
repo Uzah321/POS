@@ -15,6 +15,11 @@ const BRIDGE_DOWN =
   "The Core Bridge isn't running on this computer (or the browser blocked it) — start it, see Hardware → Receipt Printer.";
 const BRIDGE_OLD =
   'This Core Bridge is an older version without printers — download it again from Hardware → Receipt Printer, close the old one and start the new one.';
+// A bridge older than version 3 goes quiet once someone clicks in its window
+// (and waits on a printer for as long as it takes); version 3 always answers.
+const PRINT_LATE =
+  "The Core Bridge didn't answer in time — if its window's title starts with “Select”, click in it and press Esc, and download the new Core Bridge from Hardware → Receipt Printer";
+const BRIDGE_VERSION = 3;
 
 export interface BridgePrinter {
   name: string;
@@ -23,7 +28,7 @@ export interface BridgePrinter {
   offline: boolean;
 }
 
-function ask(path: string, body: Uint8Array | null, answer: string, timeoutMs: number): Promise<any> {
+function ask(path: string, body: Uint8Array | null, answer: string, timeoutMs: number, late = "The Core Bridge didn't answer in time"): Promise<any> {
   return new Promise((resolve, reject) => {
     let ws: WebSocket;
     try { ws = new WebSocket(BRIDGE_URL + path); } catch { reject(new Error(BRIDGE_DOWN)); return; }
@@ -36,7 +41,7 @@ function ask(path: string, body: Uint8Array | null, answer: string, timeoutMs: n
       try { ws.close(); } catch {}
       settle();
     };
-    const timer = setTimeout(() => finish(() => reject(new Error("The Core Bridge didn't answer in time"))), timeoutMs);
+    const timer = setTimeout(() => finish(() => reject(new Error(late))), timeoutMs);
     ws.onopen = () => {
       opened = true;
       if (body) ws.send(body as Uint8Array<ArrayBuffer>); // the builders' plain byte arrays, never shared memory
@@ -56,12 +61,12 @@ function ask(path: string, body: Uint8Array | null, answer: string, timeoutMs: n
 
 export type CoreBridgeStatus = 'running' | 'not-running' | 'wrong-site' | 'outdated';
 
-/** Whether the bridge is up on this computer, downloaded for this site, and (if asked) new enough to print. */
+/** Whether the bridge is up on this computer, downloaded for this site, and (if asked) the version printing needs. */
 export async function checkCoreBridge(needPrinters: boolean): Promise<CoreBridgeStatus> {
   try {
     const hello = await ask('/ping', null, 'hello', 2500);
     if (hello.allowed === false) return 'wrong-site';
-    return needPrinters && hello.printers !== true ? 'outdated' : 'running';
+    return needPrinters && (hello.printers !== true || Number(hello.version) < BRIDGE_VERSION) ? 'outdated' : 'running';
   } catch {
     return 'not-running';
   }
@@ -75,5 +80,5 @@ export async function bridgePrinters(): Promise<BridgePrinter[]> {
 
 /** Sends a job, as-is, to a printer Windows has installed. */
 export async function bridgePrint(printer: string, job: Uint8Array): Promise<void> {
-  await ask(`/print?printer=${encodeURIComponent(printer)}`, job, 'printed', 30000);
+  await ask(`/print?printer=${encodeURIComponent(printer)}`, job, 'printed', 30000, PRINT_LATE);
 }

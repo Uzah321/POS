@@ -63,7 +63,7 @@ export default function CoreBridgeCard({ use, onRunning }: { use: 'scales' | 'pr
         <p className="text-xs text-amber-700">The bridge running here was downloaded from a different web address — download it again from this page, close the old one and start the new one.</p>
       )}
       {status === 'outdated' && (
-        <p className="text-xs text-amber-700">This computer is running an older Core Scale Bridge, which can't print. Download the Core Bridge, close the old window, start the new one — and put it in the Startup folder in place of the old file.</p>
+        <p className="text-xs text-amber-700">This computer is running an older Core Bridge, which can't print or can stop answering the till. Download the Core Bridge, close the old window, start the new one — and put it in the Startup folder in place of the old file.</p>
       )}
       <div className="flex gap-2 flex-wrap">
         <button onClick={downloadCoreBridge} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">

@@ -73,15 +73,36 @@ class Sale extends Model
         if ($lock) {
             Branch::whereKey($branchId)->lockForUpdate()->first();
         }
-        $dayEnd = EndOfDay::where('branch_id', $branchId)->latest('id')->first(['id', 'created_at', 'last_sale_id']);
 
-        return (int) static::where('branch_id', $branchId)
-            ->when($dayEnd, fn ($q) => $dayEnd->last_sale_id !== null
-                // The sales rung up since the Day End: past the last sale it saw
-                ? $q->where('id', '>', $dayEnd->last_sale_id)
-                // A Day End from before it recorded that — by time instead
-                : $q->where('created_at', '>=', $dayEnd->created_at))
-            ->max('order_number') + 1;
+        return (int) static::where('branch_id', $branchId)->sinceDayEnd($branchId)->max('order_number') + 1;
+    }
+
+    /**
+     * Sales rung up since their branch's last Day End — the day that's still
+     * open, which order numbers count and Sales History shows. A branch that
+     * has never run Day End: all of its sales. With $branchId, only that
+     * branch's Day End is looked up.
+     */
+    public function scopeSinceDayEnd($query, ?int $branchId = null)
+    {
+        $dayEnds = EndOfDay::whereIn('id', EndOfDay::query()
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->groupBy('branch_id')->selectRaw('MAX(id)'))
+            ->get(['branch_id', 'created_at', 'last_sale_id']);
+
+        return $query->where(function ($q) use ($dayEnds) {
+            foreach ($dayEnds as $dayEnd) {
+                $q->orWhere(function ($q) use ($dayEnd) {
+                    $q->where('sales.branch_id', $dayEnd->branch_id);
+                    if ($dayEnd->last_sale_id !== null) {
+                        $q->where('sales.id', '>', $dayEnd->last_sale_id); // past the last sale it saw
+                    } else {
+                        $q->where('sales.created_at', '>=', $dayEnd->created_at); // a Day End from before it recorded that
+                    }
+                });
+            }
+            $q->orWhereNotIn('sales.branch_id', $dayEnds->pluck('branch_id'));
+        });
     }
 
     /** Sales that count toward revenue/transaction reporting — see REVENUE_STATUSES. */

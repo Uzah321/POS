@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyTransaction;
 use App\Models\CustomerCreditTransaction;
 use App\Models\HeldSale;
+use App\Models\EndOfDay;
 use App\Models\RestaurantTable;
 use App\Models\ShiftEnd;
 use App\Services\Zimra\FiscalSubmissionService;
@@ -59,6 +60,8 @@ class SaleController extends BaseApiController
                 ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
                 ->when($request->date_from, fn($q) => $q->where('created_at', '>=', \Illuminate\Support\Carbon::parse($request->date_from, $tz)->startOfDay()->utc()))
                 ->when($request->date_to, fn($q) => $q->where('created_at', '<=', \Illuminate\Support\Carbon::parse($request->date_to, $tz)->endOfDay()->utc()))
+                // Sales History with no dates picked: the day that's still open
+                ->when($request->boolean('since_day_end'), fn($q) => $q->sinceDayEnd($branchId))
                 ->when($request->filled('product_id'), fn($q) => $q->whereHas('items', fn($i) => $i->whereIn('product_id', $productIds)))
                 ->when(!$request->filled('product_id') && $term !== '', fn($q) => $q->where(fn($w) => $w
                     ->whereRaw('LOWER(reference) LIKE ?', [$like])
@@ -88,6 +91,12 @@ class SaleController extends BaseApiController
             'voided_count' => $applyFilters(Sale::query())->where('status', 'voided')->count(),
             'open_count'   => $applyFilters(Sale::query())->where('status', 'open')->count(),
         ];
+        if ($request->boolean('since_day_end')) {
+            // When that day started: one branch's last Day End (null if it has
+            // never run one) — across branches, each has its own.
+            $summary['each_branch'] = ! $branchId;
+            $summary['day_end_at'] = $branchId ? EndOfDay::where('branch_id', $branchId)->latest('id')->value('created_at') : null;
+        }
 
         // When the search matched products: how much of each was sold in the
         // filtered period (quantity, money, number of sales, refunds).

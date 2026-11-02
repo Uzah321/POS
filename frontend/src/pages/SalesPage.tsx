@@ -188,6 +188,8 @@ export default function SalesPage() {
     ...(dateTo ? { date_to: dateTo } : {}),
     // Date pickers mean this browser's calendar days, not UTC ones.
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+    // No dates picked: the day that's still open, so the list starts again after each Day End.
+    ...(!dateFrom && !dateTo ? { since_day_end: 1 } : {}),
     ...(product ? { product_id: product.id } : {}),
     ...extra,
   });
@@ -232,7 +234,11 @@ export default function SalesPage() {
   }, [openMenuId, showExportMenu]);
 
   const branchName = branchId ? (branchData as any[] || []).find((b: any) => String(b.id) === branchId)?.name : null;
-  const dateRangeLabel = dateFrom || dateTo ? `${dateFrom || 'earliest'} to ${dateTo || 'today'}` : 'All dates';
+  const dayEndAt: string | null = data?.summary?.day_end_at ?? null;
+  const sinceDayEndLabel = data?.summary?.each_branch
+    ? "Since each branch's last Day End"
+    : dayEndAt ? `Since Day End, ${format(new Date(dayEndAt), 'EEE d MMM HH:mm')}` : 'No Day End run yet — every sale';
+  const dateRangeLabel = dateFrom || dateTo ? `${dateFrom || 'earliest'} to ${dateTo || 'today'}` : sinceDayEndLabel;
   const focusLabel = product ? `Product: ${product.name}` : search ? `Search: "${search}"` : '';
 
   // Pulls every sale matching the current filters (not just the visible page)
@@ -434,7 +440,9 @@ export default function SalesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sales History</h1>
-          <p className="text-gray-500 text-sm">View and manage all transactions</p>
+          <p className="text-gray-500 text-sm">
+            {dateFrom || dateTo ? 'View and manage all transactions' : 'The sales since the last Day End — pick dates to see earlier ones'}
+          </p>
         </div>
         <div className="relative" ref={exportMenuRef}>
           <button
@@ -613,7 +621,7 @@ export default function SalesPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sales.length === 0 ? (
-                  <tr><td colSpan={productFocus ? 9 : 8} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>No sales found</p></td></tr>
+                  <tr><td colSpan={productFocus ? 9 : 8} className="text-center py-12 text-gray-400"><Receipt size={32} className="mx-auto mb-2" /><p>{dateFrom || dateTo ? 'No sales found' : 'No sales since the last Day End'}</p></td></tr>
                 ) : sales.map((s: any) => {
                   const items: any[] = shownItems(s);
                   const firstItemName = items[0]?.product?.name;

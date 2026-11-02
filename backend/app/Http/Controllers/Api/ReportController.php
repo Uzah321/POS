@@ -198,12 +198,12 @@ class ReportController extends BaseApiController
                     'transactions' => (int) $row->transactions,
                 ]);
 
-            // Top products (last 30 days)
+            // Top products today — they start again each day with the figures above
             $topProducts = SaleItem::whereHas('sale', fn($q) =>
                     $q->whereIn('status', Sale::REVENUE_STATUSES)
                       ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
                       ->when($businessType, fn($sq) => $this->scopeSalesToBusinessType($sq, $businessType))
-                      ->where('completed_at', '>=', now()->subDays(30))
+                      ->whereBetween('completed_at', [$todayStart, $todayEnd])
                 )
                 ->groupBy('product_id')
                 ->selectRaw('product_id, SUM(quantity) as total_qty, SUM(total) as total_revenue')

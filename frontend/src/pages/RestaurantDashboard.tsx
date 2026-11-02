@@ -186,7 +186,10 @@ export default function RestaurantDashboard() {
 
         {/* Popular dishes */}
         <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-          <h2 className="font-semibold text-gray-900 text-base mb-4">Popular Dishes</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900 text-base">Popular Dishes</h2>
+            <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">Today</span>
+          </div>
           {topProducts.length > 0 ? (
             <div className="space-y-3">
               {topProducts.slice(0, 7).map((p: any, i: number) => {
@@ -215,7 +218,7 @@ export default function RestaurantDashboard() {
           ) : (
             <div className="flex items-center justify-center h-40 text-gray-400 text-sm flex-col gap-2">
               <ChefHat size={32} className="text-gray-200" />
-              <span>No dishes sold yet</span>
+              <span>No dishes sold yet today</span>
             </div>
           )}
         </div>

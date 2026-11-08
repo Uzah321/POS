@@ -74,4 +74,35 @@ class DashboardTodayTest extends TestCase
 
         $this->assertEquals(1, $this->dashboard()['top_products'][0]['total_qty']);
     }
+
+    public function test_popular_items_list_the_whole_day_with_the_stock_left(): void
+    {
+        $this->sell(3);
+
+        $warehouse = Warehouse::where('branch_id', $this->branch->id)->firstOrFail();
+        $sold = ['product_id' => $this->sadza->id, 'quantity' => 1, 'unit_price' => 2];
+        $items = [$sold];
+        for ($i = 1; $i <= 34; $i++) {
+            $dish = Product::create([
+                'name' => "Dish $i", 'slug' => "dish-$i", 'sku' => "DISH$i", 'branch_id' => $this->branch->id,
+                'cost_price' => 1, 'selling_price' => 2, 'is_active' => true, 'is_taxable' => false, 'track_stock' => true,
+            ]);
+            Stock::create(['product_id' => $dish->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10]);
+            $items[] = ['product_id' => $dish->id, 'quantity' => 1, 'unit_price' => 2];
+        }
+        $this->actingAs($this->admin)->postJson('/api/sales', [
+            'branch_id' => $this->branch->id,
+            'items' => $items,
+            'payments' => [['method' => 'cash', 'amount' => 2 * count($items)]],
+        ])->assertCreated();
+
+        $top = $this->dashboard()['top_products'];
+        $this->assertCount(35, $top);
+
+        $sadza = collect($top)->firstWhere('product.name', 'Sadza White');
+        $this->assertEquals(4, $sadza['total_qty']);
+        $this->assertEquals(46, $sadza['product']['total_stock']);
+        $this->assertTrue($sadza['product']['track_stock']);
+        $this->assertEquals(9, collect($top)->firstWhere('product.name', 'Dish 1')['product']['total_stock']);
+    }
 }

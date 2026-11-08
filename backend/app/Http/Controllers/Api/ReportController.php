@@ -198,7 +198,10 @@ class ReportController extends BaseApiController
                     'transactions' => (int) $row->transactions,
                 ]);
 
-            // Top products today — they start again each day with the figures above
+            // Top products today — they start again each day with the figures above.
+            // Up to 50, so the restaurant's Popular Dishes list can show the whole
+            // day's menu (30+ dishes), each with the stock it has left — the stock
+            // sum is loaded in the same query rather than once per product.
             $topProducts = SaleItem::whereHas('sale', fn($q) =>
                     $q->whereIn('status', Sale::REVENUE_STATUSES)
                       ->when($branchId, fn($sq) => $sq->where('branch_id', $branchId))
@@ -207,9 +210,11 @@ class ReportController extends BaseApiController
                 )
                 ->groupBy('product_id')
                 ->selectRaw('product_id, SUM(quantity) as total_qty, SUM(total) as total_revenue')
-                ->with('product:id,name,image,sku')
+                ->with(['product' => fn($q) => $q
+                    ->select('id', 'name', 'image', 'sku', 'track_stock', 'made_to_order', 'reorder_level')
+                    ->withSum('stocks', 'quantity')])
                 ->orderByDesc('total_revenue')
-                ->limit(5)
+                ->limit(50)
                 ->get()
                 ->map(function ($row) {
                     $row->total_qty = (float) $row->total_qty;

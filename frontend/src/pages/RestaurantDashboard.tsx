@@ -33,6 +33,156 @@ function StatCard({ label, value, sub, icon: Icon, color = 'blue' }: {
   );
 }
 
+const RANK_STYLES = [
+  { badge: 'bg-amber-100 text-amber-700',  bar: 'bg-gradient-to-r from-amber-400 to-orange-500' },
+  { badge: 'bg-slate-200 text-slate-600',  bar: 'bg-gradient-to-r from-slate-400 to-slate-500' },
+  { badge: 'bg-orange-100 text-orange-700', bar: 'bg-gradient-to-r from-orange-400 to-red-400' },
+];
+const OTHER_RANK = { badge: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400' };
+
+// Up to two decimals, no trailing zeros — dishes sold by weight have fractional quantities.
+const qty = (n: number) => String(+Number(n || 0).toFixed(2));
+
+type DishSort = 'sales' | 'stock';
+type StockLevel = 'out' | 'low' | 'ok' | 'untracked';
+
+// One row of the dashboard's top_products: a dish sold today and its stock.
+interface TopProduct {
+  product_id: number | null;
+  total_qty: number;
+  total_revenue: number;
+  product?: {
+    name?: string;
+    track_stock?: boolean;
+    made_to_order?: boolean;
+    total_stock?: number;
+    reorder_level?: number;
+  } | null;
+}
+
+// Same rules as the dashboard's low/out-of-stock counts: a made-to-order dish's
+// stock is how many its ingredients can still make; other dishes count stock
+// only when they track it.
+function stockOf(product: TopProduct['product']): { left: number; level: StockLevel } {
+  if (!product || (!product.track_stock && !product.made_to_order)) return { left: 0, level: 'untracked' };
+  const left = Number(product.total_stock ?? 0);
+  if (left <= 0) return { left, level: 'out' };
+  if (left <= Number(product.reorder_level ?? 0)) return { left, level: 'low' };
+  return { left, level: 'ok' };
+}
+
+const STOCK_PILL: Record<StockLevel, string> = {
+  out:       'bg-red-50 text-red-700',
+  low:       'bg-amber-50 text-amber-700',
+  ok:        'bg-emerald-50 text-emerald-700',
+  untracked: 'text-gray-400',
+};
+
+function PopularDishes({ products, formatCurrency }: { products: TopProduct[]; formatCurrency: (n: number) => string }) {
+  const [sortBy, setSortBy] = useState<DishSort>('sales');
+
+  // The rank is always the dish's place by quantity sold, so sorting by stock
+  // still shows how popular each dish is.
+  const bySales = [...products]
+    .sort((a, b) => (b.total_qty - a.total_qty) || (b.total_revenue - a.total_revenue))
+    .map((p, i) => ({ ...p, rank: i + 1, stock: stockOf(p.product) }));
+  const maxQty = bySales[0]?.total_qty || 1;
+
+  // By stock: lowest stock first, so what's about to run out is at the top;
+  // dishes that don't track stock go last, most sold first.
+  const dishes = sortBy === 'sales' ? bySales : [...bySales].sort((a, b) => {
+    const au = a.stock.level === 'untracked', bu = b.stock.level === 'untracked';
+    if (au !== bu) return au ? 1 : -1;
+    if (au) return a.rank - b.rank;
+    return (a.stock.left - b.stock.left) || (a.rank - b.rank);
+  });
+
+  const lowCount = bySales.filter(d => d.stock.level === 'low').length;
+  const outCount = bySales.filter(d => d.stock.level === 'out').length;
+
+  return (
+    <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="font-semibold text-gray-900 text-base">Popular Dishes</h2>
+          {bySales.length > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {bySales.length} {bySales.length === 1 ? 'dish' : 'dishes'} sold
+              {lowCount > 0 && <span className="text-amber-600"> · {lowCount} low on stock</span>}
+              {outCount > 0 && <span className="text-red-600"> · {outCount} out of stock</span>}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Sort by</span>
+          <div className="inline-flex rounded-md bg-gray-100 p-0.5 text-xs font-medium">
+            {([['sales', 'Sales', 'Most sold first'], ['stock', 'Stock', 'Lowest stock first']] as const).map(([key, label, hint]) => (
+              <button key={key} type="button" title={hint} onClick={() => setSortBy(key)}
+                className={`px-3 py-1 rounded ${sortBy === key ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">Today</span>
+        </div>
+      </div>
+      {dishes.length > 0 ? (
+        <div className="max-h-[480px] overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white z-10">
+              <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
+                <th className="py-2 pr-3 font-medium w-10">#</th>
+                <th className="py-2 pr-3 font-medium">Dish</th>
+                <th className="py-2 pr-3 font-medium w-1/4 min-w-[140px]">Sold</th>
+                <th className="py-2 pr-3 font-medium text-right whitespace-nowrap">Sales</th>
+                <th className="py-2 font-medium text-right whitespace-nowrap">Stock left</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {dishes.map(p => {
+                const style = RANK_STYLES[p.rank - 1] ?? OTHER_RANK;
+                return (
+                  <tr key={p.product_id ?? p.rank}>
+                    <td className="py-2 pr-3">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${style.badge}`}>
+                        {p.rank}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <p className="font-medium text-gray-800 truncate max-w-[18rem]">{p.product?.name ?? 'Unknown item'}</p>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${Math.min(100, (p.total_qty / maxQty) * 100)}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-gray-600 w-10 text-right">{qty(p.total_qty)}x</span>
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3 text-right text-gray-700 whitespace-nowrap">{formatCurrency(p.total_revenue ?? 0)}</td>
+                    <td className="py-2 text-right whitespace-nowrap">
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${STOCK_PILL[p.stock.level]}`}>
+                        {p.stock.level === 'untracked' ? 'Not tracked'
+                          : p.stock.level === 'out' ? 'Out of stock'
+                          : `${qty(p.stock.left)} left`}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center h-40 text-gray-400 text-sm flex-col gap-2">
+          <ChefHat size={32} className="text-gray-200" />
+          <span>No dishes sold yet today</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RestaurantDashboard() {
   const { format: formatCurrency, activeCurrency } = useCurrencyStore();
   const { user } = useAuthStore();
@@ -152,77 +302,37 @@ export default function RestaurantDashboard() {
         <StatCard label="Active Kitchen" value={totalActive}                                  icon={Clock}         color="amber"  sub="In progress" />
       </div>
 
-      {/* Charts + Popular dishes */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-        {/* Sales trend */}
-        <div className="xl:col-span-2 bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-gray-900 text-base">Sales Trend</h2>
-            <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">Last 30 days</span>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={trend}>
-              <defs>
-                <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#f97316" stopOpacity={0.5} />
-                  <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="orangeLine" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%"   stopColor="#ef4444" />
-                  <stop offset="100%" stopColor="#f97316" />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v?.slice(5)} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
-              <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
-                contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-              <Area type="monotone" dataKey="revenue" stroke="url(#orangeLine)" fill="url(#orangeGrad)" strokeWidth={3} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+      {/* Sales trend */}
+      <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-semibold text-gray-900 text-base">Sales Trend</h2>
+          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">Last 30 days</span>
         </div>
-
-        {/* Popular dishes */}
-        <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900 text-base">Popular Dishes</h2>
-            <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">Today</span>
-          </div>
-          {topProducts.length > 0 ? (
-            <div className="space-y-3">
-              {topProducts.slice(0, 7).map((p: any, i: number) => {
-                const RANK_STYLES = [
-                  { badge: 'bg-amber-100 text-amber-700',  bar: 'bg-gradient-to-r from-amber-400 to-orange-500' },
-                  { badge: 'bg-slate-200 text-slate-600',  bar: 'bg-gradient-to-r from-slate-400 to-slate-500' },
-                  { badge: 'bg-orange-100 text-orange-700', bar: 'bg-gradient-to-r from-orange-400 to-red-400' },
-                ];
-                const rank = RANK_STYLES[i] ?? { badge: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400' };
-                return (
-                <div key={i} className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${rank.badge}`}>
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{p.product?.name ?? 'Unknown item'}</p>
-                    <div className="mt-0.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div className={`h-full rounded-full ${rank.bar}`} style={{ width: `${Math.min(100, (p.total_qty / (topProducts[0]?.total_qty || 1)) * 100)}%` }} />
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold text-gray-500 flex-shrink-0">{p.total_qty}x</span>
-                </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-40 text-gray-400 text-sm flex-col gap-2">
-              <ChefHat size={32} className="text-gray-200" />
-              <span>No dishes sold yet today</span>
-            </div>
-          )}
-        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={trend}>
+            <defs>
+              <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#f97316" stopOpacity={0.5} />
+                <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="orangeLine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"   stopColor="#ef4444" />
+                <stop offset="100%" stopColor="#f97316" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v?.slice(5)} />
+            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
+            <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
+              contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+            <Area type="monotone" dataKey="revenue" stroke="url(#orangeLine)" fill="url(#orangeGrad)" strokeWidth={3} dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
+
+      {/* Popular dishes — every dish sold today, by sales or by stock left */}
+      <PopularDishes products={topProducts} formatCurrency={formatCurrency} />
 
       {/* Active kitchen orders list */}
       <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">

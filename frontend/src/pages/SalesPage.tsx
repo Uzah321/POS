@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, branchesApi, refundsApi, productsApi } from '../api';
 import RowActionsMenu from '../components/ui/RowActionsMenu';
 import { Search, Eye, Loader2, Printer, Receipt, Undo2, X, Calendar, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
+import { pageMeta } from '../lib/pageMeta';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useAuthStore } from '../stores/authStore';
@@ -146,6 +147,7 @@ function RefundModal({ sale, onClose, formatAmount }: { sale: any; onClose: () =
 export default function SalesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(50);
   const [branchId, setBranchId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -194,9 +196,13 @@ export default function SalesPage() {
     ...extra,
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['sales', search, page, branchId, dateFrom, dateTo, product?.id],
-    queryFn: () => salesApi.list(salesFilterParams({ page, per_page: 20 })).then(r => ({ ...r.data?.data, summary: r.data?.summary })),
+  const { data, isLoading, isPlaceholderData } = useQuery({
+    queryKey: ['sales', search, page, perPage, branchId, dateFrom, dateTo, product?.id],
+    queryFn: () => salesApi.list(salesFilterParams({ page, per_page: perPage })).then(r => ({ ...r.data?.data, summary: r.data?.summary })),
+    // Keep the current page on screen while the next one loads, and pick up
+    // sales rung up on other tills while this page is left open.
+    placeholderData: keepPreviousData,
+    refetchInterval: 30000,
   });
 
   const { data: productOptions = [], isFetching: productsLoading } = useQuery({
@@ -432,8 +438,20 @@ export default function SalesPage() {
   });
 
   const sales = data?.data || [];
-  const meta = data?.meta;
+  const meta = pageMeta(data);
   const summary = data?.summary;
+
+  // Past the last page — e.g. a Day End ran while this was open on page 3 and
+  // the list started again — go to the last page there is, rather than sit
+  // on an empty one. (Adjusted while rendering, as React recommends over an effect.)
+  if (meta && !isPlaceholderData && page > Math.max(1, meta.last_page)) {
+    setPage(Math.max(1, meta.last_page));
+  }
+
+  const changePage = (p: number) => {
+    setPage(p);
+    document.querySelector('.app-workspace')?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="space-y-6">
@@ -608,7 +626,7 @@ export default function SalesPage() {
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-amber-500" /></div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className={`overflow-x-auto transition-opacity ${isPlaceholderData ? 'opacity-50' : ''}`}>
             <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50">
                 <tr>
@@ -671,7 +689,11 @@ export default function SalesPage() {
           </div>
         )}
 
-        <Pagination page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total} onPageChange={setPage} />
+        <Pagination
+          page={page} lastPage={meta?.last_page ?? 1} from={meta?.from} to={meta?.to} total={meta?.total}
+          onPageChange={changePage}
+          perPage={perPage} onPerPageChange={(n) => { setPerPage(n); setPage(1); }}
+        />
       </div>
 
       {/* Sale Detail Modal */}

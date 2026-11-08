@@ -123,9 +123,13 @@ class SaleController extends BaseApiController
             ])->sortByDesc('quantity')->values();
         }
 
+        // Newest first, then by id: sales rung up in the same second (or synced
+        // together from an offline till) share a created_at, and without the
+        // tie-break the database may order them differently for each page —
+        // one sale showing on two pages while another shows on none.
         return response()->json([
             'success' => true,
-            'data'    => $query->latest()->paginate($request->per_page ?? 20),
+            'data'    => $query->latest()->orderByDesc('id')->paginate($request->per_page ?? 20),
             'summary' => $summary,
         ]);
     }

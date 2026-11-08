@@ -7,6 +7,10 @@ interface Props {
   to?: number;
   total?: number;
   onPageChange: (page: number) => void;
+  /** With onPerPageChange: a "Rows per page" choice, shown whenever there are more rows than the smallest choice. */
+  perPage?: number;
+  onPerPageChange?: (perPage: number) => void;
+  perPageOptions?: number[];
 }
 
 function pageNumbers(current: number, last: number): (number | '…')[] {
@@ -22,21 +26,39 @@ function pageNumbers(current: number, last: number): (number | '…')[] {
   return pages;
 }
 
-export default function Pagination({ page, lastPage, from, to, total, onPageChange }: Props) {
-  if (lastPage <= 1) return null;
+export default function Pagination({
+  page, lastPage, from, to, total, onPageChange, perPage, onPerPageChange, perPageOptions = [20, 50, 100, 200],
+}: Props) {
+  const showPerPage = !!onPerPageChange && perPage != null && (total ?? 0) > Math.min(...perPageOptions);
+  if (lastPage <= 1 && !showPerPage) return null;
 
   const pages = pageNumbers(page, lastPage);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-gray-100">
-      <p className="text-xs sm:text-sm text-gray-500">
-        {from != null && to != null && total != null
-          ? `Showing ${from}–${to} of ${total}`
-          : total != null
-          ? `${total} records`
-          : `Page ${page} of ${lastPage}`}
-      </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p className="text-xs sm:text-sm text-gray-500">
+          {from != null && to != null && total != null
+            ? `Showing ${from}–${to} of ${total}`
+            : total != null
+            ? `${total} records`
+            : `Page ${page} of ${lastPage}`}
+        </p>
+        {showPerPage && (
+          <label className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500">
+            Rows per page
+            <select
+              value={perPage}
+              onChange={(e) => onPerPageChange(Number(e.target.value))}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {perPageOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
 
+      {lastPage > 1 && (
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -83,6 +105,7 @@ export default function Pagination({ page, lastPage, from, to, total, onPageChan
           <ChevronRight size={15} />
         </button>
       </div>
+      )}
     </div>
   );
 }

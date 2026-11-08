@@ -77,6 +77,31 @@ class SalesHistoryDayEndTest extends TestCase
         $this->assertEmpty(array_diff([...$first, $next], array_column($picked['data']['data'], 'id')));
     }
 
+    public function test_every_sale_of_the_day_is_on_exactly_one_page(): void
+    {
+        $this->runDayEnd();
+        // All in the same second, as on a busy till or an offline till syncing
+        $this->freezeTime();
+        $ids = [];
+        for ($i = 0; $i < 25; $i++) {
+            $ids[] = $this->sale()->id;
+        }
+
+        $seen = [];
+        for ($page = 1; $page <= 3; $page++) {
+            $res = $this->actingAs($this->admin)
+                ->getJson("/api/sales?since_day_end=1&branch_id={$this->branch->id}&per_page=10&page={$page}")
+                ->assertOk()->json('data');
+            $this->assertSame(25, $res['total']);
+            $this->assertSame(3, $res['last_page']);
+            $seen = [...$seen, ...array_column($res['data'], 'id')];
+        }
+
+        $this->assertCount(25, $seen);
+        $this->assertEqualsCanonicalizing($ids, $seen);
+        $this->assertSame(array_reverse($ids), $seen); // newest first
+    }
+
     public function test_across_branches_each_starts_at_its_own_day_end(): void
     {
         $other = Branch::create(['name' => 'Second Shop', 'code' => 'SEC', 'currency' => 'USD', 'is_active' => true]);

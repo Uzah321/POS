@@ -12,6 +12,7 @@ import {
   Eye, EyeOff, Loader2, WifiOff, User, Lock, LogIn, Store, BarChart3, Settings,
 } from 'lucide-react';
 import { frontOfHousePath, setChosenDestination } from '../lib/landing';
+import AddToDevice from '../components/AddToDevice';
 
 const schema = z.object({
   username: z.string().min(1, 'Username or email required'),
@@ -237,6 +238,7 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <AddToDevice variant="login" />
         </div>
       </div>
     </div>

@@ -37,16 +37,29 @@ use App\Http\Controllers\Api\TableController;
 // Public routes
 Route::get('/currencies', [CurrencyController::class, 'index']); // public — needed for POS currency selector
 
-// Downloadable desktop shortcut (.url) that cashiers can save to their
-// Desktop to open this Core POS site directly in their browser. Routed
-// under /api since the production nginx config only proxies /api (and
-// /sanctum) to PHP-FPM — every other path falls through to the static SPA.
-Route::get('/download/core-shortcut.url', function () {
-    $content = "[InternetShortcut]\r\nURL=" . url('/') . "\r\n";
+// Downloadable desktop shortcut that opens this Core POS site in the browser,
+// one per kind of computer: .url for Windows, .webloc for Mac, .desktop for
+// Linux. Offered from "Add Core to this device" (InstallAppDialog) where the
+// browser can't install the site as an app itself. Routed under /api since
+// the production nginx config only proxies /api (and /sanctum) to PHP-FPM —
+// every other path falls through to the static SPA.
+Route::get('/download/core-shortcut.{type}', function (string $type) {
+    $url = url('/');
+    [$content, $mime] = match ($type) {
+        'url' => ["[InternetShortcut]\r\nURL={$url}\r\n", 'application/internet-shortcut'],
+        'webloc' => [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            . "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+            . "<plist version=\"1.0\">\n<dict>\n\t<key>URL</key>\n\t<string>" . e($url) . "</string>\n</dict>\n</plist>\n",
+            'application/x-apple-plist',
+        ],
+        'desktop' => ["[Desktop Entry]\nVersion=1.0\nType=Link\nName=Core POS\nURL={$url}\nIcon=web-browser\n", 'application/x-desktop'],
+    };
+
     return response($content)
-        ->header('Content-Type', 'application/internet-shortcut')
-        ->header('Content-Disposition', 'attachment; filename="Core POS.url"');
-});
+        ->header('Content-Type', $mime)
+        ->header('Content-Disposition', "attachment; filename=\"Core POS.{$type}\"");
+})->whereIn('type', ['url', 'webloc', 'desktop']);
 
 // Product/category pictures — public because <img> tags can't send the Bearer
 // token; responses link here instead of inlining the picture (ServesImageByUrl).

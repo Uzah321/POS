@@ -437,6 +437,15 @@
 
   <p>Then on any device on the same network, open a browser and go to <code>http://192.168.1.10:8080/kitchen</code> (replace with your actual IP).</p>
 
+  <h3>Adding Core to Each Device</h3>
+  <p>So staff don't have to type the address every time, tap <strong>Add Core to this device</strong> under the Sign In button (or at the bottom of the side menu). It offers whatever works on that device:</p>
+  <ul style="margin: 8px 0 0 18px;">
+    <li><strong>Install Core app</strong> — Chrome and Edge on Windows, Android, Mac and Linux, when the browser allows it: a Core icon that opens in its own window.</li>
+    <li><strong>Download desktop shortcut</strong> — every Windows, Mac and Linux computer, in any browser: save the file from Downloads onto the Desktop.</li>
+    <li><strong>Step-by-step instructions</strong> — iPhone and iPad (Safari → Share → Add to Home Screen), and Android browsers that can't install it themselves.</li>
+  </ul>
+  <p>The option is hidden when Core is already open as the installed app or the desktop app.</p>
+
   <h2 id="firewall">1.5 Firewall Configuration</h2>
   <p>Windows Firewall may block connections from other devices. Run this command once on the POS server machine (as Administrator):</p>
   <pre><span class="cmd">netsh advfirewall firewall add rule name="Core POS" dir=in action=allow protocol=TCP localport=8080</span></pre>
@@ -493,7 +502,7 @@
     <tr><td>Avg Order Value</td><td>Revenue ÷ orders — average spend per table/cover</td></tr>
     <tr><td>Active Kitchen</td><td>Orders currently in the kitchen (not yet served)</td></tr>
     <tr><td>Sales Trend Chart</td><td>Area chart of daily revenue for the last 30 days</td></tr>
-    <tr><td>Popular Dishes</td><td>Top items sold ranked by quantity with progress bars</td></tr>
+    <tr><td>Popular Dishes</td><td>Up to 50 dishes sold today with quantity sold, sales and stock left; sort by Sales (most sold first) or Stock (lowest stock first)</td></tr>
     <tr><td>Live Kitchen Orders</td><td>Cards showing each active ticket, status and items</td></tr>
     <tr><td>Month Summary</td><td>Month-to-date revenue, order count, and customer count</td></tr>
   </table>

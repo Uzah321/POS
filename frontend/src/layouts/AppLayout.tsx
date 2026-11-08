@@ -11,6 +11,7 @@ import {
   Factory, WifiOff, Tag, Undo2, Wheat, BadgeCheck, Utensils, ListChecks, CalendarDays, Keyboard, RotateCw
 } from 'lucide-react';
 import KeyboardShortcuts, { type ShortcutDestination } from '../components/KeyboardShortcuts';
+import AddToDevice from '../components/AddToDevice';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { useCartStore, TABLES } from '../stores/cartStore';
@@ -457,6 +458,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* User */}
       <div className="border-t border-white/10 p-3 flex-shrink-0">
+        <AddToDevice variant="sidebar" />
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow">
             {userInitials}

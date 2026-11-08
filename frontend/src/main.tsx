@@ -1,4 +1,6 @@
 import './lib/legacyBrowsers'
+// Early, to catch the browser's one "can install" event (Add Core to this device).
+import { RUNNING_AS_APP } from './lib/installApp'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import toast from 'react-hot-toast'
@@ -77,8 +79,7 @@ if ('serviceWorker' in navigator) {
 // Opened in a plain Android browser tab (not the installed app, which is
 // already fullscreen via the manifest): take over the whole screen on the
 // first tap. Browsers only allow requestFullscreen from a user gesture.
-const isInstalledApp = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches
-if (/Android/i.test(navigator.userAgent) && !isInstalledApp && document.documentElement.requestFullscreen) {
+if (/Android/i.test(navigator.userAgent) && !RUNNING_AS_APP && document.documentElement.requestFullscreen) {
   const enterFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})

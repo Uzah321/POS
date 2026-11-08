@@ -31,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/network-info',
             'api/license/check',
             'api/currencies',
-            'api/download/core-shortcut.url',
+            'api/download/core-shortcut.*',
         ]);
 
         $middleware->alias([

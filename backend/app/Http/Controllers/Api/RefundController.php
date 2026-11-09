@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Product;
 use App\Models\Refund;
 use App\Models\RefundItem;
 use App\Models\Sale;
@@ -81,8 +82,12 @@ class RefundController extends BaseApiController
                 $totalRefund += $refundAmt;
                 $refundedAny = true;
 
-                // Restock if requested
-                if ($item['restock'] ?? true) {
+                // Restock if requested — a made-to-order item never had stock of
+                // its own (the sale took its recipe's ingredients), so those go back.
+                $product = $saleItem->product_id ? Product::find($saleItem->product_id) : null;
+                if (($item['restock'] ?? true) && $product?->made_to_order) {
+                    $product->useIngredients($sale->warehouse_id, -$refundQty);
+                } elseif ($item['restock'] ?? true) {
                     $stock = Stock::firstOrCreate(
                         ['product_id' => $saleItem->product_id, 'product_variant_id' => $saleItem->product_variant_id, 'warehouse_id' => $sale->warehouse_id],
                         ['quantity' => 0]

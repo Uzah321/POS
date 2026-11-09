@@ -16,16 +16,20 @@ class IngredientController extends BaseApiController
 {
     public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        // Ingredients only exist to cost out made-to-order recipes (a restaurant
-        // concept — "e.g. a pizza") — a pure supermarket doesn't have recipes, so
-        // its ingredient list (and the low/out-of-stock alerts derived from it)
-        // stays empty rather than showing restaurant-only data while switched over.
-        if ($this->effectiveBusinessType($request) === 'supermarket') {
-            return $this->paginated(Ingredient::whereRaw('1 = 0')->paginate($request->per_page ?? 20));
-        }
+        // Ingredients are one catalog for both shops. While switched to one side,
+        // leave out those only the other side's recipes use (so its out-of-stock
+        // alerts don't show here) — but keep every ingredient no recipe uses yet:
+        // hiding all of them in supermarket mode meant a butchery or deli there
+        // created an ingredient and never saw it again, in this list or in the
+        // recipe picker.
+        $businessType = $this->effectiveBusinessType($request);
 
         $query = Ingredient::with('unit')
             ->withSum('stocks', 'quantity')
+            ->when($businessType, fn($q) => $q->where(fn($q) => $q
+                ->whereDoesntHave('recipeLines.product')
+                ->orWhereHas('recipeLines.product', fn($p) => $this->scopeProductsToBusinessType($p, $businessType))
+            ))
             ->when($request->search, function ($q) use ($request) {
                 $s = '%' . mb_strtolower($request->search) . '%';
                 $q->where(function ($q) use ($s) {
@@ -64,18 +68,32 @@ class IngredientController extends BaseApiController
         $initialQty = (float) ($data['initial_quantity'] ?? 0);
         unset($data['initial_quantity']);
 
-        $ingredient = DB::transaction(function () use ($data, $initialQty) {
+        // Opening stock goes where this user's till sells from — the sale takes a
+        // made-to-order item's ingredients from its own branch's warehouse, so
+        // stock parked in another branch's would read "available" and still be refused.
+        $branchId = $this->effectiveBranchId($request) ?? $request->user()->branch_id;
+
+        $ingredient = DB::transaction(function () use ($request, $data, $initialQty, $branchId) {
             $ingredient = Ingredient::create($data);
 
-            if ($initialQty > 0) {
-                $warehouse = Warehouse::where('is_default', true)->first() ?? Warehouse::first();
-                if ($warehouse) {
-                    IngredientStock::create([
-                        'ingredient_id' => $ingredient->id,
-                        'warehouse_id'  => $warehouse->id,
-                        'quantity'      => $initialQty,
-                    ]);
-                }
+            $warehouse = $initialQty > 0 ? Warehouse::defaultForBranch($branchId) : null;
+            if ($warehouse) {
+                IngredientStock::create([
+                    'ingredient_id' => $ingredient->id,
+                    'warehouse_id'  => $warehouse->id,
+                    'quantity'      => $initialQty,
+                ]);
+                // So the ingredient's Stock History starts with where its stock came from.
+                IngredientStockAdjustment::create([
+                    'ingredient_id'     => $ingredient->id,
+                    'warehouse_id'      => $warehouse->id,
+                    'user_id'           => $request->user()->id,
+                    'type'              => 'in',
+                    'reason'            => 'Opening stock',
+                    'quantity_before'   => 0,
+                    'quantity_adjusted' => $initialQty,
+                    'quantity_after'    => $initialQty,
+                ]);
             }
 
             return $ingredient;

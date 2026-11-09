@@ -20,12 +20,14 @@ class Ingredient extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
-        'cost_price' => 'decimal:2',
+        'cost_price' => 'decimal:6',
         'conversion_number' => 'decimal:3',
     ];
 
     public function unit(): BelongsTo { return $this->belongsTo(Unit::class); }
     public function stocks(): HasMany { return $this->hasMany(IngredientStock::class); }
+    /** The recipe lines (one per product) this ingredient appears in. */
+    public function recipeLines(): HasMany { return $this->hasMany(ProductIngredient::class); }
     public function vendors(): HasMany { return $this->hasMany(IngredientVendor::class); }
     public function branchSettings(): HasMany { return $this->hasMany(IngredientBranchSetting::class); }
     public function stockAdjustments(): HasMany { return $this->hasMany(IngredientStockAdjustment::class); }

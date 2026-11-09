@@ -8,7 +8,6 @@ import {
   Printer, Copy, Image as ImageIcon, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
 import { useCurrencyStore } from '../stores/currencyStore';
 
@@ -79,13 +78,16 @@ function ProductSearch({
   forceMadeToOrder?: boolean;
 }) {
   const qc = useQueryClient();
+  const { activeCurrency, toUsd } = useCurrencyStore();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCost, setNewCost] = useState('0');
-  const [newPrice, setNewPrice] = useState('0');
+  // Empty, not 0: a product needs a selling price, and 0 was always refused
+  const [newPrice, setNewPrice] = useState('');
   const [newUnitId, setNewUnitId] = useState('');
+  const priceOk = (parseFloat(newPrice) || 0) > 0;
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ['prod-search', q],
@@ -112,8 +114,8 @@ function ProductSearch({
     mutationFn: () => productsApi.create({
       name: newName.trim(),
       sku: generateSku(),
-      cost_price: parseFloat(newCost) || 0,
-      selling_price: parseFloat(newPrice) || 0,
+      cost_price: toUsd(parseFloat(newCost) || 0),
+      selling_price: toUsd(parseFloat(newPrice) || 0),
       unit_id: newUnitId || null,
       ...(forceMadeToOrder ? { made_to_order: true } : {}),
     }),
@@ -128,7 +130,7 @@ function ProductSearch({
       setCreating(false);
       setNewName('');
       setNewCost('0');
-      setNewPrice('0');
+      setNewPrice('');
       setNewUnitId('');
     },
     onError: (e: any) => toast.error(extractErrorMessage(e) || 'Failed to create product'),
@@ -139,8 +141,17 @@ function ProductSearch({
     setCreating(true);
   };
 
+  // Close the suggestions / new-item box once focus leaves this picker. It used
+  // to close when the search box lost focus — which clicking the box's own name,
+  // cost or unit field does — so the box vanished before it could be filled in.
+  const closeWhenFocusLeaves = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setOpen(false);
+    setCreating(false);
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" onBlur={closeWhenFocusLeaves}>
       <label className="text-xs font-semibold text-gray-600 mb-1 block">{label}</label>
       <div className="flex items-center border border-gray-200 rounded-md bg-gray-50 px-3 py-2 gap-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white">
         <Search size={14} className="text-gray-400 flex-shrink-0" />
@@ -150,11 +161,11 @@ function ProductSearch({
           value={q}
           onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => { setOpen(false); setCreating(false); }, 150)}
         />
       </div>
       <select
         value=""
+        onFocus={() => setOpen(false)}
         onChange={e => {
           const p = (allProducts as any[]).find((x: any) => String(x.id) === e.target.value);
           if (p) onSelect(p);
@@ -218,20 +229,21 @@ function ProductSearch({
           />
           <div className="flex gap-2">
             <div className="flex-1">
-              <label className="text-[10px] text-gray-400 uppercase">Cost price</label>
+              <label className="text-[10px] text-gray-400 uppercase">Cost price ({activeCurrency?.code || 'USD'})</label>
               <input
-                type="number" min="0" step="0.01" value={newCost}
+                type="number" min="0" step="any" value={newCost}
                 onChange={e => setNewCost(e.target.value)}
                 onMouseDown={e => e.stopPropagation()}
                 className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] text-gray-400 uppercase">Selling price</label>
+              <label className="text-[10px] text-gray-400 uppercase">Selling price * ({activeCurrency?.code || 'USD'})</label>
               <input
-                type="number" min="0" step="0.01" value={newPrice}
+                type="number" min="0" step="any" value={newPrice}
                 onChange={e => setNewPrice(e.target.value)}
                 onMouseDown={e => e.stopPropagation()}
+                placeholder="Required"
                 className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -251,8 +263,9 @@ function ProductSearch({
           <div className="flex gap-2 pt-1">
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); createMutation.mutate(); }}
-              disabled={!newName.trim() || createMutation.isPending}
+              onMouseDown={e => { e.preventDefault(); if (priceOk) createMutation.mutate(); }}
+              disabled={!newName.trim() || !priceOk || createMutation.isPending}
+              title={priceOk ? undefined : 'Enter a selling price'}
               className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-1.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {createMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Create & Use
@@ -284,12 +297,14 @@ function IngredientSearch({
   onSelect: (i: any) => void;
 }) {
   const qc = useQueryClient();
+  const { activeCurrency, toUsd } = useCurrencyStore();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCost, setNewCost] = useState('0');
   const [newUnitId, setNewUnitId] = useState('');
+  const [newStock, setNewStock] = useState('');
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ['ingredient-search', q],
@@ -315,13 +330,16 @@ function IngredientSearch({
   const createMutation = useMutation({
     mutationFn: () => ingredientsApi.create({
       name: newName.trim(),
-      cost_price: parseFloat(newCost) || 0,
+      cost_price: toUsd(parseFloat(newCost) || 0),
       unit_id: newUnitId || null,
+      initial_quantity: parseFloat(newStock) || 0,
     }),
     onSuccess: (res) => {
       const created = res.data?.data ?? res.data;
       toast.success(`Ingredient "${created.name}" created`);
       qc.invalidateQueries({ queryKey: ['ingredients'] });
+      qc.invalidateQueries({ queryKey: ['ingredients-out-count'] });
+      qc.invalidateQueries({ queryKey: ['all-ingredients-dropdown'] });
       onSelect(created);
       setQ('');
       setOpen(false);
@@ -329,6 +347,7 @@ function IngredientSearch({
       setNewName('');
       setNewCost('0');
       setNewUnitId('');
+      setNewStock('');
     },
     onError: (e: any) => toast.error(extractErrorMessage(e) || 'Failed to create ingredient'),
   });
@@ -338,8 +357,17 @@ function IngredientSearch({
     setCreating(true);
   };
 
+  // Close the suggestions / new-item box once focus leaves this picker. It used
+  // to close when the search box lost focus — which clicking the box's own name,
+  // cost or unit field does — so the box vanished before it could be filled in.
+  const closeWhenFocusLeaves = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setOpen(false);
+    setCreating(false);
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" onBlur={closeWhenFocusLeaves}>
       <label className="text-xs font-semibold text-gray-600 mb-1 block">{label}</label>
       <div className="flex items-center border border-gray-200 rounded-md bg-gray-50 px-3 py-2 gap-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white">
         <Search size={14} className="text-gray-400 flex-shrink-0" />
@@ -349,11 +377,11 @@ function IngredientSearch({
           value={q}
           onChange={e => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => { setOpen(false); setCreating(false); }, 150)}
         />
       </div>
       <select
         value=""
+        onFocus={() => setOpen(false)}
         onChange={e => {
           const i = (allIngredients as any[]).find((x: any) => String(x.id) === e.target.value);
           if (i) onSelect(i);
@@ -410,14 +438,26 @@ function IngredientSearch({
             placeholder="Ingredient name"
             className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-          <div>
-            <label className="text-[10px] text-gray-400 uppercase">Cost price</label>
-            <input
-              type="number" min="0" step="0.01" value={newCost}
-              onChange={e => setNewCost(e.target.value)}
-              onMouseDown={e => e.stopPropagation()}
-              className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] text-gray-400 uppercase">Cost per unit ({activeCurrency?.code || 'USD'})</label>
+              <input
+                type="number" min="0" step="any" value={newCost}
+                onChange={e => setNewCost(e.target.value)}
+                onMouseDown={e => e.stopPropagation()}
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-gray-400 uppercase">Stock on hand</label>
+              <input
+                type="number" min="0" step="any" value={newStock}
+                onChange={e => setNewStock(e.target.value)}
+                onMouseDown={e => e.stopPropagation()}
+                placeholder="0"
+                className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
           </div>
           <div>
             <label className="text-[10px] text-gray-400 uppercase">Unit of measure</label>
@@ -466,7 +506,7 @@ interface RecipeRow {
 
 function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
   const qc = useQueryClient();
-  const { format } = useCurrencyStore();
+  const { format, formatCost } = useCurrencyStore();
   const [product, setProduct] = useState<any>(null);
   const [rows, setRows] = useState<RecipeRow[]>([]);
   const [description, setDescription] = useState('');
@@ -600,7 +640,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || e.message || 'Failed to save recipe'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Failed to save recipe'),
   });
 
   // Inject print styles once and render the printable recipe into a portal —
@@ -645,7 +685,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
               {rows.map(r => (
                 <tr key={r.ingredient_id}>
                   <td style={{ padding: '1.5mm', borderBottom: '0.2mm solid #ddd' }}>{r.name} <span style={{ color: '#999' }}>({r.sku})</span></td>
-                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.cost_price)}</td>
+                  <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{formatCost(r.cost_price)}</td>
                   <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{r.quantity}{r.unit_abbreviation ? ` ${r.unit_abbreviation}` : ''}</td>
                   <td style={{ padding: '1.5mm', textAlign: 'right', borderBottom: '0.2mm solid #ddd' }}>{format(r.quantity * r.cost_price)}</td>
                 </tr>
@@ -764,7 +804,7 @@ function RecipesPanel({ initialProductId }: { initialProductId?: number }) {
                           <p className="text-xs text-gray-400 font-mono">{r.sku}</p>
                         </td>
                         <td className="px-3 py-2.5 text-right text-gray-500">
-                          {format(r.cost_price)}
+                          {formatCost(r.cost_price)}
                           {r.unit_abbreviation && <span className="text-gray-400">/{r.unit_abbreviation}</span>}
                         </td>
                         <td className="px-3 py-2.5 text-right">
@@ -941,7 +981,7 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
       setSetupUnit(null);
       setSetupQty('');
     },
-    onError: (e: any) => toast.error(e.message || e.response?.data?.message || 'Failed to save case definition'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Failed to save case definition'),
   });
 
   const breakMutation = useMutation({
@@ -965,16 +1005,10 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
         items: [{ product_id: unitDef.product_id, quantity: unitsProduced, cost_price: unitDef.unitsPerCase > 0 ? parseFloat(caseProduct.cost_price || 0) / unitDef.unitsPerCase : 0 }],
       };
 
-      try {
-        await inventoryApi.adjust(payload1);
-        await inventoryApi.adjust(payload2);
-        return { offline: false };
-      } catch {
-        const t = Date.now();
-        await db.pendingMutations.add({ id: `mut-${t}-cba`, resource: 'inventory', action: 'adjust' as any, payload: { _url: '/inventory/adjust', _method: 'POST', ...payload1 as any }, queuedAt: t, attempts: 0 });
-        await db.pendingMutations.add({ id: `mut-${t + 1}-cbb`, resource: 'inventory', action: 'adjust' as any, payload: { _url: '/inventory/adjust', _method: 'POST', ...payload2 as any }, queuedAt: t + 1, attempts: 0 });
-        return { offline: true };
-      }
+      // Queued only when the server can't be reached — see Record Production below.
+      const opened = await offlineMutate(() => inventoryApi.adjust(payload1), 'inventory', 'adjust', payload1);
+      const unpacked = await offlineMutate(() => inventoryApi.adjust(payload2), 'inventory', 'adjust', payload2);
+      return { offline: opened.offline || unpacked.offline };
     },
     onSuccess: (result) => {
       if (result.offline) toast.success('Case break saved offline - will sync when server is back');
@@ -989,7 +1023,7 @@ function CaseBreakingPanel({ warehouseId }: { warehouseId: number | '' }) {
       }
       setCasesToBreak('1');
     },
-    onError: (e: any) => toast.error(e.message || e.response?.data?.message || 'Case break failed'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Case break failed'),
   });
 
   // For a line marked "Bulk" by mistake at receiving — it's really just a
@@ -1189,7 +1223,17 @@ export default function StockProductionPage() {
     setWarehouseId(warehouseList[0].id);
   }
 
+  // A Made on Order item holds no stock of its own — it's made at the till
+  // from its recipe's ingredients, which the sale itself takes off. Producing
+  // it, or using it up here, would only add stock nothing ever reads.
+  const notMadeToOrder = (p: any) => {
+    if (!p?.made_to_order) return true;
+    toast.error(`"${p.name}" is Made on Order — each sale takes its ingredients off stock, so it isn't produced here. Set its recipe under Ingredients & Cost.`, { duration: 6000 });
+    return false;
+  };
+
   const addInput = (p: any) => {
+    if (!notMadeToOrder(p)) return;
     if (inputs.some(i => i.product_id === p.id)) {
       toast.error('Product already in input list');
       return;
@@ -1212,6 +1256,7 @@ export default function StockProductionPage() {
   };
 
   const setOutputProduct = (p: any) => {
+    if (!notMadeToOrder(p)) return;
     setOutput({
       product_id: p.id,
       product_name: p.name,
@@ -1243,16 +1288,12 @@ export default function StockProductionPage() {
         items: [{ product_id: output.product_id, quantity: qty, cost_price: output.cost_price }],
       };
 
-      try {
-        await inventoryApi.adjust(payload1);
-        await inventoryApi.adjust(payload2);
-        return { offline: false };
-      } catch {
-        const t = Date.now();
-        await db.pendingMutations.add({ id: `mut-${t}-pa`, resource: 'inventory', action: 'adjust' as any, payload: { _url: '/inventory/adjust', _method: 'POST', ...payload1 as any }, queuedAt: t, attempts: 0 });
-        await db.pendingMutations.add({ id: `mut-${t + 1}-pb`, resource: 'inventory', action: 'adjust' as any, payload: { _url: '/inventory/adjust', _method: 'POST', ...payload2 as any }, queuedAt: t + 1, attempts: 0 });
-        return { offline: true };
-      }
+      // One at a time, each queued only if the server can't be reached. Catching
+      // everything here used to report a refused run as "saved offline", and
+      // queued the materials a second time when only the finished goods failed.
+      const used = await offlineMutate(() => inventoryApi.adjust(payload1), 'inventory', 'adjust', payload1);
+      const made = await offlineMutate(() => inventoryApi.adjust(payload2), 'inventory', 'adjust', payload2);
+      return { offline: used.offline || made.offline };
     },
     onSuccess: (result) => {
       if (result.offline) toast.success('Production saved offline - will sync when server is back');
@@ -1269,10 +1310,10 @@ export default function StockProductionPage() {
       setOutputQty('');
       setNotes('');
     },
-    onError: (e: any) => toast.error(e.message || e.response?.data?.message || 'Production failed'),
+    onError: (e: any) => toast.error(extractErrorMessage(e) || 'Production failed'),
   });
 
-  const field = 'border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
+  const field ='border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

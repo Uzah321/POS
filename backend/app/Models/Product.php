@@ -60,7 +60,29 @@ class Product extends Model
             return;
         }
         $cost = $rows->sum(fn (ProductIngredient $row) => (float) $row->quantity * (float) ($row->ingredient->cost_price ?? 0));
-        $this->update(['cost_price' => round($cost, 4)]);
+        $this->update(['cost_price' => round($cost, 6)]);
+    }
+
+    /**
+     * Takes a made-to-order product's recipe out of ingredient stock at a
+     * warehouse for $units sold, or puts it back when $units is negative (a
+     * void or a refund). An ingredient with no stock row there gets one, so a
+     * sale allowed past zero ("block negative stock" off) still shows up as a
+     * shortfall instead of not being taken off at all.
+     */
+    public function useIngredients(int $warehouseId, float $units): void
+    {
+        foreach ($this->ingredients()->get() as $row) {
+            $qty = (float) $row->quantity * $units;
+            if ($qty == 0.0) {
+                continue;
+            }
+            $stock = IngredientStock::firstOrCreate(
+                ['ingredient_id' => $row->ingredient_id, 'warehouse_id' => $warehouseId],
+                ['quantity' => 0]
+            );
+            $qty > 0 ? $stock->decrement('quantity', $qty) : $stock->increment('quantity', -$qty);
+        }
     }
 
     public function getTotalStockAttribute(): float
@@ -86,10 +108,17 @@ class Product extends Model
      * (ingredient stock ÷ quantity needed per unit) across every ingredient in the
      * recipe. A product flagged made_to_order with no recipe yet defined can't make
      * anything — 0, not "unlimited" — so it doesn't silently oversell during setup.
+     *
+     * Ingredients are shared by every branch, so only the stock in this
+     * product's own branch counts — what its till can actually take from.
      */
     public function maxSellableFromIngredients(): float
     {
-        $rows = $this->ingredients()->with(['ingredient' => fn ($q) => $q->withSum('stocks', 'quantity')])->get();
+        $warehouseIds = Warehouse::idsForBranch($this->branch_id);
+        $rows = $this->ingredients()->with(['ingredient' => fn ($q) => $q->withSum(
+            ['stocks' => fn ($s) => $warehouseIds ? $s->whereIn('warehouse_id', $warehouseIds) : $s],
+            'quantity'
+        )])->get();
         if ($rows->isEmpty()) {
             return 0.0;
         }

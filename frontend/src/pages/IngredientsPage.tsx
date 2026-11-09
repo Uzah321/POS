@@ -5,39 +5,66 @@ import { ingredientsApi, unitsApi, suppliersApi, warehousesApi } from '../api';
 import { Plus, Search, Edit, Wheat, X, Loader2, Trash2, Store, ListOrdered, PackageX, PackagePlus, PackageMinus, History } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import RowActionsMenu from '../components/ui/RowActionsMenu';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
+import { useCurrencyStore } from '../stores/currencyStore';
 
+// A saved ingredient's empty SKU/barcode/stock unit come back as null —
+// accept it, or editing one fails on a field that isn't even shown in error.
+const optionalText = z.string().nullish();
 const schema = z.object({
-  name: z.string().min(1),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
+  name: z.string().trim().min(1, 'Required'),
+  sku: optionalText,
+  barcode: optionalText,
   unit_id: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number().positive().optional()),
   conversion_number: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number().min(0).optional()),
-  stock_unit: z.string().optional(),
-  cost_price: z.coerce.number().min(0).default(0),
+  stock_unit: optionalText,
+  cost_price: z.coerce.number().min(0, 'Cannot be negative').default(0),
   is_active: z.coerce.boolean().default(true),
-  initial_quantity: z.coerce.number().min(0).default(0),
+  initial_quantity: z.coerce.number().min(0, 'Cannot be negative').default(0),
 });
 type FormData = z.infer<typeof schema>;
+
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Ingredient Name', sku: 'SKU', barcode: 'Barcode', unit_id: 'UOM', conversion_number: 'Conversion Number',
+  stock_unit: 'Stock Unit', cost_price: 'Cost Price', is_active: 'Is Active', initial_quantity: 'Opening Stock',
+};
+
+/** The first field-level message from a Laravel 422, else its message. */
+function apiErrorMessage(e: any, fallback: string): string {
+  const errors = e?.response?.data?.errors;
+  const first = errors ? Object.values(errors)[0] : null;
+  if (Array.isArray(first) && first.length) return String(first[0]);
+  return e?.response?.data?.message || (e?.request && !e?.response ? 'Cannot reach the server — check the connection and try again' : fallback);
+}
 
 const field = 'border border-gray-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-1 bg-gray-50 focus:bg-white transition-colors';
 
 function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved: any) => void }) {
   const qc = useQueryClient();
+  const { activeCurrency, toUsd } = useCurrencyStore();
+  const rate = activeCurrency?.exchange_rate || 1;
   const { data: units } = useQuery({ queryKey: ['units'], queryFn: () => unitsApi.list().then(r => r.data?.data || []) });
   const [addingUnit, setAddingUnit] = useState(false);
   const [newUnit, setNewUnit] = useState({ name: '', abbreviation: '' });
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, control, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
+    // Listed field by field: spreading the saved ingredient carried its nulls
+    // (and its unit, stock totals…) into the form.
     defaultValues: ingredient ? {
-      ...ingredient,
-      cost_price: parseFloat(ingredient.cost_price || 0),
-      conversion_number: ingredient.conversion_number ?? undefined,
+      name: ingredient.name ?? '',
+      sku: ingredient.sku ?? '',
+      barcode: ingredient.barcode ?? '',
+      unit_id: ingredient.unit_id ?? undefined,
+      conversion_number: ingredient.conversion_number != null ? Number(ingredient.conversion_number) : undefined,
+      stock_unit: ingredient.stock_unit ?? '',
+      // Costs are stored in USD and entered in the currency on screen, as on Products
+      cost_price: Number((Number(ingredient.cost_price || 0) * rate).toFixed(6)),
+      is_active: ingredient.is_active ?? true,
       initial_quantity: 0,
     } : {
       cost_price: 0,
@@ -45,21 +72,36 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
       initial_quantity: 0,
     },
   });
+  const unitId = useWatch({ control, name: 'unit_id' });
+  const unitAbbr = (units as any[] | undefined)?.find((u: any) => String(u.id) === String(unitId ?? ''))?.abbreviation;
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) => ingredient ? ingredientsApi.update(ingredient.id, data) : ingredientsApi.create(data),
+    mutationFn: (data: FormData) => {
+      const payload = { ...data, cost_price: toUsd(data.cost_price ?? 0) };
+      return ingredient ? ingredientsApi.update(ingredient.id, payload) : ingredientsApi.create(payload);
+    },
     onSuccess: (res) => {
       const saved = res.data?.data ?? res.data;
-      toast.success(ingredient ? 'Ingredient updated' : 'Ingredient created');
+      toast.success(ingredient ? 'Ingredient updated' : `Ingredient "${saved?.name}" created`);
       qc.invalidateQueries({ queryKey: ['ingredients'] });
+      qc.invalidateQueries({ queryKey: ['ingredients-out-count'] });
+      qc.invalidateQueries({ queryKey: ['all-ingredients-dropdown'] });
+      qc.invalidateQueries({ queryKey: ['ingredient-search'] });
       // A new ingredient's opening stock can be exactly what a made-to-order
       // product's recipe was waiting on — refresh its derived availability too.
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['pos-products'] });
       onSaved(saved);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Error saving ingredient'),
+    onError: (e: any) => toast.error(apiErrorMessage(e, 'Error saving ingredient')),
   });
+
+  // A field that fails here without a message of its own would otherwise leave
+  // the button doing nothing at all.
+  const onInvalid = (errs: Record<string, any>) => {
+    const [name, err] = Object.entries(errs)[0] ?? [];
+    if (name) toast.error(`${FIELD_LABELS[name] ?? name}: ${err?.message || 'invalid value'}`);
+  };
 
   const createUnitMutation = useMutation({
     mutationFn: () => unitsApi.create({ name: newUnit.name.trim(), abbreviation: newUnit.abbreviation.trim() }),
@@ -75,12 +117,12 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
   });
 
   return (
-    <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="p-6 space-y-4">
+    <form onSubmit={handleSubmit((d) => mutation.mutate(d), onInvalid)} className="p-6 space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="text-sm font-semibold text-gray-700">Ingredient Name *</label>
-          <input {...register('name')} className={field} />
-          {errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}
+          <input {...register('name')} className={field} autoFocus={!ingredient} />
+          {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message || 'Required'}</p>}
         </div>
         <div>
           <label className="text-sm font-semibold text-gray-700">Barcode <span className="text-gray-400 font-medium">optional</span></label>
@@ -139,24 +181,30 @@ function GeneralTab({ ingredient, onSaved }: { ingredient?: any; onSaved: (saved
         </div>
         <div>
           <label className="text-sm font-semibold text-gray-700">Conversion Number <span className="text-gray-400 font-medium">optional</span></label>
-          <input type="number" step="0.001" min="0" {...register('conversion_number')} className={field} />
+          <input type="number" step="any" min="0" {...register('conversion_number')} className={field} />
         </div>
         <div>
           <label className="text-sm font-semibold text-gray-700">Stock Unit <span className="text-gray-400 font-medium">optional</span></label>
           <input {...register('stock_unit')} placeholder="eg: pack, box" className={field} />
         </div>
         <div>
-          <label className="text-sm font-semibold text-gray-700">Cost Price <span className="text-gray-400 font-medium">optional</span></label>
-          <input type="number" step="0.01" min="0" {...register('cost_price')} className={field} />
+          {/* step="any": a cost per gram (0.0012) or opening stock of 2.5 kg was
+              refused by the browser before it was ever sent */}
+          <label className="text-sm font-semibold text-gray-700">
+            Cost Price {unitAbbr ? `per ${unitAbbr} ` : ''}<span className="text-gray-400 font-medium">optional, {activeCurrency?.code || 'USD'}</span>
+          </label>
+          <input type="number" step="any" min="0" {...register('cost_price')} className={field} />
+          {errors.cost_price && <p className="text-red-500 text-xs mt-1">{errors.cost_price.message}</p>}
         </div>
         {!ingredient && (
           <div>
-            <label className="text-sm font-semibold text-gray-700">Opening Stock (units)</label>
-            <input type="number" step="1" min="0" {...register('initial_quantity')} className={field} placeholder="0" />
-            <p className="text-xs text-gray-400 mt-1">Stock added to the default warehouse</p>
+            <label className="text-sm font-semibold text-gray-700">Opening Stock {unitAbbr ? `(${unitAbbr})` : ''}</label>
+            <input type="number" step="any" min="0" {...register('initial_quantity')} className={field} placeholder="0" />
+            <p className="text-xs text-gray-400 mt-1">Added to this branch's warehouse</p>
+            {errors.initial_quantity && <p className="text-red-500 text-xs mt-1">{errors.initial_quantity.message}</p>}
           </div>
         )}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none">
             <input type="checkbox" {...register('is_active')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
             Is Active
@@ -220,7 +268,7 @@ function VendorsTab({ ingredientId }: { ingredientId: number }) {
             className="w-32 text-sm bg-white border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           <input
-            type="number" step="0.01" min="0"
+            type="number" step="any" min="0"
             value={row.vendor_cost}
             onChange={e => setRows(rs => rs.map((r, i) => i === idx ? { ...r, vendor_cost: e.target.value } : r))}
             placeholder="Cost"
@@ -363,7 +411,10 @@ function UnsavedNotice() {
 
 function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: () => void }) {
   const [tab, setTab] = useState<'general' | 'vendors' | 'ordering'>('general');
-  const [savedId, setSavedId] = useState<number | null>(ingredient?.id ?? null);
+  // The ingredient as last saved, so going back to General after creating it
+  // shows what was saved instead of an empty form.
+  const [saved, setSaved] = useState<any>(ingredient ?? null);
+  const savedId: number | null = saved?.id ?? null;
 
   const tabs: Array<{ id: 'general' | 'vendors' | 'ordering'; label: string; icon: React.ElementType }> = [
     { id: 'general', label: 'General', icon: Wheat },
@@ -393,7 +444,11 @@ function IngredientModal({ ingredient, onClose }: { ingredient?: any; onClose: (
           ))}
         </div>
         {tab === 'general' && (
-          <GeneralTab ingredient={ingredient ?? (savedId ? { id: savedId } : undefined)} onSaved={(saved) => { setSavedId(saved.id); if (!ingredient) setTab('vendors'); }} />
+          <GeneralTab
+            key={savedId ?? 'new'}
+            ingredient={saved ?? undefined}
+            onSaved={(s) => { const wasNew = !saved; setSaved(s); if (wasNew) setTab('vendors'); }}
+          />
         )}
         {tab === 'vendors' && (savedId ? <VendorsTab ingredientId={savedId} /> : <UnsavedNotice />)}
         {tab === 'ordering' && (savedId ? <OrderingTab ingredientId={savedId} /> : <UnsavedNotice />)}
@@ -600,6 +655,7 @@ export default function IngredientsPage() {
   const [historyFor, setHistoryFor] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const qc = useQueryClient();
+  const { formatCost } = useCurrencyStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['ingredients', search, page, filter],
@@ -755,7 +811,7 @@ export default function IngredientsPage() {
                   </td>
                   <td className="px-4 py-2.5 font-medium text-gray-900">{ing.name}</td>
                   <td className="px-4 py-2.5">{ing.is_active ? <span className="text-emerald-600">✓</span> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-2.5 tabular-nums">${parseFloat(ing.cost_price || 0).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 tabular-nums">{formatCost(ing.cost_price || 0)}</td>
                   <td className="px-4 py-2.5 tabular-nums">{ing.total_stock ?? '-'} <span className="text-gray-400 text-xs">{ing.unit?.abbreviation}</span></td>
                   <td className="px-4 py-2.5 text-gray-500">{ing.stock_unit || '-'}</td>
                   <td className="px-4 py-2.5">

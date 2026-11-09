@@ -18,6 +18,8 @@ interface CurrencyState {
   setActiveCurrency: (currency: Currency) => void;
   /** Convert an amount from USD (base) to the active currency */
   format: (usdAmount: number) => string;
+  /** Like format, but keeps up to 6 decimals — for a unit cost such as $0.0012 per gram, which format shows as $0.00 */
+  formatCost: (usdAmount: number) => string;
   /** Convert from active currency back to USD */
   toUsd: (amount: number) => number;
 }
@@ -65,6 +67,14 @@ export const useCurrencyStore = create<CurrencyState>()(
         // Sign before the symbol: -$3,056.37, not $-3,056.37.
         const sign = Math.round(converted * 100) < 0 ? '-' : '';
         return `${sign}${cur.symbol}${Math.abs(converted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      },
+
+      formatCost: (usdAmount: number) => {
+        const cur = get().activeCurrency ?? USD_DEFAULT;
+        const numeric = typeof usdAmount === 'string' ? parseFloat(usdAmount) : usdAmount;
+        const converted = (typeof numeric === 'number' && isFinite(numeric) ? numeric : 0) * cur.exchange_rate;
+        const sign = converted < 0 ? '-' : '';
+        return `${sign}${cur.symbol}${Math.abs(converted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
       },
 
       toUsd: (amount: number) => {

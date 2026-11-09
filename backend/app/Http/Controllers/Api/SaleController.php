@@ -834,30 +834,12 @@ class SaleController extends BaseApiController
     /** Deducts a made-to-order product's recipe ingredients for $qtySold units. */
     private function deductIngredients(\App\Models\Product $product, int $warehouseId, float $qtySold): void
     {
-        $recipe = $product->ingredients()->get();
-        foreach ($recipe as $row) {
-            $needed = (float) $row->quantity * $qtySold;
-            if ($needed <= 0) continue;
-
-            IngredientStock::where('warehouse_id', $warehouseId)
-                ->where('ingredient_id', $row->ingredient_id)
-                ->first()
-                ?->decrement('quantity', $needed);
-        }
+        $product->useIngredients($warehouseId, $qtySold);
     }
 
     /** Restores a made-to-order product's recipe ingredients when its sale is voided. */
     private function restoreIngredients(\App\Models\Product $product, int $warehouseId, float $qtySold): void
     {
-        $recipe = $product->ingredients()->get();
-        foreach ($recipe as $row) {
-            $restore = (float) $row->quantity * $qtySold;
-            if ($restore <= 0) continue;
-
-            IngredientStock::where('warehouse_id', $warehouseId)
-                ->where('ingredient_id', $row->ingredient_id)
-                ->first()
-                ?->increment('quantity', $restore);
-        }
+        $product->useIngredients($warehouseId, -$qtySold);
     }
 }

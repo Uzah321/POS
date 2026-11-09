@@ -642,7 +642,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               </label>
               <p className="text-xs text-gray-400 mt-1">
                 {watchedMadeToOrder
-                  ? 'Prepared on order — a sale deducts its recipe’s ingredients instead of this item’s own stock, and it goes out of stock when an ingredient runs low. Set up the recipe under Stock Production → Recipes.'
+                  ? 'Prepared on order — a sale deducts its recipe’s ingredients instead of this item’s own stock, and it goes out of stock when an ingredient runs low. Set up the recipe under Production → Ingredients & Cost.'
                   : 'For items assembled at the till from raw ingredients (e.g. a pizza) rather than kept pre-made in stock.'}
               </p>
             </div>

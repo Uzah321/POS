@@ -3,6 +3,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -17,10 +18,14 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-// Android 6.0 (API 23), the oldest Flutter builds for: Sunmi handhelds still
-// run 6 (V1s) and 7.1 (V2), and refuse an APK that asks for more with "There
-// was a problem parsing the package". A named value on purpose — `flutter
-// build` rewrites a literal `minSdk = 23` to flutter.minSdkVersion (24).
+// Android 6.0 (API 23): Sunmi handhelds still run 6 (V1s) and 7.1 (V2), and
+// refuse an APK that asks for more with "There was a problem parsing the
+// package". A named value on purpose — `flutter build` rewrites a literal
+// `minSdk = 23` to flutter.minSdkVersion (24).
+//
+// Build with Flutter 3.38 (see mobile/README.md): from 3.41 Flutter's engine
+// calls Android 7-only APIs on start (Configuration.getLocales()), so the app
+// installs on Android 6 and then closes at once.
 val handheldMinSdk = 23
 
 android {
@@ -85,7 +90,7 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

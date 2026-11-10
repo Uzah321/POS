@@ -9,7 +9,7 @@ import 'theme.dart';
 import 'till_screen.dart' show chooseTill, signOutWithCheck;
 import 'widgets.dart';
 
-const appVersion = '1.0.2';
+const appVersion = '1.0.3';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

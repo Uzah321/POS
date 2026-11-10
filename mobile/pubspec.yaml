@@ -16,10 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
-  sdk: ^3.13.5
+  sdk: ^3.10.9
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -34,11 +34,13 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  http: ^1.6.0
-  qr: ^4.0.1
-  image: ^4.12.0
-  mobile_scanner: ^7.5.0
-  web: ^1.1.2
+  # Flutter 3.38 / Dart 3.10 (the newest Flutter that runs on Android 6 — see
+  # android/app/build.gradle.kts): these ranges let pub pick versions for it.
+  http: ^1.2.0
+  qr: ^3.0.0
+  image: ^4.3.0
+  mobile_scanner: ^7.0.0
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

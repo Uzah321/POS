@@ -31,11 +31,14 @@ sales and reprints, till and currency choice. Back-office work stays on the webs
 1. Raise `version:` in `pubspec.yaml` (e.g. `1.0.1+2` — the number after `+` must go up,
    or Android won't install it over the old one) and `appVersion` in
    `lib/ui/settings_screen.dart`.
-2. Build (JDK 17+ in `JAVA_HOME`):
+2. Build with **Flutter 3.38.x** (JDK 17+ in `JAVA_HOME`) — not newer: from 3.41 Flutter's
+   engine calls an Android 7-only method on start (`Configuration.getLocales()` in
+   `LocalizationPlugin`), so the app installs on a Sunmi V1s (Android 6) and closes at once.
+   On the build PC that SDK is `C:\Users\dingulwazi.zondo\dev\flutter-3.38`:
 
    ```
-   flutter test
-   flutter build apk --release --target-platform android-arm
+   C:\Users\dingulwazi.zondo\dev\flutter-3.38\bin\flutter test
+   C:\Users\dingulwazi.zondo\dev\flutter-3.38\bin\flutter build apk --release --target-platform android-arm
    ```
 
 3. Copy `build/app/outputs/flutter-apk/app-release.apk` to

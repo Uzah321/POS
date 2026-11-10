@@ -415,7 +415,7 @@ Uint8List _raster(int w, int h, bool Function(int x, int y) dark) {
 Uint8List? qrRaster(String? url) {
   if (url == null || url.isEmpty) return null;
   try {
-    final qr = QrImage(QrCode(payload: QrPayload.fromString(url), errorCorrectLevel: QrErrorCorrectLevel.medium));
+    final qr = QrImage(QrCode.fromData(data: url, errorCorrectLevel: QrErrorCorrectLevel.M));
     final n = qr.moduleCount;
     const quiet = 4;
     final scale = (200 ~/ (n + 2 * quiet)).clamp(3, 6).toInt();

@@ -17,6 +17,12 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Android 6.0 (API 23), the oldest Flutter builds for: Sunmi handhelds still
+// run 6 (V1s) and 7.1 (V2), and refuse an APK that asks for more with "There
+// was a problem parsing the package". A named value on purpose — `flutter
+// build` rewrites a literal `minSdk = 23` to flutter.minSdkVersion (24).
+val handheldMinSdk = 23
+
 android {
     namespace = "com.corepos.core_pos"
     compileSdk = flutter.compileSdkVersion
@@ -29,8 +35,7 @@ android {
 
     defaultConfig {
         applicationId = "com.corepos.pos"
-        // Android 7.0+: the Sunmi V2 runs 7.1.
-        minSdk = flutter.minSdkVersion
+        minSdk = handheldMinSdk
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -57,6 +62,13 @@ android {
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
             }
+            // Android 6 only checks the old (v1, JAR) signature; 7+ checks v2.
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 

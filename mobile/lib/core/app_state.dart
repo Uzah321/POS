@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'models.dart';
+import 'store.dart';
 
 /// The Core site this app signs in to unless it's changed on the sign-in screen.
 const defaultServer = 'https://msilisi.mycorre.com';
@@ -15,7 +15,7 @@ class AppState extends ChangeNotifier {
 
   static final AppState I = AppState._();
 
-  late SharedPreferences _prefs;
+  late Store _prefs;
   late Api api;
 
   String server = defaultServer;
@@ -33,7 +33,7 @@ class AppState extends ChangeNotifier {
   bool get signedIn => api.token != null && user != null;
 
   Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    _prefs = await Store.open();
     // In a browser (the web build used for testing) the app talks to the site it was loaded from.
     server = _prefs.getString('server') ?? (kIsWeb ? Uri.base.origin : defaultServer);
     api = Api(server)..token = _prefs.getString('token');

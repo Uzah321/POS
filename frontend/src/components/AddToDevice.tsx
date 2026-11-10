@@ -37,6 +37,13 @@ const MENU_STEPS: Partial<Record<DevicePlatform, React.ReactNode[]>> = {
 // instead of the browser's, and receipts straight to a built-in printer.
 const ANDROID_APP = { href: '/api/download/core-pos.apk', name: 'Core POS.apk', size: '22 MB' };
 
+// The app needs Android 6.0 (Flutter's oldest); an older device can't install it.
+const ANDROID_APP_MIN = 6;
+function androidVersion(): string | null {
+  const match = /Android (\d+(?:\.\d+)?)/.exec(navigator.userAgent);
+  return match ? match[1] : null;
+}
+
 function AndroidAppSteps() {
   return (
     <ol className="space-y-1.5 list-decimal pl-5 text-xs text-gray-700">
@@ -57,6 +64,7 @@ export default function AddToDevice({ variant }: { variant: 'login' | 'sidebar' 
   const [open, setOpen] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [appDownloaded, setAppDownloaded] = useState(false);
+  const deviceAndroid = androidVersion();
   const { canInstall, alreadyApp, install } = useInstallApp();
   const platform = detectPlatform();
   const file = shortcutFileFor(platform);
@@ -111,13 +119,22 @@ export default function AddToDevice({ variant }: { variant: 'login' | 'sidebar' 
             <div className="p-5 space-y-5 text-sm text-gray-700">
               {platform === 'android' && (
                 <section className="space-y-2">
-                  <a href={ANDROID_APP.href} download={ANDROID_APP.name} onClick={() => setAppDownloaded(true)}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">
-                    <Smartphone size={18} /> Download the Android app
-                  </a>
-                  <p className="text-xs text-gray-500">
-                    Best for handheld tills: made for small screens, and receipts print straight on a built-in printer (Sunmi and others). A {ANDROID_APP.size} download.
-                  </p>
+                  {deviceAndroid && parseFloat(deviceAndroid) < ANDROID_APP_MIN ? (
+                    <p className="text-xs text-amber-800 bg-amber-50 rounded-lg p-3">
+                      This device runs Android {deviceAndroid}. The Core Android app needs Android {ANDROID_APP_MIN}.0 or newer, so use Core in the browser here instead.
+                    </p>
+                  ) : (
+                    <>
+                      <a href={ANDROID_APP.href} download={ANDROID_APP.name} onClick={() => setAppDownloaded(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">
+                        <Smartphone size={18} /> Download the Android app
+                      </a>
+                      <p className="text-xs text-gray-500">
+                        Best for handheld tills: made for small screens, and receipts print straight on a built-in printer (Sunmi and others).
+                        A {ANDROID_APP.size} download, for Android {ANDROID_APP_MIN}.0 or newer{deviceAndroid ? ` (this device: Android ${deviceAndroid})` : ''}.
+                      </p>
+                    </>
+                  )}
                   {appDownloaded && <AndroidAppSteps />}
                   <p className="pt-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Or use Core in the browser</p>
                 </section>

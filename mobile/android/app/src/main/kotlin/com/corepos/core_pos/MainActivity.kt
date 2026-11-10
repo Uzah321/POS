@@ -35,6 +35,26 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        // The app's few saved settings (server, sign-in, currency, till) — kept
+        // here rather than through the shared_preferences plugin, which needs
+        // Android 7 while Sunmi handhelds still run 6.
+        val store = getSharedPreferences("core_pos", MODE_PRIVATE)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "core_pos/store").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "load" -> result.success(store.all.mapValues { it.value?.toString() })
+                "set" -> {
+                    val key = call.argument<String>("key")
+                    val value = call.argument<String>("value")
+                    if (key == null) {
+                        result.error("NO_KEY", "No key given.", null)
+                    } else {
+                        store.edit().apply { if (value == null) remove(key) else putString(key, value) }.apply()
+                        result.success(true)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun bindSunmi() {

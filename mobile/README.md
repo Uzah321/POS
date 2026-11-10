@@ -11,6 +11,12 @@ sign-in screen) and prints receipts on the device's built-in printer:
 Receipts are the same ESC/POS layout the web till prints (`lib/printing/receipt.dart`
 is a port of `frontend/src/lib/hardware/printer.ts`).
 
+Runs on **Android 6.0 and newer** (`handheldMinSdk = 23` in `android/app/build.gradle.kts`,
+with v1 + v2 signatures). Sunmi handhelds still run 6.0 and 7.1, and an APK asking for more
+fails to install with "There was a problem parsing the package". For the same reason the
+app saves its settings through its own channel (`lib/core/store*.dart`), not the
+shared_preferences plugin, which needs Android 7.
+
 What it does: sign in, sell (search, categories, camera barcode scan, weighed items),
 cash / card / mobile money with change, receipt printing (fiscal QR included), recent
 sales and reprints, till and currency choice. Back-office work stays on the website.

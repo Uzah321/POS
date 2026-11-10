@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, MonitorDown, Share, MoreVertical, X } from 'lucide-react';
+import { Download, MonitorDown, Share, MoreVertical, Smartphone, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { detectPlatform, shortcutFileFor, useInstallApp, type DevicePlatform } from '../lib/installApp';
 
@@ -33,6 +33,20 @@ const MENU_STEPS: Partial<Record<DevicePlatform, React.ReactNode[]>> = {
   ],
 };
 
+// The Android app (mobile/, Flutter): made for handheld tills — its own screens
+// instead of the browser's, and receipts straight to a built-in printer.
+const ANDROID_APP = { href: '/api/download/core-pos.apk', name: 'Core POS.apk', size: '22 MB' };
+
+function AndroidAppSteps() {
+  return (
+    <ol className="space-y-1.5 list-decimal pl-5 text-xs text-gray-700">
+      <li>Open the downloaded <strong>Core POS.apk</strong> (from the notification, or Files → Downloads).</li>
+      <li>If Android asks, allow installing apps from this browser, then tap <strong>Install</strong>.</li>
+      <li>Open <strong>Core POS</strong> and sign in. It connects to <strong>{window.location.host}</strong> — if it shows another server, tap <strong>Change</strong> and enter this one.</li>
+    </ol>
+  );
+}
+
 /**
  * "Add Core to this device": a link that opens a box offering whatever works
  * on this device — installing the app (Chrome / Edge), a desktop shortcut file
@@ -42,6 +56,7 @@ const MENU_STEPS: Partial<Record<DevicePlatform, React.ReactNode[]>> = {
 export default function AddToDevice({ variant }: { variant: 'login' | 'sidebar' }) {
   const [open, setOpen] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [appDownloaded, setAppDownloaded] = useState(false);
   const { canInstall, alreadyApp, install } = useInstallApp();
   const platform = detectPlatform();
   const file = shortcutFileFor(platform);
@@ -94,6 +109,20 @@ export default function AddToDevice({ variant }: { variant: 'login' | 'sidebar' 
             </div>
 
             <div className="p-5 space-y-5 text-sm text-gray-700">
+              {platform === 'android' && (
+                <section className="space-y-2">
+                  <a href={ANDROID_APP.href} download={ANDROID_APP.name} onClick={() => setAppDownloaded(true)}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">
+                    <Smartphone size={18} /> Download the Android app
+                  </a>
+                  <p className="text-xs text-gray-500">
+                    Best for handheld tills: made for small screens, and receipts print straight on a built-in printer (Sunmi and others). A {ANDROID_APP.size} download.
+                  </p>
+                  {appDownloaded && <AndroidAppSteps />}
+                  <p className="pt-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Or use Core in the browser</p>
+                </section>
+              )}
+
               {canInstall && (
                 <section className="space-y-2">
                   <button type="button" onClick={onInstall}
@@ -125,6 +154,14 @@ export default function AddToDevice({ variant }: { variant: 'login' | 'sidebar' 
                     {steps.map((step, i) => <li key={i}>{step}</li>)}
                   </ol>
                 </section>
+              )}
+
+              {platform !== 'android' && (
+                <p className="text-xs text-gray-500">
+                  Setting up an Android handheld till?{' '}
+                  <a href={ANDROID_APP.href} download={ANDROID_APP.name} className="text-blue-600 hover:underline font-medium">Download the Android app</a>{' '}
+                  ({ANDROID_APP.size}) and copy it to the device, or open this page on the device itself.
+                </p>
               )}
 
               <p className="text-xs text-gray-400 break-all">Opens {window.location.origin}</p>

@@ -61,6 +61,16 @@ Route::get('/download/core-shortcut.{type}', function (string $type) {
         ->header('Content-Disposition', "attachment; filename=\"Core POS.{$type}\"");
 })->whereIn('type', ['url', 'webloc', 'desktop']);
 
+// The Core POS Android app for handheld tills (the Flutter project in mobile/),
+// offered from "Add Core to this device" on Android. A new release is built
+// with `flutter build apk` and committed here — see mobile/README.md.
+Route::get('/download/core-pos.apk', function () {
+    $path = resource_path('downloads/core-pos.apk');
+    abort_unless(is_file($path), 404, 'The Android app is not available on this server yet.');
+
+    return response()->download($path, 'Core POS.apk', ['Content-Type' => 'application/vnd.android.package-archive']);
+});
+
 // Product/category pictures — public because <img> tags can't send the Bearer
 // token; responses link here instead of inlining the picture (ServesImageByUrl).
 Route::get('/products/{product}/image', [\App\Http\Controllers\Api\ImageController::class, 'product']);

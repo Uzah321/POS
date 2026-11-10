@@ -61,6 +61,14 @@ class Printer {
 
   static bool get supported => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+  /// Tells the Android side this start worked (it watches for crashes while starting).
+  static Future<void> markStarted() async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod<bool>('started');
+    } catch (_) {}
+  }
+
   static Future<PrinterStatus> status() async {
     if (!supported) return PrinterStatus.none;
     // Right after the app starts, Sunmi's printer service may still be connecting.

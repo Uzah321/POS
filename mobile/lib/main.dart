@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'core/app_state.dart';
 import 'core/cart.dart';
 import 'core/catalog.dart';
+import 'printing/printer.dart';
 import 'ui/login_screen.dart';
 import 'ui/theme.dart';
 import 'ui/till_screen.dart';
@@ -29,6 +30,8 @@ Future<void> main() async {
     }
   }
   runApp(const CoreApp());
+  // The first screen is drawn: the Android side stops expecting a crash on start.
+  WidgetsBinding.instance.addPostFrameCallback((_) => Printer.markStarted());
 }
 
 class CoreApp extends StatefulWidget {

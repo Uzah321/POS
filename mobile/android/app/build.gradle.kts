@@ -51,6 +51,10 @@ android {
         jniLibs {
             // The camera scanner's library brings its other copies along regardless.
             excludes += listOf("lib/arm64-v8a/**", "lib/x86/**", "lib/x86_64/**")
+            // Compressed in the APK and unpacked at install, the way every Android
+            // version loads them — not run straight from the APK, which only
+            // Android 6+ does and older handheld builds are least tested on.
+            useLegacyPackaging = true
         }
     }
 

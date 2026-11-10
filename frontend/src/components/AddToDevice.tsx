@@ -35,7 +35,7 @@ const MENU_STEPS: Partial<Record<DevicePlatform, React.ReactNode[]>> = {
 
 // The Android app (mobile/, Flutter): made for handheld tills — its own screens
 // instead of the browser's, and receipts straight to a built-in printer.
-const ANDROID_APP = { href: '/api/download/core-pos.apk', name: 'Core POS.apk', size: '22 MB' };
+const ANDROID_APP = { href: '/api/download/core-pos.apk', name: 'Core POS.apk', size: '12 MB' };
 
 // The app needs Android 6.0 (Flutter's oldest); an older device can't install it.
 const ANDROID_APP_MIN = 6;

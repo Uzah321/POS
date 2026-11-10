@@ -30,6 +30,11 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "core_pos/printer").setMethodCallHandler { call, result ->
             when (call.method) {
                 "status" -> result.success(status())
+                // The first screen is up: this start worked (see StartupGuard).
+                "started" -> {
+                    StartupGuard.started(this)
+                    result.success(true)
+                }
                 "print" -> printOnSunmi(call.argument<ByteArray>("data"), result)
                 "rawbt" -> printWithRawbt(call.argument<ByteArray>("data"), result)
                 else -> result.notImplemented()

@@ -17,6 +17,11 @@ fails to install with "There was a problem parsing the package". For the same re
 app saves its settings through its own channel (`lib/core/store*.dart`), not the
 shared_preferences plugin, which needs Android 7.
 
+On old handheld GPUs it draws with Skia rather than Impeller (`EnableImpeller` = false in
+the manifest). If the app ever closes unexpectedly, the next start shows why, with the
+device model and Android version, before opening the till (`StartupGuard.kt`,
+`LaunchActivity.kt`) — ask for a photo of that screen.
+
 What it does: sign in, sell (search, categories, camera barcode scan, weighed items),
 cash / card / mobile money with change, receipt printing (fiscal QR included), recent
 sales and reprints, till and currency choice. Back-office work stays on the website.

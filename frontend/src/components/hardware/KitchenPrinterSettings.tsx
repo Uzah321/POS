@@ -41,6 +41,7 @@ const MODES: Array<{ mode: Exclude<PrinterMode, 'none'>; title: string; help: st
   { mode: 'browser', title: 'System Print Dialog', help: 'Opens the print dialog for every ticket — choose the kitchen printer in it each time' },
   { mode: 'webusb', title: 'Direct USB / ESC-POS', help: 'Prints instantly to a USB thermal printer plugged into this device (Chrome/Edge)' },
   { mode: 'webbluetooth', title: 'Direct Bluetooth / ESC-POS', help: 'Prints instantly to a Bluetooth LE thermal printer (Chrome/Edge, including Android tablets)' },
+  { mode: 'rawbt', title: 'Built-in Printer (Android POS handheld)', help: "Prints tickets on this handheld's own printer through the RawBT app, no dialog — set RawBT up as on the Receipt Printer tab" },
 ];
 
 export default function KitchenPrinterSettings({ usbReconnected }: { usbReconnected: boolean }) {

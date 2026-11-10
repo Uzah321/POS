@@ -1,11 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    // Shop devices don't always get browser updates: the Posiflex tills run
+    // Edge 92, and Android handheld POS terminals (built-in receipt printer)
+    // ship a Chrome of 60–90 that often can't be updated. Browsers from
+    // Chrome/Edge 105 get the normal build; older ones load a second copy with
+    // the newer syntax compiled away and the missing built-ins filled in.
+    // Without it they stop on the first `?.` and show a blank white page.
+    legacy({
+      targets: ['chrome >= 49', 'edge >= 79', 'firefox >= 60', 'safari >= 11', 'ios_saf >= 11', 'samsung >= 5'],
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       // Register the service worker manually so localhost installs can opt out.
@@ -94,9 +104,8 @@ export default defineConfig({
     }),
   ],
   build: {
-    // Shop tills don't always get browser updates: the Posiflex terminals run
-    // Edge 92 (2021). Vite's default target is far newer than that.
-    target: ['chrome92', 'edge92', 'firefox90', 'safari15'],
+    // No build.target: the legacy plugin above sets it (Chrome/Edge 105 for the
+    // normal build) and covers older browsers with its own copy.
     outDir: '../backend/public',
     emptyOutDir: false,
   },

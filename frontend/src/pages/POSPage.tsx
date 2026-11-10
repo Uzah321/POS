@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { Fragment, useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi, usersApi, tablesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
@@ -66,16 +66,19 @@ function CartRow({ item, format, image }: { item: CartItem; format: (v: number) 
 
   const stepBtn = 'w-8 h-8 flex items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-white touch-manipulation';
 
+  // One line from sm up: picture, name, qty, price, total, remove. On a phone
+  // (a 360px-wide handheld till) that leaves the name no room at all, so it
+  // takes two: name, total and remove on top; unit price and qty below.
   return (
-    <div className="flex items-center gap-2 py-1 px-4 border-b border-slate-100 last:border-b-0">
-      <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center">
+    <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 py-1.5 sm:py-1 px-4 border-b border-slate-100 last:border-b-0">
+      <div className="hidden w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 sm:flex items-center justify-center">
         {image
           ? <img src={image} alt="" className="w-full h-full object-cover" />
           : <span className="text-sm font-bold text-slate-400">{item.name?.[0]?.toUpperCase() ?? '?'}</span>}
       </div>
-      <p className="flex-1 min-w-0 text-[13px] font-semibold text-slate-800 leading-tight line-clamp-2">{item.name}</p>
+      <p className="order-1 sm:order-none flex-1 min-w-0 text-[13px] font-semibold text-slate-800 leading-tight line-clamp-2">{item.name}</p>
 
-      <div className="w-[112px] flex items-center justify-center flex-shrink-0">
+      <div className="order-6 sm:order-none sm:w-[112px] flex items-center justify-center flex-shrink-0">
         {item.sold_by_weight ? (
           <button type="button" onClick={openQtyEdit} title="Tap to set weight"
             className="h-9 px-2 min-w-[72px] text-center text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg hover:bg-blue-50 touch-manipulation">
@@ -97,11 +100,15 @@ function CartRow({ item, format, image }: { item: CartItem; format: (v: number) 
         )}
       </div>
 
-      <p className="w-[62px] text-right text-[13px] text-slate-600 tabular-nums flex-shrink-0">{format(item.price)}</p>
-      <p className="w-[66px] text-right text-[13px] font-bold text-slate-900 tabular-nums flex-shrink-0">{format(lineTotal)}</p>
-      <button type="button" onClick={() => removeItem(item.line_id)} className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
+      <p className="order-5 sm:order-none flex-1 sm:flex-none sm:w-[62px] sm:text-right text-[13px] text-slate-600 tabular-nums flex-shrink-0">
+        {format(item.price)}<span className="sm:hidden text-slate-400"> each</span>
+      </p>
+      <p className="order-2 sm:order-none sm:w-[66px] text-right text-[13px] font-bold text-slate-900 tabular-nums flex-shrink-0">{format(lineTotal)}</p>
+      <button type="button" onClick={() => removeItem(item.line_id)} className="order-3 sm:order-none w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
         <Trash2 size={16} />
       </button>
+      {/* Phone only: ends the first line. */}
+      <span className="order-4 basis-full h-0 sm:hidden" aria-hidden="true" />
 
       {/* Qty keypad modal */}
       {editingQty && (
@@ -1224,7 +1231,9 @@ export default function POSPage() {
   const NAVY = '#0d2350';
   const NAVY_TILE = '#173463';
   const BLUE = '#2f6df6';
-  const KEY_CLS = 'rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
+  // min-h matches the clamp's floor: Chrome before 79 (Android handheld tills)
+  // ignores clamp(), and the keys would shrink to the height of their text.
+  const KEY_CLS = 'min-h-[34px] rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
   const KEY_H = 'clamp(34px, 4.5vh, 58px)';
   const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (needsWaiter && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
@@ -1398,9 +1407,11 @@ export default function POSPage() {
 
           {/* Current Sale */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col flex-1 min-h-[370px] overflow-hidden">
+            {/* On a phone the Hold and Clear buttons drop their words, so all
+                three still fit beside the title on a 360px-wide screen. */}
             <div className="flex items-center gap-2 px-4 py-1.5 flex-shrink-0">
-              <ShoppingCart size={22} style={{ color: BLUE }} />
-              <span className="text-[19px] font-bold text-slate-900 mr-auto">Current Sale</span>
+              <ShoppingCart size={22} className="hidden sm:block flex-shrink-0" style={{ color: BLUE }} />
+              <span className="text-[17px] sm:text-[19px] leading-tight font-bold text-slate-900 mr-auto">Current Sale</span>
               <button
                 type="button"
                 onClick={() => setShowCustomerPicker(true)}
@@ -1420,7 +1431,7 @@ export default function POSPage() {
                 title="Hold order (F8)"
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-blue-50 disabled:opacity-40 touch-manipulation"
               >
-                {holdMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />} Hold
+                {holdMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />}<span className="hidden sm:inline">Hold</span>
               </button>
               <button
                 type="button"
@@ -1430,7 +1441,7 @@ export default function POSPage() {
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 touch-manipulation"
                 style={{ background: '#fdecec' }}
               >
-                <Trash2 size={16} /> Clear
+                <Trash2 size={16} /><span className="hidden sm:inline">Clear</span>
               </button>
             </div>
 
@@ -1478,7 +1489,7 @@ export default function POSPage() {
               </div>
             )}
 
-            <div className="flex items-center px-4 pb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
+            <div className="hidden sm:flex items-center px-4 pb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
               <span className="flex-1">Item</span>
               <span className="w-[112px] text-center">Qty</span>
               <span className="w-[62px] text-right">Price</span>
@@ -1522,7 +1533,7 @@ export default function POSPage() {
                     onClick={() => { if (isSplitPayment) { setIsSplitPayment(false); setSplitPayments([]); } setPaymentMethod(value); }}
                     aria-label={`Pay by ${label} (${idx + 1})`}
                     aria-pressed={active}
-                    className={`h-[clamp(44px,5.4vh,72px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                    className={`h-[clamp(44px,5.4vh,72px)] min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
                     style={{ background: active ? '#1f63e6' : '#eef3fb' }}
                   >
                     <Icon size={22} strokeWidth={1.7} />
@@ -1534,7 +1545,7 @@ export default function POSPage() {
                 type="button"
                 onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
                 aria-pressed={isSplitPayment}
-                className={`h-[clamp(44px,5.4vh,72px)] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                className={`h-[clamp(44px,5.4vh,72px)] min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
                 style={{ background: isSplitPayment ? '#1f63e6' : '#eef3fb' }}
               >
                 <ArrowLeftRight size={22} strokeWidth={1.7} />
@@ -1568,7 +1579,7 @@ export default function POSPage() {
               </div>
             ) : paymentMethod === 'cash' ? (
               <div className="mb-2">
-                <div className="flex items-center h-[clamp(40px,5.2vh,54px)] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
+                <div className="flex items-center h-[clamp(40px,5.2vh,54px)] min-h-[40px] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
                   <span className="flex flex-col leading-tight">
                     <span className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Cash tendered</span>
                     {cashTendered && (
@@ -1601,10 +1612,12 @@ export default function POSPage() {
               </div>
             ) : null}
 
-            {/* Keypad — digits type into Cash Tendered; Process runs the sale (F9) for any method */}
+            {/* Keypad — digits type into Cash Tendered; Process runs the sale (F9) for any method.
+                Rows are Fragments, not display:contents wrappers, which Chrome before 65
+                draws as one cell per row with its keys stacked. */}
             <div className="grid grid-cols-4 gap-2">
               {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']].map((row, r) => (
-                <div key={r} className="contents">
+                <Fragment key={r}>
                   {row.map((d) => (
                     <button key={d} type="button" onClick={() => tender(d)} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>{d}</button>
                   ))}
@@ -1618,7 +1631,7 @@ export default function POSPage() {
                       <button type="button" onClick={side.act} className={`${KEY_CLS} !text-[17px]`} style={{ height: KEY_H, background: '#cfe0fb', color: '#1b4fbf' }}>{side.label}</button>
                     );
                   })()}
-                </div>
+                </Fragment>
               ))}
               <button type="button" onClick={() => tender('back')} aria-label="Backspace" className={KEY_CLS} style={{ height: KEY_H, background: '#d9e2ef', color: '#334155' }}><Delete size={24} strokeWidth={1.7} /></button>
               <button type="button" onClick={() => tender('0')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>0</button>

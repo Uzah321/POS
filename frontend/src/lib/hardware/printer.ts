@@ -8,6 +8,8 @@
  *               Core desktop app's Electron shell (window.electronAPI). No dialog, no per-order
  *               printer choice — this only works inside the installed desktop app, never a
  *               plain browser tab, since only Electron can print without a user gesture/dialog.
+ *  4. rawbt   — an Android POS handheld's built-in printer: ESC/POS bytes handed to the RawBT
+ *               app, which prints them with no dialog (see rawbt.tsx).
  *
  * Two printers can be set up per device, each with its own mode: the front
  * "receipt" printer (customer receipts) and the "kitchen" printer (order tickets
@@ -17,6 +19,7 @@
 import { companyLogo, drawOnWhite, loadImage } from '../companyLogo';
 import { bridgePrint, bridgePrinters } from './printBridge';
 import { qzPrintRaw, qzPrinters } from './qzTray';
+import { printViaRawbt } from './rawbt';
 import { useHardwareStore, type ChosenPrinter } from '../../stores/hardwareStore';
 import { goFiscalApi } from '../../api';
 
@@ -356,7 +359,9 @@ export interface ReceiptData {
   fiscalPendingId?: number;
 }
 
-export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
+export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'rawbt' | 'none';
+/** How a print actually goes out (resolveReceiptPrintMode): every mode but 'none'. */
+export type ResolvedPrintMode = Exclude<ReceiptPrintMode, 'none'>;
 
 export interface BuildReceiptOptions {
   /** Settings (GET /settings): the business details every receipt prints — see companyDetails. */
@@ -410,9 +415,10 @@ function printableDate(value: unknown): string {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
-export function resolveReceiptPrintMode(mode: ReceiptPrintMode): 'browser' | 'webusb' | 'webbluetooth' | 'system' {
+export function resolveReceiptPrintMode(mode: ReceiptPrintMode): ResolvedPrintMode {
   if (mode === 'webusb') return 'webusb';
   if (mode === 'webbluetooth') return 'webbluetooth';
+  if (mode === 'rawbt') return 'rawbt';
   // Chosen printers: the desktop app prints to them itself, a browser through
   // the Core Bridge; anything else falls back to the print dialog.
   if (mode === 'system' && canChoosePrinters()) return 'system';
@@ -880,15 +886,20 @@ export async function openCashDrawer(): Promise<void> {
 // ---------------------------------------------------------------------------
 export async function printReceipt(
   data: ReceiptData,
-  mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
+  mode: ResolvedPrintMode = 'browser',
   /** Mode 'system': the bill prints on each of these. */
   printers: ChosenPrinter[] = [],
 ): Promise<void> {
   // Printing straight to a printer can wait for the receipt's fiscal result;
   // the print dialog's window can't open late (popup blockers), so it waits inside.
-  const direct = (mode === 'webusb' && !!usbConnections.receipt) || (mode === 'webbluetooth' && !!bleConnections.receipt) || (mode === 'system' && printers.length > 0);
+  const direct = (mode === 'webusb' && !!usbConnections.receipt) || (mode === 'webbluetooth' && !!bleConnections.receipt)
+    || (mode === 'system' && printers.length > 0) || mode === 'rawbt';
   if (direct) data = await withFiscalResult(data);
 
+  if (mode === 'rawbt') {
+    await printViaRawbt(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'The receipt');
+    return;
+  }
   if (mode === 'webusb' && usbConnections.receipt) {
     await sendToUsb(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'receipt');
     return;
@@ -1065,11 +1076,15 @@ ${d.note ? `<div class="rule"></div><div class="note">NOTE: ${escapeHtml(d.note)
 
 export async function printKitchenTicket(
   data: KitchenTicketData,
-  mode: 'browser' | 'webusb' | 'webbluetooth' | 'system' = 'browser',
+  mode: ResolvedPrintMode = 'browser',
   /** Mode 'system': each prints its share of the lines, kitchenLinesFor (all of them with `allItems`, for a test ticket). */
   printers: ChosenPrinter[] = [],
   { allItems = false }: { allItems?: boolean } = {},
 ): Promise<void> {
+  if (mode === 'rawbt') {
+    await printViaRawbt(buildEscPosKitchenTicket(data), 'The kitchen ticket');
+    return;
+  }
   if ((mode === 'webusb' && usbConnections.kitchen) || (mode === 'webbluetooth' && bleConnections.kitchen)) {
     const ticket = buildEscPosKitchenTicket(data);
     try {

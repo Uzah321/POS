@@ -6,7 +6,7 @@ import { companyLogo } from '../lib/companyLogo';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
-  Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2
+  Bluetooth, Cable, Plus, Trash2, Pencil, X, Loader2, Smartphone
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
@@ -655,6 +655,14 @@ export default function HardwarePage() {
                   </p>
                 </div>
               </label>
+              <label className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                <input type="radio" name="printerMode" value="rawbt" checked={hw.printerMode === 'rawbt'}
+                  onChange={() => hw.update({ printerMode: 'rawbt' })} className="accent-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Built-in Printer (Android POS handheld)</p>
+                  <p className="text-xs text-gray-500">For a handheld with its own receipt printer: every bill prints on it straight away, with no dialog, through the free RawBT app</p>
+                </div>
+              </label>
               {(['browser', 'webusb', 'webbluetooth'] as const).map((mode) => (
                 <label key={mode} className="flex items-center gap-3 p-3 rounded-md border border-gray-100 hover:bg-gray-50 cursor-pointer">
                   <input type="radio" name="printerMode" value={mode} checked={hw.printerMode === mode}
@@ -697,6 +705,20 @@ export default function HardwarePage() {
             </Card>
           )}
 
+          {hw.printerMode === 'rawbt' && (
+            <Card title="Built-in Printer Setup (once on this device)">
+              <ol className="space-y-2 text-sm text-gray-600 list-decimal pl-5">
+                <li>Install <b>RawBT</b> from the Play Store (search &quot;RawBT&quot;). Android browsers can&apos;t reach a built-in printer themselves; RawBT prints for Core.</li>
+                <li>Open RawBT, choose this device&apos;s built-in printer as its printer (on many handhelds it&apos;s listed as a Bluetooth printer, often called InnerPrinter), set the paper to 58 mm, and print RawBT&apos;s own test page.</li>
+                <li>Come back here and tap <b>Print Test Receipt</b> below.</li>
+              </ol>
+              <div className="flex gap-2 items-start mt-3 text-xs text-gray-500">
+                <Smartphone size={13} className="mt-0.5 flex-shrink-0" />
+                <p>RawBT may show for a moment while it prints, then Core comes back. If a receipt ever doesn&apos;t go to the printer, a <b>Print</b> button appears on screen — one tap sends it.</p>
+              </div>
+            </Card>
+          )}
+
           {hw.printerMode === 'webusb' && (
             <Card title="USB Printer">
               <div className="flex items-center gap-3 flex-wrap">
@@ -724,7 +746,7 @@ export default function HardwarePage() {
           )}
 
           <Card title="Settings">
-            <p className="text-sm text-gray-600">Every completed order triggers a receipt print. Use the mode above to choose the bill printers, the system dialog, or direct USB / Bluetooth printing. The test receipt prints on every ticked printer.</p>
+            <p className="text-sm text-gray-600">Every completed order triggers a receipt print. Use the mode above to choose the bill printers, a handheld&apos;s built-in printer, the system dialog, or direct USB / Bluetooth printing. The test receipt prints on every ticked printer.</p>
           </Card>
 
           <Card title="Test">

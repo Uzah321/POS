@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { loadReceiptSettings } from '../lib/receiptSettings';
 
-export type PrinterMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'none';
+// 'rawbt': an Android POS handheld's built-in printer, through the RawBT app (lib/hardware/rawbt.tsx).
+export type PrinterMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'rawbt' | 'none';
 export type CardMachineMode = 'webhook' | 'none';
 
 /** A printer ticked in the list of printers Windows has installed (mode 'system'). */

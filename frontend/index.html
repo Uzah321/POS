@@ -19,6 +19,43 @@
         }
       })();
     </script>
+    <script>
+      // If Core can't start in this browser (too old, or a file was blocked),
+      // say so instead of leaving a blank white screen: which browser it is,
+      // what failed, and what to do. Plain ES5 so it runs on anything. The app
+      // always draws something (at least a spinner), so an empty page well
+      // after loading means it failed. On a browser older than Chrome 105 the
+      // newer copy of the app is expected to fail and the older one takes
+      // over, so those errors are skipped.
+      (function () {
+        var lastError = '';
+        window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          var text = t && t !== window && (t.src || t.href) ? 'Could not load ' + (t.src || t.href) : (e && e.message) || '';
+          if (text && !/import\.meta\.resolve|assets\/index-(?!legacy-)[\w-]+\.js$/.test(text + ' ' + (e.filename || ''))) lastError = text;
+        }, true);
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            var root = document.getElementById('root');
+            if (!root || root.childNodes.length) return;
+            var ua = navigator.userAgent;
+            var chrome = /Chrome\/(\d+)/.exec(ua);
+            var android = /Android ([\d.]+)/.exec(ua);
+            var browser = (chrome ? 'Chrome ' + chrome[1] : 'This browser') + (android ? ' on Android ' + android[1] : '');
+            var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+            root.innerHTML =
+              '<div style="font-family:system-ui,sans-serif;max-width:420px;margin:0 auto;padding:32px 20px;color:#0f172a">' +
+              '<h1 style="font-size:20px;margin:0 0 12px">Core could not start on this device</h1>' +
+              '<p style="margin:0 0 12px;line-height:1.5">' + esc(browser) + ' could not run Core. Update <b>Android System WebView</b> and <b>Chrome</b> ' +
+              '(Play Store, or the device\'s own app store), then open Core again.</p>' +
+              '<p style="margin:0 0 16px;line-height:1.5;color:#64748b">If it still shows this, send a photo of this screen to support.</p>' +
+              '<pre style="white-space:pre-wrap;word-break:break-all;font-size:12px;background:#f1f5f9;padding:10px;margin:0 0 16px">' + (lastError ? esc(lastError) + '\n' : '') + esc(ua) + '</pre>' +
+              '<button onclick="location.reload()" style="font-size:16px;padding:12px 20px;border:0;border-radius:8px;background:#2563eb;color:#fff">Try again</button>' +
+              '</div>';
+          }, 15000);
+        });
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <!-- iPhone / iPad "Add to Home Screen": the Core icon and name, opened without Safari's bars -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

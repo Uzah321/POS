@@ -28,7 +28,7 @@ export default function PosProductTile({
         ${highlighted ? 'outline outline-[3px] outline-blue-500 outline-offset-1 z-10' : ''}`}
     >
       <div
-        className="relative w-full h-[clamp(70px,10.5vh,104px)] flex items-center justify-center overflow-hidden"
+        className="relative w-full h-[clamp(70px,10.5vh,104px)] min-h-[70px] flex items-center justify-center overflow-hidden"
         style={!product.image && tint ? { background: tint } : undefined}
       >
         {product.image ? (

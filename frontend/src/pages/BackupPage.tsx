@@ -35,7 +35,7 @@ export default function BackupPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Backup & Restore</h1>
           <p className="text-sm text-gray-500 mt-1">Create and download database backups</p>
@@ -61,7 +61,7 @@ export default function BackupPage() {
 
       <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
         {isLoading ? <div className="p-8 text-center text-gray-400">Loading...</div> : backups.length === 0 ? (
-          <div className="p-8 text-center text-gray-400"><Database size={32} className="mx-auto mb-2" /><p>No backups yet - create one above</p></div>
+          <div className="p-8 text-center text-gray-400"><Database size={32} className="mx-auto mb-2" /><p>No backups yet — create one above</p></div>
         ) : (
           <div className="overflow-x-auto">
           <table className="w-full min-w-[480px]">
@@ -78,7 +78,7 @@ export default function BackupPage() {
                 <tr key={b.name} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-sm text-gray-700">{b.name}</td>
                   <td className="px-4 py-3 text-sm text-right text-gray-500">{formatSize(b.size ?? 0)}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{b.created_at ? new Date(b.created_at * 1000).toLocaleString() : '-'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">{b.created_at ? new Date(b.created_at * 1000).toLocaleString() : '—'}</td>
                   <td className="px-4 py-3">
                     <button onClick={() => handleDownload(b.name)} className="flex items-center gap-1 px-3 py-1.5 border border-blue-200 text-blue-600 rounded-md text-xs font-semibold hover:bg-blue-50">
                       <Download size={12} /> Download

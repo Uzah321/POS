@@ -200,7 +200,7 @@ function PaymentModal({ rental, onClose }: { rental: any; onClose: () => void })
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
           <div>
             <h2 className="text-lg font-bold">Record Payment</h2>
-            <p className="text-sm text-gray-500">{rental.property_name} - {rental.tenant_name}</p>
+            <p className="text-sm text-gray-500">{rental.property_name} — {rental.tenant_name}</p>
           </div>
           <button type="button" onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
@@ -304,10 +304,10 @@ export default function RentalsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Rentals</h1>
-          <p className="text-gray-500 text-sm">Property rentals - income (collect) and expenses (pay)</p>
+          <p className="text-gray-500 text-sm">Property rentals — income (collect) and expenses (pay)</p>
         </div>
         <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
           <Plus size={16} /> Add Rental
@@ -376,14 +376,14 @@ export default function RentalsPage() {
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.property_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 capitalize">{r.property_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">{r.tenant_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{r.tenant_phone || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{r.tenant_phone || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-semibold ${r.flow_type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                           {r.flow_type === 'income' ? '+' : '-'}${Number(r.monthly_amount).toFixed(2)} <span className="text-gray-400 font-normal text-xs">{r.currency}</span>
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">
-                        {r.lease_start ? format(new Date(r.lease_start), 'MMM yyyy') : '-'}
+                        {r.lease_start ? format(new Date(r.lease_start), 'MMM yyyy') : '—'}
                         {r.lease_end ? ` to ${format(new Date(r.lease_end), "MMM yyyy")}` : "Open"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">${totalPaid.toFixed(2)}</td>

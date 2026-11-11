@@ -49,7 +49,7 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
     .slice(0, 20);
 
   return (
-    <div ref={ref} className="relative sm:col-span-4">
+    <div ref={ref} className="relative col-span-4">
       <div className="relative">
         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
@@ -287,7 +287,7 @@ export default function QuotationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Quotations</h1>
           <p className="text-sm text-gray-500 mt-1">Create and manage price quotes for customers</p>
@@ -334,7 +334,7 @@ export default function QuotationsPage() {
                   <td className="px-4 py-3 font-mono text-sm text-gray-700">{q.reference}</td>
                   <td className="px-4 py-3 text-sm text-gray-800">{q.customer?.name ?? 'Walk-in'}</td>
                   <td className="px-4 py-3 text-sm font-bold text-right">{format(q.total)}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{q.valid_until ?? '-'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{q.valid_until ?? '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[q.status]}`}>{q.status}</span></td>
                   <td className="px-4 py-3 text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -378,18 +378,20 @@ export default function QuotationsPage() {
                     <span className="sm:col-span-4">Item</span><span className="sm:col-span-2">Qty</span><span className="sm:col-span-2">Price</span><span className="sm:col-span-2">Disc</span><span className="sm:col-span-2">Tax</span>
                   </div>
                   {form.items.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-1 sm:items-center">
+                    // Phones: the item on its own line, then Qty / Price / Disc / Tax four across,
+                    // each captioned (the column headings above are desktop-only).
+                    <div key={idx} className="grid grid-cols-4 sm:grid-cols-12 gap-1 sm:items-center">
                       <QuoteProductPicker
                         products={quoteProducts}
                         name={item.name}
                         onSelect={(p) => selectProduct(idx, p)}
                         onNameChange={(name) => updateItem(idx, 'name', name)}
                       />
-                      <input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="sm:col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <input type="number" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', e.target.value)} className="sm:col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <input type="number" value={item.discount} onChange={e => updateItem(idx, 'discount', e.target.value)} className="sm:col-span-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <div className="sm:col-span-1"><input type="number" value={item.tax_amount} onChange={e => updateItem(idx, 'tax_amount', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                      {form.items.length > 1 && <button onClick={() => setForm(f => ({...f, items: f.items.filter((_,i) => i!==idx)}))} className="text-red-400 hover:text-red-600"><X size={12} /></button>}
+                      <label className="sm:col-span-2"><span className="block text-[11px] text-gray-400 sm:hidden">Qty</span><input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></label>
+                      <label className="sm:col-span-2"><span className="block text-[11px] text-gray-400 sm:hidden">Price</span><input type="number" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></label>
+                      <label className="sm:col-span-2"><span className="block text-[11px] text-gray-400 sm:hidden">Disc</span><input type="number" value={item.discount} onChange={e => updateItem(idx, 'discount', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></label>
+                      <label className="sm:col-span-1"><span className="block text-[11px] text-gray-400 sm:hidden">Tax</span><input type="number" value={item.tax_amount} onChange={e => updateItem(idx, 'tax_amount', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></label>
+                      {form.items.length > 1 && <button onClick={() => setForm(f => ({...f, items: f.items.filter((_,i) => i!==idx)}))} className="col-span-4 sm:col-span-1 justify-self-end sm:justify-self-auto flex items-center gap-1 text-xs text-red-400 hover:text-red-600"><X size={12} /><span className="sm:hidden">Remove item</span></button>}
                     </div>
                   ))}
                   <button onClick={() => setForm(f => ({...f, items: [...f.items, blankItem()]}))} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><Plus size={12} />Add item</button>

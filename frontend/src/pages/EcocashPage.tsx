@@ -212,11 +212,11 @@ export default function EcocashPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">EcoCash</h1>
           <p className="text-gray-500 text-sm">
-            {isCashier ? 'Record customer deposits and withdrawals' : 'Agent banking - deposits, withdrawals & float'}
+            {isCashier ? 'Record customer deposits and withdrawals' : 'Agent banking — deposits, withdrawals & float'}
           </p>
         </div>
         <button type="button" onClick={() => setModal(true)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
@@ -310,8 +310,8 @@ export default function EcocashPage() {
                           <tr key={tx.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-xs font-mono text-gray-600">{tx.reference}</td>
                             <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[tx.type]}`}>{TYPE_LABELS[tx.type] ?? tx.type}</span></td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '-'}</td>
-                            <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '—'}</td>
+                            <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '—'}</td>
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">${Number(tx.amount).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-yellow-600">${Number(tx.commission_amount).toFixed(2)}</td>
                             <td className="px-4 py-3 text-sm text-purple-700 font-medium">${Number(tx.float_after).toFixed(2)}</td>
@@ -366,8 +366,8 @@ export default function EcocashPage() {
                       <td className="px-4 py-3 text-xs font-mono text-gray-600">{tx.reference}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(tx.transaction_date), 'dd MMM yyyy')}</td>
                       <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[tx.type]}`}>{TYPE_LABELS[tx.type] ?? tx.type}</span></td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '-'}</td>
-                      <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{tx.customer_phone || '—'}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-gray-500">{tx.ecocash_reference || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900">${Number(tx.amount).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{tx.commission_rate}%</td>
                       <td className="px-4 py-3 text-sm text-yellow-600">${Number(tx.commission_amount).toFixed(2)}</td>

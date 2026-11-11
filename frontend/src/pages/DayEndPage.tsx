@@ -371,8 +371,8 @@ export default function DayEndPage() {
   );
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="w-full sm:p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Day End &mdash; EOD</h1>
           {!isAdmin && branchName && (
@@ -448,7 +448,7 @@ export default function DayEndPage() {
 
           {/* Cashier Breakdown */}
           {(summary.cashier_breakdown?.length ?? 0) > 0 && (
-            <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-md border border-gray-200 overflow-x-auto">
               <div className="px-5 py-3 border-b border-gray-100 font-medium text-gray-700 text-sm">Cashier Breakdown</div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">

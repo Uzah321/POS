@@ -698,7 +698,7 @@ export default function IngredientsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Wheat size={20} className="text-blue-600" /> Ingredients</h1>
           {outOfStockTotal > 0 && (
@@ -712,7 +712,7 @@ export default function IngredientsPage() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {selectedIds.size > 0 && (
             <button
               type="button"

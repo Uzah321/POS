@@ -88,7 +88,7 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-2xl font-bold text-gray-900">Expenses</h1><p className="text-gray-500 text-sm">Track business expenses</p></div>
         <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold px-4 py-2.5 rounded-md text-sm"><Plus size={16} /> Record Expense</button>
       </div>
@@ -113,7 +113,7 @@ export default function ExpensesPage() {
                       <td className="px-4 py-3 text-sm font-mono text-gray-600">{e.reference}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{e.title}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{format(new Date(e.expense_date), 'dd MMM yyyy')}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{e.category?.name || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{e.category?.name || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-red-600">R {parseFloat(e.amount).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 capitalize">{e.payment_method?.replace('_', ' ')}</td>
                       <td className="px-4 py-3 text-right">

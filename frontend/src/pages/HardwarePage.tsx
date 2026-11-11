@@ -573,7 +573,7 @@ export default function HardwarePage() {
       change: 9.53,
       currency,
       logo,
-      footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
+      footer: '*** TEST RECEIPT — NOT A VALID RECEIPT ***',
     }, resolveReceiptPrintMode(hw.printerMode), hw.receiptPrinters).catch((error: any) => {
       toast.error(error?.message ?? 'Could not print test receipt');
     });
@@ -870,7 +870,7 @@ export default function HardwarePage() {
           <Card title="Barcode Scanner">
             <ToggleRow
               label="Enable barcode scanner"
-              description="Listens for USB/Bluetooth scanner input (HID keyboard wedge - plug-and-play)"
+              description="Listens for USB/Bluetooth scanner input (HID keyboard wedge — plug-and-play)"
               checked={hw.barcodeScannerEnabled}
               onChange={(v) => hw.update({ barcodeScannerEnabled: v })}
             />
@@ -886,7 +886,7 @@ export default function HardwarePage() {
             <div className="space-y-2 text-sm text-gray-600">
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <p>Plug any USB or Bluetooth barcode scanner. Most scanners work in <strong>HID keyboard wedge</strong> mode - no drivers needed.</p>
+                <p>Plug any USB or Bluetooth barcode scanner. Most scanners work in <strong>HID keyboard wedge</strong> mode — no drivers needed.</p>
               </div>
               <div className="flex gap-3">
                 <ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
@@ -963,7 +963,7 @@ export default function HardwarePage() {
             <div className="space-y-2 text-sm text-gray-600">
               <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Extend your desktop to a second monitor facing the customer.</p></div>
               <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Click <strong>Open Display</strong> below, then drag that window to the customer screen and maximise it.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>The display updates in real time using the browser's <code className="bg-gray-100 px-1 rounded">BroadcastChannel</code> API - no extra server required.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>The display updates in real time using the browser's <code className="bg-gray-100 px-1 rounded">BroadcastChannel</code> API — no extra server required.</p></div>
             </div>
           </Card>
 
@@ -1245,7 +1245,7 @@ export default function HardwarePage() {
                 <input value={kds.queueReadyLabel} onChange={e => setK('queueReadyLabel', e.target.value)}
                   placeholder="Ready for Collection" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-xs text-gray-500 block mb-1">Footer Message</label>
                 <input value={kds.queueFooterMessage} onChange={e => setK('queueFooterMessage', e.target.value)}
                   placeholder="Watch this screen — your number will appear when your order is ready"

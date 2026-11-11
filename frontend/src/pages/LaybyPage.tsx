@@ -96,7 +96,7 @@ export default function LaybyPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Layby / Layaway</h1>
           <p className="text-sm text-gray-500 mt-1">Manage deferred payment plans</p>
@@ -150,7 +150,7 @@ export default function LaybyPage() {
                   <td className="px-4 py-3 text-sm text-right font-semibold">{format(l.total)}</td>
                   <td className="px-4 py-3 text-sm text-right text-emerald-600">{format(l.deposit_paid)}</td>
                   <td className="px-4 py-3 text-sm text-right text-amber-600 font-semibold">{format(l.balance)}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{l.due_date ?? '-'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{l.due_date ?? '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[l.status]}`}>{l.status}</span></td>
                   <td className="px-4 py-3">
                     <button onClick={() => setSelectedLayby(l)} className="text-gray-400 hover:text-blue-600 transition-colors"><ChevronRight size={16} /></button>
@@ -191,10 +191,10 @@ export default function LaybyPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Items</label>
                 {form.items.map((item, idx) => (
-                  <div key={idx} className="flex gap-2 mt-1">
-                    <input value={item.name} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, name: e.target.value} : it)})} placeholder="Item name" className="flex-1 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <div key={idx} className="flex flex-wrap sm:flex-nowrap gap-2 mt-1">
+                    <input value={item.name} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, name: e.target.value} : it)})} placeholder="Item name" className="w-full sm:w-auto sm:flex-1 min-w-0 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <input type="number" value={item.quantity} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, quantity: parseFloat(e.target.value)} : it)})} className="w-16 border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" />
-                    <input type="number" value={item.unit_price} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, unit_price: e.target.value} : it)})} className="w-24 border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Price" />
+                    <input type="number" value={item.unit_price} onChange={e => setForm({...form, items: form.items.map((it, i) => i === idx ? {...it, unit_price: e.target.value} : it)})} className="flex-1 sm:flex-none sm:w-24 min-w-0 border border-gray-200 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Price" />
                     {form.items.length > 1 && <button onClick={() => setForm({...form, items: form.items.filter((_,i) => i!==idx)})} className="text-red-400 hover:text-red-600"><X size={14} /></button>}
                   </div>
                 ))}

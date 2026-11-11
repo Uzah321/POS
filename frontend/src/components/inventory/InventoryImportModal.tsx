@@ -48,7 +48,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
       setRows(parsed as unknown as ImportRow[]);
       setPreview(true);
       setResult(null);
-    } catch { toast.error('Could not read file - ensure it is .xlsx or .csv'); }
+    } catch { toast.error('Could not read file — ensure it is .xlsx or .csv'); }
   };
 
   const downloadTemplate = () => {
@@ -117,7 +117,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
           <div className="bg-blue-50 rounded-md p-4 border border-blue-100">
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-semibold text-blue-900 text-sm">Step 1 - Download template</p>
+                <p className="font-semibold text-blue-900 text-sm">Step 1 — Download template</p>
                 <p className="text-xs text-blue-700 mt-0.5">Fill in the template with your product data, then upload it below</p>
                 <p className="text-xs text-blue-600 mt-1">Required column: <strong>name</strong> &nbsp;|&nbsp; Optional: sku, barcode, category, cost_price, selling_price, quantity, reorder_level, unit</p>
                 <p className="text-xs text-blue-600 mt-1">Also accepts supplier-style sheets with columns like <strong>product_name</strong>, <strong>unit_cost</strong>, <strong>unit_selling_price</strong>, and <strong>in_stock</strong>.</p>
@@ -131,7 +131,7 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
 
           {/* Step 2: Warehouse */}
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Step 2 - Select warehouse for stock quantities *</label>
+            <label className="text-sm font-medium text-gray-700 block mb-1">Step 2 — Select warehouse for stock quantities *</label>
             <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Select warehouse...</option>
@@ -141,12 +141,12 @@ export default function InventoryImportModal({ onClose }: { onClose: () => void 
 
           {/* Step 3: Upload */}
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Step 3 - Upload your filled file</p>
+            <p className="text-sm font-medium text-gray-700 mb-2">Step 3 — Upload your filled file</p>
             <button type="button" onClick={() => fileRef.current?.click()}
               className="w-full border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-md p-8 flex flex-col items-center gap-3 text-gray-500 hover:text-blue-600 transition-colors">
               <FileSpreadsheet size={36} />
               <div className="text-center">
-                <p className="font-medium">{rows.length > 0 ? `${rows.length} rows loaded - click to replace` : 'Click to select .xlsx or .csv'}</p>
+                <p className="font-medium">{rows.length > 0 ? `${rows.length} rows loaded — click to replace` : 'Click to select .xlsx or .csv'}</p>
                 <p className="text-xs text-gray-400 mt-0.5">Accepts Excel (.xlsx) and CSV (.csv) files</p>
               </div>
               {rows.length > 0 && <span className="bg-green-100 text-green-700 text-xs font-medium px-3 py-1 rounded-full">{rows.length} rows ready</span>}

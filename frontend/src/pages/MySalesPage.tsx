@@ -158,7 +158,7 @@ export default function MySalesPage() {
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">My Sales</h1>
           <p className="text-sm text-gray-500">
-            {isCashier ? 'Current shift transactions - resets after each Shift End' : 'Your recent transactions'}
+            {isCashier ? 'Current shift transactions — resets after each Shift End' : 'Your recent transactions'}
           </p>
         </div>
         <button

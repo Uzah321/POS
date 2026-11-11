@@ -455,7 +455,7 @@ export default function SalesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sales History</h1>
           <p className="text-gray-500 text-sm">
@@ -701,7 +701,7 @@ export default function SalesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold">Sale Detail - {selectedSale.reference}</h2>
+              <h2 className="text-lg font-bold">Sale Detail — {selectedSale.reference}</h2>
               <button type="button" onClick={() => setSelectedSale(null)} className="text-gray-400 hover:text-gray-600">-</button>
             </div>
             <div className="p-6 space-y-4">

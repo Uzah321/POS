@@ -94,12 +94,12 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-gray-500 text-sm">Monitor stock levels across all warehouses</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <BranchFilter value={branchId} onChange={(v) => { setBranchId(v); setPage(1); }} />
           <button type="button" onClick={() => setShowImport(true)}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm transition-colors shadow-sm">
@@ -180,8 +180,8 @@ export default function InventoryPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.sku || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{s.category?.name || '-'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{s.sku || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{s.category?.name || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.stocks?.[0]?.warehouse?.name || 'Main'}</td>
                       <td className="px-4 py-3 text-sm font-bold text-gray-900">{qty}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{reorder}</td>

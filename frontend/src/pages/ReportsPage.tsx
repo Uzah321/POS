@@ -518,7 +518,7 @@ export default function ReportsPage() {
               ))}
             </div>
             {dailyData.cashier_breakdown?.length > 0 && (
-              <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-md border border-gray-200 overflow-x-auto">
                 <div className="px-5 py-3 border-b font-medium text-sm text-gray-700">Cashier Breakdown</div>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase"><tr><th className="px-4 py-2 text-left">Cashier</th><th className="px-4 py-2 text-right">Transactions</th><th className="px-4 py-2 text-right">Revenue</th></tr></thead>

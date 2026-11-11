@@ -181,7 +181,7 @@ function ColorImagePicker({ color, image, onColorChange, onImageChange }: {
   };
 
   return (
-    <div className="col-span-2">
+    <div className="sm:col-span-2">
       <label className="text-sm font-semibold text-gray-700">Tile Color / Image</label>
       <p className="text-xs text-gray-400 mt-0.5 mb-2">Shown on the POS button — pick a color or upload an image (image takes priority)</p>
       <div className="flex items-start gap-4">
@@ -445,7 +445,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
           className="p-6 space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="text-sm font-semibold text-gray-700">Product Name *</label>
               <input {...register('name')} className={field} />
               {errors.name && <p className="text-red-500 text-xs mt-1">Required</p>}
@@ -635,7 +635,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                   : 'No stations yet — add Grill, Bar, etc. in Hardware → Kitchen Printer.'}
               </p>
             </div>
-            <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
+            <div className="sm:col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
                 <input type="checkbox" {...register('made_to_order')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                 Made on Order
@@ -646,7 +646,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                   : 'For items assembled at the till from raw ingredients (e.g. a pizza) rather than kept pre-made in stock.'}
               </p>
             </div>
-            <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
+            <div className="sm:col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
                 <input type="checkbox" {...register('is_taxable')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                 Taxable
@@ -657,7 +657,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
                   : 'Tax-exempt — this product never carries tax, regardless of the store-wide tax setting.'}
               </p>
             </div>
-            <div className="col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
+            <div className="sm:col-span-2 border border-gray-200 rounded-md px-3 py-2.5 bg-gray-50">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 select-none cursor-pointer">
                 <input type="checkbox" {...register('sold_by_weight')} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                 Sold by Weight (kg)
@@ -695,7 +695,7 @@ function ProductModal({ product, onClose }: { product?: any; onClose: () => void
               onColorChange={(c) => setValue('color' as any, c, { shouldDirty: true })}
               onImageChange={(i) => setValue('image' as any, i, { shouldDirty: true })}
             />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="text-sm font-semibold text-gray-700">Description</label>
               <textarea {...register('description')} rows={2} className={`${field} resize-none`} />
             </div>
@@ -1150,7 +1150,7 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-gray-400 text-sm mt-0.5">
@@ -1160,7 +1160,7 @@ export default function ProductsPage() {
               : 'Manage measurement units — kg, litres, each, etc.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {activeTab === 'products' && (
             <>
               <button
@@ -1210,7 +1210,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit max-w-full overflow-x-auto">
         {([
           { id: 'products',   label: 'Products',   icon: Package },
           { id: 'categories', label: 'Categories', icon: Tag },
@@ -1221,13 +1221,14 @@ export default function ProductsPage() {
             key={id}
             type="button"
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex flex-shrink-0 items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === id
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <Icon size={14} />
+            {/* Icons drop on phones so all four tabs fit across the screen */}
+            <Icon size={14} className="hidden sm:block" />
             {label}
           </button>
         ))}
@@ -1661,7 +1662,7 @@ export default function ProductsPage() {
 
       {/* ── Brands tab ───────────────────────────────────────────────────────── */}
       {activeTab === 'brands' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-x-auto">
           {addingBrand && (
             <div className="flex items-center gap-2 p-4 border-b border-blue-100 bg-blue-50">
               <input
@@ -1769,7 +1770,7 @@ export default function ProductsPage() {
 
       {/* ── Units tab ────────────────────────────────────────────────────────── */}
       {activeTab === 'units' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-x-auto">
           {addingUnit && (
             <div className="flex items-center gap-2 p-4 border-b border-blue-100 bg-blue-50">
               <input

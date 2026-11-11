@@ -199,7 +199,7 @@ function MarkPaidModal({ salary, onClose }: { salary: any; onClose: () => void }
           <h2 className="text-lg font-bold">Mark as Paid</h2>
           <button type="button" onClick={onClose}><X size={18} className="text-gray-400" /></button>
         </div>
-        <p className="text-sm text-gray-600">Salary for <strong>{salary.employee_name}</strong> - Net ${Number(salary.net_salary).toFixed(2)}</p>
+        <p className="text-sm text-gray-600">Salary for <strong>{salary.employee_name}</strong> — Net ${Number(salary.net_salary).toFixed(2)}</p>
         <div>
           <label className="text-sm font-medium text-gray-700">Payment Method</label>
           <select value={method} onChange={e => setMethod(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -267,10 +267,10 @@ export default function SalariesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Salaries</h1>
-          <p className="text-gray-500 text-sm">Employee payroll - basic, allowances, deductions, net pay</p>
+          <p className="text-gray-500 text-sm">Employee payroll — basic, allowances, deductions, net pay</p>
         </div>
         <button type="button" onClick={() => setModal({ open: true })} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-md text-sm">
           <Plus size={16} /> Add Salary Record
@@ -332,7 +332,7 @@ export default function SalariesPage() {
                   return (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.employee_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{s.position || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{s.position || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{s.pay_month}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">${Number(s.basic_salary).toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-green-700">${allowances.toFixed(2)}</td>

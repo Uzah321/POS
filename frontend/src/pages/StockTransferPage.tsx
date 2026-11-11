@@ -83,7 +83,7 @@ export default function StockTransferPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Stock Transfers</h1>
           <p className="text-sm text-gray-500 mt-1">Move stock between branches</p>
@@ -93,7 +93,7 @@ export default function StockTransferPage() {
         </button>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {['', 'pending', 'in_transit', 'received', 'cancelled'].map(s => (
           <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={`px-3 py-1.5 rounded-lg text-sm font-medium border capitalize ${filterStatus === s ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}>{s || 'All'}</button>
         ))}

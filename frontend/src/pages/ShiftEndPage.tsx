@@ -342,7 +342,7 @@ export default function ShiftEndPage() {
   // --- Success screen ---â€â€â€â€â€â€
   if (isCashier && submitted) {
     return (
-      <div className="p-4 sm:p-6 max-w-lg mx-auto mt-20 text-center">
+      <div className="w-full sm:p-6 max-w-lg mx-auto mt-20 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -361,14 +361,14 @@ export default function ShiftEndPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="w-full sm:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Shift End</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {isCashier
-              ? `Close your shift and declare your cash " ${user?.name ?? ''}`
+              ? `Close your shift and declare your cash — ${user?.name ?? ''}`
               : 'Manage and approve cashier shift closures'}
           </p>
         </div>

@@ -35,7 +35,7 @@ export default function AttendancePage() {
 
   const pinLoginMutation = useMutation({
     mutationFn: (p: string) => api.post('/auth/pin-login', { pin: p }),
-    onSuccess: () => { toast.success('PIN verified - clocking in!'); clockMutation.mutate(pinAction); setPinModal(false); setPin(''); },
+    onSuccess: () => { toast.success('PIN verified — clocking in!'); clockMutation.mutate(pinAction); setPinModal(false); setPin(''); },
     onError: () => toast.error('Invalid PIN'),
   });
 
@@ -52,7 +52,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Clock In/Out Card */}
-      <div className="bg-white rounded-lg border border-gray-100 p-6 flex items-center justify-between">
+      <div className="bg-white rounded-lg border border-gray-100 p-4 sm:p-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm text-gray-500">Current Status</p>
           <p className="text-lg font-bold text-gray-900 mt-1 flex items-center gap-2">
@@ -114,11 +114,11 @@ export default function AttendancePage() {
                   : null;
                 return (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium">{r.user?.name ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm font-medium">{r.user?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{r.date ?? new Date(r.clock_in).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm text-emerald-600">{r.clock_in ? new Date(r.clock_in).toLocaleTimeString() : '-'}</td>
+                    <td className="px-4 py-3 text-sm text-emerald-600">{r.clock_in ? new Date(r.clock_in).toLocaleTimeString() : '—'}</td>
                     <td className="px-4 py-3 text-sm text-amber-600">{r.clock_out ? new Date(r.clock_out).toLocaleTimeString() : <span className="text-blue-500 text-xs font-medium">Active</span>}</td>
-                    <td className="px-4 py-3 text-sm text-right font-bold">{hours ? `${hours}h` : '-'}</td>
+                    <td className="px-4 py-3 text-sm text-right font-bold">{hours ? `${hours}h` : '—'}</td>
                   </tr>
                 );
               })}

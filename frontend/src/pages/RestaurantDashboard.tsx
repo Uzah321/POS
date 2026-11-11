@@ -43,7 +43,8 @@ const OTHER_RANK = { badge: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400'
 // Up to two decimals, no trailing zeros — dishes sold by weight have fractional quantities.
 const qty = (n: number) => String(+Number(n || 0).toFixed(2));
 
-type DishSort = 'sales' | 'stock';
+// 'stock' = most items sold first; 'value' = highest sales amount first.
+type DishSort = 'stock' | 'value';
 type StockLevel = 'out' | 'low' | 'ok' | 'untracked';
 
 // One row of the dashboard's top_products: a dish sold today and its stock.
@@ -79,35 +80,31 @@ const STOCK_PILL: Record<StockLevel, string> = {
 };
 
 function PopularDishes({ products, formatCurrency }: { products: TopProduct[]; formatCurrency: (n: number) => string }) {
-  const [sortBy, setSortBy] = useState<DishSort>('sales');
+  const [sortBy, setSortBy] = useState<DishSort>('stock');
 
-  // The rank is always the dish's place by quantity sold, so sorting by stock
-  // still shows how popular each dish is.
-  const bySales = [...products]
-    .sort((a, b) => (b.total_qty - a.total_qty) || (b.total_revenue - a.total_revenue))
+  const qtyOf = (p: TopProduct) => Number(p.total_qty) || 0;
+  const valueOf = (p: TopProduct) => Number(p.total_revenue) || 0;
+
+  // Stock: most items sold first. Value: highest sales amount first.
+  // Each breaks ties on the other measure; # is the place in the chosen order.
+  const dishes = [...products]
+    .sort(sortBy === 'stock'
+      ? (a, b) => (qtyOf(b) - qtyOf(a)) || (valueOf(b) - valueOf(a))
+      : (a, b) => (valueOf(b) - valueOf(a)) || (qtyOf(b) - qtyOf(a)))
     .map((p, i) => ({ ...p, rank: i + 1, stock: stockOf(p.product) }));
-  const maxQty = bySales[0]?.total_qty || 1;
+  const maxQty = Math.max(1, ...dishes.map(qtyOf));
 
-  // By stock: lowest stock first, so what's about to run out is at the top;
-  // dishes that don't track stock go last, most sold first.
-  const dishes = sortBy === 'sales' ? bySales : [...bySales].sort((a, b) => {
-    const au = a.stock.level === 'untracked', bu = b.stock.level === 'untracked';
-    if (au !== bu) return au ? 1 : -1;
-    if (au) return a.rank - b.rank;
-    return (a.stock.left - b.stock.left) || (a.rank - b.rank);
-  });
-
-  const lowCount = bySales.filter(d => d.stock.level === 'low').length;
-  const outCount = bySales.filter(d => d.stock.level === 'out').length;
+  const lowCount = dishes.filter(d => d.stock.level === 'low').length;
+  const outCount = dishes.filter(d => d.stock.level === 'out').length;
 
   return (
     <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="font-semibold text-gray-900 text-base">Popular Dishes</h2>
-          {bySales.length > 0 && (
+          {dishes.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">
-              {bySales.length} {bySales.length === 1 ? 'dish' : 'dishes'} sold
+              {dishes.length} {dishes.length === 1 ? 'dish' : 'dishes'} sold
               {lowCount > 0 && <span className="text-amber-600"> · {lowCount} low on stock</span>}
               {outCount > 0 && <span className="text-red-600"> · {outCount} out of stock</span>}
             </p>
@@ -116,7 +113,7 @@ function PopularDishes({ products, formatCurrency }: { products: TopProduct[]; f
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">Sort by</span>
           <div className="inline-flex rounded-md bg-gray-100 p-0.5 text-xs font-medium">
-            {([['sales', 'Sales', 'Most sold first'], ['stock', 'Stock', 'Lowest stock first']] as const).map(([key, label, hint]) => (
+            {([['stock', 'Stock', 'Most items sold first'], ['value', 'Value', 'Highest sales amount first']] as const).map(([key, label, hint]) => (
               <button key={key} type="button" title={hint} onClick={() => setSortBy(key)}
                 className={`px-3 py-1 rounded ${sortBy === key ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 {label}
@@ -133,14 +130,21 @@ function PopularDishes({ products, formatCurrency }: { products: TopProduct[]; f
               <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
                 <th className="py-2 pr-3 font-medium w-10">#</th>
                 <th className="py-2 pr-3 font-medium">Dish</th>
-                <th className="py-2 pr-3 font-medium w-1/4 min-w-[140px]">Sold</th>
+                <th className="py-2 pr-3 font-medium text-right sm:text-left sm:w-1/4 sm:min-w-[140px]">Sold</th>
                 <th className="py-2 pr-3 font-medium text-right whitespace-nowrap">Sales</th>
-                <th className="py-2 font-medium text-right whitespace-nowrap">Stock left</th>
+                <th className="hidden sm:table-cell py-2 font-medium text-right whitespace-nowrap">Stock left</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {dishes.map(p => {
                 const style = RANK_STYLES[p.rank - 1] ?? OTHER_RANK;
+                const stockPill = (
+                  <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${STOCK_PILL[p.stock.level]}`}>
+                    {p.stock.level === 'untracked' ? 'Not tracked'
+                      : p.stock.level === 'out' ? 'Out of stock'
+                      : `${qty(p.stock.left)} left`}
+                  </span>
+                );
                 return (
                   <tr key={p.product_id ?? p.rank}>
                     <td className="py-2 pr-3">
@@ -148,25 +152,22 @@ function PopularDishes({ products, formatCurrency }: { products: TopProduct[]; f
                         {p.rank}
                       </div>
                     </td>
+                    {/* Phones: the name wraps and the stock pill sits under it, so the
+                        table fits the screen instead of scrolling the names out of view. */}
                     <td className="py-2 pr-3">
-                      <p className="font-medium text-gray-800 truncate max-w-[18rem]">{p.product?.name ?? 'Unknown item'}</p>
+                      <p className="font-medium text-gray-800 break-words sm:truncate sm:max-w-[18rem]">{p.product?.name ?? 'Unknown item'}</p>
+                      <div className="sm:hidden mt-0.5">{stockPill}</div>
                     </td>
                     <td className="py-2 pr-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                          <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${Math.min(100, (p.total_qty / maxQty) * 100)}%` }} />
+                      <div className="flex items-center justify-end sm:justify-start gap-2">
+                        <div className="hidden sm:block flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${Math.min(100, (qtyOf(p) / maxQty) * 100)}%` }} />
                         </div>
-                        <span className="text-xs font-semibold text-gray-600 w-10 text-right">{qty(p.total_qty)}x</span>
+                        <span className="text-xs font-semibold text-gray-600 sm:w-10 text-right whitespace-nowrap">{qty(p.total_qty)}x</span>
                       </div>
                     </td>
                     <td className="py-2 pr-3 text-right text-gray-700 whitespace-nowrap">{formatCurrency(p.total_revenue ?? 0)}</td>
-                    <td className="py-2 text-right whitespace-nowrap">
-                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${STOCK_PILL[p.stock.level]}`}>
-                        {p.stock.level === 'untracked' ? 'Not tracked'
-                          : p.stock.level === 'out' ? 'Out of stock'
-                          : `${qty(p.stock.left)} left`}
-                      </span>
-                    </td>
+                    <td className="hidden sm:table-cell py-2 text-right whitespace-nowrap">{stockPill}</td>
                   </tr>
                 );
               })}

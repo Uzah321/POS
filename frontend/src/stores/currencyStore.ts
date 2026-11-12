@@ -11,10 +11,23 @@ export interface Currency {
   is_active: boolean;
 }
 
+/** The currency every amount is stored in; each rate is units of a currency per 1 of this. */
+export const BASE_CURRENCY = 'USD';
+
 interface CurrencyState {
   currencies: Currency[];
   activeCurrency: Currency | null;
-  setCurrencies: (currencies: Currency[]) => void;
+  /** The shop's default currency when this user last took it up (see setCurrencies). */
+  defaultCode: string | null;
+  /**
+   * The shop's currencies, from the server. Keeps the active currency's rate
+   * and symbol current, and moves everyone onto the shop's default the first
+   * time and whenever an admin changes the default (anyone can still pick
+   * another for themselves afterwards). `applyToActive: false` (a sale in
+   * progress) only refreshes the list, so the sale finishes at the rate it
+   * started with; the next refresh catches up.
+   */
+  setCurrencies: (currencies: Currency[], opts?: { applyToActive?: boolean }) => void;
   setActiveCurrency: (currency: Currency) => void;
   /** Convert an amount from USD (base) to the active currency */
   format: (usdAmount: number) => string;
@@ -46,14 +59,28 @@ export const useCurrencyStore = create<CurrencyState>()(
     (set, get) => ({
       currencies: [USD_DEFAULT],
       activeCurrency: USD_DEFAULT,
+      defaultCode: null,
 
-      setCurrencies: (currencies) => {
+      setCurrencies: (currencies, opts) => {
+        if (!Array.isArray(currencies) || currencies.length === 0) return;
         set({ currencies });
-        // If stored active currency is no longer in list, reset to default
+        if (opts?.applyToActive === false) return;
+
+        const usable = currencies.filter((c) => c.is_active !== false);
+        const def = usable.find((c) => c.is_default)
+          ?? usable.find((c) => c.code === BASE_CURRENCY)
+          ?? usable[0]
+          ?? USD_DEFAULT;
         const active = get().activeCurrency;
-        if (active && !currencies.find((c) => c.code === active.code)) {
-          const def = currencies.find((c) => c.is_default) ?? currencies[0] ?? USD_DEFAULT;
-          set({ activeCurrency: def });
+        const current = active ? usable.find((c) => c.code === active.code) : undefined;
+
+        if (get().defaultCode !== def.code || !current) {
+          // First sync, the shop's default changed, or this user's currency was
+          // removed / switched off: use the shop's default.
+          set({ activeCurrency: def, defaultCode: def.code });
+        } else {
+          // Same currency, with whatever rate / symbol the server has now.
+          set({ activeCurrency: current });
         }
       },
 
@@ -84,7 +111,7 @@ export const useCurrencyStore = create<CurrencyState>()(
     }),
     {
       name: 'currency-storage',
-      partialize: (s) => ({ activeCurrency: s.activeCurrency }),
+      partialize: (s) => ({ activeCurrency: s.activeCurrency, defaultCode: s.defaultCode }),
       // Dynamically pick storage key per logged-in user so currencies don't bleed between accounts
       storage: {
         getItem: (name) => {

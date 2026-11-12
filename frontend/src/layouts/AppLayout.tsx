@@ -247,25 +247,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [location.pathname]);
 
+  // The shop's currencies and rates. Re-checked every minute and on returning
+  // to the tab: a till stays open all shift, and a rate or default currency
+  // changed on the Currencies page must reach it without a reload. A sale in
+  // progress keeps the rate it started with (see setCurrencies). Offline, the
+  // persisted currency is used.
+  const { data: currencyList } = useQuery({
+    queryKey: ['currencies'],
+    queryFn: () => currenciesApi.list().then(res => res.data?.data ?? res.data),
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
   useEffect(() => {
-    // Load currencies from local API and update store (also refreshes exchange rates)
-    currenciesApi.list().then(res => {
-      const list = res.data.data ?? res.data;
-      if (Array.isArray(list)) {
-        setCurrencies(list);
-        // If the active currency is in the list, refresh its exchange rate from server
-        const current = activeCurrency;
-        if (current) {
-          const refreshed = list.find((c: any) => c.code === current.code);
-          if (refreshed && refreshed.exchange_rate !== current.exchange_rate) {
-            setActiveCurrency(refreshed);
-          }
-        }
-      }
-    }).catch(() => {
-      // Server unavailable — persisted currencies from store are used (offline-safe)
-    });
-  }, []);
+    if (Array.isArray(currencyList)) {
+      setCurrencies(currencyList, { applyToActive: useCartStore.getState().items.length === 0 });
+    }
+  }, [currencyList, cart.items.length, setCurrencies]);
 
   const handleLogout = async (reason?: 'idle') => {
     try { await authApi.logout(); } catch {}

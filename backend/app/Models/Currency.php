@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Currency extends Model
 {
+    /** Every amount is kept in this currency; each rate is units per 1 of it. */
+    public const BASE = 'USD';
+
     protected $fillable = [
         'code', 'name', 'symbol', 'exchange_rate', 'is_default', 'is_active',
     ];

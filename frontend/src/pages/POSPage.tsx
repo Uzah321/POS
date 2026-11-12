@@ -1,6 +1,6 @@
 import { Fragment, useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, salesApi, settingsApi, customersApi, weighingScalesApi, usersApi, tablesApi } from '../api';
+import { salesApi, settingsApi, customersApi, weighingScalesApi, usersApi, tablesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
 import { useCartStore, unsentKitchenItems } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
@@ -24,6 +24,7 @@ import PosProductTile from '../components/pos/PosProductTile';
 import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
 import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
+import { fetchAllProducts, productMatchesWords, searchWords } from '../lib/productSearch';
 import { useServerHealth } from '../hooks/useServerHealth';
 import SelectTillModal from '../components/SelectTillModal';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -287,8 +288,8 @@ export default function POSPage() {
       try {
         // Always this till's own branch — even an admin ringing up a sale here
         // should only see what's actually on the shelf at this location.
-        const data = await productsApi.list({ per_page: 500, is_active: 1, branch_id: user?.branch?.id })
-          .then(r => r.data?.data?.data ?? r.data?.data ?? []);
+        // Every page of them: a product past the first 500 would never show or be found.
+        const data = await fetchAllProducts({ is_active: 1, branch_id: user?.branch?.id });
         // Keep IndexedDB current as a side-effect of the normal online fetch
         db.products.clear().then(() => db.products.bulkPut(data)).catch(() => {});
         return data;
@@ -397,12 +398,13 @@ export default function POSPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
-  // Filter products — by name, SKU or barcode, or by PLU code (typed, or inside a scale label)
+  // Filter products — every word in the name, SKU or barcode (any order), or by
+  // PLU code (typed, or inside a scale label)
   const pluMatches = productsNamedByPlu(search, storeSettings ?? {}, allProducts);
+  const words = searchWords(search);
   const filteredProducts = allProducts.filter((p: any) => {
     const matchCat = activeCategory === 'All' || p.category?.name === activeCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku ?? '').toLowerCase().includes(search.toLowerCase())
-      || (p.barcode ?? '').toLowerCase().includes(search.toLowerCase()) || pluMatches.has(p);
+    const matchSearch = productMatchesWords(p, words) || pluMatches.has(p);
     return matchCat && matchSearch;
   });
 

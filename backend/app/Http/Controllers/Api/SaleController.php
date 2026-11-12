@@ -39,10 +39,9 @@ class SaleController extends BaseApiController
             $productIds = [(int) $request->product_id];
         } elseif ($term !== '') {
             $productIds = \App\Models\Product::withoutGlobalScopes()
-                ->where(function ($q) use ($like, $term) {
-                    $q->whereRaw('LOWER(name) LIKE ?', [$like])
-                      ->orWhereRaw('LOWER(sku) LIKE ?', [$like])
-                      ->orWhere('barcode', $term);
+                ->where(function ($q) use ($term) {
+                    // Every word, in any order, in the name / SKU / barcode — or a PLU / scale label.
+                    $q->where(fn ($q) => \App\Support\ProductSearch::whereEveryWordMatches($q, $term));
                     \App\Support\ScaleBarcode::orWherePlu($q, $term);
                 })
                 ->pluck('id')->all();

@@ -26,8 +26,11 @@ if ('serviceWorker' in navigator) {
       })()
       return
     }
-    // Production (installed app): register SW for full offline support
-    void navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((registration) => {
+    // Production (installed app): register SW for full offline support.
+    // updateViaCache 'none': every update check fetches sw.js from the server.
+    // nginx serves all .js with a one-year cache header, and a browser that
+    // took that from its HTTP cache would keep running the old app.
+    void navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).then((registration) => {
       // A till is often left open for a whole shift, and a browser tab
       // doesn't reliably re-check its service worker for updates on its
       // own — without this, a deployed fix (e.g. a product color change)

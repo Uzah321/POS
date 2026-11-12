@@ -502,7 +502,7 @@ export default function ReportsPage() {
           <div className="space-y-4">
             {/* P&L Summary strip */}
             <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">P&L " {dailyDate}</div>
+              <div className="px-5 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">P&L — {dailyDate}</div>
               <div className="divide-y divide-gray-50">
                 {[['Sales', dailyData.total_revenue, false], ['Less Refunds', dailyData.total_refunds ?? 0, true], ['Less Cost of Sales', dailyData.cogs, true], ['Gross Profit', dailyData.gross_profit, false], ['Less Expenses', dailyData.total_expenses, true], ['Less Salaries Paid', dailyData.total_salaries ?? 0, true], ['Less Rent Paid', dailyData.total_rent_paid ?? 0, true], ['Profit B/d (Net Profit)', dailyData.net_profit, false]].map(([label, val, neg]) => (
                   <div key={label as string} className="flex justify-between px-5 py-2.5 text-sm">
@@ -536,7 +536,7 @@ export default function ReportsPage() {
         : monthlyData ? (
           <div className="space-y-4">
             <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">P&L " {monthlyMonth}</div>
+              <div className="px-5 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">P&L — {monthlyMonth}</div>
               <div className="divide-y divide-gray-50">
                 {[['Sales', monthlyData.total_revenue, false], ['Less Refunds', monthlyData.total_refunds ?? 0, true], ['Less Cost of Sales', monthlyData.cogs, true], ['Gross Profit', monthlyData.gross_profit, false], ['GP %', monthlyData.gross_margin + '%', false], ['Less Expenses', monthlyData.total_expenses, true], ['Less Salaries Paid', monthlyData.total_salaries ?? 0, true], ['Less Rent Paid', monthlyData.total_rent_paid ?? 0, true], ['Profit B/d', monthlyData.net_profit, false]].map(([label, val, neg]) => (
                   <div key={label as string} className="flex justify-between px-5 py-2.5 text-sm">
@@ -815,7 +815,7 @@ export default function ReportsPage() {
             ) : (
               <div className="bg-white rounded-md border border-gray-100 overflow-hidden shadow-sm">
                 <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-800">
-                  {scalesData.perScale?.[0]?.scale_name ?? 'Scale'} " {from} to {to}
+                  {scalesData.perScale?.[0]?.scale_name ?? 'Scale'} — {from} to {to}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[800px]">
@@ -870,7 +870,7 @@ export default function ReportsPage() {
             {/* Branch comparison table */}
             <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-800">
-                Branch Performance " {from} to {to}
+                Branch Performance — {from} to {to}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[1100px]">

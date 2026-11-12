@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
+import { fetchAllProducts } from '../lib/productSearch';
 import { useCurrencyStore } from '../stores/currencyStore';
 
 function generateSku(): string {
@@ -89,17 +90,20 @@ function ProductSearch({
   const [newUnitId, setNewUnitId] = useState('');
   const priceOk = (parseFloat(newPrice) || 0) > 0;
 
-  const { data: results = [], isFetching } = useQuery({
+  const { data: found, isFetching } = useQuery({
     queryKey: ['prod-search', q],
-    queryFn: () => productsApi.list({ search: q, per_page: 8, is_active: 1 }).then(r => r.data?.data?.data ?? []),
+    queryFn: () => productsApi.list({ search: q, per_page: 30, is_active: 1 })
+      .then(r => ({ rows: (r.data?.data?.data ?? []) as any[], total: Number(r.data?.data?.total ?? 0) })),
     enabled: q.length >= 1,
     staleTime: 0,
   });
+  const results = found?.rows ?? [];
+  const moreResults = Math.max(0, (found?.total ?? 0) - results.length);
 
   // Plain dropdown alternative to typing a search — lists every active product.
   const { data: allProducts = [] } = useQuery({
     queryKey: ['all-products-dropdown'],
-    queryFn: () => productsApi.list({ per_page: 500, is_active: 1 }).then(r => r.data?.data?.data ?? []),
+    queryFn: () => fetchAllProducts({ is_active: 1 }),
     staleTime: 60000,
   });
 
@@ -179,7 +183,7 @@ function ProductSearch({
         ))}
       </select>
       {open && q.length >= 1 && !creating && (
-        <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden">
+        <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
           {(results as any[]).map((p: any) => (
             <li key={p.id}>
               <button
@@ -199,6 +203,9 @@ function ProductSearch({
               </button>
             </li>
           ))}
+          {moreResults > 0 && (
+            <li className="px-3 py-2 text-xs text-gray-400 text-center">+{moreResults} more — keep typing to narrow</li>
+          )}
           {!isFetching && (results as any[]).length === 0 && (
             <li>
               <button
@@ -1327,12 +1334,12 @@ export default function StockProductionPage() {
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
+      {/* Tabs — on a narrow phone the row scrolls sideways rather than pushing the page wider. */}
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto overflow-y-hidden">
         <button
           type="button"
           onClick={() => setTab('production')}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+          className={`flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
             tab === 'production' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >
@@ -1341,7 +1348,7 @@ export default function StockProductionPage() {
         <button
           type="button"
           onClick={() => setTab('recipes')}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+          className={`flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
             tab === 'recipes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >
@@ -1350,7 +1357,7 @@ export default function StockProductionPage() {
         <button
           type="button"
           onClick={() => setTab('breaking')}
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
+          className={`flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
             tab === 'breaking' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >

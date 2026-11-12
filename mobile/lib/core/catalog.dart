@@ -23,9 +23,17 @@ class Catalog extends ChangeNotifier {
     notifyListeners();
     final s = AppState.I;
     try {
-      // Only what's on the shelf at this branch, as the web till does.
-      final body = await s.api.get('/products', query: {'per_page': 1000, 'is_active': 1, 'branch_id': s.branchId});
-      final list = Api.list(body).map(Product.fromJson).toList()
+      // Only what's on the shelf at this branch, as the web till does — every
+      // page of it, so a product past the first page can still be found.
+      final rows = <Map<String, dynamic>>[];
+      for (var page = 1; page <= 40; page++) {
+        final body = await s.api.get('/products', query: {'per_page': 500, 'page': page, 'is_active': 1, 'branch_id': s.branchId});
+        rows.addAll(Api.list(body));
+        final meta = Api.data(body);
+        final lastPage = meta is Map ? int.tryParse('${meta['last_page'] ?? 1}') ?? 1 : 1;
+        if (page >= lastPage) break;
+      }
+      final list = rows.map(Product.fromJson).toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       products = list;
       // The categories these products are in — each product carries its own,

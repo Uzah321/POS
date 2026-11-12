@@ -84,10 +84,11 @@ export default function AttendancePage() {
       {/* Filters */}
       <div className="flex items-center gap-3">
         <Calendar size={16} className="text-gray-400" />
-        <div className="flex items-center gap-2">
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        {/* Narrow phones: the two dates share the row and shrink, wrapping only if they must. */}
+        <div className="flex flex-1 sm:flex-none flex-wrap items-center gap-2 min-w-0">
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="flex-1 sm:flex-none min-w-[8rem] border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <span className="text-gray-400 text-sm">to</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="flex-1 sm:flex-none min-w-[8rem] border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
 

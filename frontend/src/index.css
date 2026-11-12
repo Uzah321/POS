@@ -197,6 +197,15 @@
 	margin-bottom: auto;
 }
 
+/* Phone browsers keep their address bar on screen (Samsung Internet a bottom
+   toolbar too), but 100vh is the height with those bars hidden, so a 100vh app
+   frame runs underneath them and its last rows sit out of reach. 100dvh is the
+   height actually visible; browsers that don't know it keep 100vh. */
+.app-shell.h-screen {
+	height: 100vh;
+	height: 100dvh;
+}
+
 /* Chrome before 84 (Android handheld tills) ignores `gap` on flex rows; src/lib/legacyBrowsers.ts
    adds .no-flex-gap there, and these margins stand in for it. Grids keep their own gap. */
 .no-flex-gap .flex.gap-1:not(.flex-col) > * + *:not(.ml-auto),

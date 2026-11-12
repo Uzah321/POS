@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { purchaseOrdersApi, suppliersApi, branchesApi, warehousesApi, productsApi, settingsApi } from '../api';
+import { purchaseOrdersApi, suppliersApi, branchesApi, warehousesApi, settingsApi } from '../api';
 import { Plus, Search, CheckCircle, Loader2, X, Truck, Eye, Printer, PackageCheck, FileText } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import RowActionsMenu from '../components/ui/RowActionsMenu';
@@ -14,6 +14,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
 import { db } from '../lib/db';
 import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
+import { fetchAllProducts, productMatchesWords, searchWords, PICKER_LIMIT } from '../lib/productSearch';
 import jsPDF from 'jspdf';
 import { companyLogo, drawPdfLogo } from '../lib/companyLogo';
 import autoTable from 'jspdf-autotable';
@@ -77,13 +78,9 @@ function POProductPicker({ products, value, onSelect }: { products: any[] | unde
   const selected = products?.find((p: any) => String(p.id) === value);
   const q = query.trim().toLowerCase();
   const pluMatches = productsNamedByPlu(q, storeSettings ?? {}, products ?? []);
-  const results = (products ?? [])
-    .filter((p: any) => !q
-      || (p.name ?? '').toLowerCase().includes(q)
-      || (p.sku ?? '').toLowerCase().includes(q)
-      || (p.barcode ?? '').toLowerCase().includes(q)
-      || pluMatches.has(p))
-    .slice(0, 20);
+  const words = searchWords(q);
+  const matches = (products ?? []).filter((p: any) => productMatchesWords(p, words) || pluMatches.has(p));
+  const results = matches.slice(0, PICKER_LIMIT);
 
   return (
     <div ref={ref} className="relative sm:col-span-5">
@@ -114,6 +111,9 @@ function POProductPicker({ products, value, onSelect }: { products: any[] | unde
                 <span className="text-xs text-gray-400 font-mono flex-shrink-0">{p.sku}</span>
               </button>
             ))
+          )}
+          {matches.length > results.length && (
+            <p className="px-3 py-2 text-xs text-gray-400 text-center">+{matches.length - results.length} more — keep typing to narrow</p>
           )}
         </div>
       )}
@@ -162,8 +162,7 @@ function POModal({ onClose }: { onClose: () => void }) {
     queryKey: ['products', 'po-select', branchId],
     queryFn: async () => {
       try {
-        const r = await productsApi.list({ per_page: 1000, branch_id: branchId });
-        return r.data?.data?.data || r.data?.data || [];
+        return await fetchAllProducts({ branch_id: branchId });
       } catch {
         // Local server briefly unreachable — fall back to the IndexedDB cache
         // useDBSync keeps warm, so a purchase order can still be built offline.

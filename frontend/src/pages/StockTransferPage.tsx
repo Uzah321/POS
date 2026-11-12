@@ -5,6 +5,7 @@ import { Plus, X, ArrowRightLeft, Loader2 } from 'lucide-react';
 import Pagination from '../components/ui/Pagination';
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
+import { fetchAllProducts } from '../lib/productSearch';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
@@ -39,7 +40,8 @@ export default function StockTransferPage() {
 
   const { data: products } = useQuery({
     queryKey: ['products-list'],
-    queryFn: () => api.get('/products', { params: { per_page: 200 } }).then(r => r.data?.data?.data ?? []),
+    // Every product, not just the first 200, so any of them can be transferred.
+    queryFn: () => fetchAllProducts(),
   });
 
   const createMutation = useMutation({

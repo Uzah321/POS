@@ -820,6 +820,10 @@ export default function HardwarePage() {
                     <input value={receipt.headerTitle} onChange={e => setR('headerTitle', e.target.value)}
                       placeholder="***FISCAL TAX INVOICE***"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <p className="text-xs text-gray-400 mt-1">
+                      To leave it off (and the "FISCAL TAX INVOICE" line near the bottom), turn off
+                      {' '}<b>Print "FISCAL TAX INVOICE" on Receipts</b> in Settings.
+                    </p>
                   </div>
                 )}
               </Card>
@@ -843,7 +847,7 @@ export default function HardwarePage() {
                 <div className="border border-gray-200 rounded-lg bg-gray-50 p-3 max-w-[180px]"
                   style={{ fontFamily: FONT_FAMILY_MAP[receipt.fontFamily], fontSize: `${receipt.fontSize}px`, lineHeight: '1.5' }}>
                   {logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-full max-h-24" />}
-                  <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
+                  <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' && previewCompany.fiscalTitle !== false ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
                   <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? previewName : ''}</div>
                   {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>{previewName}</div>}
                   {receipt.layout !== 'minimal' && previewCompany.storeAddress && <div className="text-center text-[10px] text-gray-600">{previewCompany.storeAddress}</div>}

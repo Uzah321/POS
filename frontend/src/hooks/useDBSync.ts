@@ -14,10 +14,11 @@ import { useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  productsApi, customersApi, usersApi, suppliersApi, branchesApi, fiscalApi,
+  customersApi, usersApi, suppliersApi, branchesApi, fiscalApi,
 } from '../api';
 import { db } from '../lib/db';
 import { syncPendingMutations } from '../lib/offlineMutation';
+import { fetchAllProducts } from '../lib/productSearch';
 import { useAuthStore } from '../stores/authStore';
 
 const SYNC_INTERVAL_MS = 20000;
@@ -29,7 +30,8 @@ export function useDBSync() {
   const refreshCache = useCallback(async () => {
     try {
       const [products, customers, usersResp, suppliers, branches] = await Promise.all([
-        productsApi.list({ per_page: 500, is_active: 1 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+        // Every product, so the offline copy can still find all of them.
+        fetchAllProducts({ is_active: 1 }),
         customersApi.list({ per_page: 500 }).then(r => r.data?.data?.data ?? []),
         usersApi.list({ per_page: 500 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
         suppliersApi.list({ per_page: 500 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),

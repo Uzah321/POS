@@ -146,12 +146,15 @@ class Product {
 
   bool get outOfStock => trackStock && stock != null && stock! <= 0;
 
+  /// Every word typed, in any order, somewhere in the name or SKU ("chicken
+  /// burger" finds "Burger - Chicken"), or the exact barcode / PLU — as the
+  /// web tills and the server search.
   bool matches(String query) {
-    final q = query.toLowerCase();
-    return name.toLowerCase().contains(q) ||
-        (sku?.toLowerCase().contains(q) ?? false) ||
-        (barcode?.toLowerCase() == q) ||
-        (plu?.toLowerCase() == q);
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    if (barcode?.toLowerCase() == q || plu?.toLowerCase() == q) return true;
+    final hay = '${name.toLowerCase()} ${sku?.toLowerCase() ?? ''}';
+    return q.split(RegExp(r'\s+')).every(hay.contains);
   }
 
   bool hasCode(String code) {

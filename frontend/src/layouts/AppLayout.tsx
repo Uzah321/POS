@@ -491,8 +491,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         {isPosPage ? (
           /* Advanced POS — dark navy brand bar: logo, order info tiles, clock, currency, user, menu */
-          <header className="pos-screen flex items-center gap-2 lg:gap-3 h-16 px-3 sm:px-4 flex-shrink-0 text-white" style={{ background: '#0b1f44' }}>
-            <div className="flex items-center gap-2.5 flex-shrink-0 pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
+          <header className="pos-screen flex items-center gap-1.5 sm:gap-2 lg:gap-3 h-16 px-3 sm:px-4 flex-shrink-0 text-white" style={{ background: '#0b1f44' }}>
+            {/* Phones: the logo (below 360px) and the initials badge drop out so
+                the Menu button at the far end stays on screen. */}
+            <div className="max-[359px]:hidden flex items-center gap-2.5 flex-shrink-0 sm:pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
               <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
                 <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
                 <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
@@ -550,7 +552,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 const c = currencies.find(x => x.code === e.target.value);
                 if (c) setActiveCurrency(c);
               }}
-              className="rounded-xl px-3 h-10 text-sm font-semibold text-white cursor-pointer focus:outline-none border border-white/10"
+              className="flex-shrink-0 rounded-xl px-2 sm:px-3 h-10 text-sm font-semibold text-white cursor-pointer focus:outline-none border border-white/10"
               style={{ background: '#16305e' }}
             >
               {currencies.filter(c => c.is_active).map(c => (
@@ -562,7 +564,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {shortcutsButton}
             <NotificationBell dark />
 
-            <div className="flex items-center gap-2.5">
+            <div className="hidden sm:flex items-center gap-2.5">
               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base" style={{ background: '#2f6df6' }}>{userInitials}</div>
               <div className="hidden xl:block leading-tight">
                 <p className="text-sm font-bold">{user?.name}</p>
@@ -570,19 +572,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <button type="button" onClick={() => handleLogout()} title="Logout" className="w-10 h-10 flex items-center justify-center rounded-xl text-blue-100 hover:bg-white/10 hover:text-red-300 transition-colors">
+            <button type="button" onClick={() => handleLogout()} title="Logout" className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl text-blue-100 hover:bg-white/10 hover:text-red-300 transition-colors">
               <LogOut size={18} />
             </button>
             {!isCashier && (
-              <button type="button" onClick={() => setSidebarOpen(true)} title="Menu" className="w-10 h-10 flex items-center justify-center rounded-xl text-white hover:bg-white/10">
+              <button type="button" onClick={() => setSidebarOpen(true)} title="Menu" className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl text-white hover:bg-white/10">
                 <Menu size={22} />
               </button>
             )}
           </header>
         ) : (
         <header
-          className="app-topbar pos-screen text-white h-16 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0"
+          className="app-topbar pos-screen text-white h-16 flex items-center px-3 sm:px-5 gap-1.5 sm:gap-4 flex-shrink-0"
         >
+          {/* Phones: tighter gaps and padding, and the logo drops out below 360px
+              wide (small phones, or a Samsung with larger text / screen zoom), so the
+              menu, currency, reload, bell and avatar all stay on screen. */}
           {!isCashier && (
             <button className="text-blue-100 hover:text-white" onClick={() => setSidebarOpen(true)} title="Menu">
               <Menu size={20} />
@@ -590,7 +595,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
 
           {!isCashierRegisterPage && (
-            <div className="flex items-center gap-2.5 flex-shrink-0 pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
+            <div className="max-[359px]:hidden flex items-center gap-2.5 flex-shrink-0 sm:pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
               <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
                 <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
                 <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
@@ -659,7 +664,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => handleLogout()}
-            className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-xl transition-colors text-blue-100 hover:text-red-300 hover:bg-white/10"
+            title="Logout"
+            className="inline-flex flex-shrink-0 items-center gap-2 text-sm font-semibold px-2 sm:px-3 py-2 rounded-xl transition-colors text-blue-100 hover:text-red-300 hover:bg-white/10"
           >
             <LogOut size={16} />
             <span className="hidden lg:inline">Logout</span>
@@ -700,7 +706,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               const c = currencies.find(x => x.code === e.target.value);
               if (c) setActiveCurrency(c);
             }}
-            className="font-semibold px-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 text-white rounded-xl h-10 text-sm"
+            className="flex-shrink-0 font-semibold px-2 sm:px-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 text-white rounded-xl h-10 text-sm"
             style={{ background: '#16305e' }}
           >
             {currencies.filter(c => c.is_active).map(c => (
@@ -709,9 +715,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </select>
 
           {!isServerUp && !isCashierRegisterPage && (
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
+            <span
+              title={isLocalServer() ? 'Server starting...' : 'Reconnecting...'}
+              className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full"
+            >
               <WifiOff size={11} />
-              {isLocalServer() ? 'Server starting...' : 'Reconnecting...'}
+              {/* Icon only on phones, where the words would push the avatar off screen. */}
+              <span className="hidden sm:inline">{isLocalServer() ? 'Server starting...' : 'Reconnecting...'}</span>
             </span>
           )}
 
@@ -723,7 +733,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               header content (portaled in above), so this avatar+name would
               just repeat it — skip it there. */}
           {!isCashierRegisterPage && (
-          <div className="flex items-center gap-2.5 pl-1">
+          <div className="flex flex-shrink-0 items-center gap-2.5 sm:pl-1">
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow">
               {userInitials}
             </div>

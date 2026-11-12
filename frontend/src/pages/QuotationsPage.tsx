@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/axios';
-import { branchesApi, settingsApi, productsApi } from '../api';
+import { branchesApi, settingsApi } from '../api';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
 import { Plus, X, FileText, Send, Check, XCircle, Eye, Download, Search } from 'lucide-react';
@@ -13,6 +13,7 @@ import jsPDF from 'jspdf';
 import { companyLogo, drawPdfLogo } from '../lib/companyLogo';
 import autoTable from 'jspdf-autotable';
 import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
+import { fetchAllProducts, productMatchesWords, searchWords, PICKER_LIMIT } from '../lib/productSearch';
 
 /** Searchable product picker for a quotation line item — mirrors the PO line
  *  item picker (PurchasesPage.tsx). Selecting a product fills in its name and
@@ -40,13 +41,9 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
 
   const q = query.trim().toLowerCase();
   const pluMatches = productsNamedByPlu(q, storeSettings ?? {}, products ?? []);
-  const results = (products ?? [])
-    .filter((p: any) => !q
-      || (p.name ?? '').toLowerCase().includes(q)
-      || (p.sku ?? '').toLowerCase().includes(q)
-      || (p.barcode ?? '').toLowerCase().includes(q)
-      || pluMatches.has(p))
-    .slice(0, 20);
+  const words = searchWords(q);
+  const matches = (products ?? []).filter((p: any) => productMatchesWords(p, words) || pluMatches.has(p));
+  const results = matches.slice(0, PICKER_LIMIT);
 
   return (
     <div ref={ref} className="relative col-span-4">
@@ -75,6 +72,9 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
               <span className="text-xs text-gray-400 font-mono flex-shrink-0">{p.sku}</span>
             </button>
           ))}
+          {matches.length > results.length && (
+            <p className="px-3 py-2 text-xs text-gray-400 text-center">+{matches.length - results.length} more — keep typing to narrow</p>
+          )}
         </div>
       )}
     </div>
@@ -214,7 +214,7 @@ export default function QuotationsPage() {
   // being raised under (backend defaults quotation.branch_id to it too).
   const { data: quoteProducts } = useQuery({
     queryKey: ['products', 'quote-select', user?.branch?.id],
-    queryFn: () => productsApi.list({ per_page: 1000, branch_id: user?.branch?.id, is_active: 1 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
+    queryFn: () => fetchAllProducts({ branch_id: user?.branch?.id, is_active: 1 }),
     enabled: showNew && !!user?.branch?.id,
   });
 

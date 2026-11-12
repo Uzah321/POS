@@ -169,7 +169,7 @@ export default function StockReconciliationPage() {
           {!summary?.has_period_stocktake && (
             <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700 flex items-center gap-2">
               <ClipboardCheck size={16} />
-              <span>No stocktake found for this period " actual stock shows <strong>current system quantities</strong>. Conduct a stocktake for accurate counts.</span>
+              <span>No stocktake found for this period — actual stock shows <strong>current system quantities</strong>. Conduct a stocktake for accurate counts.</span>
               {summary?.period_stocktake_ref && <span className="ml-2 font-mono text-xs">{summary.period_stocktake_ref}</span>}
             </div>
           )}
@@ -177,7 +177,7 @@ export default function StockReconciliationPage() {
           {/* Table */}
           <div className="bg-white rounded-md border border-gray-100 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
-              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg">
                 {[['', 'Variances Only'], ['ok', 'OK'], ['short', 'Short'], ['over', 'Over']].map(([v, l]) => (
                   <button key={v} type="button" onClick={() => { setFilterStatus(v); setShowAll(v === ''); }}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${filterStatus === v && (v !== '' || !showAll) ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -206,7 +206,7 @@ export default function StockReconciliationPage() {
                     <tr>
                       <td colSpan={11} className="text-center py-12 text-gray-400">
                         <CheckCircle size={32} className="mx-auto mb-2 text-green-400" />
-                        <p>All products balanced " no variances found</p>
+                        <p>All products balanced — no variances found</p>
                       </td>
                     </tr>
                   ) : rows.map((r: any) => (

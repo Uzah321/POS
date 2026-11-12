@@ -1,7 +1,7 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { productsApi, salesApi, settingsApi, weighingScalesApi } from '../api';
+import { salesApi, settingsApi, weighingScalesApi } from '../api';
 import { useTopbarSlot } from '../layouts/TopbarSlot';
 import { useCartStore, type CartItem } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
@@ -22,6 +22,7 @@ import NumericKeypad from '../components/ui/NumericKeypad';
 import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
 import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
+import { fetchAllProducts, productMatchesWords, searchWords, PICKER_LIMIT } from '../lib/productSearch';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import SelectTillModal from '../components/SelectTillModal';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
@@ -146,8 +147,8 @@ export default function CashierPage() {
       try {
         // Always this till's own branch — even an admin ringing up a sale here
         // should only see what's actually on the shelf at this location.
-        const data = await productsApi.list({ per_page: 500, is_active: 1, branch_id: user?.branch?.id })
-          .then(r => r.data?.data?.data ?? r.data?.data ?? []);
+        // Every page of them: a product past the first 500 would never be found.
+        const data = await fetchAllProducts({ is_active: 1, branch_id: user?.branch?.id });
         db.products.clear().then(() => db.products.bulkPut(data)).catch(() => {});
         return data;
       } catch {
@@ -174,18 +175,14 @@ export default function CashierPage() {
   // and the results dropdown shown under the input while typing.
   const browseQuery = codeInput.trim().toLowerCase();
   const pluMatches = productsNamedByPlu(browseQuery, storeSettings ?? {}, allProducts);
-  const browseMatches = allProducts.filter(p =>
-    !browseQuery ||
-    p.name.toLowerCase().includes(browseQuery) ||
-    (p.sku ?? '').toLowerCase().includes(browseQuery) ||
-    (p.barcode ?? '').toLowerCase().includes(browseQuery) ||
-    pluMatches.has(p)
-  );
+  // Every word in the name, SKU or barcode, in any order ("chicken burger"
+  // finds "Burger - Chicken"), or the product a PLU / scale label names.
+  const browseWords = searchWords(browseQuery);
+  const browseMatches = allProducts.filter(p => productMatchesWords(p, browseWords) || pluMatches.has(p));
   // Capped so a one-letter query doesn't render the whole catalog, but high
-  // enough that arrow-down keyboard navigation can actually reach most real
-  // search results instead of stalling after a handful of rows. Arrow-key
-  // navigation below is scoped to this same slice.
-  const visibleBrowseMatches = browseMatches.slice(0, 25);
+  // enough that a real search shows all its matches (the dropdown scrolls).
+  // Arrow-key navigation below is scoped to this same slice.
+  const visibleBrowseMatches = browseMatches.slice(0, PICKER_LIMIT);
 
   // Keep the highlighted row in range (and reset to the top) whenever the
   // list of matches changes underneath it.
@@ -805,7 +802,7 @@ export default function CashierPage() {
               ))}
               {browseMatches.length > visibleBrowseMatches.length && (
                 <p className="px-4 py-2 text-xs text-gray-400 text-center border-t border-gray-50">
-                  +{browseMatches.length - visibleBrowseMatches.length} more -- keep typing to narrow
+                  +{browseMatches.length - visibleBrowseMatches.length} more — keep typing to narrow
                 </p>
               )}
             </div>

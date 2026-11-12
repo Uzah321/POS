@@ -6,6 +6,7 @@ import { Plus, X, ClipboardCheck, Check, AlertCircle, Download, CheckCircle2, Ci
 import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 import { settingsApi, branchesApi } from '../api';
+import { fetchAllProducts } from '../lib/productSearch';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -324,11 +325,12 @@ export default function StocktakePage() {
   const downloadFullStockSheet = async () => {
     setDownloadingSheet(true);
     try {
-      const [productsRes, ingredientsRes] = await Promise.all([
-        api.get('/products', { params: { per_page: 1000 } }),
+      // Every product, not just the first 1000, so none is missing from the sheet.
+      const [allProducts, ingredientsRes] = await Promise.all([
+        fetchAllProducts(),
         api.get('/ingredients', { params: { per_page: 1000 } }),
       ]);
-      const products: any[] = (productsRes.data?.data?.data ?? productsRes.data?.data ?? [])
+      const products: any[] = allProducts
         .map((p: any) => ({ name: p.name, sku: p.sku, category: p.category?.name ?? '-', unit: p.unit?.abbreviation ?? '', qty: p.total_stock ?? 0, type: 'Product' }));
       const ingredients: any[] = (ingredientsRes.data?.data?.data ?? ingredientsRes.data?.data ?? [])
         .map((i: any) => ({ name: i.name, sku: i.sku, category: '-', unit: i.unit?.abbreviation ?? i.stock_unit ?? '', qty: i.total_stock ?? 0, type: 'Ingredient' }));

@@ -379,7 +379,7 @@ export default function DayEndPage() {
             <p className="flex items-center gap-1.5 text-sm text-gray-500 mt-0.5"><Building2 size={14} />{branchName}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap sm:justify-end">
           {isAdmin && branches.length > 0 && (
             <label className="inline-flex items-center gap-2 border border-gray-300 bg-white rounded-lg px-3 py-1.5 text-sm">
               <Building2 size={14} className="text-gray-400" />
@@ -388,12 +388,15 @@ export default function DayEndPage() {
               </select>
             </label>
           )}
-          <label className="text-sm text-gray-600">Date:</label>
-          <input
-            type="date"
-            {...register('date')}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
-          />
+          {/* Label and date wrap as one, so "Date:" never sits alone at a line end on a phone. */}
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+            Date:
+            <input
+              type="date"
+              {...register('date')}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            />
+          </label>
           <button
             type="button"
             onClick={() => {
@@ -573,7 +576,7 @@ export default function DayEndPage() {
             />
             {errors.opening_cash && <p className="text-red-500 text-xs mt-1">{errors.opening_cash.message}</p>}
           </div>
-          <div className="md:col-span-2 grid grid-cols-3 gap-3 text-sm">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
               <p className="text-xs text-gray-500">Expected Cash (System)</p>
               <p className="font-bold text-gray-900">{expectedCashNow != null ? format(expectedCashNow) : '—'}</p>

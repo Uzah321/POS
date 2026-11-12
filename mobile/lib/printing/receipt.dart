@@ -61,9 +61,15 @@ class Receipt {
     this.fiscalDeviceId,
     this.fiscalDayNo,
     this.fiscalPendingId,
+    this.fiscalTitle = true,
   });
 
   final String storeName;
+
+  /// false: "FISCAL TAX INVOICE" is left off the top and bottom (Settings, for a
+  /// shop that isn't fiscalised). A receipt ZIMRA has fiscalised keeps it anyway.
+  final bool fiscalTitle;
+  bool get showsFiscalTitle => fiscalTitle || fiscalised;
   final String? address, phone, email, vatNumber, tinNumber, logo, footer;
   final String reference, cashier;
   final DateTime? date;
@@ -129,6 +135,7 @@ class Receipt {
       tinNumber: text(settings['company_tin_number']),
       logo: (text(settings['company_logo']) ?? '').startsWith('data:image') ? text(settings['company_logo']) : null,
       footer: text(settings['receipt_footer']),
+      fiscalTitle: _fiscalTitleOn(settings),
       reference: text(sale['reference']) ?? '#${sale['id'] ?? 'SALE'}',
       cashier: text(asMap(sale['cashier'])['name']) ?? s.userName,
       date: DateTime.tryParse('${sale['completed_at'] ?? sale['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
@@ -171,6 +178,7 @@ class Receipt {
       tinNumber: text(settings['company_tin_number']),
       logo: (text(settings['company_logo']) ?? '').startsWith('data:image') ? text(settings['company_logo']) : null,
       footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
+      fiscalTitle: _fiscalTitleOn(settings),
       reference: 'TEST-001',
       cashier: s.userName,
       date: DateTime.now(),
@@ -248,6 +256,12 @@ List<int> _ascii(String s) {
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
+/// Settings' "Print FISCAL TAX INVOICE on Receipts" switch: on unless turned off.
+bool _fiscalTitleOn(Map<String, dynamic> settings) {
+  final v = settings['receipt_fiscal_title'];
+  return v != false && v != 'false';
+}
+
 /// The receipt as ESC/POS bytes for a [width]-column roll (32 on 58 mm).
 Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
   final w = width;
@@ -279,10 +293,12 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
     add(logo);
     out.addByte(_lf);
   }
-  add(_boldOn);
-  line('***FISCAL TAX INVOICE***');
-  add(_boldOff);
-  out.addByte(_lf);
+  if (d.showsFiscalTitle) {
+    add(_boldOn);
+    line('***FISCAL TAX INVOICE***');
+    add(_boldOff);
+    out.addByte(_lf);
+  }
   add(_doubleOn);
   line(cut(d.storeName, w ~/ 2));
   add(_sizeOff);
@@ -373,9 +389,11 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
 
   out.addByte(_lf);
   add(_center);
-  add(_boldOn);
-  line('FISCAL TAX INVOICE');
-  add(_boldOff);
+  if (d.showsFiscalTitle) {
+    add(_boldOn);
+    line('FISCAL TAX INVOICE');
+    add(_boldOff);
+  }
   if (d.fiscalised) {
     final qr = qrRaster(d.qrUrl);
     if (qr != null) {

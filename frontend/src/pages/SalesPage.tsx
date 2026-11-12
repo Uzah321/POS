@@ -205,12 +205,15 @@ export default function SalesPage() {
     refetchInterval: 30000,
   });
 
-  const { data: productOptions = [], isFetching: productsLoading } = useQuery({
+  const { data: productFound, isFetching: productsLoading } = useQuery({
     queryKey: ['sales-product-picker', productQuery],
-    queryFn: () => productsApi.list({ search: productQuery, per_page: 15 }).then(r => r.data?.data?.data ?? []),
+    queryFn: () => productsApi.list({ search: productQuery, per_page: 50 })
+      .then(r => ({ rows: (r.data?.data?.data ?? []) as any[], total: Number(r.data?.data?.total ?? 0) })),
     enabled: showProductPicker,
     staleTime: 30000,
   });
+  const productOptions = productFound?.rows ?? [];
+  const moreProductOptions = Math.max(0, (productFound?.total ?? 0) - productOptions.length);
 
   useEffect(() => {
     if (!showProductPicker) return;
@@ -494,17 +497,18 @@ export default function SalesPage() {
       </div>
 
       <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
+        {/* Phones: search and product filter take the full width, the dates wrap. */}
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search product, SKU, barcode or reference..."
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-80"
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-full sm:w-80"
             />
           </div>
-          <div className="relative" ref={productPickerRef}>
+          <div className="relative w-full sm:w-auto" ref={productPickerRef}>
             {product ? (
               <div className="flex items-center gap-2 pl-3 pr-2 py-2 border border-amber-300 bg-amber-50 rounded-lg text-sm">
                 <span className="font-medium text-gray-800 max-w-56 truncate">{product.name}</span>
@@ -518,11 +522,11 @@ export default function SalesPage() {
                 onChange={(e) => { setProductQuery(e.target.value); setShowProductPicker(true); }}
                 onFocus={() => setShowProductPicker(true)}
                 placeholder="Filter by product..."
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-56"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-full sm:w-56"
               />
             )}
             {showProductPicker && !product && (
-              <div className="absolute z-20 left-0 top-full mt-1 w-72 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+              <div className="absolute z-20 left-0 top-full mt-1 w-full sm:w-72 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
                 {productsLoading && (productOptions as any[]).length === 0 ? (
                   <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>
                 ) : (productOptions as any[]).length === 0 ? (
@@ -538,6 +542,9 @@ export default function SalesPage() {
                     {p.sku && <span className="text-gray-400 text-xs"> ({p.sku})</span>}
                   </button>
                 ))}
+                {moreProductOptions > 0 && (
+                  <p className="px-3 py-2 text-xs text-gray-400 text-center">+{moreProductOptions} more — keep typing to narrow</p>
+                )}
               </div>
             )}
           </div>
@@ -551,20 +558,20 @@ export default function SalesPage() {
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
             <Calendar size={14} className="text-gray-400" />
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="flex-1 sm:flex-none min-w-[8rem] border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
             <span className="text-gray-400 text-sm">to</span>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="flex-1 sm:flex-none min-w-[8rem] border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
             {(dateFrom || dateTo) && (
               <button

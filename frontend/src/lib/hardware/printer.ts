@@ -357,6 +357,11 @@ export interface ReceiptData {
   fiscalDayNo?: number;
   /** A GoFiscal receipt that wasn't through when the sale saved — finished just before printing (withFiscalResult). */
   fiscalPendingId?: number;
+  /**
+   * false: leave "FISCAL TAX INVOICE" off the top and bottom (Settings, for a
+   * shop that isn't fiscalised). A receipt ZIMRA has fiscalised keeps it anyway.
+   */
+  fiscalTitle?: boolean;
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'rawbt' | 'none';
@@ -431,7 +436,7 @@ export function resolveReceiptPrintMode(mode: ReceiptPrintMode): ResolvedPrintMo
  * every receipt. Blank ones are left out, so whatever's passed in instead
  * (or the sale's branch) fills in.
  */
-export function companyDetails(settings?: Record<string, any> | null): Pick<ReceiptData, 'storeAddress' | 'storePhone' | 'storeEmail' | 'vatNumber' | 'tinNumber' | 'logo' | 'footer'> & { storeName?: string } {
+export function companyDetails(settings?: Record<string, any> | null): Pick<ReceiptData, 'storeAddress' | 'storePhone' | 'storeEmail' | 'vatNumber' | 'tinNumber' | 'logo' | 'footer' | 'fiscalTitle'> & { storeName?: string } {
   const text = (key: string): string | undefined => {
     const value = settings?.[key];
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -445,6 +450,8 @@ export function companyDetails(settings?: Record<string, any> | null): Pick<Rece
     tinNumber: text('company_tin_number'),
     logo: companyLogo(settings),
     footer: text('receipt_footer'),
+    // On unless Settings turned it off.
+    fiscalTitle: settings?.receipt_fiscal_title !== 'false' && settings?.receipt_fiscal_title !== false,
   };
 }
 
@@ -490,6 +497,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     change: options.change ?? money(sale?.change_due),
     currency: options.currency ?? '$',
     footer: options.footer ?? company.footer,
+    fiscalTitle: company.fiscalTitle,
     logo: company.logo ?? options.logo,
     vatNumber: company.vatNumber ?? options.vatNumber,
     tinNumber: company.tinNumber ?? options.tinNumber,
@@ -536,6 +544,20 @@ function groupedVerificationCode(qrData?: string): string | undefined {
 /** Whether the bill carries a real fiscal result (and not the static fields from Settings). */
 function isFiscalised(d: ReceiptData): boolean {
   return d.fiscalReceiptGlobalNo != null || !!d.fiscalVerificationCode;
+}
+
+/**
+ * Whether "FISCAL TAX INVOICE" prints (heading and bottom line). Settings can
+ * turn it off for a shop that isn't fiscalised; a receipt ZIMRA has actually
+ * fiscalised always keeps it, as ZIMRA requires.
+ */
+function showsFiscalTitle(d: ReceiptData): boolean {
+  return d.fiscalTitle !== false || isFiscalised(d);
+}
+
+/** The heading over the store name: Hardware > Receipt's Header Title, or the standard one. */
+function fiscalHeading(): string {
+  return loadReceiptSettings().headerTitle?.trim() || '***FISCAL TAX INVOICE***';
 }
 
 /**
@@ -610,8 +632,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
     ESC_INIT,
     ESC_ALIGN_CENTER,
     ...(logo ? [logo, bytes(LF)] : []),
-    ESC_BOLD_ON, line('***FISCAL TAX INVOICE***'), ESC_BOLD_OFF,
-    bytes(LF),
+    ...(showsFiscalTitle(d) ? [ESC_BOLD_ON, line(cut(fiscalHeading(), W)), ESC_BOLD_OFF, bytes(LF)] : []),
     ESC_DWIDTH_ON, line(cut(d.storeName, W / 2)), ESC_DWIDTH_OFF,
   ];
 
@@ -695,11 +716,8 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
     if (d.fiscalReceiptGlobalNo != null) parts.push(line(`Rec No : ${d.fiscalReceiptGlobalNo}`));
   }
 
-  parts.push(
-    bytes(LF),
-    ESC_ALIGN_CENTER,
-    ESC_BOLD_ON, line('FISCAL TAX INVOICE'), ESC_BOLD_OFF,
-  );
+  parts.push(bytes(LF), ESC_ALIGN_CENTER);
+  if (showsFiscalTitle(d)) parts.push(ESC_BOLD_ON, line('FISCAL TAX INVOICE'), ESC_BOLD_OFF);
   if (isFiscalised(d)) {
     const qr = escPosQr(d.fiscalQrCodeUrl);
     if (qr) parts.push(qr, bytes(LF));
@@ -1218,8 +1236,8 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
 <title>Receipt ${d.reference}</title>
 <style>${commonCss}</style></head><body>
 ${logoHtml}
-<div class="center bold">${s.headerTitle || '***FISCAL TAX INVOICE***'}</div>
-<br>
+${showsFiscalTitle(d) ? `<div class="center bold">${escapeHtml(s.headerTitle?.trim() || '***FISCAL TAX INVOICE***')}</div>
+<br>` : ''}
 <div class="center large">${d.storeName}</div>
 ${d.branchName && d.branchName !== d.storeName ? `<div class="center bold">${d.branchName}</div>` : ''}
 ${d.tradingName && d.tradingName !== d.storeName ? `<div class="center">T/A</div><div class="center bold">${d.tradingName}</div>` : ''}
@@ -1266,7 +1284,7 @@ ${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}` : `
 ${d.fiscalDeviceId != null ? `<div>Device Id : ${d.fiscalDeviceId}</div>` : ''}
 ${d.fiscalDayNo != null ? `<div>Fiscal Day : ${d.fiscalDayNo}</div>` : ''}`}
 <br>
-<div class="center bold">FISCAL TAX INVOICE</div>
+${showsFiscalTitle(d) ? '<div class="center bold">FISCAL TAX INVOICE</div>' : ''}
 <div class="solid"></div>
 ${isFiscalised(d) ? `
 ${d.fiscalReceiptGlobalNo != null ? `<div class="center">Rec No : ${d.fiscalReceiptGlobalNo}</div>` : ''}

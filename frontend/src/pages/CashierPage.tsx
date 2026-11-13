@@ -741,6 +741,18 @@ export default function CashierPage() {
               onFocus={() => setShowBrowseDropdown(true)}
               onBlur={() => setShowBrowseDropdown(false)}
               onKeyDown={(e) => {
+                // Keyboard flow: Enter on an empty scan box moves on to payment —
+                // straight into Cash Tendered (same as F10), where Enter again
+                // completes the sale. A scanner's Enter never gets here empty: it
+                // either typed its code into this box or was taken by useBarcodeScanner.
+                if (e.key === 'Enter' && !codeInput.trim()) {
+                  e.preventDefault();
+                  if (cart.items.length > 0) {
+                    setPayMethod('cash');
+                    setTimeout(() => { tenderedRef.current?.focus(); tenderedRef.current?.select(); }, 40);
+                  }
+                  return;
+                }
                 if (!showBrowseDropdown || visibleBrowseMatches.length === 0) return;
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();

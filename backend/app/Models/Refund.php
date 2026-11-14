@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Refund extends Model
 {
     protected $fillable = ['reference', 'sale_id', 'register_id', 'user_id', 'amount', 'reason', 'status', 'completed_at'];
-    protected $casts = ['amount' => 'decimal:2', 'completed_at' => 'datetime'];
+    protected $casts = ['amount' => 'decimal:6', 'completed_at' => 'datetime'];
 
     protected static function booted(): void
     {

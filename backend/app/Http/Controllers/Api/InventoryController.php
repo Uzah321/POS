@@ -299,6 +299,12 @@ class InventoryController extends BaseApiController
         ]);
 
         $warehouseId = $request->warehouse_id;
+        // Every product belongs to one branch's catalogue — the tills list, and a
+        // sale accepts, only their own branch's products. Imported products join
+        // the branch of the warehouse their stock goes into (else the importer's).
+        $branchId = Warehouse::whereKey($warehouseId)->value('branch_id')
+            ?? $this->effectiveBranchId($request)
+            ?? $request->user()?->branch_id;
         $created = 0; $updated = 0; $skipped = 0;
         $errors  = [];
         $parseNumber = static function (mixed $value): ?float {
@@ -319,7 +325,12 @@ class InventoryController extends BaseApiController
             return is_numeric($normalized) ? (float) $normalized : null;
         };
 
-        DB::transaction(function () use ($request, $warehouseId, $parseNumber, &$created, &$updated, &$skipped, &$errors) {
+        // This branch's products — and any left without a branch by an older
+        // import, which an import into this branch takes in.
+        $catalog = fn () => Product::where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
+            ->orderByRaw('branch_id IS NULL');
+
+        DB::transaction(function () use ($request, $warehouseId, $branchId, $catalog, $parseNumber, &$created, &$updated, &$skipped, &$errors) {
             foreach ($request->rows as $index => $row) {
                 try {
                     $row = is_array($row) ? $row : (array) $row;
@@ -356,16 +367,16 @@ class InventoryController extends BaseApiController
                         $unitId = $unit?->id;
                     }
 
-                    // Resolve product by SKU, barcode, or name
+                    // Resolve product by SKU, barcode, or name — within this branch's catalogue
                     $product = null;
                     if (!empty($row['sku'])) {
-                        $product = Product::where('sku', trim($row['sku']))->first();
+                        $product = $catalog()->where('sku', trim($row['sku']))->first();
                     }
                     if (!$product && !empty($row['barcode'])) {
-                        $product = Product::where('barcode', trim($row['barcode']))->first();
+                        $product = $catalog()->where('barcode', trim($row['barcode']))->first();
                     }
                     if (!$product) {
-                        $product = Product::where('name', $name)->first();
+                        $product = $catalog()->where('name', $name)->first();
                     }
 
                     $attrs = [
@@ -386,6 +397,9 @@ class InventoryController extends BaseApiController
                         // Update existing — only non-empty values overwrite
                         $updateable = array_filter($attrs, fn($v) => $v !== null && $v !== '' && $v !== 0);
                         unset($updateable['slug']); // keep existing slug
+                        if ($product->branch_id === null && $branchId) {
+                            $updateable['branch_id'] = $branchId;
+                        }
                         $product->update($updateable);
                         $updated++;
                     } else {
@@ -393,6 +407,7 @@ class InventoryController extends BaseApiController
                         // existing product must never silently retag it into
                         // whichever mode happens to be active during that import.
                         $attrs['business_type'] = $this->effectiveBusinessType($request) ?? 'both';
+                        $attrs['branch_id'] = $branchId;
                         $product = Product::create($attrs);
                         $created++;
                     }

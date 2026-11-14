@@ -82,7 +82,7 @@ class GoFiscalService
             'receipt_type' => 'CreditNote',
             'invoice_no' => $refund->reference,
             'receipt_currency' => $original->receipt_currency,
-            'receipt_total' => -abs((float) $refund->amount),
+            'receipt_total' => -abs(round((float) $refund->amount, 2)),
             'payload' => $payload,
         ]));
     }

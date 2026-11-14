@@ -15,13 +15,13 @@ class SaleItem extends Model
 
     protected $casts = [
         'quantity' => 'decimal:3',
-        'unit_price' => 'decimal:2',
-        'cost_price' => 'decimal:2',
-        'discount_amount' => 'decimal:2',
-        'tax_amount' => 'decimal:2',
-        'subtotal' => 'decimal:2',
-        'total' => 'decimal:2',
-        'discount_value' => 'decimal:2',
+        'unit_price' => 'decimal:6',
+        'cost_price' => 'decimal:6',
+        'discount_amount' => 'decimal:6',
+        'tax_amount' => 'decimal:6',
+        'subtotal' => 'decimal:6',
+        'total' => 'decimal:6',
+        'discount_value' => 'decimal:6',
     ];
 
     public function sale(): BelongsTo { return $this->belongsTo(Sale::class); }

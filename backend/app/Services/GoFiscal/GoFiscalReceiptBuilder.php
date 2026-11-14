@@ -40,21 +40,21 @@ class GoFiscalReceiptBuilder
             $product = $item->product;
             [$code, $percent] = $this->tax($product, $taxEnabled, $globalRate);
             $taxId = $this->taxId($taxes, $code, $percent, $date);
-            $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', (float) $item->unit_price, (float) $item->quantity, $product?->hs_code ?: $hsDefault, $code, $taxId);
+            $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', self::cents($item->unit_price), (float) $item->quantity, $product?->hs_code ?: $hsDefault, $code, $taxId);
             $lines[] = $line;
 
-            $discount = round($line['receiptLineTotal'] - (float) $item->total, 2);
+            $discount = round($line['receiptLineTotal'] - self::cents($item->total), 2);
             if ($discount > 0) {
                 $discounts[$code] = ($discounts[$code] ?? 0) + $discount;
             }
-            $groupTotals[$code] = ($groupTotals[$code] ?? 0) + (float) $item->total;
+            $groupTotals[$code] = ($groupTotals[$code] ?? 0) + self::cents($item->total);
             $groupHs[$code] ??= $line['receiptLineHSCode'] ?? null;
             $groupTax[$code] ??= $taxId;
         }
 
         // A discount on the whole sale is shared between the tax codes in
         // proportion to what each one's lines come to.
-        $cartDiscount = round((float) $sale->discount_amount - (float) $sale->items->sum('discount_amount'), 2);
+        $cartDiscount = round(self::cents($sale->discount_amount) - $sale->items->sum(fn ($i) => self::cents($i->discount_amount)), 2);
         $base = array_sum($groupTotals);
         if ($cartDiscount > 0 && $base > 0) {
             $codes = array_keys($groupTotals);
@@ -103,16 +103,16 @@ class GoFiscalReceiptBuilder
             $product = $refundItem->saleItem?->product;
             [$code, $percent] = $this->tax($product, $taxEnabled, $globalRate);
             $taxId = $this->taxId($taxes, $code, $percent, $date);
-            $price = (float) ($refundItem->saleItem?->unit_price ?? 0);
+            $price = self::cents($refundItem->saleItem?->unit_price ?? 0);
             $qty = (float) $refundItem->quantity;
             if ($price <= 0 || $qty <= 0) {
-                $price = (float) $refundItem->amount;
+                $price = self::cents($refundItem->amount);
                 $qty = 1;
             }
             $line = $this->line(count($lines) + 1, 'Sale', $product?->name ?? 'Item', -$price, $qty, $product?->hs_code ?: $hsDefault, $code, $taxId);
             $lines[] = $line;
 
-            $notRefunded = round(abs($line['receiptLineTotal']) - (float) $refundItem->amount, 2);
+            $notRefunded = round(abs($line['receiptLineTotal']) - self::cents($refundItem->amount), 2);
             if ($notRefunded > 0) {
                 $kept[$code] = [($kept[$code][0] ?? 0) + $notRefunded, $line['receiptLineHSCode'] ?? null, $taxId];
             }
@@ -138,6 +138,16 @@ class GoFiscalReceiptBuilder
             'receiptLines' => $lines,
             'receiptPayments' => [['moneyTypeCode' => $this->moneyType($method), 'paymentAmount' => $total]],
         ];
+    }
+
+    /**
+     * A stored sale / refund amount to the cent. They are kept to 6 decimals
+     * (exact after a currency conversion); a fiscal receipt states cents,
+     * each amount rounded as it was stored before.
+     */
+    private static function cents(mixed $amount): float
+    {
+        return round((float) $amount, 2);
     }
 
     /** What the receipt comes to: the engine totals the lines the same way. */

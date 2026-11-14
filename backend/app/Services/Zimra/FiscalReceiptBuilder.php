@@ -48,7 +48,7 @@ class FiscalReceiptBuilder
             currency: $currency,
             receiptGlobalNo: $receiptGlobalNo,
             receiptDateIso: $receiptDate,
-            receiptTotal: (float) $sale->total,
+            receiptTotal: self::cents($sale->total),
             receiptTaxes: $receiptTaxes,
             previousReceiptHash: $previousReceiptHash,
         );
@@ -64,7 +64,7 @@ class FiscalReceiptBuilder
             'receiptLines' => $receiptLines,
             'receiptTaxes' => $receiptTaxes,
             'receiptPayments' => $receiptPayments,
-            'receiptTotal' => (float) $sale->total,
+            'receiptTotal' => self::cents($sale->total),
             'receiptPrintForm' => 'Receipt48',
             'receiptDeviceSignature' => $deviceSignature,
         ];
@@ -92,7 +92,7 @@ class FiscalReceiptBuilder
 
         $receiptLines = $this->buildRefundReceiptLines($refund, $taxGroups);
         $receiptTaxes = $this->buildReceiptTaxes($taxGroups, []);
-        $receiptTotal = -abs((float) $refund->amount);
+        $receiptTotal = -abs(self::cents($refund->amount));
 
         $receiptDate = ($refund->completed_at ?? $refund->created_at)->format('Y-m-d\TH:i:s');
 
@@ -237,9 +237,9 @@ class FiscalReceiptBuilder
                 'receiptLineNo' => $lineNo,
                 'receiptLineHSCode' => $item->product?->hs_code,
                 'receiptLineName' => $item->product?->name ?? 'Item',
-                'receiptLinePrice' => (float) $item->unit_price,
+                'receiptLinePrice' => self::cents($item->unit_price),
                 'receiptLineQuantity' => (float) $item->quantity,
-                'receiptLineTotal' => (float) $item->total,
+                'receiptLineTotal' => self::cents($item->total),
                 'taxCode' => $mapping ? (string) $mapping->zimra_tax_id : null,
                 'taxPercent' => $mapping?->tax_percent !== null ? (float) $mapping->tax_percent : null,
                 'taxID' => $mapping?->zimra_tax_id ?? 0,
@@ -262,9 +262,9 @@ class FiscalReceiptBuilder
                 'receiptLineNo' => $lineNo,
                 'receiptLineHSCode' => $product?->hs_code,
                 'receiptLineName' => $product?->name ?? 'Item',
-                'receiptLinePrice' => $refundItem->saleItem ? -abs((float) $refundItem->saleItem->unit_price) : null,
+                'receiptLinePrice' => $refundItem->saleItem ? -abs(self::cents($refundItem->saleItem->unit_price)) : null,
                 'receiptLineQuantity' => (float) $refundItem->quantity,
-                'receiptLineTotal' => -abs((float) $refundItem->amount),
+                'receiptLineTotal' => -abs(self::cents($refundItem->amount)),
                 'taxCode' => $mapping ? (string) $mapping->zimra_tax_id : null,
                 'taxPercent' => $mapping?->tax_percent !== null ? (float) $mapping->tax_percent : null,
                 'taxID' => $mapping?->zimra_tax_id ?? 0,
@@ -282,13 +282,13 @@ class FiscalReceiptBuilder
      */
     private function buildCartDiscountLines(Sale $sale, Collection $taxGroups, int $startingLineNo): array
     {
-        $itemLevelDiscount = $sale->items->sum('discount_amount');
-        $cartDiscount = round((float) $sale->discount_amount - (float) $itemLevelDiscount, 2);
+        $itemLevelDiscount = self::sumCents($sale->items, 'discount_amount');
+        $cartDiscount = round(self::cents($sale->discount_amount) - $itemLevelDiscount, 2);
         if ($cartDiscount <= 0) {
             return [];
         }
 
-        $subtotal = (float) $sale->items->sum('subtotal');
+        $subtotal = self::sumCents($sale->items, 'subtotal');
         if ($subtotal <= 0) {
             return [];
         }
@@ -299,7 +299,7 @@ class FiscalReceiptBuilder
         $groups = $taxGroups->values();
 
         foreach ($groups as $index => $group) {
-            $groupSubtotal = (float) $group['items']->sum('subtotal');
+            $groupSubtotal = self::sumCents($group['items'], 'subtotal');
             $isLast = $index === $groups->count() - 1;
             $share = $isLast ? $remaining : round($cartDiscount * ($groupSubtotal / $subtotal), 2);
             $remaining -= $share;
@@ -334,7 +334,7 @@ class FiscalReceiptBuilder
             $percent = $mapping?->tax_percent !== null ? (float) $mapping->tax_percent : null;
             $taxId = $mapping?->zimra_tax_id ?? 0;
 
-            $salesAmountWithTax = (float) $group['items']->sum('total');
+            $salesAmountWithTax = self::sumCents($group['items'], 'total');
             $groupKey = $mapping?->id ?? 'exempt';
             foreach ($discountLines as $discountLine) {
                 if (($discountLine['_group_key'] ?? null) === $groupKey) {
@@ -368,7 +368,7 @@ class FiscalReceiptBuilder
                 'bank_transfer' => 'BankTransfer',
                 default => 'Other', // credit, loyalty_points, other — no direct ZIMRA MoneyType equivalent
             },
-            'paymentAmount' => (float) $payment->amount,
+            'paymentAmount' => self::cents($payment->amount),
         ])->values()->all();
     }
 
@@ -383,5 +383,22 @@ class FiscalReceiptBuilder
         }
 
         return $lookup;
+    }
+
+    /**
+     * A stored sale / refund amount to the cent. They are kept to 6 decimals
+     * (exact after a currency conversion); a fiscal receipt states cents,
+     * each line rounded as it was stored before, so lines and totals reconcile
+     * exactly as they always have.
+     */
+    private static function cents(mixed $amount): float
+    {
+        return round((float) $amount, 2);
+    }
+
+    /** The sum of a field over sale / refund items, each to the cent. */
+    private static function sumCents(Collection $items, string $field): float
+    {
+        return round($items->sum(fn ($item) => self::cents($item->{$field})), 2);
     }
 }

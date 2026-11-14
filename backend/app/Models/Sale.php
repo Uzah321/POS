@@ -35,13 +35,13 @@ class Sale extends Model
     ];
 
     protected $casts = [
-        'subtotal' => 'decimal:2',
-        'discount_amount' => 'decimal:2',
-        'tax_amount' => 'decimal:2',
-        'total' => 'decimal:2',
-        'amount_paid' => 'decimal:2',
-        'change_due' => 'decimal:2',
-        'discount_value' => 'decimal:2',
+        'subtotal' => 'decimal:6',
+        'discount_amount' => 'decimal:6',
+        'tax_amount' => 'decimal:6',
+        'total' => 'decimal:6',
+        'amount_paid' => 'decimal:6',
+        'change_due' => 'decimal:6',
+        'discount_value' => 'decimal:6',
         'is_offline' => 'boolean',
         'order_number' => 'integer',
         'completed_at' => 'datetime',

@@ -144,7 +144,7 @@ class SaleController extends BaseApiController
             'items.*.product_id'         => 'required|exists:products,id',
             'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
             'items.*.quantity'           => 'required|numeric|min:0.001',
-            'items.*.unit_price'         => 'required|numeric|min:0.01',
+            'items.*.unit_price'         => 'required|numeric|min:0.000001', // in USD: R0.10 is $0.0059
             'items.*.discount_type'      => 'nullable|in:fixed,percent',
             'items.*.discount_value'     => 'nullable|numeric|min:0',
             'items.*.note'               => 'nullable|string',
@@ -448,7 +448,7 @@ class SaleController extends BaseApiController
             'items.*.product_id'         => 'required|exists:products,id',
             'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
             'items.*.quantity'           => 'required|numeric|min:0.001',
-            'items.*.unit_price'         => 'required|numeric|min:0.01',
+            'items.*.unit_price'         => 'required|numeric|min:0.000001', // in USD: R0.10 is $0.0059
             'items.*.discount_type'      => 'nullable|in:fixed,percent',
             'items.*.discount_value'     => 'nullable|numeric|min:0',
             'items.*.note'               => 'nullable|string',
@@ -732,7 +732,9 @@ class SaleController extends BaseApiController
             $product   = $productsById->get($item['product_id']);
             $isTaxable = $product?->is_taxable ?? true;
             $rate      = ($taxEnabled && $isTaxable) ? (float) ($product?->taxRate?->rate ?? $globalTaxRate) : 0.0;
-            $taxAmt    = round($taxable - ($taxable / (1 + $rate / 100)), 2);
+            // Kept to 6 decimals like every sale amount: it's in USD and shown
+            // converted (R x 17), where cents of a dollar are rands off.
+            $taxAmt    = round($taxable - ($taxable / (1 + $rate / 100)), 6);
 
             $lineItems[] = array_merge($item, [
                 'subtotal'        => $lineSubtotal,

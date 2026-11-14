@@ -61,15 +61,20 @@ class Receipt {
     this.fiscalDeviceId,
     this.fiscalDayNo,
     this.fiscalPendingId,
-    this.fiscalTitle = true,
+    this.hidden = const {},
   });
 
   final String storeName;
 
-  /// false: "FISCAL TAX INVOICE" is left off the top and bottom (Settings, for a
-  /// shop that isn't fiscalised). A receipt ZIMRA has fiscalised keeps it anyway.
-  final bool fiscalTitle;
-  bool get showsFiscalTitle => fiscalTitle || fiscalised;
+  /// The parts of the receipt the shop turned off in Settings > Receipts &
+  /// Invoices (their settings keys, e.g. 'receipt_show_vat_breakdown').
+  final Set<String> hidden;
+
+  /// Kept on a receipt ZIMRA has fiscalised, whatever Settings say.
+  static const _zimraKeeps = {'receipt_fiscal_title', 'receipt_show_vat_breakdown', 'receipt_show_vat_number', 'receipt_show_tin_number'};
+
+  /// Whether the part saved under settings [key] prints on this receipt.
+  bool shows(String key) => !hidden.contains(key) || (fiscalised && _zimraKeeps.contains(key));
   final String? address, phone, email, vatNumber, tinNumber, logo, footer;
   final String reference, cashier;
   final DateTime? date;
@@ -135,7 +140,7 @@ class Receipt {
       tinNumber: text(settings['company_tin_number']),
       logo: (text(settings['company_logo']) ?? '').startsWith('data:image') ? text(settings['company_logo']) : null,
       footer: text(settings['receipt_footer']),
-      fiscalTitle: _fiscalTitleOn(settings),
+      hidden: _hiddenParts(settings),
       reference: text(sale['reference']) ?? '#${sale['id'] ?? 'SALE'}',
       cashier: text(asMap(sale['cashier'])['name']) ?? s.userName,
       date: DateTime.tryParse('${sale['completed_at'] ?? sale['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
@@ -178,7 +183,7 @@ class Receipt {
       tinNumber: text(settings['company_tin_number']),
       logo: (text(settings['company_logo']) ?? '').startsWith('data:image') ? text(settings['company_logo']) : null,
       footer: '*** TEST RECEIPT - NOT A VALID RECEIPT ***',
-      fiscalTitle: _fiscalTitleOn(settings),
+      hidden: _hiddenParts(settings),
       reference: 'TEST-001',
       cashier: s.userName,
       date: DateTime.now(),
@@ -256,11 +261,12 @@ List<int> _ascii(String s) {
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-/// Settings' "Print FISCAL TAX INVOICE on Receipts" switch: on unless turned off.
-bool _fiscalTitleOn(Map<String, dynamic> settings) {
-  final v = settings['receipt_fiscal_title'];
-  return v != false && v != 'false';
-}
+/// The receipt parts turned off in Settings > Receipts & Invoices (each part
+/// is on unless its setting is false) — same keys as the web tills.
+Set<String> _hiddenParts(Map<String, dynamic> settings) => {
+      for (final e in settings.entries)
+        if ((e.key == 'receipt_fiscal_title' || e.key.startsWith('receipt_show_')) && (e.value == false || e.value == 'false')) e.key,
+    };
 
 /// The receipt as ESC/POS bytes for a [width]-column roll (32 on 58 mm).
 Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
@@ -289,11 +295,11 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
 
   add(_init);
   add(_center);
-  if (logo != null) {
+  if (logo != null && d.shows('receipt_show_logo')) {
     add(logo);
     out.addByte(_lf);
   }
-  if (d.showsFiscalTitle) {
+  if (d.shows('receipt_fiscal_title')) {
     add(_boldOn);
     line('***FISCAL TAX INVOICE***');
     add(_boldOff);
@@ -307,8 +313,10 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
     line(cut(d.branchName!, w));
     add(_boldOff);
   }
-  for (final seg in (d.address ?? '').split(RegExp(r'[,\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty)) {
-    line(cut(seg, w));
+  if (d.shows('receipt_show_address')) {
+    for (final seg in (d.address ?? '').split(RegExp(r'[,\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty)) {
+      line(cut(seg, w));
+    }
   }
   divider();
 
@@ -330,12 +338,12 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
     add(_boldOff);
   }
   line('Tax Inv No : ${d.reference}');
-  if (d.customerName != null) line('Customer : ${d.customerName}');
-  line('Cashier : ${d.cashier}');
-  if (d.tableNumber != null) line('Table : ${d.tableNumber}');
+  if (d.customerName != null && d.shows('receipt_show_customer')) line('Customer : ${d.customerName}');
+  if (d.shows('receipt_show_cashier')) line('Cashier : ${d.cashier}');
+  if (d.tableNumber != null && d.shows('receipt_show_table')) line('Table : ${d.tableNumber}');
   add(_center);
   line(pad(dateStr, timeStr));
-  line('All Prices VAT Inclusive');
+  if (d.shows('receipt_show_vat_note')) line('All Prices VAT Inclusive');
   add(_left);
   divider();
 
@@ -345,42 +353,50 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
   line(pad('QTY', 'PRICE  TOTAL COST'));
   divider();
   for (final item in d.items) {
-    if (item.code != null) line(cut(item.code!, w));
+    if (item.code != null && d.shows('receipt_show_item_codes')) line(cut(item.code!, w));
     line(cut(item.name, w));
     line(pad('  ${qtyText(item.qty)} X  ${fmt2(item.price * rate)}', fmt2(item.total * rate)));
   }
   divider();
 
-  line(pad('Total Excl', fmt2(net)));
-  line(pad('Output Tax ($pct%)', fmt2(vat)));
-  add(_boldOn);
-  line(pad('Total Incl', fmt2(gross)));
-  add(_boldOff);
-  divider();
+  if (d.shows('receipt_show_vat_breakdown')) {
+    line(pad('Total Excl', fmt2(net)));
+    line(pad('Output Tax ($pct%)', fmt2(vat)));
+    add(_boldOn);
+    line(pad('Total Incl', fmt2(gross)));
+    add(_boldOff);
+    divider();
+  }
   add(_boldOn);
   line(pad('TOTAL', fmt2(gross)));
   add(_boldOff);
-  if (d.tendered != null) line(pad('TENDERED', fmt2(d.tendered!)));
-  if (d.change != null && d.change! >= 0) line(pad('CHANGE', fmt2(d.change!)));
-  line(pad('ITEM#', qtyText(itemCount)));
+  if (d.shows('receipt_show_tendered')) {
+    if (d.tendered != null) line(pad('TENDERED', fmt2(d.tendered!)));
+    if (d.change != null && d.change! >= 0) line(pad('CHANGE', fmt2(d.change!)));
+  }
+  if (d.shows('receipt_show_item_count')) line(pad('ITEM#', qtyText(itemCount)));
 
-  add(_boldOn);
-  line('Payment Summary');
-  add(_boldOff);
-  divider();
-  line('${d.paymentMethod.replaceAll('_', ' ').toUpperCase()} ${d.currencyCode}');
-  if (d.tendered != null) line('${d.currencySymbol}${fmt2(d.tendered!)} @ Rate ${d.currencySymbol}${rate.toStringAsFixed(6)}');
+  if (d.shows('receipt_show_payment')) {
+    add(_boldOn);
+    line('Payment Summary');
+    add(_boldOff);
+    divider();
+    line('${d.paymentMethod.replaceAll('_', ' ').toUpperCase()} ${d.currencyCode}');
+    if (d.tendered != null) line('${d.currencySymbol}${fmt2(d.tendered!)} @ Rate ${d.currencySymbol}${rate.toStringAsFixed(6)}');
+  }
 
   divider();
-  if (d.phone != null) line('Tel : ${d.phone}');
-  if (d.email != null) line('Email : ${d.email}');
-  if (d.vatNumber != null) line('VAT No : ${d.vatNumber}');
-  if (d.tinNumber != null) line('TIN No : ${d.tinNumber}');
+  if (d.phone != null && d.shows('receipt_show_phone')) line('Tel : ${d.phone}');
+  if (d.email != null && d.shows('receipt_show_email')) line('Email : ${d.email}');
+  if (d.vatNumber != null && d.shows('receipt_show_vat_number')) line('VAT No : ${d.vatNumber}');
+  if (d.tinNumber != null && d.shows('receipt_show_tin_number')) line('TIN No : ${d.tinNumber}');
   if (!d.fiscalised) {
-    if (d.deviceId != null) line('Device Id : ${d.deviceId}');
-    if (d.recGn != null) line('REC GN : ${d.recGn}');
-    if (d.rec68 != null) line('REC 68 : ${d.rec68}');
-    if (d.fiscalDay != null) line('Fiscal Day : ${d.fiscalDay}');
+    if (d.shows('receipt_show_fiscal_device')) {
+      if (d.deviceId != null) line('Device Id : ${d.deviceId}');
+      if (d.recGn != null) line('REC GN : ${d.recGn}');
+      if (d.rec68 != null) line('REC 68 : ${d.rec68}');
+      if (d.fiscalDay != null) line('Fiscal Day : ${d.fiscalDay}');
+    }
   } else {
     if (d.fiscalDeviceId != null) line('Device Id : ${d.fiscalDeviceId}');
     if (d.fiscalDayNo != null) line('Fiscal Day : ${d.fiscalDayNo}');
@@ -389,7 +405,7 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
 
   out.addByte(_lf);
   add(_center);
-  if (d.showsFiscalTitle) {
+  if (d.shows('receipt_fiscal_title')) {
     add(_boldOn);
     line('FISCAL TAX INVOICE');
     add(_boldOff);
@@ -410,7 +426,7 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
     if (host != null && host.isNotEmpty) line(cut('Verify at $host', w));
   }
   divider('=');
-  line(d.footer ?? 'Core POS');
+  if (d.shows('receipt_show_footer')) line(d.footer ?? 'Core POS');
   add([_lf, _lf, _lf]);
   add(_cut);
   return out.toBytes();

@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { weighingScalesApi, branchesApi, settingsApi } from '../api';
 import { companyLogo } from '../lib/companyLogo';
+import { effectiveReceiptShow } from '../lib/receiptOptions';
+import { Link } from 'react-router-dom';
 import {
   Printer, ScanBarcode, DollarSign, Monitor, Scale, Tag, CreditCard, Touchpad,
   Wifi, WifiOff, CheckCircle, AlertTriangle, Settings2, Usb, Globe, ChevronRight, ChefHat,
@@ -487,6 +489,7 @@ export default function HardwarePage() {
   });
   const logo = companyLogo(storeSettings);
   const previewCompany = companyDetails(storeSettings);
+  const previewShow = effectiveReceiptShow(previewCompany.show, false);
   const previewName = previewCompany.storeName ?? 'My Store';
 
   // USB printer connection state — reopened automatically if it was connected before
@@ -828,39 +831,33 @@ export default function HardwarePage() {
                 )}
               </Card>
 
-              <Card title="Show / Hide Sections">
-                {[
-                  { key: 'showCashierName',  label: 'Cashier name',                      hide: false },
-                  { key: 'showOrderType',    label: 'Order type (Sit-in / Takeaway)',     hide: false },
-                  { key: 'showVatBreakdown', label: 'VAT breakdown',                      hide: receipt.layout === 'minimal' },
-                  { key: 'showVatNote',      label: '"All Prices VAT Inclusive" note',    hide: receipt.layout !== 'fiscal' },
-                  { key: 'showItemCodes',    label: 'Item barcode / SKU codes',           hide: receipt.layout === 'minimal' },
-                ].filter(r => !r.hide).map(({ key, label }) => (
-                  <ToggleRow key={key} label={label}
-                    checked={receipt[key as keyof ReceiptSettings] as boolean}
-                    onChange={v => setR(key as keyof ReceiptSettings, v as any)} />
-                ))}
+              <Card title="What the Receipt Shows">
+                <p className="text-sm text-gray-600">
+                  Tax lines, cashier, customer, VAT and TIN numbers, the "FISCAL TAX INVOICE" title and the rest are chosen
+                  for the whole shop — every till, printer and the Android app — in{' '}
+                  <Link to="/settings#receipts" className="text-blue-600 font-semibold hover:underline">Settings › Receipts &amp; Invoices</Link>.
+                </p>
               </Card>
 
               {/* Live mini preview */}
               <Card title="Preview">
                 <div className="border border-gray-200 rounded-lg bg-gray-50 p-3 max-w-[180px]"
                   style={{ fontFamily: FONT_FAMILY_MAP[receipt.fontFamily], fontSize: `${receipt.fontSize}px`, lineHeight: '1.5' }}>
-                  {logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-full max-h-24" />}
-                  <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' && previewCompany.fiscalTitle !== false ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
+                  {logo && previewShow.logo && <img src={logo} alt="" className="block mx-auto mb-1 max-w-full max-h-24" />}
+                  <div className="font-bold text-center text-xs">{receipt.layout === 'fiscal' && previewShow.fiscalTitle ? (receipt.headerTitle || '***FISCAL TAX INVOICE***') : ''}</div>
                   <div className="font-bold text-center">{receipt.layout !== 'fiscal' ? previewName : ''}</div>
                   {receipt.layout === 'fiscal' && <div className="font-bold text-center" style={{ fontSize: `${receipt.fontSize + 2}px` }}>{previewName}</div>}
-                  {receipt.layout !== 'minimal' && previewCompany.storeAddress && <div className="text-center text-[10px] text-gray-600">{previewCompany.storeAddress}</div>}
+                  {receipt.layout !== 'minimal' && previewShow.address && previewCompany.storeAddress && <div className="text-center text-[10px] text-gray-600">{previewCompany.storeAddress}</div>}
                   <div className="my-1" style={{ borderTop: receipt.dividerStyle === 'solid' ? '1px solid #000' : receipt.dividerStyle === 'double' ? '3px double #000' : '1px dashed #000' }} />
                   {receipt.layout !== 'minimal' && <><div className="flex justify-between"><span>Ref</span><span>001</span></div><div className="flex justify-between"><span>Date</span><span>17 Jun</span></div><div className="my-1" style={{ borderTop: '1px dashed #999' }} /></>}
                   <div className="flex justify-between"><span>Coca Cola</span><span>50.00</span></div>
                   <div className="flex justify-between"><span>Bread</span><span>25.00</span></div>
                   <div className="my-1" style={{ borderTop: receipt.dividerStyle === 'solid' ? '1px solid #000' : receipt.dividerStyle === 'double' ? '3px double #000' : '1px dashed #000' }} />
-                  {receipt.showVatBreakdown && receipt.layout !== 'minimal' && <><div className="flex justify-between"><span>Net</span><span>65.22</span></div><div className="flex justify-between"><span>VAT</span><span>9.78</span></div></>}
+                  {previewShow.tax && receipt.layout !== 'minimal' && <><div className="flex justify-between"><span>Net</span><span>65.22</span></div><div className="flex justify-between"><span>VAT</span><span>9.78</span></div></>}
                   <div className="flex justify-between font-bold"><span>TOTAL</span><span>75.00</span></div>
                   <div className="my-1" style={{ borderTop: '1px dashed #999' }} />
-                  <div>CASH</div>
-                  {receipt.showCashierName && <div>Cashier: Jane</div>}
+                  {previewShow.payment && <div>CASH</div>}
+                  {previewShow.cashier && <div>Cashier: Jane</div>}
                 </div>
               </Card>
             </div>

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
 import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale, Image as ImageIcon, Trash2 } from 'lucide-react';
@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { offlineMutate } from '../lib/offlineMutation';
 import { fetchAllProducts } from '../lib/productSearch';
 import FiscalisationPanel from '../components/FiscalisationPanel';
+import ReceiptOptionsCard from '../components/ReceiptOptionsCard';
+import { RECEIPT_OPTIONS } from '../lib/receiptOptions';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { companyLogo, logoFileToDataUrl } from '../lib/companyLogo';
@@ -268,6 +270,7 @@ function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknow
 
 export default function SettingsPage() {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const [values, setValues] = useState<Record<string, string>>({});
   const [toggles, setToggles] = useState({
     tax_enabled: false,
@@ -279,8 +282,11 @@ export default function SettingsPage() {
     block_negative_stock: true,
     barcode_weight_enabled: true,
     barcode_price_enabled: false,
-    receipt_fiscal_title: true,
   });
+  // Settings > Receipts & Invoices: on/off per settings key, all on until loaded.
+  const [receiptShow, setReceiptShow] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(RECEIPT_OPTIONS.map((o) => [o.setting, true])),
+  );
 const { isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => settingsApi.get().then(r => {
@@ -297,8 +303,8 @@ const { isLoading } = useQuery({
         block_negative_stock: data.block_negative_stock !== 'false' && data.block_negative_stock !== false,
         barcode_weight_enabled: layoutEnabled(data, 'barcode_weight'),
         barcode_price_enabled: layoutEnabled(data, 'barcode_price'),
-        receipt_fiscal_title: data.receipt_fiscal_title !== 'false' && data.receipt_fiscal_title !== false,
       }));
+      setReceiptShow(Object.fromEntries(RECEIPT_OPTIONS.map((o) => [o.setting, data[o.setting] !== 'false' && data[o.setting] !== false])));
       return data;
     }),
   });
@@ -308,6 +314,7 @@ const { isLoading } = useQuery({
       const payload = {
         ...values,
         ...Object.fromEntries(Object.entries(toggles).map(([k, v]) => [k, v.toString()])),
+        ...Object.fromEntries(Object.entries(receiptShow).map(([k, v]) => [k, v.toString()])),
       };
       return offlineMutate(() => settingsApi.update(payload), 'settings', 'update', { _url: '/settings', _method: 'POST', ...payload });
     },
@@ -340,6 +347,13 @@ const { isLoading } = useQuery({
     }));
     toast.success('Filled in — scan a label to check it, then Save Changes');
   };
+
+  // Opened from Hardware › Receipt's link: go straight to Receipts & Invoices.
+  useEffect(() => {
+    if (!isLoading && window.location.hash === '#receipts') {
+      document.getElementById('receipts')?.scrollIntoView({ block: 'start' });
+    }
+  }, [isLoading]);
 
   if (isLoading) return (
     <div className="flex justify-center py-16">
@@ -531,24 +545,16 @@ const { isLoading } = useQuery({
               className="w-full max-w-xs border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
             />
           </div>
-          <ToggleRow
-            label={'Print "FISCAL TAX INVOICE" on Receipts'}
-            description="The heading at the top of the receipt and the line near the bottom. Turn off if this shop isn't fiscalised. Receipts fiscalised with ZIMRA always keep it, as ZIMRA requires."
-            checked={toggles.receipt_fiscal_title}
-            onChange={(v) => setToggles(t => ({ ...t, receipt_fiscal_title: v }))}
-          />
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Receipt Footer Message</label>
-            <textarea
-              value={values.receipt_footer ?? ''}
-              onChange={set('receipt_footer')}
-              rows={2}
-              placeholder="Thank you for your purchase!"
-              className={`${field} resize-none`}
-            />
-          </div>
         </div>
       </div>
+
+      <ReceiptOptionsCard
+        values={values}
+        show={receiptShow}
+        onShowChange={(setting, on) => setReceiptShow((s) => ({ ...s, [setting]: on }))}
+        onFooterChange={(footer) => setValues((v) => ({ ...v, receipt_footer: footer }))}
+        userName={user?.name}
+      />
 
       {/* Barcodes — embedded weight/price barcodes, the convention a scale
           uses to print a barcode whose digits encode a PLU code plus a

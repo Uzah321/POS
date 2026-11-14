@@ -22,7 +22,7 @@ import NumericKeypad from '../components/ui/NumericKeypad';
 import { cartLineAccent } from '../lib/tileColors';
 import { iconForCategory } from '../lib/categoryIcons';
 import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
-import { fetchAllProducts, productMatchesWords, searchWords, PICKER_LIMIT } from '../lib/productSearch';
+import { fetchAllProducts, productMatchesSearch, PICKER_LIMIT } from '../lib/productSearch';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import SelectTillModal from '../components/SelectTillModal';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
@@ -175,10 +175,9 @@ export default function CashierPage() {
   // and the results dropdown shown under the input while typing.
   const browseQuery = codeInput.trim().toLowerCase();
   const pluMatches = productsNamedByPlu(browseQuery, storeSettings ?? {}, allProducts);
-  // Every word in the name, SKU or barcode, in any order ("chicken burger"
-  // finds "Burger - Chicken"), or the product a PLU / scale label names.
-  const browseWords = searchWords(browseQuery);
-  const browseMatches = allProducts.filter(p => productMatchesWords(p, browseWords) || pluMatches.has(p));
+  // Every word in the name, in any order, sizes as whole numbers ("blouse 32"),
+  // or the whole entry as a SKU / barcode, or the product a PLU / scale label names.
+  const browseMatches = allProducts.filter(p => productMatchesSearch(p, browseQuery) || pluMatches.has(p));
   // Capped so a one-letter query doesn't render the whole catalog, but high
   // enough that a real search shows all its matches (the dropdown scrolls).
   // Arrow-key navigation below is scoped to this same slice.

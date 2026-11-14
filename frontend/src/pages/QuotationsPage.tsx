@@ -13,7 +13,7 @@ import jsPDF from 'jspdf';
 import { companyLogo, drawPdfLogo } from '../lib/companyLogo';
 import autoTable from 'jspdf-autotable';
 import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
-import { fetchAllProducts, productMatchesWords, searchWords, PICKER_LIMIT } from '../lib/productSearch';
+import { fetchAllProducts, productMatchesSearch, PICKER_LIMIT } from '../lib/productSearch';
 
 /** Searchable product picker for a quotation line item — mirrors the PO line
  *  item picker (PurchasesPage.tsx). Selecting a product fills in its name and
@@ -41,8 +41,7 @@ function QuoteProductPicker({ products, name, onSelect, onNameChange }: { produc
 
   const q = query.trim().toLowerCase();
   const pluMatches = productsNamedByPlu(q, storeSettings ?? {}, products ?? []);
-  const words = searchWords(q);
-  const matches = (products ?? []).filter((p: any) => productMatchesWords(p, words) || pluMatches.has(p));
+  const matches = (products ?? []).filter((p: any) => productMatchesSearch(p, q) || pluMatches.has(p));
   const results = matches.slice(0, PICKER_LIMIT);
 
   return (

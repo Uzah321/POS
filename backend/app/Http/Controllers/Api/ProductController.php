@@ -26,7 +26,7 @@ class ProductController extends BaseApiController
             ->when($request->search, function ($q) use ($request) {
                 $term = (string) $request->search;
                 $q->where(function ($q) use ($term) {
-                    $q->where(fn ($q) => ProductSearch::whereEveryWordMatches($q, $term));
+                    ProductSearch::apply($q, $term);
                     ScaleBarcode::orWherePlu($q, $term);
                 });
             })
@@ -254,8 +254,7 @@ class ProductController extends BaseApiController
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->when($businessType, fn($q) => $this->scopeProductsToBusinessType($q, $businessType))
             ->where(function ($q) use ($term) {
-                $q->where(fn ($q) => ProductSearch::whereEveryWordMatches($q, (string) $term))
-                  ->orWhere('barcode', $term);
+                ProductSearch::apply($q, (string) $term);
                 ScaleBarcode::orWherePlu($q, (string) $term);
             })
             ->when($warehouseId, fn($q) => $q->whereHas('stocks', fn($s) => $s->where('warehouse_id', $warehouseId)->where('quantity', '>', 0)))

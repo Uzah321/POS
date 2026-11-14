@@ -57,9 +57,9 @@ class InventoryController extends BaseApiController
                 $s->where('warehouse_id', $request->warehouse_id)
             ))
             ->when($search, function ($q) use ($search) {
-                // Every word, in any order, in the name / SKU / barcode — or a PLU / scale label.
+                // Words in the name (sizes as whole numbers), the SKU / barcode, or a PLU / scale label.
                 $q->where(function ($q) use ($search) {
-                    $q->where(fn ($q) => \App\Support\ProductSearch::whereEveryWordMatches($q, $search));
+                    \App\Support\ProductSearch::apply($q, $search);
                     ScaleBarcode::orWherePlu($q, $search);
                 });
             })

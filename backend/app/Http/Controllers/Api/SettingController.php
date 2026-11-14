@@ -17,7 +17,7 @@ class SettingController extends BaseApiController
         'company_vat_number', 'company_tin_number', 'company_logo',
         'currency', 'currency_symbol', 'default_currency', 'multi_currency_enabled',
         'tax_enabled', 'tax_rate', 'block_negative_stock', 'low_stock_threshold',
-        'loyalty_points_rate', 'receipt_footer', 'receipt_auto_print',
+        'loyalty_points_rate', 'receipt_footer', 'receipt_auto_print', 'receipt_fiscal_title',
         'require_table_number', 'pos_tile_theme',
         'fiscal_day', 'fiscal_device_id', 'fiscal_rec_gn', 'fiscal_rec_68',
         'kds', 'queue',
@@ -25,8 +25,12 @@ class SettingController extends BaseApiController
         'data_reset_at',
     ];
 
-    /** Scale-barcode layouts (barcode_weight_*, barcode_price_*) the till decodes with. */
-    private const PUBLIC_PREFIXES = ['barcode_weight_', 'barcode_price_'];
+    /**
+     * Scale-barcode layouts (barcode_weight_*, barcode_price_*) the till decodes
+     * with, and what a receipt shows (receipt_show_*, Settings > Receipts &
+     * Invoices) — a cashier's till and the Android app print it.
+     */
+    private const PUBLIC_PREFIXES = ['barcode_weight_', 'barcode_price_', 'receipt_show_'];
 
     /** Never sent to a browser, not even an admin's, nor saved from here — see GoFiscalController. */
     private const SERVER_ONLY_KEYS = [\App\Services\GoFiscal\GoFiscalClient::KEY_SETTING];

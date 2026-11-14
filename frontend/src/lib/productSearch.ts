@@ -1,20 +1,50 @@
 import { productsApi } from '../api';
 
 /**
- * Product search shared by every till and picker: each word typed must appear
- * somewhere in the product's name, SKU or barcode, in any order — so
- * "chicken burger" finds "Burger - Chicken" and "coke 500" finds
- * "Coke Zero 500ml". A scale label / PLU code is matched separately
- * (productsNamedByPlu) by the caller.
+ * Product search shared by every till and picker (the server and the Android
+ * app match the same way — App\Support\ProductSearch, models.dart):
+ *
+ *  - every word typed appears in the product NAME, in any order — "chicken
+ *    burger" finds "Burger - Chicken";
+ *  - a number must be a whole number in the name, so a size finds that size:
+ *    "blouse 32" finds "MINDA BLOUSE 32" but not "BLOUSE 132" — and never a
+ *    product whose SKU or barcode merely contains the digits 32;
+ *  - or the whole search is the product's SKU or barcode (or, from 4
+ *    characters, the start of one), for typed or scanned codes.
+ *
+ * A scale label / PLU code is matched separately (productsNamedByPlu) by the caller.
  */
 export function searchWords(query: string): string[] {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-export function productMatchesWords(p: { name?: string | null; sku?: string | null; barcode?: string | null }, words: string[]): boolean {
-  if (words.length === 0) return true;
-  const hay = `${p.name ?? ''} ${p.sku ?? ''} ${p.barcode ?? ''}`.toLowerCase();
-  return words.every((w) => hay.includes(w));
+const DIGITS = /^\d+$/;
+
+function wordInName(name: string, word: string): boolean {
+  if (!DIGITS.test(word)) return name.includes(word);
+  // A whole number: not part of a longer one ("32" in "SIZE 32" or "32CM", not "132").
+  let from = 0;
+  for (;;) {
+    const at = name.indexOf(word, from);
+    if (at < 0) return false;
+    const before = at > 0 ? name[at - 1] : '';
+    const after = name[at + word.length] ?? '';
+    if (!/\d/.test(before) && !/\d/.test(after)) return true;
+    from = at + 1;
+  }
+}
+
+type Searchable = { name?: string | null; sku?: string | null; barcode?: string | null };
+
+export function productMatchesSearch(p: Searchable, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const name = (p.name ?? '').toLowerCase();
+  if (searchWords(q).every((w) => wordInName(name, w))) return true;
+  const sku = (p.sku ?? '').toLowerCase();
+  const barcode = (p.barcode ?? '').toLowerCase();
+  if (sku === q || barcode === q) return true;
+  return q.length >= 4 && ((sku !== '' && sku.startsWith(q)) || (barcode !== '' && barcode.startsWith(q)));
 }
 
 /** How many matches a search dropdown lists before saying "N more — keep typing". */

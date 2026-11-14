@@ -14,7 +14,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useAuthStore } from '../stores/authStore';
 import { db } from '../lib/db';
 import { productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
-import { fetchAllProducts, productMatchesWords, searchWords, PICKER_LIMIT } from '../lib/productSearch';
+import { fetchAllProducts, productMatchesSearch, PICKER_LIMIT } from '../lib/productSearch';
 import jsPDF from 'jspdf';
 import { companyLogo, drawPdfLogo } from '../lib/companyLogo';
 import autoTable from 'jspdf-autotable';
@@ -78,8 +78,7 @@ function POProductPicker({ products, value, onSelect }: { products: any[] | unde
   const selected = products?.find((p: any) => String(p.id) === value);
   const q = query.trim().toLowerCase();
   const pluMatches = productsNamedByPlu(q, storeSettings ?? {}, products ?? []);
-  const words = searchWords(q);
-  const matches = (products ?? []).filter((p: any) => productMatchesWords(p, words) || pluMatches.has(p));
+  const matches = (products ?? []).filter((p: any) => productMatchesSearch(p, q) || pluMatches.has(p));
   const results = matches.slice(0, PICKER_LIMIT);
 
   return (

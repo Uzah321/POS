@@ -146,15 +146,26 @@ class Product {
 
   bool get outOfStock => trackStock && stock != null && stock! <= 0;
 
-  /// Every word typed, in any order, somewhere in the name or SKU ("chicken
-  /// burger" finds "Burger - Chicken"), or the exact barcode / PLU — as the
-  /// web tills and the server search.
+  /// Every word typed, in any order, in the name — a number only as a whole
+  /// number, so "blouse 32" finds size 32 and not a code containing 32 — or
+  /// the whole entry as the SKU / barcode / PLU (from 4 characters, the start
+  /// of a SKU or barcode). Same as the web tills and the server search.
   bool matches(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return true;
-    if (barcode?.toLowerCase() == q || plu?.toLowerCase() == q) return true;
-    final hay = '${name.toLowerCase()} ${sku?.toLowerCase() ?? ''}';
-    return q.split(RegExp(r'\s+')).every(hay.contains);
+    final n = name.toLowerCase();
+    if (q.split(RegExp(r'\s+')).every((w) => _wordInName(n, w))) return true;
+    final s = sku?.toLowerCase() ?? '';
+    final b = barcode?.toLowerCase() ?? '';
+    if (s == q || b == q || plu?.toLowerCase() == q) return true;
+    return q.length >= 4 && ((s.isNotEmpty && s.startsWith(q)) || (b.isNotEmpty && b.startsWith(q)));
+  }
+
+  static final _digits = RegExp(r'^\d+$');
+
+  static bool _wordInName(String name, String word) {
+    if (!_digits.hasMatch(word)) return name.contains(word);
+    return RegExp('(^|[^0-9])${RegExp.escape(word)}([^0-9]|\$)').hasMatch(name);
   }
 
   bool hasCode(String code) {

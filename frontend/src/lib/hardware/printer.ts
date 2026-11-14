@@ -358,10 +358,11 @@ export interface ReceiptData {
   /** A GoFiscal receipt that wasn't through when the sale saved — finished just before printing (withFiscalResult). */
   fiscalPendingId?: number;
   /**
-   * false: leave "FISCAL TAX INVOICE" off the top and bottom (Settings, for a
-   * shop that isn't fiscalised). A receipt ZIMRA has fiscalised keeps it anyway.
+   * What this receipt shows (Settings > Receipts & Invoices); a part left
+   * out or true prints. A receipt ZIMRA has fiscalised keeps what ZIMRA
+   * requires anyway (see effectiveReceiptShow).
    */
-  fiscalTitle?: boolean;
+  show?: Partial<ReceiptShow>;
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'rawbt' | 'none';
@@ -436,7 +437,7 @@ export function resolveReceiptPrintMode(mode: ReceiptPrintMode): ResolvedPrintMo
  * every receipt. Blank ones are left out, so whatever's passed in instead
  * (or the sale's branch) fills in.
  */
-export function companyDetails(settings?: Record<string, any> | null): Pick<ReceiptData, 'storeAddress' | 'storePhone' | 'storeEmail' | 'vatNumber' | 'tinNumber' | 'logo' | 'footer' | 'fiscalTitle'> & { storeName?: string } {
+export function companyDetails(settings?: Record<string, any> | null): Pick<ReceiptData, 'storeAddress' | 'storePhone' | 'storeEmail' | 'vatNumber' | 'tinNumber' | 'logo' | 'footer' | 'show'> & { storeName?: string } {
   const text = (key: string): string | undefined => {
     const value = settings?.[key];
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -450,8 +451,8 @@ export function companyDetails(settings?: Record<string, any> | null): Pick<Rece
     tinNumber: text('company_tin_number'),
     logo: companyLogo(settings),
     footer: text('receipt_footer'),
-    // On unless Settings turned it off.
-    fiscalTitle: settings?.receipt_fiscal_title !== 'false' && settings?.receipt_fiscal_title !== false,
+    // What the receipt shows — each part on unless Settings turned it off.
+    show: receiptShowFromSettings(settings),
   };
 }
 
@@ -497,7 +498,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     change: options.change ?? money(sale?.change_due),
     currency: options.currency ?? '$',
     footer: options.footer ?? company.footer,
-    fiscalTitle: company.fiscalTitle,
+    show: company.show,
     logo: company.logo ?? options.logo,
     vatNumber: company.vatNumber ?? options.vatNumber,
     tinNumber: company.tinNumber ?? options.tinNumber,
@@ -547,12 +548,12 @@ function isFiscalised(d: ReceiptData): boolean {
 }
 
 /**
- * Whether "FISCAL TAX INVOICE" prints (heading and bottom line). Settings can
- * turn it off for a shop that isn't fiscalised; a receipt ZIMRA has actually
- * fiscalised always keeps it, as ZIMRA requires.
+ * What this receipt prints: the shop's choices (Settings > Receipts &
+ * Invoices), plus — on a receipt ZIMRA has actually fiscalised — the
+ * "FISCAL TAX INVOICE" title, tax breakdown and VAT / TIN numbers ZIMRA requires.
  */
-function showsFiscalTitle(d: ReceiptData): boolean {
-  return d.fiscalTitle !== false || isFiscalised(d);
+function shows(d: ReceiptData): ReceiptShow {
+  return effectiveReceiptShow(d.show, isFiscalised(d));
 }
 
 /** The heading over the store name: Hardware > Receipt's Header Title, or the standard one. */
@@ -628,11 +629,14 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   const rateNum = Number(d.currencyRate ?? 1);
   const rate = rateNum.toFixed(6);
 
+  // What this shop's receipts show (Settings > Receipts & Invoices).
+  const v = shows(d);
+
   const parts: Uint8Array[] = [
     ESC_INIT,
     ESC_ALIGN_CENTER,
-    ...(logo ? [logo, bytes(LF)] : []),
-    ...(showsFiscalTitle(d) ? [ESC_BOLD_ON, line(cut(fiscalHeading(), W)), ESC_BOLD_OFF, bytes(LF)] : []),
+    ...(logo && v.logo ? [logo, bytes(LF)] : []),
+    ...(v.fiscalTitle ? [ESC_BOLD_ON, line(cut(fiscalHeading(), W)), ESC_BOLD_OFF, bytes(LF)] : []),
     ESC_DWIDTH_ON, line(cut(d.storeName, W / 2)), ESC_DWIDTH_OFF,
   ];
 
@@ -642,7 +646,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   if (d.tradingName && d.tradingName !== d.storeName) {
     parts.push(line('T/A'), ESC_BOLD_ON, line(cut(d.tradingName, W)), ESC_BOLD_OFF);
   }
-  if (d.storeAddress) {
+  if (d.storeAddress && v.address) {
     for (const seg of d.storeAddress.split(/[,\n]/).map(s => s.trim()).filter(Boolean)) {
       parts.push(line(cut(seg, W)));
     }
@@ -658,13 +662,14 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   parts.push(ESC_ALIGN_LEFT);
   if (d.orderNum && !d.restaurant) parts.push(ESC_BOLD_ON, line(`Order Num : ${d.orderNum}`), ESC_BOLD_OFF);
   parts.push(line(`Tax Inv No : ${d.reference}`));
-  if (d.customerName) parts.push(line(`Customer : ${d.customerName}`));
-  if (d.covers) parts.push(line(`Covers : ${d.covers}`));
-  parts.push(line(`Cashier : ${d.cashier}`));
-  if (d.tableNumber) parts.push(line(`Table : ${d.tableNumber}`));
+  if (d.customerName && v.customer) parts.push(line(`Customer : ${d.customerName}`));
+  if (d.covers && v.table) parts.push(line(`Covers : ${d.covers}`));
+  if (v.cashier) parts.push(line(`Cashier : ${d.cashier}`));
+  if (d.tableNumber && v.table) parts.push(line(`Table : ${d.tableNumber}`));
 
-  parts.push(ESC_ALIGN_CENTER, line(pad(dateStr, timeStr)), line('All Prices VAT Inclusive'));
-  if (d.orderType) {
+  parts.push(ESC_ALIGN_CENTER, line(pad(dateStr, timeStr)));
+  if (v.vatNote) parts.push(line('All Prices VAT Inclusive'));
+  if (d.orderType && v.orderType) {
     parts.push(bytes(LF), ESC_BOLD_ON, line(`** ${orderTypeLabel(d.orderType)} **`), ESC_BOLD_OFF);
   }
   parts.push(ESC_ALIGN_LEFT);
@@ -675,41 +680,49 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   parts.push(divider('-', W));
 
   for (const item of d.items) {
-    const code = item.barcode ?? item.sku ?? '';
+    const code = v.itemCodes ? (item.barcode ?? item.sku ?? '') : '';
     if (code) parts.push(line(cut(code, W)));
     parts.push(line(cut(item.name, W)));
     parts.push(line(pad(`  ${item.qty} X  ${fmt2(item.price * rateNum)}`, fmt2(item.total * rateNum))));
   }
   parts.push(divider('-', W));
 
-  parts.push(
-    line(pad('Total Excl', fmt2(net))),
-    line(pad(`Output Tax (${pct}%)`, fmt2(vat))),
-    ESC_BOLD_ON, line(pad('Total Incl', fmt2(gross))), ESC_BOLD_OFF,
-    divider('-', W),
-    ESC_BOLD_ON, line(pad('TOTAL', fmt2(gross))), ESC_BOLD_OFF,
-  );
-  if (d.amountTendered !== undefined) parts.push(line(pad('TENDERED', fmt2(d.amountTendered))));
-  if (d.change !== undefined && d.change >= 0) parts.push(line(pad('CHANGE', fmt2(d.change))));
-  parts.push(line(pad('ITEM#', String(itemCount))));
+  if (v.tax) {
+    parts.push(
+      line(pad('Total Excl', fmt2(net))),
+      line(pad(`Output Tax (${pct}%)`, fmt2(vat))),
+      ESC_BOLD_ON, line(pad('Total Incl', fmt2(gross))), ESC_BOLD_OFF,
+      divider('-', W),
+    );
+  }
+  parts.push(ESC_BOLD_ON, line(pad('TOTAL', fmt2(gross))), ESC_BOLD_OFF);
+  if (v.tendered) {
+    if (d.amountTendered !== undefined) parts.push(line(pad('TENDERED', fmt2(d.amountTendered))));
+    if (d.change !== undefined && d.change >= 0) parts.push(line(pad('CHANGE', fmt2(d.change))));
+  }
+  if (v.itemCount) parts.push(line(pad('ITEM#', String(itemCount))));
 
-  parts.push(ESC_BOLD_ON, line('Payment Summary'), ESC_BOLD_OFF, divider('-', W));
-  parts.push(line(`${d.paymentMethod.replace('_', ' ').toUpperCase()} ${currCode}`));
-  if (d.amountTendered !== undefined) {
-    parts.push(line(`${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}`));
+  if (v.payment) {
+    parts.push(ESC_BOLD_ON, line('Payment Summary'), ESC_BOLD_OFF, divider('-', W));
+    parts.push(line(`${d.paymentMethod.replace('_', ' ').toUpperCase()} ${currCode}`));
+    if (d.amountTendered !== undefined) {
+      parts.push(line(`${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}`));
+    }
   }
 
   // Fiscal footer — business registration details
   parts.push(divider('-', W));
-  if (d.storePhone) parts.push(line(`Tel : ${d.storePhone}`));
-  if (d.storeEmail) parts.push(line(`Email : ${d.storeEmail}`));
-  if (d.vatNumber)  parts.push(line(`VAT No : ${d.vatNumber}`));
-  if (d.tinNumber)  parts.push(line(`TIN No : ${d.tinNumber}`));
+  if (d.storePhone && v.phone) parts.push(line(`Tel : ${d.storePhone}`));
+  if (d.storeEmail && v.email) parts.push(line(`Email : ${d.storeEmail}`));
+  if (d.vatNumber && v.vatNumber) parts.push(line(`VAT No : ${d.vatNumber}`));
+  if (d.tinNumber && v.tinNumber) parts.push(line(`TIN No : ${d.tinNumber}`));
   if (!isFiscalised(d)) {
-    if (d.deviceId)   parts.push(line(`Device Id : ${d.deviceId}`));
-    if (d.recGn)      parts.push(line(`REC GN : ${d.recGn}`));
-    if (d.rec68)      parts.push(line(`REC 68 : ${d.rec68}`));
-    if (d.fiscalDay)  parts.push(line(`Fiscal Day : ${d.fiscalDay}`));
+    if (v.fiscalDevice) {
+      if (d.deviceId)   parts.push(line(`Device Id : ${d.deviceId}`));
+      if (d.recGn)      parts.push(line(`REC GN : ${d.recGn}`));
+      if (d.rec68)      parts.push(line(`REC 68 : ${d.rec68}`));
+      if (d.fiscalDay)  parts.push(line(`Fiscal Day : ${d.fiscalDay}`));
+    }
   } else {
     if (d.fiscalDeviceId != null) parts.push(line(`Device Id : ${d.fiscalDeviceId}`));
     if (d.fiscalDayNo != null) parts.push(line(`Fiscal Day : ${d.fiscalDayNo}`));
@@ -717,16 +730,16 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
   }
 
   parts.push(bytes(LF), ESC_ALIGN_CENTER);
-  if (showsFiscalTitle(d)) parts.push(ESC_BOLD_ON, line('FISCAL TAX INVOICE'), ESC_BOLD_OFF);
+  if (v.fiscalTitle) parts.push(ESC_BOLD_ON, line('FISCAL TAX INVOICE'), ESC_BOLD_OFF);
   if (isFiscalised(d)) {
     const qr = escPosQr(d.fiscalQrCodeUrl);
     if (qr) parts.push(qr, bytes(LF));
     if (d.fiscalVerificationCode) parts.push(line('Verification code:'), ESC_BOLD_ON, line(d.fiscalVerificationCode), ESC_BOLD_OFF);
     if (d.fiscalQrCodeUrl) parts.push(line(cut(`Verify at ${d.fiscalQrCodeUrl.split('/').slice(2, 3).join('')}`, W)));
   }
+  parts.push(divider('=', W));
+  if (v.footer) parts.push(line(d.footer ?? 'Core POS'));
   parts.push(
-    divider('=', W),
-    line(d.footer ?? 'Core POS'),
     bytes(LF, LF, LF),
     ESC_CUT,
   );
@@ -1157,6 +1170,7 @@ function browserPrintKitchenTicket(data: KitchenTicketData): void {
 // Browser print — layout driven by ReceiptSettings
 // ---------------------------------------------------------------------------
 import { loadReceiptSettings, FONT_FAMILY_MAP, type ReceiptSettings } from '../receiptSettings';
+import { receiptShowFromSettings, effectiveReceiptShow, type ReceiptShow } from '../receiptOptions';
 import QRCode from 'qrcode';
 
 /** Renders the ZIMRA QR deep-link as a data-URL PNG for the browser/HTML receipt layout. Returns undefined if generation fails (printer.ts must never let a QR-image bug block printing). */
@@ -1188,8 +1202,11 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   const pageSize = s.paperWidth === 'a4' ? 'A4' : `${s.paperWidth} auto`;
   const bodyWidth = s.paperWidth === 'a4' ? '190mm' : s.paperWidth;
   const dvCss = dividerCss(s.dividerStyle);
+  // What this shop's receipts show (Settings > Receipts & Invoices) — the
+  // layout, font and paper above are this device's own (Hardware > Receipt).
+  const v = shows(d);
 
-  const addrLines = d.storeAddress
+  const addrLines = d.storeAddress && v.address
     ? d.storeAddress.split(/[,\n]/).map(x => x.trim()).filter(Boolean)
         .map(x => `<div class="center">${x}</div>`).join('')
     : '';
@@ -1197,7 +1214,8 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   // unless that makes it taller than its box or more than 3× its own size.
   const logoMaxHeight = s.paperWidth === 'a4' ? 32 : LOGO_DOTS[s.paperWidth === '58mm' ? '58mm' : '80mm'].height / 8;
   const logoWidth = logo && Math.floor(10 * Math.min(LOGO_MAX_ENLARGE * logo.width / 8, logoMaxHeight * logo.width / logo.height)) / 10;
-  const logoHtml = logo ? `<img class="logo" src="${escapeHtml(logo.src)}" alt="" style="width:min(100%, ${logoWidth}mm)">`
+  const logoHtml = !v.logo ? ''
+    : logo ? `<img class="logo" src="${escapeHtml(logo.src)}" alt="" style="width:min(100%, ${logoWidth}mm)">`
     : d.logo ? `<img class="logo" src="${escapeHtml(d.logo)}" alt="">` : '';
   // A restaurant calls its orders by number: it goes big, where the customer sees it first.
   const orderNoHtml = d.restaurant && d.orderNum
@@ -1226,7 +1244,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   // ── Fiscal layout (default) ──────────────────────────────────────────────
   if (s.layout === 'fiscal') {
     const itemRows = d.items.map(i => {
-      const code = s.showItemCodes ? (i.barcode ?? i.sku ?? '') : '';
+      const code = v.itemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
 <div class="item-name">${i.name}</div>
 <div class="item-detail"><span>${i.qty} X &nbsp;${fmt2(i.price * rateNum)}</span><span>${fmt2(i.total * rateNum)}</span></div>`;
@@ -1236,7 +1254,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
 <title>Receipt ${d.reference}</title>
 <style>${commonCss}</style></head><body>
 ${logoHtml}
-${showsFiscalTitle(d) ? `<div class="center bold">${escapeHtml(s.headerTitle?.trim() || '***FISCAL TAX INVOICE***')}</div>
+${v.fiscalTitle ? `<div class="center bold">${escapeHtml(s.headerTitle?.trim() || '***FISCAL TAX INVOICE***')}</div>
 <br>` : ''}
 <div class="center large">${d.storeName}</div>
 ${d.branchName && d.branchName !== d.storeName ? `<div class="center bold">${d.branchName}</div>` : ''}
@@ -1246,45 +1264,45 @@ ${addrLines}
 ${orderNoHtml}
 ${d.orderNum && !d.restaurant ? `<div class="bold">Order Num : ${d.orderNum}</div>` : ''}
 <div>Tax Inv No : ${d.reference}</div>
-${d.customerName ? `<div>Customer : ${d.customerName}</div>` : ''}
-${d.covers ? `<div>Covers : ${d.covers}</div>` : ''}
-${s.showCashierName ? `<div>Cashier : ${d.cashier}</div>` : ''}
-${d.tableNumber ? `<div>Table : ${d.tableNumber}</div>` : ''}
+${d.customerName && v.customer ? `<div>Customer : ${d.customerName}</div>` : ''}
+${d.covers && v.table ? `<div>Covers : ${d.covers}</div>` : ''}
+${v.cashier ? `<div>Cashier : ${d.cashier}</div>` : ''}
+${d.tableNumber && v.table ? `<div>Table : ${d.tableNumber}</div>` : ''}
 <div class="row"><span>${dateStr}</span><span>${timeStr}</span></div>
-${s.showVatNote ? '<div class="center">All Prices VAT Inclusive</div>' : ''}
-${s.showOrderType && d.orderType ? `<br><div class="center bold">** ${orderTypeLabel(d.orderType)} **</div>` : ''}
+${v.vatNote ? '<div class="center">All Prices VAT Inclusive</div>' : ''}
+${v.orderType && d.orderType ? `<br><div class="center bold">** ${orderTypeLabel(d.orderType)} **</div>` : ''}
 <div class="divider"></div>
 <div class="bold">DESCRIPTION</div>
 <div class="col-hdr"><span>QTY</span><span>PRICE &nbsp; TOTAL</span></div>
 ${itemRows}
 <div class="divider"></div>
-${s.showVatBreakdown ? `
+${v.tax ? `
 <div class="row"><span>Total Excl</span><span class="v">${fmt2(net)}</span></div>
 <div class="row"><span>Output Tax (${pct}%)</span><span class="v">${fmt2(vat)}</span></div>
 <div class="row bold"><span>Total Incl</span><span class="v">${fmt2(gross)}</span></div>
 <div class="divider"></div>` : ''}
 <div class="row bold"><span>TOTAL</span><span class="v">${fmt2(gross)}</span></div>
-${d.amountTendered !== undefined ? `<div class="row"><span>TENDERED</span><span class="v">${fmt2(d.amountTendered)}</span></div>` : ''}
-${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>CHANGE</span><span class="v">${fmt2(d.change)}</span></div>` : ''}
-<div class="row"><span>ITEMS</span><span class="v">${itemCount}</span></div>
-<div class="bold">Payment</div>
+${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>TENDERED</span><span class="v">${fmt2(d.amountTendered)}</span></div>` : ''}
+${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>CHANGE</span><span class="v">${fmt2(d.change)}</span></div>` : ''}
+${v.itemCount ? `<div class="row"><span>ITEMS</span><span class="v">${itemCount}</span></div>` : ''}
+${v.payment ? `<div class="bold">Payment</div>
 <div class="divider"></div>
 <div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()} ${currCode}</div>
-${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}</div>` : ''}
+${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}</div>` : ''}` : ''}
 <div class="divider"></div>
-${d.storePhone ? `<div>Tel : ${d.storePhone}</div>` : ''}
-${d.storeEmail ? `<div>Email : ${escapeHtml(d.storeEmail)}</div>` : ''}
-${d.vatNumber ? `<div>VAT No : ${d.vatNumber}</div>` : ''}
-${d.tinNumber ? `<div>TIN No : ${d.tinNumber}</div>` : ''}
-${!isFiscalised(d) ? `
+${d.storePhone && v.phone ? `<div>Tel : ${d.storePhone}</div>` : ''}
+${d.storeEmail && v.email ? `<div>Email : ${escapeHtml(d.storeEmail)}</div>` : ''}
+${d.vatNumber && v.vatNumber ? `<div>VAT No : ${d.vatNumber}</div>` : ''}
+${d.tinNumber && v.tinNumber ? `<div>TIN No : ${d.tinNumber}</div>` : ''}
+${!isFiscalised(d) ? (!v.fiscalDevice ? '' : `
 ${d.deviceId ? `<div>Device Id : ${d.deviceId}</div>` : ''}
 ${d.recGn ? `<div>REC GN : ${d.recGn}</div>` : ''}
 ${d.rec68 ? `<div>REC 68 : ${d.rec68}</div>` : ''}
-${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}` : `
+${d.fiscalDay ? `<div>Fiscal Day : ${d.fiscalDay}</div>` : ''}`) : `
 ${d.fiscalDeviceId != null ? `<div>Device Id : ${d.fiscalDeviceId}</div>` : ''}
 ${d.fiscalDayNo != null ? `<div>Fiscal Day : ${d.fiscalDayNo}</div>` : ''}`}
 <br>
-${showsFiscalTitle(d) ? '<div class="center bold">FISCAL TAX INVOICE</div>' : ''}
+${v.fiscalTitle ? '<div class="center bold">FISCAL TAX INVOICE</div>' : ''}
 <div class="solid"></div>
 ${isFiscalised(d) ? `
 ${d.fiscalReceiptGlobalNo != null ? `<div class="center">Rec No : ${d.fiscalReceiptGlobalNo}</div>` : ''}
@@ -1292,14 +1310,14 @@ ${qrImageDataUrl ? `<div class="center"><img src="${qrImageDataUrl}" width="130"
 ${d.fiscalVerificationCode ? `<div class="center">Verification code:</div><div class="center bold">${d.fiscalVerificationCode}</div>` : ''}
 ${d.fiscalQrCodeUrl ? `<div class="center" style="font-size:${9}px;word-break:break-all;">You can verify this receipt manually at<br>${d.fiscalQrCodeUrl.split('/').slice(0, 3).join('/')}/</div>` : ''}
 <div class="solid"></div>` : ''}
-<div class="center">${d.footer ?? 'Core POS'}</div>
+${v.footer ? `<div class="center">${d.footer ?? 'Core POS'}</div>` : ''}
 </body></html>`;
   }
 
   // ── Simple layout ────────────────────────────────────────────────────────
   if (s.layout === 'simple') {
     const itemRows = d.items.map(i => {
-      const code = s.showItemCodes ? (i.barcode ?? i.sku ?? '') : '';
+      const code = v.itemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
 <div class="row"><span>${i.name}</span><span class="v">${i.qty > 1 ? `${i.qty}x ` : ''}${fmt2(i.total * rateNum)}</span></div>`;
     }).join('');
@@ -1310,30 +1328,32 @@ ${d.fiscalQrCodeUrl ? `<div class="center" style="font-size:${9}px;word-break:br
 ${logoHtml}
 <div class="center large">${d.storeName}</div>
 ${addrLines}
-${d.storePhone ? `<div class="center">${d.storePhone}</div>` : ''}
-${d.storeEmail ? `<div class="center">${escapeHtml(d.storeEmail)}</div>` : ''}
-${d.vatNumber ? `<div class="center">VAT No: ${d.vatNumber}</div>` : ''}
-${d.tinNumber ? `<div class="center">TIN No: ${d.tinNumber}</div>` : ''}
+${d.storePhone && v.phone ? `<div class="center">${d.storePhone}</div>` : ''}
+${d.storeEmail && v.email ? `<div class="center">${escapeHtml(d.storeEmail)}</div>` : ''}
+${d.vatNumber && v.vatNumber ? `<div class="center">VAT No: ${d.vatNumber}</div>` : ''}
+${d.tinNumber && v.tinNumber ? `<div class="center">TIN No: ${d.tinNumber}</div>` : ''}
 <div class="divider"></div>
 ${orderNoHtml}
 <div class="row"><span>Ref</span><span class="v">${d.reference}</span></div>
 <div class="row"><span>Date</span><span class="v">${dateStr} ${timeStr}</span></div>
-${s.showOrderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.orderType)}</div>` : ''}
+${v.customer && d.customerName ? `<div class="row"><span>Customer</span><span class="v">${d.customerName}</span></div>` : ''}
+${v.table && d.tableNumber ? `<div class="row"><span>Table</span><span class="v">${d.tableNumber}</span></div>` : ''}
+${v.orderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.orderType)}</div>` : ''}
 <div class="divider"></div>
 <div class="col-hdr"><span>Item</span><span>Total</span></div>
 ${itemRows}
 <div class="divider"></div>
 <div class="row"><span>Subtotal</span><span class="v">${fmt2(d.subtotal * rateNum)}</span></div>
-${d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${fmt2(d.tax * rateNum)}</span></div>` : ''}
+${v.tax && d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${fmt2(d.tax * rateNum)}</span></div>` : ''}
 ${d.discount > 0 ? `<div class="row"><span>Discount</span><span class="v">-${fmt2(d.discount * rateNum)}</span></div>` : ''}
 <div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total * rateNum)}</span></div>
 <div class="divider"></div>
-<div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()}</div>
-${d.amountTendered !== undefined ? `<div class="row"><span>Cash</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
-${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
-${s.showCashierName ? `<div>Cashier: ${d.cashier}</div>` : ''}
+${v.payment ? `<div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()}</div>` : ''}
+${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Cash</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
+${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
+${v.cashier ? `<div>Cashier: ${d.cashier}</div>` : ''}
 <div class="divider"></div>
-<div class="center">${d.footer ?? 'Thank you!'}</div>
+${v.footer ? `<div class="center">${d.footer ?? 'Thank you!'}</div>` : ''}
 </body></html>`;
   }
 
@@ -1353,10 +1373,10 @@ ${orderNoHtml}
 ${itemRows}
 <div class="divider"></div>
 <div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total * rateNum)}</span></div>
-${d.amountTendered !== undefined ? `<div class="row"><span>Paid</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
-${d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
+${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Paid</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
+${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
 <div class="divider"></div>
-<div class="center">${d.footer ?? 'Thank you!'}</div>
+${v.footer ? `<div class="center">${d.footer ?? 'Thank you!'}</div>` : ''}
 </body></html>`;
 }
 

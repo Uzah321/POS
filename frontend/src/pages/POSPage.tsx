@@ -24,7 +24,7 @@ import PosProductTile from '../components/pos/PosProductTile';
 import ScrollArrows, { useScrollState } from '../components/pos/ScrollArrows';
 import { iconForCategory } from '../lib/categoryIcons';
 import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '../lib/barcode/embeddedBarcode';
-import { fetchAllProducts, productMatchesWords, searchWords } from '../lib/productSearch';
+import { fetchAllProducts, productMatchesSearch } from '../lib/productSearch';
 import { useServerHealth } from '../hooks/useServerHealth';
 import SelectTillModal from '../components/SelectTillModal';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -398,13 +398,12 @@ export default function POSPage() {
     if (p.category?.image && !categoryImages.has(p.category.name)) categoryImages.set(p.category.name, p.category.image);
     if (p.category?.id !== undefined && !categoryIds.has(p.category.name)) categoryIds.set(p.category.name, p.category.id);
   });
-  // Filter products — every word in the name, SKU or barcode (any order), or by
-  // PLU code (typed, or inside a scale label)
+  // Filter products — every word in the name (any order, sizes as whole numbers),
+  // the whole search as a SKU / barcode, or a PLU code (typed, or inside a scale label)
   const pluMatches = productsNamedByPlu(search, storeSettings ?? {}, allProducts);
-  const words = searchWords(search);
   const filteredProducts = allProducts.filter((p: any) => {
     const matchCat = activeCategory === 'All' || p.category?.name === activeCategory;
-    const matchSearch = productMatchesWords(p, words) || pluMatches.has(p);
+    const matchSearch = productMatchesSearch(p, search) || pluMatches.has(p);
     return matchCat && matchSearch;
   });
 

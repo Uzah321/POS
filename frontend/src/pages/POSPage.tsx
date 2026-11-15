@@ -1188,9 +1188,11 @@ export default function POSPage() {
   // comparison against the amount due must use the converted figure, not the
   // raw USD total, or "Exact"/change/split-payment validation all break the
   // moment a non-USD currency is active.
+  // Rounded to cents: prices are kept in USD to 6 decimals, so R28.50 at R17/$
+  // comes back as R28.500007 — exact cash (R28.50) would count as short.
   const total = cart.total();
   const exchangeRate = activeCurrency?.exchange_rate ?? 1;
-  const totalDue = total * exchangeRate;
+  const totalDue = Math.round(total * exchangeRate * 100) / 100;
   const change = paymentMethod === 'cash' && parseFloat(cashTendered) > totalDue
     ? parseFloat(cashTendered) - totalDue : 0;
   const fmtActive = (n: number) => `${activeCurrency?.symbol ?? '$'}${(Number.isFinite(n) ? n : 0).toFixed(2)}`;

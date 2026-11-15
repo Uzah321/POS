@@ -609,9 +609,11 @@ export default function CashierPage() {
   // every comparison against the amount due must use the converted figure,
   // not the raw USD total, or "Exact"/change/the process-sale gate all break
   // the moment a non-USD currency is active.
+  // Rounded to cents: prices are kept in USD to 6 decimals, so R28.50 at R17/$
+  // comes back as R28.500007 — exact cash (R28.50) would count as short.
   const total      = cart.total();
   const exchangeRate = activeCurrency?.exchange_rate ?? 1;
-  const totalDue   = total * exchangeRate;
+  const totalDue   = Math.round(total * exchangeRate * 100) / 100;
   const tendered   = parseFloat(cashTendered) || 0;
   const change     = payMethod === 'cash' && tendered > totalDue ? tendered - totalDue : 0;
   const canProcess = cart.items.length > 0 && !saleMutation.isPending &&

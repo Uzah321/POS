@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { loadKdsSettings, getQueueTheme, TICKET_SIZE } from '../lib/kdsSettings';
 import { useNetworkUrl } from '../hooks/useNetworkUrl';
+import BrandLogo from '../components/BrandLogo';
 
 interface KdsOrder {
   id: number;
@@ -55,11 +56,7 @@ export default function QueueDisplayPage() {
       {/* Top bar */}
       <div className={`${th.header} border-b ${th.headerBorder} px-8 py-4 flex items-center justify-between flex-shrink-0`}>
         <div className="flex items-center gap-3">
-          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
-            <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
-            <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
-            <circle cx="18" cy="18" r="4" fill="white"/>
-          </svg>
+          <BrandLogo size={32} />
           <span className={`font-bold text-xl tracking-tight ${th.titleText}`}>{settings.queueStoreName}</span>
           {error
             ? <span className={`${th.errorText} text-sm ml-4`}>{error}</span>

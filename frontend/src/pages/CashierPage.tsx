@@ -27,6 +27,7 @@ import { useSelectedRegister } from '../hooks/useSelectedRegister';
 import SelectTillModal from '../components/SelectTillModal';
 import { Loader2, Trash2, RefreshCw, Keyboard, TableProperties, LayoutGrid, Ban, X, PlayCircle, Search, Scale as ScaleIcon, Banknote, CreditCard, Smartphone, ShoppingBag, ShoppingCart as CartIcon, Star, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
+import BrandLogo from '../components/BrandLogo';
 
 const PAY_METHODS = [
   { value: 'cash',         label: 'CASH',   key: 'F1', icon: Banknote,    activeClass: 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' },
@@ -651,11 +652,7 @@ export default function CashierPage() {
         const content = (
           <>
             <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-              <svg viewBox="0 0 36 36" fill="none" width="34" height="34" className="flex-shrink-0">
-                <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
-                <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
-                <circle cx="18" cy="18" r="4" fill="white" />
-              </svg>
+              <BrandLogo size={34} />
               <div className="min-w-0 hidden md:block pr-3 border-r border-white/10">
                 <p className="font-bold text-white text-sm leading-tight truncate max-w-[18ch]">
                   {storeName}{user?.branch?.name ? ` · ${user.branch.name}` : ''}

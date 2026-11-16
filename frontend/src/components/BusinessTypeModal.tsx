@@ -4,6 +4,7 @@ import { settingsApi } from '../api';
 import toast from 'react-hot-toast';
 import { SUPERMARKET_ENABLED } from '../lib/shops';
 import { useAuthStore } from '../stores/authStore';
+import BrandLogo from './BrandLogo';
 
 type BizType = 'restaurant' | 'supermarket';
 
@@ -92,11 +93,7 @@ export default function BusinessTypeModal({ onSelect }: Props) {
         {/* Header */}
         <div className="bg-gray-950 px-8 py-7 text-center">
           <div className="flex justify-center mb-3">
-            <svg viewBox="0 0 36 36" fill="none" width="40" height="40">
-              <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb"/>
-              <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
-              <circle cx="18" cy="18" r="4" fill="white"/>
-            </svg>
+            <BrandLogo size={40} />
           </div>
           <h2 className="text-2xl font-bold text-white">Welcome to Core</h2>
           <p className="text-gray-400 text-sm mt-2">Select your business type to get a tailored dashboard</p>

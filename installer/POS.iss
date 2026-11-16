@@ -37,6 +37,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 UninstallDisplayName={#AppName} {#AppVersion}
 UninstallDisplayIcon={app}\desktop\Core.exe
+SetupIconFile=..\frontend\electron\icon.ico
 MinVersion=10.0.17763
 SetupMutex=CoreSetupMutex
 VersionInfoVersion=1.3.0.0

@@ -25,6 +25,7 @@ import NotificationBell from '../components/ui/NotificationBell';
 import { TopbarSlotContext } from './TopbarSlot';
 import { effectiveShop } from '../lib/shops';
 import toast from 'react-hot-toast';
+import BrandLogo from '../components/BrandLogo';
 
 type NavItem = { to: string; label: string; icon: React.ElementType; perm: string; external?: boolean };
 type NavGroup = { id: string; label: string; icon: React.ElementType; items: NavItem[] };
@@ -386,11 +387,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Logo */}
       <div className="app-titlebar flex items-center gap-3 px-4 h-16 flex-shrink-0">
         <div className="w-9 h-9 flex-shrink-0">
-          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
-            <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#3b82f6"/>
-            <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5"/>
-            <circle cx="18" cy="18" r="4" fill="white"/>
-          </svg>
+          <BrandLogo size={36} />
         </div>
         <div>
           <span className="font-bold text-white text-base leading-tight block">Core</span>
@@ -493,11 +490,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Phones: the logo (below 360px) and the initials badge drop out so
                 the Menu button at the far end stays on screen. */}
             <div className="max-[359px]:hidden flex items-center gap-2.5 flex-shrink-0 sm:pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
-              <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
-                <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
-                <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
-                <circle cx="18" cy="18" r="4" fill="white" />
-              </svg>
+              <BrandLogo size={34} />
               <div className="leading-tight hidden sm:block">
                 <p className="font-bold text-[17px]">Core POS</p>
                 <p className="text-[10px] text-blue-200/80">Simple. Smart. Sales.</p>
@@ -594,11 +587,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           {!isCashierRegisterPage && (
             <div className="max-[359px]:hidden flex items-center gap-2.5 flex-shrink-0 sm:pr-2 lg:pr-4 lg:border-r border-white/10 h-10">
-              <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
-                <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2f6df6" />
-                <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2" fill="none" opacity="0.5" />
-                <circle cx="18" cy="18" r="4" fill="white" />
-              </svg>
+              <BrandLogo size={32} />
               <div className="leading-tight hidden sm:block">
                 <p className="font-bold text-[16px]">Core POS</p>
                 <p className="text-[10px] text-blue-200/80">Simple. Smart. Sales.</p>

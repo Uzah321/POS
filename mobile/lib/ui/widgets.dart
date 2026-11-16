@@ -5,39 +5,15 @@ import 'package:flutter/services.dart';
 
 import 'theme.dart';
 
-/// The Core mark: a blue hexagon with a white ring, as on the web sign-in page.
+/// The Core logo (assets/logo.png), as on the web tills and the launcher icon.
 class CoreLogo extends StatelessWidget {
   const CoreLogo({super.key, this.size = 40});
 
   final double size;
 
   @override
-  Widget build(BuildContext context) => SizedBox(width: size, height: size, child: CustomPaint(painter: _LogoPainter()));
-}
-
-class _LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width / 36;
-    final hex = Path()
-      ..moveTo(18 * s, 2 * s)
-      ..lineTo(32.5 * s, 10.25 * s)
-      ..lineTo(32.5 * s, 26.75 * s)
-      ..lineTo(18 * s, 35 * s)
-      ..lineTo(3.5 * s, 26.75 * s)
-      ..lineTo(3.5 * s, 10.25 * s)
-      ..close();
-    canvas.drawPath(hex, Paint()..color = kBlue);
-    final centre = Offset(18 * s, 18 * s);
-    canvas.drawCircle(centre, 8 * s, Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5 * s);
-    canvas.drawCircle(centre, 4 * s, Paint()..color = Colors.white.withValues(alpha: 0.35));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget build(BuildContext context) =>
+      Image.asset('assets/logo.png', width: size, height: size, filterQuality: FilterQuality.medium, semanticLabel: 'Core');
 }
 
 /// A big-key number pad: 1–9, then the decimal point (when allowed), 0 and backspace.

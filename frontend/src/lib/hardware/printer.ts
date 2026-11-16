@@ -415,6 +415,17 @@ function money(value: unknown): number {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+/**
+ * An amount as a receipt prints it: sign, the currency's symbol, two
+ * decimals — "$12.50", "R12.50", "-ZiG3.00" — as amounts show on screen
+ * (currencyStore's format), less the thousands commas a roll's narrow
+ * columns can't spare.
+ */
+function priced(symbol: string, amount: number): string {
+  const sign = Math.round(amount * 100) < 0 ? '-' : '';
+  return `${sign}${symbol}${Math.abs(amount).toFixed(2)}`;
+}
+
 function printableDate(value: unknown): string {
   if (!value) return new Date().toLocaleString();
   const parsed = new Date(String(value));
@@ -615,10 +626,13 @@ function vatInfo(d: ReceiptData): { net: number; vat: number; gross: number; pct
 // ESC/POS receipt builder
 // ---------------------------------------------------------------------------
 function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 32): Uint8Array {
-  const fmt2 = (n: number) => n.toFixed(2);
+  // The printer prints single-byte text: a symbol it can't (€, £, ₦…) prints as the currency's code instead.
+  const sym = /^[\x20-\x7e]*$/.test(d.currency) ? d.currency : (d.currencyCode ? `${d.currencyCode} ` : '');
+  const cur = (n: number) => priced(sym, n);
+  // Left and right on one line; too long for that, the right part goes on the next line, still right-aligned.
   const pad = (l: string, r: string, w = W) => {
     const gap = w - l.length - r.length;
-    return l + ' '.repeat(Math.max(1, gap)) + r;
+    return gap >= 1 ? l + ' '.repeat(gap) + r : `${l}\n${r.padStart(w)}`;
   };
   const cut = (s: string, max: number) => s.length > max ? s.slice(0, max - 1) + '.' : s;
 
@@ -683,22 +697,22 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
     const code = v.itemCodes ? (item.barcode ?? item.sku ?? '') : '';
     if (code) parts.push(line(cut(code, W)));
     parts.push(line(cut(item.name, W)));
-    parts.push(line(pad(`  ${item.qty} X  ${fmt2(item.price * rateNum)}`, fmt2(item.total * rateNum))));
+    parts.push(line(pad(`  ${item.qty} X  ${cur(item.price * rateNum)}`, cur(item.total * rateNum))));
   }
   parts.push(divider('-', W));
 
   if (v.tax) {
     parts.push(
-      line(pad('Total Excl', fmt2(net))),
-      line(pad(`Output Tax (${pct}%)`, fmt2(vat))),
-      ESC_BOLD_ON, line(pad('Total Incl', fmt2(gross))), ESC_BOLD_OFF,
+      line(pad('Total Excl', cur(net))),
+      line(pad(`Output Tax (${pct}%)`, cur(vat))),
+      ESC_BOLD_ON, line(pad('Total Incl', cur(gross))), ESC_BOLD_OFF,
       divider('-', W),
     );
   }
-  parts.push(ESC_BOLD_ON, line(pad('TOTAL', fmt2(gross))), ESC_BOLD_OFF);
+  parts.push(ESC_BOLD_ON, line(pad('TOTAL', cur(gross))), ESC_BOLD_OFF);
   if (v.tendered) {
-    if (d.amountTendered !== undefined) parts.push(line(pad('TENDERED', fmt2(d.amountTendered))));
-    if (d.change !== undefined && d.change >= 0) parts.push(line(pad('CHANGE', fmt2(d.change))));
+    if (d.amountTendered !== undefined) parts.push(line(pad('TENDERED', cur(d.amountTendered))));
+    if (d.change !== undefined && d.change >= 0) parts.push(line(pad('CHANGE', cur(d.change))));
   }
   if (v.itemCount) parts.push(line(pad('ITEM#', String(itemCount))));
 
@@ -706,7 +720,7 @@ function buildEscPosReceipt(d: ReceiptData, logo: Uint8Array | null = null, W = 
     parts.push(ESC_BOLD_ON, line('Payment Summary'), ESC_BOLD_OFF, divider('-', W));
     parts.push(line(`${d.paymentMethod.replace('_', ' ').toUpperCase()} ${currCode}`));
     if (d.amountTendered !== undefined) {
-      parts.push(line(`${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}`));
+      parts.push(line(`${cur(d.amountTendered)} @ Rate ${sym}${rate}`));
     }
   }
 
@@ -1193,7 +1207,8 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   const s: ReceiptSettings = { ...loadReceiptSettings(), ...settings };
   const { dateStr, timeStr } = parseReceiptDate(d);
   const { net, vat, gross, pct } = vatInfo(d);
-  const fmt2 = (n: number) => Number(n).toFixed(2);
+  const sym = escapeHtml(d.currency ?? '');
+  const cur = (n: number) => priced(sym, Number(n));
   const itemCount = d.items.reduce((sum, i) => sum + i.qty, 0);
   const currCode = d.currencyCode ?? '';
   const rateNum = Number(d.currencyRate ?? 1);
@@ -1247,7 +1262,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
       const code = v.itemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
 <div class="item-name">${i.name}</div>
-<div class="item-detail"><span>${i.qty} X &nbsp;${fmt2(i.price * rateNum)}</span><span>${fmt2(i.total * rateNum)}</span></div>`;
+<div class="item-detail"><span>${i.qty} X &nbsp;${cur(i.price * rateNum)}</span><span>${cur(i.total * rateNum)}</span></div>`;
     }).join('<div class="divider"></div>');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -1277,18 +1292,18 @@ ${v.orderType && d.orderType ? `<br><div class="center bold">** ${orderTypeLabel
 ${itemRows}
 <div class="divider"></div>
 ${v.tax ? `
-<div class="row"><span>Total Excl</span><span class="v">${fmt2(net)}</span></div>
-<div class="row"><span>Output Tax (${pct}%)</span><span class="v">${fmt2(vat)}</span></div>
-<div class="row bold"><span>Total Incl</span><span class="v">${fmt2(gross)}</span></div>
+<div class="row"><span>Total Excl</span><span class="v">${cur(net)}</span></div>
+<div class="row"><span>Output Tax (${pct}%)</span><span class="v">${cur(vat)}</span></div>
+<div class="row bold"><span>Total Incl</span><span class="v">${cur(gross)}</span></div>
 <div class="divider"></div>` : ''}
-<div class="row bold"><span>TOTAL</span><span class="v">${fmt2(gross)}</span></div>
-${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>TENDERED</span><span class="v">${fmt2(d.amountTendered)}</span></div>` : ''}
-${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>CHANGE</span><span class="v">${fmt2(d.change)}</span></div>` : ''}
+<div class="row bold"><span>TOTAL</span><span class="v">${cur(gross)}</span></div>
+${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>TENDERED</span><span class="v">${cur(d.amountTendered)}</span></div>` : ''}
+${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>CHANGE</span><span class="v">${cur(d.change)}</span></div>` : ''}
 ${v.itemCount ? `<div class="row"><span>ITEMS</span><span class="v">${itemCount}</span></div>` : ''}
 ${v.payment ? `<div class="bold">Payment</div>
 <div class="divider"></div>
 <div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()} ${currCode}</div>
-${d.amountTendered !== undefined ? `<div>${d.currency}${fmt2(d.amountTendered)} @ Rate ${d.currency}${rate}</div>` : ''}` : ''}
+${d.amountTendered !== undefined ? `<div>${cur(d.amountTendered)} @ Rate ${sym}${rate}</div>` : ''}` : ''}
 <div class="divider"></div>
 ${d.storePhone && v.phone ? `<div>Tel : ${d.storePhone}</div>` : ''}
 ${d.storeEmail && v.email ? `<div>Email : ${escapeHtml(d.storeEmail)}</div>` : ''}
@@ -1319,7 +1334,7 @@ ${v.footer ? `<div class="center">${d.footer ?? 'Core POS'}</div>` : ''}
     const itemRows = d.items.map(i => {
       const code = v.itemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
-<div class="row"><span>${i.name}</span><span class="v">${i.qty > 1 ? `${i.qty}x ` : ''}${fmt2(i.total * rateNum)}</span></div>`;
+<div class="row"><span>${i.name}</span><span class="v">${i.qty > 1 ? `${i.qty}x ` : ''}${cur(i.total * rateNum)}</span></div>`;
     }).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -1343,14 +1358,14 @@ ${v.orderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.orde
 <div class="col-hdr"><span>Item</span><span>Total</span></div>
 ${itemRows}
 <div class="divider"></div>
-<div class="row"><span>Subtotal</span><span class="v">${fmt2(d.subtotal * rateNum)}</span></div>
-${v.tax && d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${fmt2(d.tax * rateNum)}</span></div>` : ''}
-${d.discount > 0 ? `<div class="row"><span>Discount</span><span class="v">-${fmt2(d.discount * rateNum)}</span></div>` : ''}
-<div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total * rateNum)}</span></div>
+<div class="row"><span>Subtotal</span><span class="v">${cur(d.subtotal * rateNum)}</span></div>
+${v.tax && d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${cur(d.tax * rateNum)}</span></div>` : ''}
+${d.discount > 0 ? `<div class="row"><span>Discount</span><span class="v">${cur(-d.discount * rateNum)}</span></div>` : ''}
+<div class="row bold"><span>TOTAL</span><span class="v">${cur(d.total * rateNum)}</span></div>
 <div class="divider"></div>
 ${v.payment ? `<div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()}</div>` : ''}
-${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Cash</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
-${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
+${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Cash</span><span class="v">${cur(d.amountTendered)}</span></div>` : ''}
+${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${cur(d.change)}</span></div>` : ''}
 ${v.cashier ? `<div>Cashier: ${d.cashier}</div>` : ''}
 <div class="divider"></div>
 ${v.footer ? `<div class="center">${d.footer ?? 'Thank you!'}</div>` : ''}
@@ -1359,7 +1374,7 @@ ${v.footer ? `<div class="center">${d.footer ?? 'Thank you!'}</div>` : ''}
 
   // ── Minimal layout ───────────────────────────────────────────────────────
   const itemRows = d.items.map(i =>
-    `<div class="row"><span>${i.qty > 1 ? `${i.qty}x ` : ''}${i.name}</span><span class="v">${fmt2(i.total * rateNum)}</span></div>`
+    `<div class="row"><span>${i.qty > 1 ? `${i.qty}x ` : ''}${i.name}</span><span class="v">${cur(i.total * rateNum)}</span></div>`
   ).join('');
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -1372,9 +1387,9 @@ ${orderNoHtml}
 <div class="divider"></div>
 ${itemRows}
 <div class="divider"></div>
-<div class="row bold"><span>TOTAL</span><span class="v">${d.currency}${fmt2(d.total * rateNum)}</span></div>
-${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Paid</span><span class="v">${d.currency}${fmt2(d.amountTendered)}</span></div>` : ''}
-${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${d.currency}${fmt2(d.change)}</span></div>` : ''}
+<div class="row bold"><span>TOTAL</span><span class="v">${cur(d.total * rateNum)}</span></div>
+${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Paid</span><span class="v">${cur(d.amountTendered)}</span></div>` : ''}
+${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${cur(d.change)}</span></div>` : ''}
 <div class="divider"></div>
 ${v.footer ? `<div class="center">${d.footer ?? 'Thank you!'}</div>` : ''}
 </body></html>`;

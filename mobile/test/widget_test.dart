@@ -6,7 +6,7 @@ import 'package:core_pos/printing/receipt.dart';
 import 'package:core_pos/ui/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Receipt _receipt({String? qrUrl, int? globalNo}) => Receipt(
+Receipt _receipt({String? qrUrl, int? globalNo, String symbol = r'$', String code = 'USD', double rate = 1}) => Receipt(
       storeName: 'Msilisi Stationers',
       address: '12 Main Street, Bulawayo',
       reference: 'SALE-ABC123',
@@ -23,9 +23,9 @@ Receipt _receipt({String? qrUrl, int? globalNo}) => Receipt(
       paymentMethod: 'cash',
       tendered: 2,
       change: 0.25,
-      currencySymbol: r'$',
-      currencyCode: 'USD',
-      rate: 1,
+      currencySymbol: symbol,
+      currencyCode: code,
+      rate: rate,
       orderNum: '42',
       qrUrl: qrUrl,
       receiptGlobalNo: globalNo,
@@ -72,12 +72,33 @@ void main() {
     expect(text, contains('Tax Inv No : SALE-ABC123'));
     expect(text, contains('10/11/2026'));
     expect(text, contains('72 Page Exercise Book Big'));
-    expect(text, contains('  2 X  0.50'));
+    expect(text, contains(r'  2 X  $0.50'));
     expect(text, contains('Ruler 30cm - clear'), reason: 'non-ASCII dashes become plain ones');
     expect(text, contains('CHANGE'));
     for (final line in text.split('\n')) {
       expect(line.length, lessThanOrEqualTo(32), reason: 'every line fits a 58 mm roll: "$line"');
     }
+  });
+
+  test('every amount on a receipt carries its currency symbol', () {
+    final rand = escPosToText(buildEscPos(_receipt(symbol: 'R', code: 'ZAR', rate: 18)));
+    expect(rand, contains('  2 X  R9.00'));
+    expect(rand, matches(RegExp(r'TOTAL +R31\.50')));
+    expect(rand, matches(RegExp(r'TENDERED +R2\.00')));
+    expect(rand, matches(RegExp(r'CHANGE +R0\.25')));
+
+    // Amounts in the millions: a line too long for the roll puts its total on the next line.
+    final zig = escPosToText(buildEscPos(_receipt(symbol: 'ZiG', code: 'ZWG', rate: 2680000)));
+    expect(zig, contains('  2 X  ZiG1340000.00\n'));
+    expect(zig, contains('${' ' * 19}ZiG2680000.00'));
+    for (final line in zig.split('\n')) {
+      expect(line.length, lessThanOrEqualTo(32), reason: 'every line fits a 58 mm roll: "$line"');
+    }
+
+    // A symbol the printer can't print goes as the currency's code.
+    final euro = escPosToText(buildEscPos(_receipt(symbol: '€', code: 'EUR')));
+    expect(euro, contains('  2 X  EUR 0.50'));
+    expect(euro, isNot(contains('?')));
   });
 
   test('a fiscalised receipt carries its QR code and verification code', () {

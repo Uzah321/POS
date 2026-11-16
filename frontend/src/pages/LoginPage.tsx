@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { frontOfHousePath, setChosenDestination } from '../lib/landing';
 import AddToDevice from '../components/AddToDevice';
+import BrandLogo from '../components/BrandLogo';
 
 const schema = z.object({
   username: z.string().min(1, 'Username or email required'),
@@ -30,16 +31,6 @@ function loadRemembered(): { username: string; side: Side } | null {
   } catch {
     return null;
   }
-}
-
-function Logo({ size = 64 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width={size} height={size}>
-      <path d="M18 2L32.5 10.25V26.75L18 35L3.5 26.75V10.25Z" fill="#2563eb" />
-      <circle cx="18" cy="18" r="8" stroke="white" strokeWidth="2.5" fill="none" />
-      <circle cx="18" cy="18" r="4" fill="white" opacity="0.35" />
-    </svg>
-  );
 }
 
 export default function LoginPage() {
@@ -149,7 +140,7 @@ export default function LoginPage() {
           )}
 
           <div className="flex items-center justify-center gap-3">
-            <Logo size={52} />
+            <BrandLogo size={52} />
             <div>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-none">Core <span className="text-blue-600">POS</span></h1>
               <p className="text-sm text-slate-600 tracking-[0.12em] mt-1.5">Simple. Smart. Sales.</p>

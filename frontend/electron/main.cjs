@@ -308,6 +308,7 @@ function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     title: 'Core',
+    icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

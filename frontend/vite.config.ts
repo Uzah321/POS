@@ -20,7 +20,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       // Register the service worker manually so localhost installs can opt out.
       injectRegister: false,
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      // logo.png is the Core logo inside the app (BrandLogo): precached so it shows offline too.
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png'],
       manifest: {
         name: 'Core',
         short_name: 'Core',
@@ -38,7 +39,9 @@ export default defineConfig({
         scope: '/',
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Full-bleed (navy to the edges) for launchers that cut the icon to their own shape.
+          { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

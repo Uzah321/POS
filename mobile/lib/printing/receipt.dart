@@ -274,13 +274,19 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
   final out = BytesBuilder();
   void add(List<int> b) => out.add(b);
   void line([String s = '']) {
-    out.add(_ascii(s));
-    out.addByte(_lf);
+    for (final part in s.split('\n')) {
+      out.add(_ascii(part));
+      out.addByte(_lf);
+    }
   }
 
   void divider([String ch = '-']) => line(ch * w);
-  String fmt2(double n) => n.toStringAsFixed(2);
-  String pad(String l, String r) => l + ' ' * (w - l.length - r.length).clamp(1, w).toInt() + r;
+  // The printer prints single-byte text: a symbol it can't (€, £, ₦…) prints as the currency's code instead.
+  final sym = RegExp(r'^[\x20-\x7e]*$').hasMatch(d.currencySymbol) ? d.currencySymbol : '${d.currencyCode} ';
+  // An amount as the till shows it (AppState.moneyActive), less the thousands commas: $12.50, R12.50, -ZiG3.00.
+  String cur(double n) => '${(n * 100).round() < 0 ? '-' : ''}$sym${n.abs().toStringAsFixed(2)}';
+  // Left and right on one line; too long for that, the right part goes on the next line, still right-aligned.
+  String pad(String l, String r) => w - l.length - r.length >= 1 ? l + ' ' * (w - l.length - r.length) + r : '$l\n${r.padLeft(w)}';
   String cut(String s, int max) => s.length > max ? '${s.substring(0, max - 1)}.' : s;
 
   final rate = d.rate == 0 ? 1.0 : d.rate;
@@ -355,24 +361,24 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
   for (final item in d.items) {
     if (item.code != null && d.shows('receipt_show_item_codes')) line(cut(item.code!, w));
     line(cut(item.name, w));
-    line(pad('  ${qtyText(item.qty)} X  ${fmt2(item.price * rate)}', fmt2(item.total * rate)));
+    line(pad('  ${qtyText(item.qty)} X  ${cur(item.price * rate)}', cur(item.total * rate)));
   }
   divider();
 
   if (d.shows('receipt_show_vat_breakdown')) {
-    line(pad('Total Excl', fmt2(net)));
-    line(pad('Output Tax ($pct%)', fmt2(vat)));
+    line(pad('Total Excl', cur(net)));
+    line(pad('Output Tax ($pct%)', cur(vat)));
     add(_boldOn);
-    line(pad('Total Incl', fmt2(gross)));
+    line(pad('Total Incl', cur(gross)));
     add(_boldOff);
     divider();
   }
   add(_boldOn);
-  line(pad('TOTAL', fmt2(gross)));
+  line(pad('TOTAL', cur(gross)));
   add(_boldOff);
   if (d.shows('receipt_show_tendered')) {
-    if (d.tendered != null) line(pad('TENDERED', fmt2(d.tendered!)));
-    if (d.change != null && d.change! >= 0) line(pad('CHANGE', fmt2(d.change!)));
+    if (d.tendered != null) line(pad('TENDERED', cur(d.tendered!)));
+    if (d.change != null && d.change! >= 0) line(pad('CHANGE', cur(d.change!)));
   }
   if (d.shows('receipt_show_item_count')) line(pad('ITEM#', qtyText(itemCount)));
 
@@ -382,7 +388,7 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
     add(_boldOff);
     divider();
     line('${d.paymentMethod.replaceAll('_', ' ').toUpperCase()} ${d.currencyCode}');
-    if (d.tendered != null) line('${d.currencySymbol}${fmt2(d.tendered!)} @ Rate ${d.currencySymbol}${rate.toStringAsFixed(6)}');
+    if (d.tendered != null) line('${cur(d.tendered!)} @ Rate $sym${rate.toStringAsFixed(6)}');
   }
 
   divider();

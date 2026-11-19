@@ -34,10 +34,13 @@ import {
   User, Users, Award, LayoutGrid,
   ChevronLeft, ChevronRight,
   Minus, ScanLine, ArrowLeftRight, XCircle, Delete, Settings, HelpCircle, CalendarCheck,
+  ClipboardList, UserPlus, Percent, Hash, Calculator,
 } from 'lucide-react';
 
 const APP_VERSION = '1.2.0';
 import toast from 'react-hot-toast';
+
+const SHORTCUTS = 'F2 Search · F4 Qty (type it first) · F5 Clear · F8 Hold · F9 or F10 Pay · F12 Fast cash · in Pay: 1/2/3 Cash/Card/Mobile, Enter to process';
 
 const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash', icon: Banknote, activeClass: 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' },
@@ -45,7 +48,40 @@ const PAYMENT_METHODS = [
   { value: 'mobile_money', label: 'Mobile', icon: Smartphone, activeClass: 'bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-200' },
 ];
 
-function CartRow({ item, format, image }: { item: CartItem; format: (v: number) => string; image?: string }) {
+/** One of the order panel's action keys (Pay, Fast cash, Qty, ...), with its keyboard shortcut in the corner. */
+function PadKey({ label, fkey, icon: Icon, onClick, disabled, tone, title }: {
+  label: string; fkey?: string; icon: typeof CreditCard; onClick: () => void;
+  disabled?: boolean; tone?: 'pay' | 'danger'; title?: string;
+}) {
+  const toneCls = tone === 'pay' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+    : tone === 'danger' ? 'bg-red-600 hover:bg-red-700 text-white'
+    : 'bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-900';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title ?? (fkey ? `${label} (${fkey})` : label)}
+      aria-keyshortcuts={fkey}
+      className={`relative min-w-0 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-2 px-1.5 sm:px-3.5 text-center sm:text-left text-[13px] sm:text-[16px] leading-tight font-bold touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${toneCls}`}
+    >
+      {fkey && <span className={`absolute top-1 left-2 text-[10px] font-bold ${tone ? 'text-white/80' : 'text-slate-400'}`}>{fkey}</span>}
+      <Icon size={22} strokeWidth={1.8} className="flex-shrink-0" />
+      <span className="min-w-0 line-clamp-2">{label}</span>
+    </button>
+  );
+}
+
+/** A line's discount for the server: the cart keeps it per unit, a 'fixed' line discount is for the whole line. */
+function lineDiscount(i: CartItem): number {
+  return Math.round(i.discount * i.quantity * 1e6) / 1e6;
+}
+
+function CartRow({ item, format, image, selected, onSelect }: {
+  item: CartItem; format: (v: number) => string; image?: string;
+  /** The line the keypad's Qty and Discount keys act on. */
+  selected?: boolean; onSelect?: () => void;
+}) {
   const { updateQty, removeItem } = useCartStore();
   const [editingQty, setEditingQty] = useState(false);
   const [qtyInput, setQtyInput] = useState('');
@@ -70,14 +106,25 @@ function CartRow({ item, format, image }: { item: CartItem; format: (v: number) 
   // One line from sm up: picture, name, qty, price, total, remove. On a phone
   // (a 360px-wide handheld till) that leaves the name no room at all, so it
   // takes two: name, total and remove on top; unit price and qty below.
+  const discountPct = item.discount > 0 && item.price > 0 ? Math.round((item.discount / item.price) * 1000) / 10 : 0;
+
   return (
-    <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 py-1.5 sm:py-1 px-4 border-b border-slate-100 last:border-b-0">
+    <div
+      onClick={onSelect}
+      aria-selected={selected}
+      className={`flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 py-1.5 sm:py-1 pr-4 pl-3 border-b border-slate-100 last:border-b-0 border-l-4 cursor-pointer ${
+        selected ? 'bg-blue-50 border-l-blue-600' : 'border-l-transparent hover:bg-slate-50'
+      }`}
+    >
       <div className="hidden w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 sm:flex items-center justify-center">
         {image
           ? <img src={image} alt="" className="w-full h-full object-cover" />
           : <span className="text-sm font-bold text-slate-400">{item.name?.[0]?.toUpperCase() ?? '?'}</span>}
       </div>
-      <p className="order-1 sm:order-none flex-1 min-w-0 text-[13px] font-semibold text-slate-800 leading-tight line-clamp-2">{item.name}</p>
+      <div className="order-1 sm:order-none flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-slate-800 leading-tight line-clamp-2">{item.name}</p>
+        {discountPct > 0 && <p className="text-[11px] font-semibold text-emerald-600 leading-tight">−{discountPct}% discount</p>}
+      </div>
 
       <div className="order-6 sm:order-none sm:w-[112px] flex items-center justify-center flex-shrink-0">
         {item.sold_by_weight ? (
@@ -250,29 +297,43 @@ export default function POSPage() {
   // Keyboard shortcuts - keep latest handlers in a ref to avoid stale closures
   const kbRef = useRef<any>({});
   useEffect(() => {
-    kbRef.current = { handleProcessSale, handleHoldOrder, cart, saleMutation, holdMutation };
+    kbRef.current = {
+      handleProcessSale, handleHoldOrder, cart, holdMutation, openPay, fastCash, applyQty, runSale, clearOrder,
+      showPay, showFunctions, canProcess, needsRegisterSelection,
+    };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-      const { handleProcessSale, handleHoldOrder, cart, saleMutation, holdMutation } = kbRef.current;
+      const k = kbRef.current;
       if (e.key === 'F2' || (e.key === '/' && !inInput)) {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
-      } else if (e.key === 'F9') {
+      } else if (e.key === 'F9' || e.key === 'F10') {
+        // Pay; once its options are open, process the sale.
         e.preventDefault();
-        if (cart.items.length > 0 && !saleMutation.isPending) handleProcessSale();
+        if (!k.showPay) { if (k.cart.items.length > 0) k.openPay(); }
+        else if (k.canProcess) k.runSale();
+        else if (k.cart.items.length > 0 && !k.needsRegisterSelection) k.handleProcessSale();
+      } else if (e.key === 'F12') {
+        e.preventDefault();
+        k.fastCash();
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        k.applyQty();
       } else if (e.key === 'F8') {
         e.preventDefault();
-        if (cart.items.length > 0 && !holdMutation.isPending) handleHoldOrder();
+        if (k.cart.items.length > 0 && !k.holdMutation.isPending) k.handleHoldOrder();
       } else if (e.key === 'F5') {
         e.preventDefault();
-        if (cart.items.length > 0) cart.clearCart();
-      } else if (e.key === 'Escape' && document.activeElement === searchRef.current) {
-        setSearch('');
-      } else if (!inInput) {
+        if (k.cart.items.length > 0) k.clearOrder();
+      } else if (e.key === 'Escape') {
+        if (document.activeElement === searchRef.current) setSearch('');
+        else if (k.showPay) setShowPay(false);
+        else if (k.showFunctions) setShowFunctions(false);
+      } else if (!inInput && k.showPay) {
         if (e.key === '1') setPaymentMethod('cash');
         else if (e.key === '2') setPaymentMethod('card');
         else if (e.key === '3') setPaymentMethod('mobile_money');
@@ -663,7 +724,7 @@ export default function POSPage() {
         quantity: i.quantity,
         unit_price: i.price,
         discount_type: i.discount > 0 ? 'fixed' : null,
-        discount_value: i.discount > 0 ? i.discount : 0,
+        discount_value: i.discount > 0 ? lineDiscount(i) : 0,
       }));
       if (vars.openSaleId) {
         return salesApi.addItems(vars.openSaleId, { items: payloadItems });
@@ -721,7 +782,7 @@ export default function POSPage() {
             quantity: i.quantity,
             unit_price: i.price,
             discount_type: i.discount > 0 ? 'fixed' : null,
-            discount_value: i.discount > 0 ? i.discount : 0,
+            discount_value: i.discount > 0 ? lineDiscount(i) : 0,
           })),
         });
       }
@@ -959,6 +1020,8 @@ export default function POSPage() {
   const needsWaiter = cart.orderType === 'sit_in' && !!cart.tableId;
 
   const handleProcessSale = () => {
+    // The payment as it is now, not as this render saw it: Fast cash sets it and processes in one go.
+    const { paymentMethod, cashTendered, isSplitPayment, splitPayments } = useCartStore.getState();
     if (cart.items.length === 0) return;
     if (needsWaiter && !cart.waiterId) {
       toast.error('Select a waiter before processing a sit-in order');
@@ -1038,7 +1101,7 @@ export default function POSPage() {
         quantity: i.quantity,
         unit_price: i.price,
         discount_type: i.discount > 0 ? 'fixed' : null,
-        discount_value: i.discount > 0 ? i.discount : 0,
+        discount_value: i.discount > 0 ? lineDiscount(i) : 0,
       })),
       payments: paymentsPayload,
       discount_value: snap.discount,
@@ -1217,17 +1280,123 @@ export default function POSPage() {
     else if (!/\.\d{2}$/.test(cur)) setCashTendered(cur + key);
   };
 
+  // ── The order panel's keypad ─────────────────────────────────────────────
+  // A number typed on it is a quantity (Qty), a discount % (Discount) or the
+  // cash handed over (Pay, Fast cash). Qty and Discount act on the selected
+  // line — the last one rung up, unless the cashier taps another.
+  const [entry, setEntry] = useState('');
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [showPay, setShowPay] = useState(false);
+  const [showFunctions, setShowFunctions] = useState(false);
+  // The last cash sale's change, on the keypad's display until the next key.
+  const [lastChange, setLastChange] = useState<number | null>(null);
+  const canDiscount = hasPermission('apply_discounts') || hasRole('admin');
+
+  const lastLineId = cart.items[cart.items.length - 1]?.line_id ?? null;
+  const prevLineCount = useRef(cart.items.length);
+  useEffect(() => {
+    const grew = cart.items.length > prevLineCount.current;
+    prevLineCount.current = cart.items.length;
+    if (grew) setLastChange(null);
+    if (grew || !cart.items.some((i) => i.line_id === selectedLineId)) setSelectedLineId(lastLineId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart.items.length, lastLineId]);
+  const selectedLine = cart.items.find((i) => i.line_id === selectedLineId) ?? cart.items[cart.items.length - 1];
+  const entryValue = entry === '' || entry === '.' ? null : parseFloat(entry);
+  const busy = saleMutation.isPending || closeTabMutation.isPending;
+  const readyToSell = cart.items.length > 0 && !busy && !needsRegisterSelection;
+  const itemCount = cart.items.reduce((n, i) => n + (i.sold_by_weight ? 1 : i.quantity), 0);
+
+  const press = (key: string) => {
+    setLastChange(null);
+    setEntry((cur) => {
+      if (key === 'back') return cur.slice(0, -1);
+      if (key === '.') return cur.includes('.') ? cur : (cur || '0') + '.';
+      if (cur.length >= 9 || /\.\d{3}$/.test(cur)) return cur;
+      return cur === '0' ? key : cur + key;
+    });
+  };
+
+  const applyQty = () => {
+    const line = selectedLine;
+    if (!line) { toast.error('Add an item first'); return; }
+    if (entryValue == null) { toast('Type the quantity on the keypad, then press Qty', { icon: '#️⃣' }); return; }
+    if (!line.sold_by_weight && !Number.isInteger(entryValue)) { toast.error(`${line.name} is sold by the piece — type a whole number`); return; }
+    if (entryValue <= 0) cart.removeItem(line.line_id);
+    else cart.updateQty(line.line_id, line.sold_by_weight ? Math.round(entryValue * 1000) / 1000 : entryValue);
+    setEntry('');
+  };
+
+  const applyDiscount = () => {
+    const line = selectedLine;
+    if (!line) { toast.error('Add an item first'); return; }
+    if (!canDiscount) { toast.error('Only a manager can give discounts'); return; }
+    if (line.synced_to_tab) { toast.error(`${line.name} is already on the table's tab`); return; }
+    if (entryValue == null) { toast('Type the discount % on the keypad, then press Discount', { icon: '％' }); return; }
+    if (entryValue > 100) { toast.error('A discount is at most 100%'); return; }
+    cart.updateDiscount(line.line_id, Math.round(((line.price * entryValue) / 100) * 1e6) / 1e6);
+    setEntry('');
+    toast.success(entryValue > 0 ? `${entryValue}% off ${line.name}` : `Discount taken off ${line.name}`, { duration: 1500 });
+  };
+
+  /** Opens the payment options; a number typed first is the cash handed over. */
+  const openPay = (split = false) => {
+    if (cart.items.length === 0) { toast.error('Add items first'); return; }
+    if (split) {
+      setIsSplitPayment(true);
+      setSplitPayments([]);
+    } else if (entryValue != null) {
+      setIsSplitPayment(false);
+      setSplitPayments([]);
+      setPaymentMethod('cash');
+      setCashTendered(entry);
+    }
+    setEntry('');
+    setLastChange(null);
+    setShowPay(true);
+  };
+
+  /** Runs the sale as the payment stands; true when it went through (the till is on a new ticket). */
+  const runSale = (): boolean => {
+    if (!readyToSell) return false;
+    const { paymentMethod: method, cashTendered: tendered, isSplitPayment: split } = useCartStore.getState();
+    const changeDue = !split && method === 'cash' ? Math.max(0, (parseFloat(tendered) || 0) - totalDue) : null;
+    handleProcessSale();
+    if (useCartStore.getState().items.length > 0) return false;
+    setLastChange(changeDue);
+    setShowPay(false);
+    return true;
+  };
+
+  /** Cash, no questions: the typed amount (or exactly the total) — the change shows on the keypad. */
+  const fastCash = () => {
+    if (!readyToSell) { if (cart.items.length === 0) toast.error('Add items first'); return; }
+    const tendered = entryValue ?? totalDue;
+    if (tendered < totalDue) { toast.error(`Short by ${fmtActive(totalDue - tendered)}`); return; }
+    const s = useCartStore.getState();
+    s.setIsSplitPayment(false);
+    s.setSplitPayments([]);
+    s.setPaymentMethod('cash');
+    s.setCashTendered(tendered.toFixed(2));
+    if (runSale()) setEntry('');
+  };
+
+  const clearOrder = () => {
+    cart.clearCart();
+    setEntry('');
+  };
+
   const productImages = new Map<number, string>();
   allProducts.forEach((p: any) => { if (p.image) productImages.set(p.id, p.image); });
   const subtotalNow = cart.subtotal();
   const taxPct = subtotalNow > 0 ? Math.round((cart.taxTotal() / subtotalNow) * 1000) / 10 : 0;
 
-  // External keyboard: land the cursor in Cash tendered whenever cash becomes the
-  // active method, so the cashier can type the amount and press Enter to process.
+  // External keyboard: land the cursor in Cash tendered whenever the payment
+  // options open on cash, so the cashier can type the amount and press Enter.
   const cashInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (paymentMethod === 'cash' && !isSplitPayment) cashInputRef.current?.focus();
-  }, [paymentMethod, isSplitPayment]);
+    if (showPay && paymentMethod === 'cash' && !isSplitPayment) cashInputRef.current?.focus();
+  }, [showPay, paymentMethod, isSplitPayment]);
 
   const railRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -1240,6 +1409,8 @@ export default function POSPage() {
   // ignores clamp(), and the keys would shrink to the height of their text.
   const KEY_CLS = 'min-h-[34px] rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
   const KEY_H = 'clamp(34px, 4.5vh, 58px)';
+  // The order panel's keypad (5 rows of digits beside 4 of actions); min-height 260 for Chrome before 79, which ignores clamp().
+  const PAD_H = 'clamp(260px, 38vh, 380px)';
   const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (needsWaiter && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
   return (
@@ -1407,251 +1578,169 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Right: Current Sale card + Payment Method card. Below lg it is shown full-screen instead. */}
-        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col gap-2 w-full lg:w-[470px] xl:w-[500px] lg:flex-shrink-0 min-h-0 p-2 lg:pl-0 overflow-y-auto`}>
+        {/* Right: the current order — its lines, the total, and the keypad with
+            Pay / Fast cash / Qty / Discount. Below lg it is shown full-screen instead. */}
+        <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col w-full lg:w-[480px] xl:w-[560px] lg:flex-shrink-0 min-h-0 bg-white lg:border-l border-slate-200`}>
 
-          {/* Current Sale */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col flex-1 min-h-[370px] overflow-hidden">
-            {/* On a phone the Hold and Clear buttons drop their words, so all
-                three still fit beside the title on a 360px-wide screen. */}
-            <div className="flex items-center gap-2 px-4 py-1.5 flex-shrink-0">
-              <ShoppingCart size={22} className="hidden sm:block flex-shrink-0" style={{ color: BLUE }} />
-              <span className="text-[17px] sm:text-[19px] leading-tight font-bold text-slate-900 mr-auto">Current Sale</span>
-              <button
-                type="button"
-                onClick={() => setShowCustomerPicker(true)}
-                title="Select customer"
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold border border-slate-200 hover:bg-blue-50 touch-manipulation max-w-[130px]"
-                style={{ color: cart.customerId ? BLUE : '#334155', background: cart.customerId ? '#e8f0ff' : undefined }}
-              >
-                <User size={16} className="flex-shrink-0" />
-                <span className="truncate">{cart.customerId ? cart.customerName : 'Customer'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleHoldOrder}
-                disabled={cart.items.length === 0 || holdMutation.isPending}
-                aria-label="Hold order (F8)"
-                aria-keyshortcuts="F8"
-                title="Hold order (F8)"
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-blue-50 disabled:opacity-40 touch-manipulation"
-              >
-                {holdMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />}<span className="hidden sm:inline">Hold</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => cart.clearCart()}
-                aria-label="Clear sale (F5)"
-                aria-keyshortcuts="F5"
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 touch-manipulation"
-                style={{ background: '#fdecec' }}
-              >
-                <Trash2 size={16} /><span className="hidden sm:inline">Clear</span>
-              </button>
+          {/* Header */}
+          <div className="flex items-center gap-3 pl-4 pr-2 h-[60px] flex-shrink-0 text-white" style={{ background: NAVY }}>
+            <div className="mr-auto min-w-0 leading-tight">
+              <p className="text-[19px] font-bold">Current order</p>
+              <p className="text-[12px] font-semibold text-white/70 truncate">
+                {cart.items.length} {cart.items.length === 1 ? 'line' : 'lines'}
+                {cart.orderNumber != null ? ` · Order #${cart.orderNumber}` : ''}
+                {cart.tableId ? ` · Table ${cart.tableNumber}` : ''}
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowHeldOrders(true)}
+              title={cart.heldOrders.length > 0 ? `${cart.heldOrders.length} held order${cart.heldOrders.length === 1 ? '' : 's'}` : 'Held orders'}
+              className="relative w-11 h-11 flex items-center justify-center rounded-lg hover:bg-white/10 touch-manipulation"
+            >
+              <ClipboardList size={26} strokeWidth={1.7} />
+              {cart.heldOrders.length > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-[11px] font-bold text-slate-900 flex items-center justify-center">
+                  {cart.heldOrders.length}
+                </span>
+              )}
+            </button>
+          </div>
 
-            {cart.orderType === 'sit_in' && (needsWaiter || cart.items.length > 0) && (
-              <div className="flex items-center gap-2 px-4 pb-2 flex-shrink-0">
-                {needsWaiter && (
+          {/* Restaurant: the waiter a sit-in order needs, and Add to Tab */}
+          {cart.orderType === 'sit_in' && (needsWaiter || cart.items.some((i) => !i.synced_to_tab)) && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 flex-shrink-0">
+              {needsWaiter && (
                 <button
                   type="button"
                   onClick={() => setShowWaiterPicker(true)}
                   disabled={!!cart.openSaleId}
                   title={cart.openSaleId ? 'Waiter is locked once a tab is open' : 'Select waiter'}
-                  className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border touch-manipulation disabled:opacity-70 ${
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold border touch-manipulation disabled:opacity-70 ${
                     cart.waiterId ? 'border-slate-200 text-slate-700 bg-slate-50' : 'border-amber-300 text-amber-700 bg-amber-50'
                   }`}
                 >
-                  <Users size={13} /> {cart.waiterId ? cart.waiterName : 'Select Waiter (required)'}
+                  <Users size={14} /> {cart.waiterId ? cart.waiterName : 'Select Waiter (required)'}
                 </button>
-                )}
-                {cart.tableId && (
-                  <span className="text-xs text-slate-400">Table: {cart.tableNumber}</span>
-                )}
-                {cart.items.some((i) => !i.synced_to_tab) && (
-                  <button
-                    type="button"
-                    onClick={handleAddToTab}
-                    disabled={addToTabMutation.isPending}
-                    className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 touch-manipulation"
-                  >
-                    {addToTabMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <PauseCircle size={13} />} Add to Tab
-                  </button>
-                )}
-              </div>
-            )}
-
-            {(cart.heldOrders.length > 0) && (
-              <div className="px-4 pb-2 flex-shrink-0">
+              )}
+              {cart.items.some((i) => !i.synced_to_tab) && (
                 <button
                   type="button"
-                  onClick={() => setShowHeldOrders(true)}
-                  className="flex items-center gap-1.5 h-8 px-3 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-semibold touch-manipulation"
-                  title="View held orders"
+                  onClick={handleAddToTab}
+                  disabled={addToTabMutation.isPending}
+                  className="ml-auto flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 touch-manipulation"
                 >
-                  <PauseCircle size={13} /> {cart.heldOrders.length} held
+                  {addToTabMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <PauseCircle size={14} />} Add to Tab
                 </button>
-              </div>
-            )}
-
-            <div className="hidden sm:flex items-center px-4 pb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
-              <span className="flex-1">Item</span>
-              <span className="w-[112px] text-center">Qty</span>
-              <span className="w-[62px] text-right">Price</span>
-              <span className="w-[66px] text-right">Total</span>
-              <span className="w-9" />
-            </div>
-
-            <div className="flex-1 min-h-[36px] overflow-y-auto border-t border-slate-100">
-              {cart.items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-2 py-6">
-                  <ShoppingCart size={32} />
-                  <p className="text-xs">Add items to start</p>
-                </div>
-              ) : (
-                cart.items.map((item) => <CartRow key={item.line_id} item={item} format={formatCurrency} image={productImages.get(item.product_id)} />)
               )}
             </div>
+          )}
 
-            <div className="px-5 pt-1.5 pb-2 border-t border-slate-200 flex-shrink-0">
-              <div className="flex justify-between gap-4 text-[13px] text-slate-500">
-                <span>Subtotal <span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.subtotal())}</span></span>
-                {cart.discount > 0 && <span className="text-emerald-600">Discount <span className="tabular-nums">-{formatCurrency(cart.discount)}</span></span>}
-                <span>Tax ({taxPct}%) <span className="tabular-nums text-slate-700 font-medium">{formatCurrency(cart.taxTotal())}</span></span>
+          {/* Lines */}
+          <div className="flex-1 min-h-[120px] overflow-y-auto" style={{ background: '#f7f9fc' }}>
+            {cart.items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-1.5 py-6">
+                <ShoppingCart size={44} strokeWidth={1.5} className="text-slate-300 mb-1" />
+                <p className="text-[17px] font-bold text-slate-400">No items yet</p>
+                <p className="text-[13px]">Tap a product to add it.</p>
               </div>
-              <div className="flex justify-between items-baseline mt-1">
-                <span className="text-[22px] font-bold text-slate-900">Total</span>
-                <span className="text-[34px] font-bold tabular-nums leading-none" style={{ color: '#1f5fe0' }}>{formatCurrency(total)}</span>
-              </div>
+            ) : (
+              cart.items.map((item) => (
+                <CartRow
+                  key={item.line_id}
+                  item={item}
+                  format={formatCurrency}
+                  image={productImages.get(item.product_id)}
+                  selected={item.line_id === selectedLine?.line_id}
+                  onSelect={() => setSelectedLineId(item.line_id)}
+                />
+              ))
+            )}
+          </div>
+
+          {cart.items.length > 0 && (
+            <div className="flex justify-between gap-3 px-4 py-1.5 border-t border-slate-200 text-[12px] text-slate-500 flex-shrink-0">
+              <span>Subtotal <span className="tabular-nums text-slate-700 font-semibold">{formatCurrency(cart.subtotal())}</span></span>
+              {cart.discount > 0 && <span className="text-emerald-600">Discount <span className="tabular-nums">-{formatCurrency(cart.discount)}</span></span>}
+              <span>Tax ({taxPct}%) <span className="tabular-nums text-slate-700 font-semibold">{formatCurrency(cart.taxTotal())}</span></span>
+            </div>
+          )}
+
+          {/* Total bar: customer, how many items, what it comes to */}
+          <div className="flex items-stretch h-[64px] flex-shrink-0">
+            <div className="flex-1 min-w-0 flex items-center gap-3 px-3 text-white" style={{ background: BLUE }}>
+              <button
+                type="button"
+                onClick={() => setShowCustomerPicker(true)}
+                title={cart.customerId ? `Customer: ${cart.customerName}` : 'Add a customer'}
+                className="flex items-center gap-2 min-w-0 h-11 px-2 rounded-lg hover:bg-white/15 touch-manipulation"
+              >
+                {cart.customerId ? <User size={24} className="flex-shrink-0" /> : <UserPlus size={26} strokeWidth={1.8} className="flex-shrink-0" />}
+                {cart.customerId && <span className="text-[14px] font-semibold truncate">{cart.customerName}</span>}
+              </button>
+              <span className="relative ml-auto flex-shrink-0" title={`${itemCount} item${itemCount === 1 ? '' : 's'}`}>
+                <ShoppingCart size={30} strokeWidth={1.8} />
+                <span className="absolute -top-2 -right-2.5 min-w-[22px] h-[22px] px-1 rounded-full bg-white text-[12px] font-bold flex items-center justify-center tabular-nums" style={{ color: BLUE }}>
+                  {itemCount}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center justify-end px-4 text-white flex-shrink-0" style={{ background: NAVY }}>
+              <span className="text-[28px] font-bold tabular-nums whitespace-nowrap leading-none">
+                {activeCurrency?.code ? `${activeCurrency.code} ${totalDue.toFixed(2)}` : formatCurrency(total)}
+              </span>
             </div>
           </div>
 
-          {/* Payment Method */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-2.5 flex-shrink-0">
-            <div className="grid grid-cols-4 gap-2 mb-2">
-              {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => {
-                const active = !isSplitPayment && paymentMethod === value;
-                return (
-                  <button
-                    type="button"
-                    key={value}
-                    onClick={() => { if (isSplitPayment) { setIsSplitPayment(false); setSplitPayments([]); } setPaymentMethod(value); }}
-                    aria-label={`Pay by ${label} (${idx + 1})`}
-                    aria-pressed={active}
-                    className={`h-[clamp(44px,5.4vh,72px)] min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
-                    style={{ background: active ? '#1f63e6' : '#eef3fb' }}
-                  >
-                    <Icon size={22} strokeWidth={1.7} />
-                    {label}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
-                aria-pressed={isSplitPayment}
-                className={`h-[clamp(44px,5.4vh,72px)] min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
-                style={{ background: isSplitPayment ? '#1f63e6' : '#eef3fb' }}
-              >
-                <ArrowLeftRight size={22} strokeWidth={1.7} />
-                Split
-              </button>
-            </div>
-
-            {isSplitPayment ? (
-              <div className="space-y-2 mb-3">
-                {splitPayments.map((sp, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
-                    <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-sm border-0 bg-transparent focus:outline-none text-slate-700 font-medium">
-                      {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                    <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-slate-800" placeholder="0.00" />
-                    <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-red-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation"><X size={14} /></button>
-                  </div>
-                ))}
-                {(() => {
-                  const paid = splitPayments.reduce((s,p) => s + parseFloat(p.amount||'0'), 0);
-                  const remaining = totalDue - paid;
-                  return (
-                    <>
-                      {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${fmtActive(remaining)}` : `Over by: ${fmtActive(-remaining)}`}</div>}
-                      <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-11 border-2 border-dashed border-slate-200 rounded-xl text-xs text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
-                        <Plus size={14} /> Add payment method
-                      </button>
-                    </>
-                  );
-                })()}
+          {/* Keypad: digits on the left, what to do with them on the right.
+              Rows are Fragments, not display:contents wrappers, which Chrome before 65
+              draws as one cell per row with its keys stacked. */}
+          <div className="grid grid-cols-[1fr_1.2fr] flex-shrink-0 border-t border-slate-200 bg-slate-200 gap-px" style={{ height: PAD_H, minHeight: 260 }}>
+            <div className="grid grid-cols-3 grid-rows-5 gap-px">
+              <div className="col-span-3 flex items-center justify-between gap-2 px-4 bg-white min-w-0">
+                {entry !== '' ? (
+                  <>
+                    <span className="text-[12px] font-semibold text-slate-400 truncate">
+                      {entryValue != null && cart.items.length > 0 && entryValue >= totalDue ? `Change ${fmtActive(entryValue - totalDue)}` : ''}
+                    </span>
+                    <span className="text-[28px] font-bold tabular-nums text-slate-900">{entry}</span>
+                  </>
+                ) : lastChange != null ? (
+                  <>
+                    <span className="text-[12px] font-bold uppercase tracking-wider text-emerald-600">Change</span>
+                    <span className="text-[28px] font-bold tabular-nums text-emerald-600">{fmtActive(lastChange)}</span>
+                  </>
+                ) : (
+                  <span className="ml-auto text-[13px] font-bold uppercase tracking-wider text-slate-400">Qty or cash</span>
+                )}
               </div>
-            ) : paymentMethod === 'cash' ? (
-              <div className="mb-2">
-                <div className="flex items-center h-[clamp(40px,5.2vh,54px)] min-h-[40px] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Cash tendered</span>
-                    {cashTendered && (
-                      <span className={`text-[11px] font-semibold ${change > 0 ? 'text-emerald-600' : parseFloat(cashTendered) < totalDue ? 'text-amber-600' : 'text-slate-500'}`}>
-                        {parseFloat(cashTendered) < totalDue ? `Short by ${fmtActive(totalDue - parseFloat(cashTendered))}` : `Change: ${fmtActive(change)}`}
-                      </span>
-                    )}
-                  </span>
-                  <input
-                    ref={cashInputRef}
-                    type="text"
-                    inputMode="decimal"
-                    value={cashTendered}
-                    placeholder="0.00"
-                    aria-label="Cash tendered"
-                    onChange={(e) => {
-                      let v = e.target.value.replace(/[^0-9.]/g, '');
-                      const parts = v.split('.');
-                      if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
-                      if (/\.\d{3,}$/.test(v)) v = v.slice(0, v.indexOf('.') + 3);
-                      setCashTendered(v);
-                    }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessSale(); } }}
-                    className="ml-auto min-w-0 w-40 text-right bg-transparent text-[24px] font-medium tabular-nums text-slate-700 placeholder:text-slate-300 pr-3 focus:outline-none"
-                  />
-                  <button type="button" onClick={() => tender('clear')} aria-label="Clear cash tendered" className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-500 touch-manipulation">
-                    <XCircle size={22} strokeWidth={1.6} />
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Keypad — digits type into Cash Tendered; Process runs the sale (F9) for any method.
-                Rows are Fragments, not display:contents wrappers, which Chrome before 65
-                draws as one cell per row with its keys stacked. */}
-            <div className="grid grid-cols-4 gap-2">
-              {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']].map((row, r) => (
+              {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['.', '0', 'back']].map((row, r) => (
                 <Fragment key={r}>
-                  {row.map((d) => (
-                    <button key={d} type="button" onClick={() => tender(d)} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>{d}</button>
+                  {row.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => press(k)}
+                      aria-label={k === 'back' ? 'Backspace' : k === '.' ? 'Decimal point' : k}
+                      className="bg-white hover:bg-slate-50 active:bg-slate-100 text-[26px] font-bold text-slate-900 flex items-center justify-center touch-manipulation"
+                    >
+                      {k === 'back' ? <Delete size={30} strokeWidth={1.7} /> : k}
+                    </button>
                   ))}
-                  {(() => {
-                    const side = [
-                      { label: 'Exact', act: () => tender('exact') },
-                      { label: 'Undo', act: () => tender('undo') },
-                      { label: 'Clear', act: () => tender('clear') },
-                    ][r];
-                    return (
-                      <button type="button" onClick={side.act} className={`${KEY_CLS} !text-[17px]`} style={{ height: KEY_H, background: '#cfe0fb', color: '#1b4fbf' }}>{side.label}</button>
-                    );
-                  })()}
                 </Fragment>
               ))}
-              <button type="button" onClick={() => tender('back')} aria-label="Backspace" className={KEY_CLS} style={{ height: KEY_H, background: '#d9e2ef', color: '#334155' }}><Delete size={24} strokeWidth={1.7} /></button>
-              <button type="button" onClick={() => tender('0')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>0</button>
-              <button type="button" onClick={() => tender('.')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>.</button>
-              <button
-                type="button"
-                onClick={handleProcessSale}
-                disabled={!canProcess}
-                aria-label="Process sale (F9)"
-                aria-keyshortcuts="F9"
-                className={`${KEY_CLS} !text-[20px] gap-1.5 text-white disabled:opacity-40 disabled:cursor-not-allowed`}
-                style={{ height: KEY_H, background: '#10a37f' }}
-              >
-                {(saleMutation.isPending || closeTabMutation.isPending) ? <Loader2 size={22} className="animate-spin" /> : <><ChevronRight size={24} strokeWidth={2.4} /> {cart.openSaleId ? 'Close Tab' : 'Process'}</>}
-              </button>
+            </div>
+
+            <div className="grid grid-cols-2 grid-rows-4 gap-px">
+              <PadKey label="Pay" fkey="F9" icon={CreditCard} onClick={() => openPay()} disabled={!readyToSell} tone="pay" />
+              <PadKey label="Fast cash" fkey="F12" icon={Banknote} onClick={fastCash} disabled={!readyToSell} />
+              <PadKey label="Qty" fkey="F4" icon={Hash} onClick={applyQty} disabled={cart.items.length === 0} />
+              <PadKey label="Discount" icon={Percent} onClick={applyDiscount} disabled={cart.items.length === 0}
+                title={canDiscount ? 'Type the % on the keypad, then press Discount' : 'Only a manager can give discounts'} />
+              <PadKey label="Customer" icon={UserPlus} onClick={() => setShowCustomerPicker(true)} />
+              <PadKey label="Cash-up" icon={Calculator} onClick={() => navigate('/shift-end')} />
+              <PadKey label="Clear" fkey="F5" icon={XCircle} onClick={clearOrder} disabled={cart.items.length === 0 && entry === ''} tone="danger" />
+              <PadKey label="Functions" icon={LayoutGrid} onClick={() => setShowFunctions(true)} />
             </div>
           </div>
         </div>
@@ -1678,7 +1767,7 @@ export default function POSPage() {
           )}
           <button
             type="button"
-            onClick={() => toast('F2 Search · F5 Clear · F8 Hold · F9 Process · 1/2/3 Cash/Card/Mobile', { icon: '⌨️', duration: 6000 })}
+            onClick={() => toast(SHORTCUTS, { icon: '⌨️', duration: 7000 })}
             className="flex items-center gap-2 hover:text-blue-700 touch-manipulation"
           >
             <HelpCircle size={18} /> <span className="hidden sm:inline">Help</span>
@@ -1686,6 +1775,185 @@ export default function POSPage() {
         </span>
       </div>
     </div>
+
+    {/* Pay — how the customer pays: cash (with change), card, mobile, or split */}
+    {showPay && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3" onClick={() => setShowPay(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[470px] max-h-[95vh] overflow-y-auto p-3" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-3 px-1 pb-3">
+            <div className="mr-auto">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500">Amount due</p>
+              <p className="text-[32px] font-bold tabular-nums leading-tight" style={{ color: NAVY }}>{fmtActive(totalDue)}</p>
+            </div>
+            <button type="button" onClick={() => setShowPay(false)} aria-label="Close" className="w-11 h-11 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 touch-manipulation">
+              <X size={22} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 mb-2">
+            {PAYMENT_METHODS.map(({ value, label, icon: Icon }, idx) => {
+              const active = !isSplitPayment && paymentMethod === value;
+              return (
+                <button
+                  type="button"
+                  key={value}
+                  onClick={() => { if (isSplitPayment) { setIsSplitPayment(false); setSplitPayments([]); } setPaymentMethod(value); }}
+                  aria-label={`Pay by ${label} (${idx + 1})`}
+                  aria-pressed={active}
+                  className={`h-[clamp(44px,5.4vh,72px)] min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${active ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+                  style={{ background: active ? '#1f63e6' : '#eef3fb' }}
+                >
+                  <Icon size={22} strokeWidth={1.7} />
+                  {label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => { setIsSplitPayment(!isSplitPayment); setSplitPayments([]); }}
+              aria-pressed={isSplitPayment}
+              className={`h-[clamp(44px,5.4vh,72px)] min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl text-[15px] font-semibold transition-colors touch-manipulation ${isSplitPayment ? 'text-white shadow-md' : 'text-slate-700 hover:brightness-95'}`}
+              style={{ background: isSplitPayment ? '#1f63e6' : '#eef3fb' }}
+            >
+              <ArrowLeftRight size={22} strokeWidth={1.7} />
+              Split
+            </button>
+          </div>
+
+          {isSplitPayment ? (
+            <div className="space-y-2 mb-3">
+              {splitPayments.map((sp, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                  <select value={sp.method} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, method: e.target.value} : p))} className="text-sm border-0 bg-transparent focus:outline-none text-slate-700 font-medium">
+                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <input type="number" value={sp.amount} onChange={e => setSplitPayments(ps => ps.map((p,i) => i===idx ? {...p, amount: e.target.value} : p))} className="flex-1 text-base text-right bg-transparent border-0 focus:outline-none font-semibold text-slate-800" placeholder="0.00" />
+                  <button type="button" onClick={() => setSplitPayments(ps => ps.filter((_,i) => i!==idx))} className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-red-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation"><X size={14} /></button>
+                </div>
+              ))}
+              {(() => {
+                const paid = splitPayments.reduce((s,p) => s + parseFloat(p.amount||'0'), 0);
+                const remaining = totalDue - paid;
+                return (
+                  <>
+                    {remaining !== 0 && <div className={`text-xs text-right font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining > 0 ? `Remaining: ${fmtActive(remaining)}` : `Over by: ${fmtActive(-remaining)}`}</div>}
+                    <button type="button" onClick={() => setSplitPayments(ps => [...ps, {method: PAYMENT_METHODS[0]?.value ?? 'cash', amount: remaining > 0 ? remaining.toFixed(2) : ''}])} className="w-full min-h-11 border-2 border-dashed border-slate-200 rounded-xl text-xs text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 touch-manipulation">
+                      <Plus size={14} /> Add payment method
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          ) : paymentMethod === 'cash' ? (
+            <div className="mb-2">
+              <div className="flex items-center h-[clamp(40px,5.2vh,54px)] min-h-[40px] rounded-xl border border-slate-200 bg-white pl-4 pr-2">
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[12px] font-medium text-slate-500 uppercase tracking-wide">Cash tendered</span>
+                  {cashTendered && (
+                    <span className={`text-[11px] font-semibold ${change > 0 ? 'text-emerald-600' : parseFloat(cashTendered) < totalDue ? 'text-amber-600' : 'text-slate-500'}`}>
+                      {parseFloat(cashTendered) < totalDue ? `Short by ${fmtActive(totalDue - parseFloat(cashTendered))}` : `Change: ${fmtActive(change)}`}
+                    </span>
+                  )}
+                </span>
+                <input
+                  ref={cashInputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={cashTendered}
+                  placeholder="0.00"
+                  aria-label="Cash tendered"
+                  onChange={(e) => {
+                    let v = e.target.value.replace(/[^0-9.]/g, '');
+                    const parts = v.split('.');
+                    if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+                    if (/\.\d{3,}$/.test(v)) v = v.slice(0, v.indexOf('.') + 3);
+                    setCashTendered(v);
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (canProcess) runSale(); else if (cart.items.length > 0 && !needsRegisterSelection) handleProcessSale(); } }}
+                  className="ml-auto min-w-0 w-40 text-right bg-transparent text-[24px] font-medium tabular-nums text-slate-700 placeholder:text-slate-300 pr-3 focus:outline-none"
+                />
+                <button type="button" onClick={() => tender('clear')} aria-label="Clear cash tendered" className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-red-500 touch-manipulation">
+                  <XCircle size={22} strokeWidth={1.6} />
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Keypad — digits type into Cash Tendered; Process runs the sale (F9) for any method. */}
+          <div className="grid grid-cols-4 gap-2">
+            {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']].map((row, r) => (
+              <Fragment key={r}>
+                {row.map((d) => (
+                  <button key={d} type="button" onClick={() => tender(d)} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>{d}</button>
+                ))}
+                {(() => {
+                  const side = [
+                    { label: 'Exact', act: () => tender('exact') },
+                    { label: 'Undo', act: () => tender('undo') },
+                    { label: 'Clear', act: () => tender('clear') },
+                  ][r];
+                  return (
+                    <button type="button" onClick={side.act} className={`${KEY_CLS} !text-[17px]`} style={{ height: KEY_H, background: '#cfe0fb', color: '#1b4fbf' }}>{side.label}</button>
+                  );
+                })()}
+              </Fragment>
+            ))}
+            <button type="button" onClick={() => tender('back')} aria-label="Backspace" className={KEY_CLS} style={{ height: KEY_H, background: '#d9e2ef', color: '#334155' }}><Delete size={24} strokeWidth={1.7} /></button>
+            <button type="button" onClick={() => tender('0')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>0</button>
+            <button type="button" onClick={() => tender('.')} className={KEY_CLS} style={{ height: KEY_H, background: '#e6eefb', color: '#0f2a5c' }}>.</button>
+            <button
+              type="button"
+              onClick={() => { if (canProcess) runSale(); else if (!needsRegisterSelection) handleProcessSale(); }}
+              disabled={cart.items.length === 0 || busy}
+              aria-label="Process sale (F9)"
+              aria-keyshortcuts="F9"
+              className={`${KEY_CLS} !text-[20px] gap-1.5 text-white disabled:opacity-40 disabled:cursor-not-allowed`}
+              style={{ height: KEY_H, background: '#10a37f' }}
+            >
+              {busy ? <Loader2 size={22} className="animate-spin" /> : <><ChevronRight size={24} strokeWidth={2.4} /> {cart.openSaleId ? 'Close Tab' : 'Process'}</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Functions — everything else the till does */}
+    {showFunctions && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3" onClick={() => setShowFunctions(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-slate-900">Functions</h2>
+            <button type="button" onClick={() => setShowFunctions(false)} aria-label="Close" className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 touch-manipulation">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { label: 'Hold order', hint: 'F8', icon: PauseCircle, disabled: cart.items.length === 0 || holdMutation.isPending, act: handleHoldOrder },
+              { label: `Held orders${cart.heldOrders.length ? ` (${cart.heldOrders.length})` : ''}`, icon: ClipboardList, act: () => setShowHeldOrders(true) },
+              { label: 'Split payment', icon: ArrowLeftRight, disabled: !readyToSell, act: () => openPay(true) },
+              { label: 'Remove line', icon: Trash2, disabled: !selectedLine, act: () => { if (selectedLine) cart.removeItem(selectedLine.line_id); } },
+              { label: 'Loyalty points', icon: Award, disabled: !cart.customerId, act: () => setShowLoyaltyPanel(true) },
+              { label: 'On-screen keyboard', icon: Keyboard, act: () => setShowSearchModal(true) },
+              ...(needsWaiter ? [{ label: cart.waiterId ? `Waiter: ${cart.waiterName}` : 'Select waiter', icon: Users, disabled: !!cart.openSaleId, act: () => setShowWaiterPicker(true) }] : []),
+              { label: 'Keyboard shortcuts', icon: HelpCircle, act: () => toast(SHORTCUTS, { icon: '⌨️', duration: 7000 }) },
+            ] as Array<{ label: string; hint?: string; icon: typeof CreditCard; disabled?: boolean; act: () => void }>).map(({ label, hint, icon: Icon, disabled, act }) => (
+              <button
+                key={label}
+                type="button"
+                disabled={disabled}
+                onClick={() => { setShowFunctions(false); act(); }}
+                className="flex items-center gap-3 h-14 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-left text-[15px] font-semibold text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              >
+                <Icon size={20} className="flex-shrink-0 text-slate-500" />
+                <span className="flex-1 min-w-0 truncate">{label}</span>
+                {hint && <span className="text-[11px] font-bold text-slate-400">{hint}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Held Orders Panel */}
     {showHeldOrders && (

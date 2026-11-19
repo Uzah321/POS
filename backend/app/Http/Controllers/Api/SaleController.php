@@ -171,6 +171,10 @@ class SaleController extends BaseApiController
             'is_offline'     => 'boolean',
         ]);
 
+        if (! $this->mayDiscount($request, $data)) {
+            return $this->error(self::NO_DISCOUNT, 403);
+        }
+
         // Each branch owns its own catalog — a cashier can only ring up
         // products that actually belong to their own branch's catalog.
         $productIds = collect($data['items'])->pluck('product_id')->unique();
@@ -454,6 +458,10 @@ class SaleController extends BaseApiController
             'items.*.note'               => 'nullable|string',
         ]);
 
+        if (! $this->mayDiscount($request, $data)) {
+            return $this->error(self::NO_DISCOUNT, 403);
+        }
+
         $productIds = collect($data['items'])->pluck('product_id')->unique();
         $ownedCount = \App\Models\Product::whereIn('id', $productIds)->where('branch_id', $sale->branch_id)->count();
         if ($ownedCount !== $productIds->count()) {
@@ -645,6 +653,16 @@ class SaleController extends BaseApiController
      * warehouse id is invalid"), and on another branch it took the stock
      * out of the first branch's warehouse.
      */
+    private const NO_DISCOUNT = 'Only staff allowed to give discounts (Users & Roles: apply_discounts) can sell at a discount.';
+
+    /** A sale or tab with a discount on any line, or on the whole sale, needs apply_discounts. */
+    private function mayDiscount(Request $request, array $data): bool
+    {
+        $discounted = (float) ($data['discount_value'] ?? 0) > 0
+            || collect($data['items'] ?? [])->contains(fn ($item) => (float) ($item['discount_value'] ?? 0) > 0);
+        return ! $discounted || (bool) $request->user()?->can('apply_discounts');
+    }
+
     private function saleWarehouseId(int $branchId, ?int $asked): ?int
     {
         if ($asked && \App\Models\Warehouse::whereKey($asked)->where('branch_id', $branchId)->exists()) {

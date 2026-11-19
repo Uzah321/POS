@@ -213,6 +213,8 @@ class GoFiscalSaleTest extends TestCase
     public function test_discounts_go_on_discount_lines_so_the_lines_add_up_to_the_total(): void
     {
         Http::fake([self::RECEIPTS_URL => Http::response($this->accepted(), 200)]);
+        // Selling at a discount takes a manager's permission.
+        $this->user->givePermissionTo('apply_discounts');
 
         $response = $this->actingAs($this->user, 'sanctum')->postJson('/api/sales', $this->sale([
             'items' => [

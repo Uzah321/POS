@@ -40,6 +40,8 @@ class DatabaseSeeder extends Seeder
             // losing general inventory/reports access those used to imply.
             'manage_stocktake', 'manage_day_end',
             'manage_tables',
+            // Selling at a discount (POS Discount key) — managers, not cashiers.
+            'apply_discounts',
         ];
 
         foreach ($permissions as $perm) {
@@ -50,7 +52,7 @@ class DatabaseSeeder extends Seeder
         // Store manager: no stocktake, no reports, no financial reports, no
         // finance (Cashflow/Salaries/Rentals/EcoCash/Expenses/Commissions) —
         // keeps manage_day_end so they can still close the day from the POS.
-        Role::findByName('manager')->syncPermissions(['view_dashboard','view_sales','create_sales','void_sales','process_refunds','view_products','manage_products','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_suppliers','view_purchase_orders','manage_purchase_orders','approve_purchase_orders','receive_goods','view_customers','manage_customers','manage_day_end','manage_tables']);
+        Role::findByName('manager')->syncPermissions(['view_dashboard','view_sales','create_sales','void_sales','process_refunds','view_products','manage_products','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_suppliers','view_purchase_orders','manage_purchase_orders','approve_purchase_orders','receive_goods','view_customers','manage_customers','manage_day_end','manage_tables','apply_discounts']);
         Role::findByName('cashier')->syncPermissions(['create_sales', 'void_sales', 'manage_tables']);
         Role::findByName('storekeeper')->syncPermissions(['view_dashboard','view_inventory','manage_inventory','adjust_stock','transfer_stock','view_products','manage_products','view_purchase_orders','receive_goods','manage_stocktake']);
         Role::findByName('accountant')->syncPermissions(['view_dashboard','view_sales','view_reports','view_financial_reports','view_expenses','manage_expenses','approve_expenses','manage_day_end']);

@@ -167,7 +167,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: kBlue, width: 2)),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.zero, border: Border.all(color: kBlue, width: 2)),
                     child: Row(children: [
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('Cash received', style: TextStyle(fontSize: 13, color: kMuted)),
@@ -204,7 +204,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kBlue),
                             backgroundColor: Colors.white,
                             side: const BorderSide(color: kLine),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                             onPressed: _busy ? null : () => setState(() => _tendered = amount.toStringAsFixed(2)),
                           ),
                         ),
@@ -264,13 +264,13 @@ class _MethodButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: selected ? kBlue : Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.zero,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
         onTap: onTap,
         child: Container(
           height: 64,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: selected ? kBlue : kLine, width: 1.5)),
+          decoration: BoxDecoration(borderRadius: BorderRadius.zero, border: Border.all(color: selected ? kBlue : kLine, width: 1.5)),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(icon, color: selected ? Colors.white : kInk),
             const SizedBox(height: 3),

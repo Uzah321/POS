@@ -256,7 +256,7 @@ export default function FinancialReportPage() {
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(value) => [formatAmount(Number(value ?? 0)), 'Revenue']} />
                     <Legend />
-                    <Bar dataKey="Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Revenue" fill="#3b82f6" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

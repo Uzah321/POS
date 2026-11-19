@@ -326,7 +326,7 @@ export default function RestaurantDashboard() {
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v?.slice(5)} />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
             <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
-              contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+              contentStyle={{ border: '1px solid #e2e8f0', fontSize: '12px' }} />
             <Area type="monotone" dataKey="revenue" stroke="url(#orangeLine)" fill="url(#orangeGrad)" strokeWidth={3} dot={false} />
           </AreaChart>
         </ResponsiveContainer>

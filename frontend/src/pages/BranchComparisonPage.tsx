@@ -62,7 +62,7 @@ export default function BranchComparisonPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatAmount(v)} width={80} />
                 <Tooltip formatter={(v) => formatAmount(Number(v))} />
-                <Bar dataKey="Revenue" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Revenue" fill="#2563eb" />
               </BarChart>
             </ResponsiveContainer>
           </div>

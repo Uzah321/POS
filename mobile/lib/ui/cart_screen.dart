@@ -117,7 +117,7 @@ class _LineCard extends StatelessWidget {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(color: kBg, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: kBg, borderRadius: BorderRadius.zero),
                 child: Text(value.isEmpty ? qtyText(line.qty) : value,
                     style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: value.isEmpty ? kMuted : kInk)),
               ),
@@ -193,9 +193,9 @@ class _Stepper extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget button(IconData icon, String label, VoidCallback onTap) => Material(
           color: kBg,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.zero,
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.zero,
             onTap: onTap,
             child: SizedBox(width: 42, height: 42, child: Icon(icon, size: 22, color: kInk, semanticLabel: label)),
           ),

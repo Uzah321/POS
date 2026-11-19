@@ -197,7 +197,7 @@ class _TillScreenState extends State<TillScreen> {
                 width: 52,
                 child: IconButton.filled(
                   tooltip: 'Scan a barcode',
-                  style: IconButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                  style: IconButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
                   onPressed: _scan,
                   icon: const Icon(Icons.qr_code_scanner),
                 ),
@@ -291,7 +291,7 @@ class _CategoryChips extends StatelessWidget {
             selectedColor: kBlue,
             backgroundColor: Colors.white,
             side: BorderSide(color: on ? kBlue : kLine),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             padding: const EdgeInsets.symmetric(horizontal: 6),
           );
         },
@@ -330,9 +330,9 @@ class _ProductCard extends StatelessWidget {
             : '${qtyText(p.stock!)} ${p.soldByWeight ? 'kg ' : ''}in stock';
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.zero,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -341,7 +341,7 @@ class _ProductCard extends StatelessWidget {
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: colour.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: colour.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
                 alignment: Alignment.center,
                 child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(),
                     style: TextStyle(color: colour, fontWeight: FontWeight.w800, fontSize: 17)),
@@ -350,7 +350,7 @@ class _ProductCard extends StatelessWidget {
               if (inCart > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(color: kBlue, borderRadius: BorderRadius.circular(20)),
+                  decoration: BoxDecoration(color: kBlue, borderRadius: BorderRadius.zero),
                   child: Text('${qtyText(inCart)}${p.soldByWeight ? ' kg' : ''} in sale',
                       style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700)),
                 ),
@@ -462,7 +462,7 @@ class CurrencyButton extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 10),
         padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
         child: Row(children: [
           Text(s.currency.code, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
           const Icon(Icons.arrow_drop_down, size: 20),
@@ -489,7 +489,7 @@ Future<double?> askWeight(BuildContext context, Product p) {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(color: kBg, borderRadius: BorderRadius.circular(14)),
+              decoration: BoxDecoration(color: kBg, borderRadius: BorderRadius.zero),
               child: Row(children: [
                 Text(value.isEmpty ? '0' : value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800)),
                 const Text(' kg', style: TextStyle(fontSize: 20, color: kMuted)),

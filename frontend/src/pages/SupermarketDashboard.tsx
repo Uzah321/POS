@@ -200,7 +200,7 @@ export default function SupermarketDashboard() {
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => v?.slice(5)} />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${currencySymbol}${v}`} />
               <Tooltip formatter={v => [formatCurrency(v as number), 'Revenue']}
-                contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                contentStyle={{ border: '1px solid #e2e8f0', fontSize: '12px' }} />
               <Area type="monotone" dataKey="revenue" stroke="url(#blueLine)" fill="url(#blueGrad)" strokeWidth={3} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
@@ -256,7 +256,7 @@ export default function SupermarketDashboard() {
                   {paymentBreakdown.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="#fff" strokeWidth={2} />)}
                 </Pie>
                 <Legend formatter={(v: string) => v.replace('_', ' ')} iconSize={10} />
-                <Tooltip formatter={v => formatCurrency(v as number)} contentStyle={{ borderRadius: '10px', fontSize: '12px' }} />
+                <Tooltip formatter={v => formatCurrency(v as number)} contentStyle={{ fontSize: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
           ) : (

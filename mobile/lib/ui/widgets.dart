@@ -78,9 +78,9 @@ class _Key extends StatelessWidget {
       opacity: enabled ? 1 : 0.25,
       child: Material(
         color: back ? const Color(0xFFDDE5F0) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.zero,
           onTap: enabled ? onTap : null,
           child: SizedBox(
             height: height,

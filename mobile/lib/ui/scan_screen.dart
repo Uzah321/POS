@@ -64,7 +64,7 @@ class _ScanScreenState extends State<ScanScreen> {
           child: Container(
             width: 260,
             height: 160,
-            decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 3), borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 3), borderRadius: BorderRadius.zero),
           ),
         ),
         const Positioned(

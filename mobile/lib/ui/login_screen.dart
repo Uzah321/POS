@@ -166,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 16),
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: const Color(0xFFFDECEC), borderRadius: BorderRadius.circular(12)),
+                                decoration: BoxDecoration(color: const Color(0xFFFDECEC), borderRadius: BorderRadius.zero),
                                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   const Icon(Icons.error_outline, color: kRed, size: 20),
                                   const SizedBox(width: 8),

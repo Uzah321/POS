@@ -103,7 +103,7 @@ export function SalesByTableReport(props: RangeProps) {
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="table" tick={{ fontSize: 11 }} width={80} />
               <Tooltip formatter={(v) => [fmt(v as number), 'Revenue']} />
-              <Bar dataKey="revenue" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="revenue" fill="#f59e0b" />
             </BarChart>
           </ResponsiveContainer>
           <Table headers={['Table', 'Orders', 'Revenue', 'Avg Order', 'Discounts', 'Share']}>
@@ -350,8 +350,8 @@ export function DayComparisonReport({ branchId }: { branchId: string }) {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v, name) => [fmt(v as number), name === 'a' ? dateA : dateB]} />
                   <Legend formatter={(v) => (v === 'a' ? `Day A (${dateA})` : `Day B (${dateB})`)} />
-                  <Bar dataKey="a" fill="#f59e0b" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="b" fill="#94a3b8" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="a" fill="#f59e0b" />
+                  <Bar dataKey="b" fill="#94a3b8" />
                 </BarChart>
               </ResponsiveContainer>
             </Panel>

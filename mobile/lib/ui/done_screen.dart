@@ -72,7 +72,10 @@ class _DoneScreenState extends State<DoneScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Spacer(),
             const Center(
-              child: CircleAvatar(radius: 44, backgroundColor: Color(0xFFDDF5EC), child: Icon(Icons.check_rounded, size: 56, color: kGreen)),
+              child: SizedBox.square(
+                dimension: 88,
+                child: ColoredBox(color: Color(0xFFDDF5EC), child: Icon(Icons.check_rounded, size: 56, color: kGreen)),
+              ),
             ),
             const SizedBox(height: 16),
             const Text('Sale complete', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: kInk)),
@@ -163,7 +166,7 @@ void showReceiptPreview(BuildContext context, Uint8List bytes) {
         child: Center(
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: const Color(0xFFFFFDF7), border: Border.all(color: kLine), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Color(0xFFFFFDF7), border: Border.all(color: kLine), borderRadius: BorderRadius.zero),
             child: SelectableText(
               escPosToText(bytes),
               style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5, height: 1.35, color: kInk),

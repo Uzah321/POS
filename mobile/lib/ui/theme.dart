@@ -12,7 +12,9 @@ const kAmber = Color(0xFFB45309);
 
 ThemeData buildTheme() {
   final scheme = ColorScheme.fromSeed(seedColor: kBlue, primary: kBlue, surface: Colors.white, error: kRed);
-  final radius = BorderRadius.circular(14);
+  // Square corners everywhere — the same boxy edges as the web system.
+  const square = RoundedRectangleBorder();
+  const radius = BorderRadius.zero;
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
@@ -29,14 +31,14 @@ ThemeData buildTheme() {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(64, 52),
-        shape: RoundedRectangleBorder(borderRadius: radius),
+        shape: square,
         textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(64, 48),
-        shape: RoundedRectangleBorder(borderRadius: radius),
+        shape: square,
         side: const BorderSide(color: kLine, width: 1.5),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
@@ -45,17 +47,23 @@ ThemeData buildTheme() {
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: kLine)),
-      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: kLine)),
-      focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: kBlue, width: 2)),
+      border: const OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: kLine)),
+      enabledBorder: const OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: kLine)),
+      focusedBorder: const OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: kBlue, width: 2)),
     ),
-    cardTheme: CardThemeData(
+    cardTheme: const CardThemeData(
       color: Colors.white,
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: square,
     ),
-    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: square)),
+    iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(shape: square)),
+    dialogTheme: const DialogThemeData(shape: square),
+    bottomSheetTheme: const BottomSheetThemeData(shape: square),
+    chipTheme: const ChipThemeData(shape: square),
+    popupMenuTheme: const PopupMenuThemeData(shape: square),
+    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: square),
     dividerTheme: const DividerThemeData(color: kLine, space: 1, thickness: 1),
   );
 }

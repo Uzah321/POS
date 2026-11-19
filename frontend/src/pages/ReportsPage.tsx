@@ -375,7 +375,7 @@ export default function ReportsPage() {
                       <stop offset="100%" stopColor="#f59e0b" />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v?.slice(5)} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => [`${fmt(v as number)}`]} /><Bar dataKey="revenue" fill="url(#salesBarGrad)" name="Revenue" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v?.slice(5)} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => [`${fmt(v as number)}`]} /><Bar dataKey="revenue" fill="url(#salesBarGrad)" name="Revenue" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -548,7 +548,7 @@ export default function ReportsPage() {
             </div>
             {monthlyData.daily_breakdown?.length > 0 && (
               <div className="bg-white rounded-md p-5 border border-gray-200">
-                <ResponsiveContainer width="100%" height={240}><BarChart data={monthlyData.daily_breakdown}><defs><linearGradient id="monthlyBarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v?.slice(8)} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="revenue" fill="url(#monthlyBarGrad)" name="Revenue" radius={[3,3,0,0]} /></BarChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={240}><BarChart data={monthlyData.daily_breakdown}><defs><linearGradient id="monthlyBarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" /><XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v?.slice(8)} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="revenue" fill="url(#monthlyBarGrad)" name="Revenue" /></BarChart></ResponsiveContainer>
               </div>
             )}
           </div>

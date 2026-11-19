@@ -90,9 +90,12 @@ class _SaleTile extends StatelessWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: CircleAvatar(
-          backgroundColor: voided ? const Color(0xFFFDECEC) : const Color(0xFFE8F0FF),
-          child: Icon(voided ? Icons.block : Icons.receipt_long_outlined, color: voided ? kRed : kBlue),
+        leading: SizedBox.square(
+          dimension: 40,
+          child: ColoredBox(
+            color: voided ? const Color(0xFFFDECEC) : const Color(0xFFE8F0FF),
+            child: Icon(voided ? Icons.block : Icons.receipt_long_outlined, color: voided ? kRed : kBlue),
+          ),
         ),
         title: Text('Order #$order', style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text([_time(sale['completed_at'] ?? sale['created_at']), if (status != 'completed') status].join('  ·  ')),

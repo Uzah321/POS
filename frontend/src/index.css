@@ -36,29 +36,17 @@
 }
 
 @layer components {
-	/* System-wide: square corners everywhere, no exceptions — avatars,
-	   badges, pills, buttons, cards, modals all included. Matches any
-	   Tailwind rounded-* utility regardless of which page it's on. */
-	[class*="rounded"] {
+	/* System-wide: square corners everywhere, no exceptions — every screen
+	   (the tills and sign-in included), avatars, badges, pills, buttons,
+	   cards, modals, toasts and chart tooltips. Every element, not just
+	   Tailwind's rounded-* utilities, so third-party widgets and inline
+	   styles come out square too. */
+	*, *::before, *::after {
 		border-radius: 0 !important;
 	}
 
-	/* Exception: the Advanced POS screen (restaurant) follows its own rounded
-	   design. Scoped to .pos-screen so every other page keeps square corners. */
-	.pos-screen .rounded-lg   { border-radius: 0.1875rem !important; }
-	.pos-screen .rounded-xl   { border-radius: 0.3125rem !important; }
-	.pos-screen .rounded-2xl  { border-radius: 0.4375rem !important; }
-	.pos-screen .rounded-full { border-radius: 9999px !important; }
-
-	/* Exception: the sign-in screen follows its own rounded design too. */
-	.login-screen .rounded-md   { border-radius: 0.5rem !important; }
-	.login-screen .rounded-lg   { border-radius: 0.625rem !important; }
-	.login-screen .rounded-xl   { border-radius: 0.875rem !important; }
-	.login-screen .rounded-2xl  { border-radius: 1.25rem !important; }
-	.login-screen .rounded-3xl  { border-radius: 1.75rem !important; }
-	.login-screen .rounded-full { border-radius: 9999px !important; }
-	/* ...and keeps visible field borders and outlined role cards, which the
-	   app-wide borderless rules below would otherwise strip. */
+	/* The sign-in screen keeps visible field borders and outlined role cards,
+	   which the app-wide borderless rules below would otherwise strip. */
 	.login-screen input[type="text"], .login-screen input[type="password"] {
 		border: 1px solid #dbe3ee !important;
 		background: #ffffff !important;

@@ -1,4 +1,5 @@
 import { Fragment, useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, weighingScalesApi, usersApi, tablesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
@@ -27,6 +28,7 @@ import { resolveEmbeddedBarcode, embeddedCartLine, productsNamedByPlu } from '..
 import { fetchAllProducts, productMatchesSearch } from '../lib/productSearch';
 import { useServerHealth } from '../hooks/useServerHealth';
 import SelectTillModal from '../components/SelectTillModal';
+import { useTopbarSlot } from '../layouts/TopbarSlot';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
@@ -181,6 +183,8 @@ export default function POSPage() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [productPage, setProductPage] = useState(0);
   const [showHeldOrders, setShowHeldOrders] = useState(false);
+  // AppLayout's top bar slot, where the till's order controls go
+  const topbarSlot = useTopbarSlot();
   // Below lg, the product grid and the always-visible payment/ticket panel
   // can't both fit — showing both squeezed the product grid down to a
   // sliver. Below that breakpoint only one panel renders at a time, picked
@@ -1165,20 +1169,9 @@ export default function POSPage() {
 
   const handleHoldOrder = () => {
     if (cart.items.length === 0) return;
-    // Holding an order is when it goes to the kitchen — ticket whatever the
-    // kitchen hasn't had yet, then record it as sent so resuming and adding
-    // to this table later only tickets the additions.
-    const sent = sendKitchenTicket(cart.items, {
-      ticket: cart.ticketNum,
-      table: cart.tableNumber !== 'Walk-in' ? cart.tableNumber : '',
-      orderType: cart.orderType,
-      covers: cart.covers,
-      customerName: cart.customerName,
-      note: cart.note,
-      waiter: cart.waiterName,
-    });
-    const heldItems = sent ? cart.items.map((i) => ({ ...i, kitchen_sent_qty: i.quantity })) : cart.items;
-    if (sent) cart.markSentToKitchen();
+    // Holding prints nothing: the kitchen gets its ticket when the order is
+    // paid (or sent with Add to Tab), for whatever lines it hasn't had yet.
+    const heldItems = cart.items;
     // Save current cart to local held orders and clear cart immediately
     const holdPayload = {
       branch_id: branchId,
@@ -1353,6 +1346,54 @@ export default function POSPage() {
   const PAD_H = 'clamp(210px, 30vh, 300px)';
   const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (needsWaiter && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
+  // The till's order controls, shown in the top bar (AppLayout's slot) beside its other buttons.
+  const showAddToTab = cart.orderType === 'sit_in' && cart.items.some((i) => !i.synced_to_tab);
+  const heldCount = cart.heldOrders.length;
+  const topbarControls = (
+    <>
+      {/* Phones reach held orders from Functions, so the bar keeps room for the rest */}
+      <button
+        type="button"
+        onClick={() => setShowHeldOrders(true)}
+        title={heldCount > 0 ? `${heldCount} held order${heldCount === 1 ? '' : 's'}` : 'Held orders'}
+        className="hidden sm:flex items-center gap-2 h-11 px-3 flex-shrink-0 text-white text-sm font-semibold hover:brightness-125 touch-manipulation"
+        style={{ background: '#16305e' }}
+      >
+        <ClipboardList size={20} className="text-blue-200" />
+        <span className="hidden 2xl:inline whitespace-nowrap">Held orders</span>
+        {heldCount > 0 && (
+          <span className="min-w-[20px] h-5 px-1 bg-amber-400 text-[11px] font-bold text-slate-900 flex items-center justify-center tabular-nums">{heldCount}</span>
+        )}
+      </button>
+      {needsWaiter && (
+        <button
+          type="button"
+          onClick={() => setShowWaiterPicker(true)}
+          disabled={!!cart.openSaleId}
+          title={cart.openSaleId ? 'Waiter is locked once a tab is open' : cart.waiterId ? `Waiter: ${cart.waiterName}` : 'Select waiter (required)'}
+          className={`flex items-center gap-2 h-11 px-3 flex-shrink-0 text-sm font-semibold touch-manipulation hover:brightness-110 disabled:opacity-70 ${cart.waiterId ? 'text-white' : 'text-slate-900'}`}
+          style={{ background: cart.waiterId ? '#16305e' : '#fbbf24' }}
+        >
+          <Users size={18} className={cart.waiterId ? 'text-blue-200' : ''} />
+          <span className="hidden sm:inline whitespace-nowrap max-w-[150px] truncate">{cart.waiterId ? cart.waiterName : 'Select waiter'}</span>
+        </button>
+      )}
+      {showAddToTab && (
+        <button
+          type="button"
+          onClick={handleAddToTab}
+          disabled={addToTabMutation.isPending}
+          title="Add to Tab — send these lines to the table's tab and the kitchen"
+          className="flex items-center gap-2 h-11 px-3 sm:px-4 flex-shrink-0 text-white text-sm font-bold hover:brightness-110 disabled:opacity-50 touch-manipulation"
+          style={{ background: BLUE }}
+        >
+          {addToTabMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <PauseCircle size={18} />}
+          <span className="whitespace-nowrap"><span className="hidden sm:inline">Add to </span>Tab</span>
+        </button>
+      )}
+    </>
+  );
+
   return (
     <>
       {/* Fixed height against the viewport (matching CashierPage's approach) rather than
@@ -1522,9 +1563,9 @@ export default function POSPage() {
             Pay / Qty / Clear / Functions. Below lg it is shown full-screen instead. */}
         <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col w-full lg:w-[480px] xl:w-[560px] lg:flex-shrink-0 min-h-0 bg-white lg:border-l border-slate-200`}>
 
-          {/* Header */}
-          <div className="flex items-center gap-3 pl-4 pr-2 h-[60px] flex-shrink-0 text-white" style={{ background: NAVY }}>
-            <div className="mr-auto min-w-0 leading-tight">
+          {/* Header — held orders, the waiter and Add to Tab are up in the top bar */}
+          <div className="flex items-center pl-4 pr-2 h-[60px] flex-shrink-0 text-white" style={{ background: NAVY }}>
+            <div className="min-w-0 leading-tight">
               <p className="text-[19px] font-bold">Current order</p>
               <p className="text-[12px] font-semibold text-white/70 truncate">
                 {cart.items.length} {cart.items.length === 1 ? 'line' : 'lines'}
@@ -1532,49 +1573,7 @@ export default function POSPage() {
                 {cart.tableId ? ` · Table ${cart.tableNumber}` : ''}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowHeldOrders(true)}
-              title={cart.heldOrders.length > 0 ? `${cart.heldOrders.length} held order${cart.heldOrders.length === 1 ? '' : 's'}` : 'Held orders'}
-              className="relative w-11 h-11 flex items-center justify-center rounded-lg hover:bg-white/10 touch-manipulation"
-            >
-              <ClipboardList size={26} strokeWidth={1.7} />
-              {cart.heldOrders.length > 0 && (
-                <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-[11px] font-bold text-slate-900 flex items-center justify-center">
-                  {cart.heldOrders.length}
-                </span>
-              )}
-            </button>
           </div>
-
-          {/* Restaurant: the waiter a sit-in order needs, and Add to Tab */}
-          {cart.orderType === 'sit_in' && (needsWaiter || cart.items.some((i) => !i.synced_to_tab)) && (
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 flex-shrink-0">
-              {needsWaiter && (
-                <button
-                  type="button"
-                  onClick={() => setShowWaiterPicker(true)}
-                  disabled={!!cart.openSaleId}
-                  title={cart.openSaleId ? 'Waiter is locked once a tab is open' : 'Select waiter'}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold border touch-manipulation disabled:opacity-70 ${
-                    cart.waiterId ? 'border-slate-200 text-slate-700 bg-slate-50' : 'border-amber-300 text-amber-700 bg-amber-50'
-                  }`}
-                >
-                  <Users size={14} /> {cart.waiterId ? cart.waiterName : 'Select Waiter (required)'}
-                </button>
-              )}
-              {cart.items.some((i) => !i.synced_to_tab) && (
-                <button
-                  type="button"
-                  onClick={handleAddToTab}
-                  disabled={addToTabMutation.isPending}
-                  className="ml-auto flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 touch-manipulation"
-                >
-                  {addToTabMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <PauseCircle size={14} />} Add to Tab
-                </button>
-              )}
-            </div>
-          )}
 
           {/* Lines */}
           <div className="flex-1 min-h-[120px] overflow-y-auto" style={{ background: '#f7f9fc' }}>
@@ -2068,6 +2067,7 @@ export default function POSPage() {
     )}
 
     {needsRegisterSelection && <SelectTillModal registers={fiscalRegisters} onSelect={selectRegister} />}
+    {topbarSlot && createPortal(topbarControls, topbarSlot)}
     </>
   );
 }

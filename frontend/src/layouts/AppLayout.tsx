@@ -537,6 +537,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             <div className="flex-1" />
 
+            {/* The till's own order controls (held orders, waiter, Add to Tab) — POSPage portals them in */}
+            <div ref={setTopbarSlotEl} className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 empty:hidden" />
+
             <select
               value={activeCurrency?.code ?? 'USD'}
               onChange={(e) => {
@@ -556,8 +559,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <NotificationBell dark />
 
             <div className="hidden sm:flex items-center gap-2.5">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base" style={{ background: '#2f6df6' }}>{userInitials}</div>
-              <div className="hidden xl:block leading-tight">
+              <div title={user?.name} className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base" style={{ background: '#2f6df6' }}>{userInitials}</div>
+              {/* The name only on wide screens: below that the bar needs the room for the till's buttons */}
+              <div className="hidden 2xl:block leading-tight whitespace-nowrap">
                 <p className="text-sm font-bold">{user?.name}</p>
                 <p className="text-xs text-blue-200/80 capitalize">{user?.roles?.[0]}</p>
               </div>

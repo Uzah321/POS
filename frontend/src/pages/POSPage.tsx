@@ -9,7 +9,7 @@ import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { useSelectedRegister } from '../hooks/useSelectedRegister';
-import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode, kitchenOrderLabel, kitchenLinesFor } from '../lib/hardware/printer';
+import { buildReceiptDataFromSale, printReceipt, printKitchenTicket, resolveReceiptPrintMode, kitchenOrderLabel, kitchenLinesFor, drawerOpensFor } from '../lib/hardware/printer';
 import { useKitchenStations } from '../hooks/useKitchenStations';
 import { companyLogo } from '../lib/companyLogo';
 import { usePrinterReconnect } from '../hooks/usePrinterReconnect';
@@ -601,6 +601,7 @@ export default function POSPage() {
           fiscalDay: storeSettings?.fiscal_day || undefined,
           recGn: storeSettings?.fiscal_rec_gn || undefined,
           rec68: storeSettings?.fiscal_rec_68 || undefined,
+          openDrawer: drawerOpensFor(paymentsFromPayload),
         }),
         resolveReceiptPrintMode(hw.printerMode),
         hw.receiptPrinters
@@ -726,7 +727,7 @@ export default function POSPage() {
       }
       return salesApi.closeTab(vars.saleId, { payments: vars.payments });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, vars) => {
       const sale = (result as any).data?.data;
       const snap = saleSnapshotRef.current;
 
@@ -769,6 +770,7 @@ export default function POSPage() {
           fiscalDay: storeSettings?.fiscal_day || undefined,
           recGn: storeSettings?.fiscal_rec_gn || undefined,
           rec68: storeSettings?.fiscal_rec_68 || undefined,
+          openDrawer: drawerOpensFor(vars.payments),
         }),
         resolveReceiptPrintMode(hw.printerMode),
         hw.receiptPrinters
@@ -851,7 +853,7 @@ export default function POSPage() {
         : `No product with PLU code ${decoded.pluCode}`, { duration: 5000 });
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
-    const line = embeddedCartLine(decoded, parseFloat(product.selling_price));
+    const line = embeddedCartLine(decoded, parseFloat(product.selling_price), storeSettings ?? {});
     if (addProductWithQty(product, line.qty, line.soldByWeight, line.price)) {
       toast.success(line.soldByWeight
         ? `Added ${product.name} (${line.qty.toFixed(3)} kg)`

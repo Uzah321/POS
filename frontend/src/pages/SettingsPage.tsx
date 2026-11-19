@@ -12,7 +12,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { companyLogo, logoFileToDataUrl } from '../lib/companyLogo';
 import {
-  DIGI_SM110_LAYOUTS, embeddedCartLine, layoutEnabled, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
+  DIGI_SM110_LAYOUTS, LABEL_ROUNDING_OPTIONS, embeddedCartLine, layoutEnabled, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
   type ScaleBarcodeLayout,
 } from '../lib/barcode/embeddedBarcode';
 
@@ -189,7 +189,7 @@ function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknow
   const label = trimmed && !isLoading ? resolveEmbeddedBarcode(trimmed, settings, products) : null;
   const decoded = label?.decoded;
   const product = label?.product;
-  const line = decoded && product ? embeddedCartLine(decoded, parseFloat(product.selling_price)) : null;
+  const line = decoded && product ? embeddedCartLine(decoded, parseFloat(product.selling_price), settings) : null;
   // What the label says by itself, for when the fields above don't get to a product.
   const reading = trimmed && !isLoading && !product ? singleReading(readScaleLabel(trimmed, products)) : null;
   const layoutName = (l: ScaleBarcodeLayout) => <>layout {l.spec} (<span className="font-mono">{l.pattern}</span>)</>;
@@ -591,6 +591,19 @@ const { isLoading } = useQuery({
                 <DigitField label="Weight Position" value={values.barcode_weight_qty_position} onChange={set('barcode_weight_qty_position')} placeholder="8" />
                 <DigitField label="Weight Length" value={values.barcode_weight_qty_length} onChange={set('barcode_weight_qty_length')} placeholder="5" />
                 <DigitField label="Decimal Point" value={values.barcode_weight_decimal_point} onChange={set('barcode_weight_decimal_point')} placeholder="3" />
+                <div className="col-span-2 sm:col-span-4">
+                  <label className="block text-xs text-gray-500 mb-1">Label Total Rounding</label>
+                  <select
+                    value={values.barcode_weight_rounding || 'none'}
+                    onChange={set('barcode_weight_rounding')}
+                    className="w-full sm:w-1/2 border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    {LABEL_ROUNDING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    How the scale rounds the total it prints, so the till charges the same. A label that prints 2.15 for 0.362 kg at 6.00/kg (2.172) rounds to 0.05 — if the till rings such labels up a few cents off, pick the rounding here. Nearest and Down only differ on a label where kg × price ends in 3, 4, 8 or 9 cents: 2.18 prints 2.20 when it's Nearest, 2.15 when it's Down.
+                  </p>
+                </div>
               </div>
             )}
           </div>

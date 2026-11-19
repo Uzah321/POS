@@ -363,6 +363,8 @@ export interface ReceiptData {
    * requires anyway (see effectiveReceiptShow).
    */
   show?: Partial<ReceiptShow>;
+  /** Opens the cash drawer as the bill prints (drawerOpensFor: a cash sale, with Hardware → Cash Drawer on). */
+  openDrawer?: boolean;
 }
 
 export type ReceiptPrintMode = 'browser' | 'webusb' | 'webbluetooth' | 'system' | 'rawbt' | 'none';
@@ -402,6 +404,8 @@ export interface BuildReceiptOptions {
   fiscalDay?: string;
   recGn?: string;
   rec68?: string;
+  /** Open the cash drawer as it prints — drawerOpensFor(the sale's payments). */
+  openDrawer?: boolean;
 }
 
 function orderTypeLabel(orderType: 'sit_in' | 'takeaway' | 'delivery'): string {
@@ -531,6 +535,7 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
     fiscalDay: options.fiscalDay,
     recGn: options.recGn,
     rec68: options.rec68,
+    openDrawer: options.openDrawer,
     ...fiscalFields(sale?.fiscal_receipt),
   };
 }
@@ -842,10 +847,22 @@ export async function disconnectUsbPrinter(role: PrinterRole = 'receipt'): Promi
   try { await conn.device.close(); } catch {}
 }
 
-async function sendToUsb(data: Uint8Array, role: PrinterRole = 'receipt'): Promise<void> {
-  const conn = usbConnections[role];
-  if (!conn) throw new Error('No USB printer connected');
-  await conn.device.transferOut(conn.endpoint, data);
+// One write at a time per printer: a drawer kick and the bill it goes with
+// must not interleave mid-command, and Bluetooth refuses a second write while
+// one is still going.
+const directQueues: Partial<Record<PrinterRole, Promise<unknown>>> = {};
+function queued(role: PrinterRole, job: () => Promise<void>): Promise<void> {
+  const run = (directQueues[role] ?? Promise.resolve()).then(job);
+  directQueues[role] = run.catch(() => {});
+  return run;
+}
+
+function sendToUsb(data: Uint8Array, role: PrinterRole = 'receipt'): Promise<void> {
+  return queued(role, async () => {
+    const conn = usbConnections[role];
+    if (!conn) throw new Error('No USB printer connected');
+    await conn.device.transferOut(conn.endpoint, data);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -904,26 +921,87 @@ export async function disconnectBluetoothPrinter(role: PrinterRole = 'receipt'):
   }
 }
 
-async function sendToBluetooth(data: Uint8Array, role: PrinterRole = 'receipt'): Promise<void> {
-  const characteristic = bleConnections[role]?.characteristic;
-  if (!characteristic) throw new Error('No Bluetooth printer connected');
-  // BLE writes are capped by the negotiated ATT MTU (often just 20 bytes) —
-  // chunk so this works regardless of what the connected stack negotiated.
-  const CHUNK = 100;
-  const canWriteWithoutResponse = !!characteristic.properties?.writeWithoutResponse;
-  for (let offset = 0; offset < data.length; offset += CHUNK) {
-    const chunk = data.slice(offset, offset + CHUNK);
-    if (canWriteWithoutResponse) await characteristic.writeValueWithoutResponse(chunk);
-    else await characteristic.writeValue(chunk);
-    await new Promise((r) => setTimeout(r, 20));
-  }
+function sendToBluetooth(data: Uint8Array, role: PrinterRole = 'receipt'): Promise<void> {
+  return queued(role, async () => {
+    const characteristic = bleConnections[role]?.characteristic;
+    if (!characteristic) throw new Error('No Bluetooth printer connected');
+    // BLE writes are capped by the negotiated ATT MTU (often just 20 bytes) —
+    // chunk so this works regardless of what the connected stack negotiated.
+    const CHUNK = 100;
+    const canWriteWithoutResponse = !!characteristic.properties?.writeWithoutResponse;
+    for (let offset = 0; offset < data.length; offset += CHUNK) {
+      const chunk = data.slice(offset, offset + CHUNK);
+      if (canWriteWithoutResponse) await characteristic.writeValueWithoutResponse(chunk);
+      else await characteristic.writeValue(chunk);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Open cash drawer — wired to the front (receipt) printer
+// Cash drawer — its cable plugs into the bill (receipt) printer, which opens
+// it on the ESC/POS "kick" command. Only a job of the printer's own bytes can
+// carry that: USB, Bluetooth, RawBT, or a Windows printer through QZ Tray or
+// the Core Bridge. A page sent to the print dialog, or printed by the desktop
+// app, can't — there the printer's Windows driver has to open it.
 // ---------------------------------------------------------------------------
-export async function openCashDrawer(): Promise<void> {
-  if (usbConnections.receipt) await sendToUsb(CASH_DRAWER, 'receipt');
+
+/** Whether the bill can carry the drawer's open command this way of printing. */
+export function canKickDrawer(mode: ReceiptPrintMode): boolean {
+  if (mode === 'webusb' || mode === 'webbluetooth' || mode === 'rawbt') return true;
+  return mode === 'system' && canChoosePrinters() && !isSystemPrintAvailable();
+}
+
+const DRAWER_BY_DRIVER =
+  "switch on the cash drawer in the receipt printer's Windows Printing Preferences (often “Open cash drawer” / “Cash drawer: before printing”), so the printer opens it with every bill";
+
+/** Why the drawer can't be opened from here this way of printing. */
+export function drawerProblem(mode: ReceiptPrintMode): string | null {
+  if (canKickDrawer(mode)) return null;
+  if (mode === 'none') return 'Bills are switched off (Hardware → Receipt Printer), and the drawer opens through the bill printer.';
+  if (mode === 'system' && isSystemPrintAvailable()) {
+    return `The desktop app prints bills as pages, which can't carry the drawer's open command — ${DRAWER_BY_DRIVER}.`;
+  }
+  return "Bills go to the print dialog, which can't send the printer the drawer's open command. In Hardware → Receipt Printer, "
+    + `print straight to the printer (Choose Printers through QZ Tray or the Core Bridge, or Direct USB) — or ${DRAWER_BY_DRIVER}.`;
+}
+
+/** Whether a sale paid this way opens the drawer: Hardware → Cash Drawer on, and some of it paid in cash. */
+export function drawerOpensFor(payments: Array<{ method?: string }> | undefined): boolean {
+  return useHardwareStore.getState().cashDrawerEnabled && (payments ?? []).some((p) => p.method === 'cash');
+}
+
+/**
+ * Opens the cash drawer through the bill printer, the way this till prints
+ * bills (Hardware → Receipt Printer) unless told otherwise. Throws, saying
+ * why, when it can't.
+ */
+export async function openCashDrawer(
+  mode: ReceiptPrintMode = useHardwareStore.getState().printerMode,
+  printers: ChosenPrinter[] = useHardwareStore.getState().receiptPrinters,
+): Promise<void> {
+  const problem = drawerProblem(mode);
+  if (problem) throw new Error(problem);
+  if (mode === 'webusb') {
+    if (!usbConnections.receipt) throw new Error("The USB receipt printer isn't connected — connect it in Hardware → Receipt Printer.");
+    await sendToUsb(CASH_DRAWER, 'receipt');
+    return;
+  }
+  if (mode === 'webbluetooth') {
+    if (!bleConnections.receipt) throw new Error("The Bluetooth receipt printer isn't connected — connect it in Hardware → Receipt Printer.");
+    await sendToBluetooth(CASH_DRAWER, 'receipt');
+    return;
+  }
+  if (mode === 'rawbt') {
+    await printViaRawbt(CASH_DRAWER, 'The cash drawer');
+    return;
+  }
+  // Windows printers through QZ Tray / the Core Bridge: every ticked bill
+  // printer (one without a drawer ignores the command).
+  const rolls = printers.filter((p) => p.paper !== 'a4');
+  if (rolls.length === 0) throw new Error('No bill printer ticked in Hardware → Receipt Printer.');
+  const { failed, problems } = await printOnChosen(rolls, () => '', () => CASH_DRAWER);
+  if (failed.length === rolls.length) throw new Error(problems);
 }
 
 // ---------------------------------------------------------------------------
@@ -935,6 +1013,19 @@ export async function printReceipt(
   /** Mode 'system': the bill prints on each of these. */
   printers: ChosenPrinter[] = [],
 ): Promise<void> {
+  // The drawer opens straight away, not once the bill has its fiscal result.
+  // Through RawBT the command rides on the bill instead: each job there is a
+  // trip out to the RawBT app. A page (the print dialog, the desktop app)
+  // can't carry it — the printer's driver opens the drawer there, if set to.
+  const kick = data.openDrawer && canKickDrawer(mode) && mode !== 'rawbt'
+    ? openCashDrawer(mode, printers).then(() => null, (e: any) => String(e?.message ?? e))
+    : null;
+  await printBill(data, mode, printers);
+  const drawerFailed = await kick;
+  if (drawerFailed) throw new Error(`Cash drawer didn't open — ${drawerFailed}`);
+}
+
+async function printBill(data: ReceiptData, mode: ResolvedPrintMode, printers: ChosenPrinter[]): Promise<void> {
   // Printing straight to a printer can wait for the receipt's fiscal result;
   // the print dialog's window can't open late (popup blockers), so it waits inside.
   const direct = (mode === 'webusb' && !!usbConnections.receipt) || (mode === 'webbluetooth' && !!bleConnections.receipt)
@@ -942,7 +1033,8 @@ export async function printReceipt(
   if (direct) data = await withFiscalResult(data);
 
   if (mode === 'rawbt') {
-    await printViaRawbt(buildEscPosReceipt(data, await escPosLogo(data.logo)), 'The receipt');
+    const bill = buildEscPosReceipt(data, await escPosLogo(data.logo));
+    await printViaRawbt(data.openDrawer ? concat(CASH_DRAWER, bill) : bill, 'The receipt');
     return;
   }
   if (mode === 'webusb' && usbConnections.receipt) {

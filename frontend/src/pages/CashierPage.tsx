@@ -8,7 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
-import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode } from '../lib/hardware/printer';
+import { buildReceiptDataFromSale, printReceipt, resolveReceiptPrintMode, drawerOpensFor } from '../lib/hardware/printer';
 import { companyLogo } from '../lib/companyLogo';
 import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, useConnectedScaleCount, type ScaleDevice } from '../lib/hardware/scale';
@@ -317,7 +317,7 @@ export default function CashierPage() {
         : `No product with PLU code ${decoded.pluCode}`, { duration: 5000 });
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
-    const line = embeddedCartLine(decoded, parseFloat(product.selling_price));
+    const line = embeddedCartLine(decoded, parseFloat(product.selling_price), storeSettings ?? {});
     if (addProductWithQty(product, line.qty, line.soldByWeight, line.price)) {
       setCodeInput('');
       setTimeout(() => codeRef.current?.focus(), 40);
@@ -420,6 +420,7 @@ export default function CashierPage() {
           fiscalDay: storeSettings?.fiscal_day || undefined,
           recGn: storeSettings?.fiscal_rec_gn || undefined,
           rec68: storeSettings?.fiscal_rec_68 || undefined,
+          openDrawer: drawerOpensFor(paymentsFromPayload),
         }),
         resolveReceiptPrintMode(hw.printerMode),
         hw.receiptPrinters

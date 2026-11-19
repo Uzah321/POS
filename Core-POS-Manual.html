@@ -891,7 +891,7 @@
   <p>USB barcode scanners work as keyboard input devices — plug in and scan. No driver or configuration needed. The scanner input is captured by the product search field on both the POS and Cashier screens.</p>
 
   <h3>Cash Drawer</h3>
-  <p>If connected via the receipt printer's RJ11 port, the cash drawer opens automatically when a cash payment is completed. Configure the drawer kick pulse in Hardware Settings.</p>
+  <p>With the drawer's cable in the receipt printer's RJ11 port and <strong>Hardware → Cash Drawer → Enable cash drawer</strong> on, the drawer opens on every sale paid (all or partly) in cash, as its bill prints. The till sends the open command to the printer when bills print straight to it (Choose Printers through QZ Tray or the Core Bridge, Direct USB or Bluetooth, or RawBT). Bills sent to the print dialog, or printed by the desktop app, can't carry it: switch on the cash drawer in the printer's Windows Printing Preferences instead. <strong>Open Cash Drawer</strong> on that page tests it, and says what's missing when it can't.</p>
 
   <h3>Customer Display</h3>
   <p>A secondary screen connected to the cashier PC can show the running sale to the customer at <code>/customer-display</code>. It updates in real-time as items are scanned.</p>

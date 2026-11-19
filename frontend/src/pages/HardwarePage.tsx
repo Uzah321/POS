@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import {
   connectUsbPrinter, disconnectUsbPrinter, connectBluetoothPrinter, disconnectBluetoothPrinter,
-  printLabel, printReceipt, openCashDrawer, resolveReceiptPrintMode, canChoosePrinters, isSystemPrintAvailable,
+  printLabel, printReceipt, openCashDrawer, drawerProblem, resolveReceiptPrintMode, canChoosePrinters, isSystemPrintAvailable,
   isPrinterConnected, companyDetails,
 } from '../lib/hardware/printer';
 import KitchenPrinterSettings from '../components/hardware/KitchenPrinterSettings';
@@ -587,7 +587,7 @@ export default function HardwarePage() {
       await openCashDrawer();
       toast.success('Cash drawer opened');
     } catch (e: any) {
-      toast.error(e.message ?? 'Could not open drawer');
+      toast.error(e.message ?? 'Could not open drawer', { duration: 10000 });
     }
   };
 
@@ -920,22 +920,20 @@ export default function HardwarePage() {
           <Card title="Cash Drawer">
             <ToggleRow
               label="Enable cash drawer"
-              description="Automatically open the cash drawer on each completed cash sale"
+              description="Opens the cash drawer on every sale paid (all or partly) in cash, as its bill prints"
               checked={hw.cashDrawerEnabled}
               onChange={(v) => hw.update({ cashDrawerEnabled: v })}
             />
-            <ToggleRow
-              label="Open via receipt printer"
-              description="Sends ESC/POS kick command through the USB receipt printer (most common wiring)"
-              checked={hw.cashDrawerViaPrinter}
-              onChange={(v) => hw.update({ cashDrawerViaPrinter: v })}
-            />
           </Card>
 
-          <Card title="Wiring guide">
+          <Card title="How it opens">
             <div className="space-y-2 text-sm text-gray-600">
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>Most cash drawers connect via a <strong>RJ-11/RJ-12 cable to the receipt printer</strong>. Make sure the printer is in USB mode above.</p></div>
-              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>If your drawer has a direct USB port, the WebUSB connection will also send the kick command.</p></div>
+              <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>The drawer's <strong>RJ-11/RJ-12 cable plugs into the receipt printer</strong>, and the till tells the printer to open it — so it goes the way this till prints bills (Receipt Printer tab).</p></div>
+              {drawerProblem(hw.printerMode) ? (
+                <div className="flex gap-3 text-amber-700"><ChevronRight size={16} className="mt-0.5 flex-shrink-0" /><p>{drawerProblem(hw.printerMode)}</p></div>
+              ) : (
+                <div className="flex gap-3"><ChevronRight size={16} className="text-blue-500 mt-0.5 flex-shrink-0" /><p>This till prints straight to the printer, so it opens the drawer itself.</p></div>
+              )}
             </div>
           </Card>
 
@@ -943,7 +941,6 @@ export default function HardwarePage() {
             <button onClick={handleTestDrawer} className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
               <DollarSign size={14} />Open Cash Drawer
             </button>
-            <p className="text-xs text-gray-400 mt-2">Requires USB printer to be connected above.</p>
           </Card>
         </div>
       );

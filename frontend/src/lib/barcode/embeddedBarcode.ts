@@ -136,16 +136,54 @@ export function findProductByPlu<T extends PluProduct>(products: T[], pluCode: s
 }
 
 /**
+ * How the counter scale rounds the total it prints on a weight label
+ * (Settings → Barcodes, barcode_weight_rounding). Many scales round kg ×
+ * price per kg to the nearest (or down to the) 0.05 or 0.10 — 0.362 kg at
+ * 6.00/kg prints 2.15, not 2.17 — and the till must charge what the label
+ * says. Blank / 'none': kg × price per kg, as before.
+ */
+export const LABEL_ROUNDING_OPTIONS = [
+  { value: 'none', label: 'None — kg × price per kg, to the cent' },
+  { value: 'nearest_5', label: 'To the nearest 0.05' },
+  { value: 'down_5', label: 'Down to 0.05' },
+  { value: 'nearest_10', label: 'To the nearest 0.10' },
+  { value: 'down_10', label: 'Down to 0.10' },
+] as const;
+
+/** `amount` rounded the way the scale rounds its labels, or null when it doesn't round. */
+export function roundedLabelTotal(amount: number, rounding: unknown): number | null {
+  const m = /^(nearest|down)_(5|10)$/.exec(String(rounding ?? '').trim());
+  if (!m || !Number.isFinite(amount)) return null;
+  const step = Number(m[2]);
+  // In cents, without float noise (0.362 × 6 = 2.1719999…): the scale works in whole numbers.
+  const cents = Math.round(amount * 100 * 1e4) / 1e4;
+  const steps = m[1] === 'down' ? Math.floor(cents / step + 1e-9) : Math.round(cents / step);
+  return (steps * step) / 100;
+}
+
+/**
  * What a decoded label puts in the cart. A weight label is that many kg at
- * the product's own price per kg. A price label charges exactly the printed
+ * the product's own price per kg — at the total the scale printed when it
+ * rounds (see roundedLabelTotal), the line's price per kg nudged so kg ×
+ * price comes to it. A price label charges exactly the printed
  * amount — the weight is worked back out from the product's price per kg so
  * stock comes off by the kg that actually left the counter (not 1), and the
  * line's unit price is nudged so qty × price still equals the printed
  * amount. With no price per kg to work from, it falls back to one item at
  * the printed amount.
  */
-export function embeddedCartLine(decoded: EmbeddedBarcodeResult, pricePerKg: number): { qty: number; soldByWeight: boolean; price?: number } {
-  if (decoded.kind === 'weight') return { qty: decoded.value, soldByWeight: true };
+export function embeddedCartLine(
+  decoded: EmbeddedBarcodeResult,
+  pricePerKg: number,
+  settings: Record<string, any> = {},
+): { qty: number; soldByWeight: boolean; price?: number } {
+  if (decoded.kind === 'weight') {
+    const total = pricePerKg > 0 ? roundedLabelTotal(pricePerKg * decoded.value, settings.barcode_weight_rounding) : null;
+    // A label rounded down to nothing charges kg × price instead of 0.00.
+    return total != null && total > 0
+      ? { qty: decoded.value, soldByWeight: true, price: total / decoded.value }
+      : { qty: decoded.value, soldByWeight: true };
+  }
   if (pricePerKg > 0) {
     const kg = Math.round((decoded.value / pricePerKg) * 1000) / 1000;
     if (kg > 0) return { qty: kg, soldByWeight: true, price: decoded.value / kg };

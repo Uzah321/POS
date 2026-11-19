@@ -32,18 +32,23 @@ class NumberPad extends StatelessWidget {
       ['.', '0', 'back'],
     ];
     return LayoutBuilder(builder: (context, box) {
-      final keyHeight = math.max(44.0, math.min(64.0, (box.maxHeight - 3 * 8) / 4));
+      // The keys fill the room they're given (up to 64 high) and never more: a
+      // pad taller than its space slides its last row under whatever is below
+      // it, which is what hid 0 on short handheld screens.
+      final bounded = box.maxHeight.isFinite;
+      final gap = bounded && box.maxHeight < 4 * 48 + 3 * 8 ? 6.0 : 8.0;
+      final keyHeight = bounded ? math.max(0.0, math.min(64.0, (box.maxHeight - 3 * gap) / 4)) : 64.0;
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final row in rows)
             Padding(
-              padding: EdgeInsets.only(bottom: row == rows.last ? 0 : 8),
+              padding: EdgeInsets.only(bottom: row == rows.last ? 0 : gap),
               child: Row(children: [
                 for (final key in row)
                   Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(right: key == row.last ? 0 : 8),
+                      padding: EdgeInsets.only(right: key == row.last ? 0 : gap),
                       child: _Key(
                         label: key,
                         height: keyHeight,
@@ -62,6 +67,10 @@ class NumberPad extends StatelessWidget {
     });
   }
 }
+
+/// How tall a number pad in a bottom sheet can be: 260 on a phone, less on a
+/// short handheld screen so the sheet's button below it still fits.
+double padHeightFor(BuildContext context) => (MediaQuery.sizeOf(context).height * 0.36).clamp(170.0, 260.0);
 
 class _Key extends StatelessWidget {
   const _Key({required this.label, required this.height, required this.onTap, this.enabled = true});
@@ -86,8 +95,8 @@ class _Key extends StatelessWidget {
             height: height,
             child: Center(
               child: back
-                  ? const Icon(Icons.backspace_outlined, size: 24, color: kInk, semanticLabel: 'Backspace')
-                  : Text(label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: kInk)),
+                  ? Icon(Icons.backspace_outlined, size: height < 44 ? 20 : 24, color: kInk, semanticLabel: 'Backspace')
+                  : Text(label, style: TextStyle(fontSize: height < 44 ? 20 : 24, fontWeight: FontWeight.w600, color: kInk, height: 1)),
             ),
           ),
         ),

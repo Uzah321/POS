@@ -499,7 +499,7 @@ Future<double?> askWeight(BuildContext context, Product p) {
               ]),
             ),
             const SizedBox(height: 12),
-            SizedBox(height: 260, child: NumberPad(onKey: (k) => setState(() => value = applyKey(value, k, decimals: 3)))),
+            SizedBox(height: padHeightFor(context), child: NumberPad(onKey: (k) => setState(() => value = applyKey(value, k, decimals: 3)))),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: (double.tryParse(value) ?? 0) > 0 ? () => Navigator.pop(context, double.parse(value)) : null,

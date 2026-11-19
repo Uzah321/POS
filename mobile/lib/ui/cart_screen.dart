@@ -122,7 +122,8 @@ class _LineCard extends StatelessWidget {
                     style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: value.isEmpty ? kMuted : kInk)),
               ),
               const SizedBox(height: 12),
-              SizedBox(height: 260, child: NumberPad(allowDecimal: weighed, onKey: (k) => setState(() => value = applyKey(value, k, decimals: weighed ? 3 : 0)))),
+              // A short handheld screen gets a shorter pad, so the Set button stays on screen
+              SizedBox(height: padHeightFor(context), child: NumberPad(allowDecimal: weighed, onKey: (k) => setState(() => value = applyKey(value, k, decimals: weighed ? 3 : 0)))),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: value.isEmpty ? null : () => Navigator.pop(context, double.tryParse(value) ?? 0),

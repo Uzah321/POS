@@ -74,6 +74,8 @@ class _CoreAppState extends State<CoreApp> {
       title: 'Core POS',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      // A large system font size would push the till's screens past the bottom of a small handheld: cap it.
+      builder: (context, child) => MediaQuery.withClampedTextScaling(maxScaleFactor: 1.1, child: child!),
       home: ListenableBuilder(
         listenable: AppState.I,
         builder: (context, _) => AppState.I.signedIn ? const TillScreen() : const LoginScreen(),

@@ -107,46 +107,72 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Short screens (handheld tills like the Sunmi V1s/V2, ~640-720 tall) get a
+    // tighter layout, so everything down to the keypad's last row fits without
+    // scrolling; the keypad takes whatever height is left.
+    final compact = MediaQuery.sizeOf(context).height < 760;
+    final gap = compact ? 6.0 : 12.0;
     return ListenableBuilder(
       listenable: AppState.I,
       builder: (context, _) {
         final s = AppState.I;
         final due = _due;
         final cash = _cash;
+        final currencyChips = s.currencies.length > 1
+            ? Wrap(spacing: 6, children: [
+                for (final c in s.currencies)
+                  ChoiceChip(
+                    label: Text(c.code),
+                    selected: c.code == s.currency.code,
+                    showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: compact ? MaterialTapTargetSize.shrinkWrap : null,
+                    onSelected: _busy
+                        ? null
+                        : (_) => setState(() {
+                              s.currency = c;
+                              _tendered = '';
+                            }),
+                  ),
+              ])
+            : null;
+        final cashStatus = cash == null
+            ? 'Enter the amount'
+            : cash + 0.0001 >= due
+                ? 'Change ${s.moneyActive(cash - due)}'
+                : 'Short by ${s.moneyActive(due - cash)}';
+        final cashStatusColor = cash == null ? kMuted : cash + 0.0001 >= due ? kGreen : kAmber;
         return Scaffold(
-          appBar: AppBar(title: const Text('Payment')),
+          appBar: AppBar(title: const Text('Payment'), toolbarHeight: compact ? 48 : null),
           body: SafeArea(
             child: Column(children: [
               Container(
                 width: double.infinity,
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Text('Total due', style: TextStyle(fontSize: 15, color: kMuted)),
-                    const Spacer(),
-                    if (s.currencies.length > 1)
-                      Wrap(spacing: 6, children: [
-                        for (final c in s.currencies)
-                          ChoiceChip(
-                            label: Text(c.code),
-                            selected: c.code == s.currency.code,
-                            showCheckmark: false,
-                            visualDensity: VisualDensity.compact,
-                            onSelected: _busy
-                                ? null
-                                : (_) => setState(() {
-                                      s.currency = c;
-                                      _tendered = '';
-                                    }),
+                padding: compact ? const EdgeInsets.fromLTRB(12, 4, 12, 4) : const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                child: compact
+                    ? Row(children: [
+                        const Text('Total ', style: TextStyle(fontSize: 13, color: kMuted)),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(s.moneyActive(due), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: kInk)),
                           ),
+                        ),
+                        if (currencyChips != null) ...[const SizedBox(width: 8), currencyChips],
+                      ])
+                    : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          const Text('Total due', style: TextStyle(fontSize: 15, color: kMuted)),
+                          const Spacer(),
+                          ?currencyChips,
+                        ]),
+                        Text(s.moneyActive(due), style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: kInk)),
                       ]),
-                  ]),
-                  Text(s.moneyActive(due), style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: kInk)),
-                ]),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                padding: EdgeInsets.fromLTRB(12, gap, 12, 0),
                 child: Row(children: [
                   for (final (value, label, icon) in _methods)
                     Expanded(
@@ -155,6 +181,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         child: _MethodButton(
                           label: label,
                           icon: icon,
+                          compact: compact,
                           selected: _method == value,
                           onTap: _busy ? null : () => setState(() => _method = value),
                         ),
@@ -164,56 +191,58 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               if (_method == 'cash') ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  padding: EdgeInsets.fromLTRB(12, gap, 12, 0),
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    padding: compact ? const EdgeInsets.fromLTRB(12, 4, 12, 4) : const EdgeInsets.fromLTRB(16, 10, 16, 10),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.zero, border: Border.all(color: kBlue, width: 2)),
                     child: Row(children: [
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const Text('Cash received', style: TextStyle(fontSize: 13, color: kMuted)),
-                        Text(
-                          cash == null
-                              ? 'Enter the amount'
-                              : cash + 0.0001 >= due
-                                  ? 'Change ${s.moneyActive(cash - due)}'
-                                  : 'Short by ${s.moneyActive(due - cash)}',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: cash == null ? kMuted : cash + 0.0001 >= due ? kGreen : kAmber,
-                          ),
-                        ),
-                      ]),
-                      const Spacer(),
+                      Expanded(
+                        child: compact
+                            // One line: what's still needed (or the change) beside the amount typed
+                            ? Text(cashStatus,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: cashStatusColor))
+                            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                const Text('Cash received', style: TextStyle(fontSize: 13, color: kMuted)),
+                                Text(cashStatus, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: cashStatusColor)),
+                              ]),
+                      ),
                       Text(_tendered.isEmpty ? '0.00' : _tendered,
-                          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _tendered.isEmpty ? kLine : kInk)),
+                          style: TextStyle(fontSize: compact ? 24 : 30, fontWeight: FontWeight.w800, color: _tendered.isEmpty ? kLine : kInk)),
                     ]),
                   ),
                 ),
-                SizedBox(
-                  height: 54,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                    children: [
-                      for (final (i, amount) in _quickAmounts().indexed)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ActionChip(
-                            label: Text(i == 0 ? 'Exact' : s.moneyActive(amount)),
-                            labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kBlue),
+                // Exact and the next round amounts, sharing the width so all of them show without a sideways scroll
+                Padding(
+                  padding: EdgeInsets.fromLTRB(12, compact ? 6 : 10, 12, 0),
+                  child: Row(children: [
+                    for (final (i, amount) in _quickAmounts().indexed) ...[
+                      if (i > 0) const SizedBox(width: 6),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _busy ? null : () => setState(() => _tendered = amount.toStringAsFixed(2)),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: Size(0, compact ? 34 : 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             backgroundColor: Colors.white,
+                            foregroundColor: kBlue,
                             side: const BorderSide(color: kLine),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                            onPressed: _busy ? null : () => setState(() => _tendered = amount.toStringAsFixed(2)),
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(i == 0 ? 'Exact' : s.moneyActive(amount),
+                                style: TextStyle(fontSize: compact ? 14 : 15, fontWeight: FontWeight.w700)),
                           ),
                         ),
+                      ),
                     ],
-                  ),
+                  ]),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    padding: EdgeInsets.fromLTRB(12, compact ? 6 : 10, 12, compact ? 6 : 10),
                     child: NumberPad(onKey: (k) {
                       if (!_busy) setState(() => _tendered = applyKey(_tendered, k));
                     }),
@@ -235,13 +264,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ),
                 ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: EdgeInsets.fromLTRB(12, 0, 12, compact ? 6 : 12),
                 child: FilledButton(
                   onPressed: _ready && !_busy ? _complete : null,
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(58), backgroundColor: kGreen),
+                  style: FilledButton.styleFrom(minimumSize: Size.fromHeight(compact ? 48 : 58), backgroundColor: kGreen),
                   child: _busy
                       ? const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.8, color: Colors.white))
-                      : Text(_method == 'cash' && cash == null ? 'Enter cash received' : 'Complete sale', style: const TextStyle(fontSize: 18)),
+                      : Text(_method == 'cash' && cash == null ? 'Enter cash received' : 'Complete sale', style: TextStyle(fontSize: compact ? 17 : 18)),
                 ),
               ),
             ]),
@@ -253,12 +282,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
 }
 
 class _MethodButton extends StatelessWidget {
-  const _MethodButton({required this.label, required this.icon, required this.selected, required this.onTap});
+  const _MethodButton({required this.label, required this.icon, required this.selected, required this.onTap, this.compact = false});
 
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback? onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -269,15 +299,15 @@ class _MethodButton extends StatelessWidget {
         borderRadius: BorderRadius.zero,
         onTap: onTap,
         child: Container(
-          height: 64,
+          height: compact ? 44 : 64,
           decoration: BoxDecoration(borderRadius: BorderRadius.zero, border: Border.all(color: selected ? kBlue : kLine, width: 1.5)),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, color: selected ? Colors.white : kInk),
-            const SizedBox(height: 3),
+            Icon(icon, size: compact ? 18 : 24, color: selected ? Colors.white : kInk),
+            SizedBox(height: compact ? 1 : 3),
             Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: selected ? Colors.white : kInk)),
+                style: TextStyle(fontSize: compact ? 12.5 : 13.5, fontWeight: FontWeight.w700, color: selected ? Colors.white : kInk)),
           ]),
         ),
       ),

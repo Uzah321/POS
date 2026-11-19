@@ -1,6 +1,6 @@
 import { Fragment, useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { salesApi, settingsApi, customersApi, weighingScalesApi, usersApi, tablesApi } from '../api';
+import { salesApi, settingsApi, weighingScalesApi, usersApi, tablesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
 import { useCartStore, unsentKitchenItems } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
@@ -31,16 +31,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Plus, Trash2, Loader2, CreditCard, Banknote, Smartphone,
   X, ShoppingCart, PauseCircle, PlayCircle, Clock, Keyboard,
-  User, Users, Award, LayoutGrid,
+  Users, LayoutGrid,
   ChevronLeft, ChevronRight,
   Minus, ScanLine, ArrowLeftRight, XCircle, Delete, Settings, HelpCircle, CalendarCheck,
-  ClipboardList, UserPlus, Percent, Hash, Calculator,
+  ClipboardList, Hash,
 } from 'lucide-react';
 
 const APP_VERSION = '1.2.0';
 import toast from 'react-hot-toast';
 
-const SHORTCUTS = 'F2 Search · F4 Qty (type it first) · F5 Clear · F8 Hold · F9 or F10 Pay · F12 Fast cash · in Pay: 1/2/3 Cash/Card/Mobile, Enter to process';
+const SHORTCUTS = 'F2 Search · F4 Qty (type it first) · F5 Clear · F8 Hold · F9 or F10 Pay · in Pay: 1/2/3 Cash/Card/Mobile, Enter to process';
 
 const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash', icon: Banknote, activeClass: 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200' },
@@ -48,7 +48,7 @@ const PAYMENT_METHODS = [
   { value: 'mobile_money', label: 'Mobile', icon: Smartphone, activeClass: 'bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-200' },
 ];
 
-/** One of the order panel's action keys (Pay, Fast cash, Qty, ...), with its keyboard shortcut in the corner. */
+/** One of the order panel's action keys (Pay, Qty, Clear, Functions), with its keyboard shortcut in the corner. */
 function PadKey({ label, fkey, icon: Icon, onClick, disabled, tone, title }: {
   label: string; fkey?: string; icon: typeof CreditCard; onClick: () => void;
   disabled?: boolean; tone?: 'pay' | 'danger'; title?: string;
@@ -79,7 +79,7 @@ function lineDiscount(i: CartItem): number {
 
 function CartRow({ item, format, image, selected, onSelect }: {
   item: CartItem; format: (v: number) => string; image?: string;
-  /** The line the keypad's Qty and Discount keys act on. */
+  /** The line the keypad's Qty key acts on. */
   selected?: boolean; onSelect?: () => void;
 }) {
   const { updateQty, removeItem } = useCartStore();
@@ -187,7 +187,6 @@ export default function POSPage() {
   // by this tab; at lg+ both render side by side as before, unaffected.
   const [mobileTab, setMobileTab] = useState<'products' | 'ticket'>('products');
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   // Arrow-key highlight over the search results grid — -1 means nothing
   // highlighted yet (plain Enter still falls back to the exact-code lookup
@@ -204,8 +203,6 @@ export default function POSPage() {
   const { isServerUp } = useServerHealth();
   const { format: formatCurrency } = useCurrencyStore();
   const {
-    showCustomerPicker, setShowCustomerPicker,
-    showLoyaltyPanel, setShowLoyaltyPanel,
     showCoversKeypad, setShowCoversKeypad,
     coversInput, setCoversInput,
   } = usePosUIStore();
@@ -298,7 +295,7 @@ export default function POSPage() {
   const kbRef = useRef<any>({});
   useEffect(() => {
     kbRef.current = {
-      handleProcessSale, handleHoldOrder, cart, holdMutation, openPay, fastCash, applyQty, runSale, clearOrder,
+      handleProcessSale, handleHoldOrder, cart, holdMutation, openPay, applyQty, runSale, clearOrder,
       showPay, showFunctions, canProcess, needsRegisterSelection,
     };
   });
@@ -317,9 +314,6 @@ export default function POSPage() {
         if (!k.showPay) { if (k.cart.items.length > 0) k.openPay(); }
         else if (k.canProcess) k.runSale();
         else if (k.cart.items.length > 0 && !k.needsRegisterSelection) k.handleProcessSale();
-      } else if (e.key === 'F12') {
-        e.preventDefault();
-        k.fastCash();
       } else if (e.key === 'F4') {
         e.preventDefault();
         k.applyQty();
@@ -988,39 +982,12 @@ export default function POSPage() {
     }
   };
 
-  const { data: customerResults, isFetching: customerSearching } = useQuery({
-    queryKey: ['pos-customer-search', customerSearch],
-    queryFn: () => customersApi.list({ search: customerSearch, per_page: 8 }).then(r => r.data?.data?.data ?? r.data?.data ?? []),
-    enabled: showCustomerPicker && customerSearch.trim().length > 0,
-  });
-
-  const selectCustomer = (c: any) => {
-    cart.setCustomer(c.id, c.name);
-    setShowCustomerPicker(false);
-    setCustomerSearch('');
-  };
-
-  const { data: loyaltyData, isLoading: loyaltyLoading } = useQuery({
-    queryKey: ['pos-customer-loyalty', cart.customerId],
-    queryFn: () => customersApi.getLoyalty(cart.customerId as number).then(r => r.data?.data),
-    enabled: showLoyaltyPanel && !!cart.customerId,
-  });
-
-  const redeemLoyaltyMutation = useMutation({
-    mutationFn: (points: number) => customersApi.redeemLoyalty(cart.customerId as number, points),
-    onSuccess: () => {
-      toast.success('Loyalty points redeemed');
-      qc.invalidateQueries({ queryKey: ['pos-customer-loyalty'] });
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not redeem points'),
-  });
-
   // A waiter is only required for a sit-in order at a table — walk-in,
   // takeaway and delivery orders never need one.
   const needsWaiter = cart.orderType === 'sit_in' && !!cart.tableId;
 
   const handleProcessSale = () => {
-    // The payment as it is now, not as this render saw it: Fast cash sets it and processes in one go.
+    // The payment as it is now, not as this render saw it.
     const { paymentMethod, cashTendered, isSplitPayment, splitPayments } = useCartStore.getState();
     if (cart.items.length === 0) return;
     if (needsWaiter && !cart.waiterId) {
@@ -1281,16 +1248,15 @@ export default function POSPage() {
   };
 
   // ── The order panel's keypad ─────────────────────────────────────────────
-  // A number typed on it is a quantity (Qty), a discount % (Discount) or the
-  // cash handed over (Pay, Fast cash). Qty and Discount act on the selected
-  // line — the last one rung up, unless the cashier taps another.
+  // A number typed on it is a quantity (Qty) or the cash handed over (Pay).
+  // Qty acts on the selected line — the last one rung up, unless the cashier
+  // taps another.
   const [entry, setEntry] = useState('');
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [showPay, setShowPay] = useState(false);
   const [showFunctions, setShowFunctions] = useState(false);
   // The last cash sale's change, on the keypad's display until the next key.
   const [lastChange, setLastChange] = useState<number | null>(null);
-  const canDiscount = hasPermission('apply_discounts') || hasRole('admin');
 
   const lastLineId = cart.items[cart.items.length - 1]?.line_id ?? null;
   const prevLineCount = useRef(cart.items.length);
@@ -1327,18 +1293,6 @@ export default function POSPage() {
     setEntry('');
   };
 
-  const applyDiscount = () => {
-    const line = selectedLine;
-    if (!line) { toast.error('Add an item first'); return; }
-    if (!canDiscount) { toast.error('Only a manager can give discounts'); return; }
-    if (line.synced_to_tab) { toast.error(`${line.name} is already on the table's tab`); return; }
-    if (entryValue == null) { toast('Type the discount % on the keypad, then press Discount', { icon: '％' }); return; }
-    if (entryValue > 100) { toast.error('A discount is at most 100%'); return; }
-    cart.updateDiscount(line.line_id, Math.round(((line.price * entryValue) / 100) * 1e6) / 1e6);
-    setEntry('');
-    toast.success(entryValue > 0 ? `${entryValue}% off ${line.name}` : `Discount taken off ${line.name}`, { duration: 1500 });
-  };
-
   /** Opens the payment options; a number typed first is the cash handed over. */
   const openPay = (split = false) => {
     if (cart.items.length === 0) { toast.error('Add items first'); return; }
@@ -1366,19 +1320,6 @@ export default function POSPage() {
     setLastChange(changeDue);
     setShowPay(false);
     return true;
-  };
-
-  /** Cash, no questions: the typed amount (or exactly the total) — the change shows on the keypad. */
-  const fastCash = () => {
-    if (!readyToSell) { if (cart.items.length === 0) toast.error('Add items first'); return; }
-    const tendered = entryValue ?? totalDue;
-    if (tendered < totalDue) { toast.error(`Short by ${fmtActive(totalDue - tendered)}`); return; }
-    const s = useCartStore.getState();
-    s.setIsSplitPayment(false);
-    s.setSplitPayments([]);
-    s.setPaymentMethod('cash');
-    s.setCashTendered(tendered.toFixed(2));
-    if (runSale()) setEntry('');
   };
 
   const clearOrder = () => {
@@ -1579,7 +1520,7 @@ export default function POSPage() {
         </div>
 
         {/* Right: the current order — its lines, the total, and the keypad with
-            Pay / Fast cash / Qty / Discount. Below lg it is shown full-screen instead. */}
+            Pay / Qty / Clear / Functions. Below lg it is shown full-screen instead. */}
         <div className={`${mobileTab === 'ticket' ? 'flex' : 'hidden'} lg:flex flex-col w-full lg:w-[480px] xl:w-[560px] lg:flex-shrink-0 min-h-0 bg-white lg:border-l border-slate-200`}>
 
           {/* Header */}
@@ -1666,19 +1607,10 @@ export default function POSPage() {
             </div>
           )}
 
-          {/* Total bar: customer, how many items, what it comes to */}
+          {/* Total bar: how many items, what it comes to */}
           <div className="flex items-stretch h-[64px] flex-shrink-0">
-            <div className="flex-1 min-w-0 flex items-center gap-3 px-3 text-white" style={{ background: BLUE }}>
-              <button
-                type="button"
-                onClick={() => setShowCustomerPicker(true)}
-                title={cart.customerId ? `Customer: ${cart.customerName}` : 'Add a customer'}
-                className="flex items-center gap-2 min-w-0 h-11 px-2 rounded-lg hover:bg-white/15 touch-manipulation"
-              >
-                {cart.customerId ? <User size={24} className="flex-shrink-0" /> : <UserPlus size={26} strokeWidth={1.8} className="flex-shrink-0" />}
-                {cart.customerId && <span className="text-[14px] font-semibold truncate">{cart.customerName}</span>}
-              </button>
-              <span className="relative ml-auto flex-shrink-0" title={`${itemCount} item${itemCount === 1 ? '' : 's'}`}>
+            <div className="flex-1 min-w-0 flex items-center gap-3 px-5 text-white" style={{ background: BLUE }}>
+              <span className="relative flex-shrink-0" title={`${itemCount} item${itemCount === 1 ? '' : 's'}`}>
                 <ShoppingCart size={30} strokeWidth={1.8} />
                 <span className="absolute -top-2 -right-2.5 min-w-[22px] h-[22px] px-1 rounded-full bg-white text-[12px] font-bold flex items-center justify-center tabular-nums" style={{ color: BLUE }}>
                   {itemCount}
@@ -1731,14 +1663,9 @@ export default function POSPage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-2 grid-rows-4 gap-px">
+            <div className="grid grid-cols-2 grid-rows-2 gap-px">
               <PadKey label="Pay" fkey="F9" icon={CreditCard} onClick={() => openPay()} disabled={!readyToSell} tone="pay" />
-              <PadKey label="Fast cash" fkey="F12" icon={Banknote} onClick={fastCash} disabled={!readyToSell} />
               <PadKey label="Qty" fkey="F4" icon={Hash} onClick={applyQty} disabled={cart.items.length === 0} />
-              <PadKey label="Discount" icon={Percent} onClick={applyDiscount} disabled={cart.items.length === 0}
-                title={canDiscount ? 'Type the % on the keypad, then press Discount' : 'Only a manager can give discounts'} />
-              <PadKey label="Customer" icon={UserPlus} onClick={() => setShowCustomerPicker(true)} />
-              <PadKey label="Cash-up" icon={Calculator} onClick={() => navigate('/shift-end')} />
               <PadKey label="Clear" fkey="F5" icon={XCircle} onClick={clearOrder} disabled={cart.items.length === 0 && entry === ''} tone="danger" />
               <PadKey label="Functions" icon={LayoutGrid} onClick={() => setShowFunctions(true)} />
             </div>
@@ -1933,7 +1860,6 @@ export default function POSPage() {
               { label: `Held orders${cart.heldOrders.length ? ` (${cart.heldOrders.length})` : ''}`, icon: ClipboardList, act: () => setShowHeldOrders(true) },
               { label: 'Split payment', icon: ArrowLeftRight, disabled: !readyToSell, act: () => openPay(true) },
               { label: 'Remove line', icon: Trash2, disabled: !selectedLine, act: () => { if (selectedLine) cart.removeItem(selectedLine.line_id); } },
-              { label: 'Loyalty points', icon: Award, disabled: !cart.customerId, act: () => setShowLoyaltyPanel(true) },
               { label: 'On-screen keyboard', icon: Keyboard, act: () => setShowSearchModal(true) },
               ...(needsWaiter ? [{ label: cart.waiterId ? `Waiter: ${cart.waiterName}` : 'Select waiter', icon: Users, disabled: !!cart.openSaleId, act: () => setShowWaiterPicker(true) }] : []),
               { label: 'Keyboard shortcuts', icon: HelpCircle, act: () => toast(SHORTCUTS, { icon: '⌨️', duration: 7000 }) },
@@ -2150,92 +2076,6 @@ export default function POSPage() {
         confirmLabel="✓ Add to Cart"
         confirmCls="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
       />
-    )}
-
-    {/* Customer picker */}
-    {showCustomerPicker && (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h2 className="font-bold text-gray-900 flex items-center gap-2"><User size={18} className="text-blue-600" /> Customer</h2>
-            <button type="button" onClick={() => { setShowCustomerPicker(false); setCustomerSearch(''); }} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-none hover:bg-gray-100"><X size={16} /></button>
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                autoFocus
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                placeholder="Search customer by name or phone..."
-                className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 focus:border-blue-400 rounded-lg text-sm focus:outline-none"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => { cart.setCustomer(null, ''); setShowCustomerPicker(false); setCustomerSearch(''); }}
-              className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-none text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600 transition-colors"
-            >
-              Clear — use Walk-in
-            </button>
-            <div className="max-h-64 overflow-y-auto space-y-1.5">
-              {customerSearching && <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-gray-400" /></div>}
-              {!customerSearching && customerSearch.trim() && (customerResults ?? []).length === 0 && (
-                <p className="text-center text-gray-400 text-sm py-4">No customer matches "{customerSearch}"</p>
-              )}
-              {(customerResults ?? []).map((c: any) => (
-                <button
-                  type="button"
-                  key={c.id}
-                  onClick={() => selectCustomer(c)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-200 rounded-none hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{c.name}</p>
-                    <p className="text-xs text-gray-400">{c.phone ?? c.email ?? ''}</p>
-                  </div>
-                  {c.loyalty_points != null && (
-                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{c.loyalty_points} pts</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Loyalty panel */}
-    {showLoyaltyPanel && (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h2 className="font-bold text-gray-900 flex items-center gap-2"><Award size={18} className="text-amber-600" /> Loyalty — {cart.customerName}</h2>
-            <button type="button" onClick={() => setShowLoyaltyPanel(false)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-none hover:bg-gray-100"><X size={16} /></button>
-          </div>
-          <div className="p-5 space-y-4">
-            {loyaltyLoading ? (
-              <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
-            ) : (
-              <>
-                <div className="text-center py-3 bg-amber-50 rounded-lg border border-amber-200">
-                  <p className="text-3xl font-black text-amber-700">{loyaltyData?.balance ?? 0}</p>
-                  <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide">Points Balance</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!loyaltyData?.balance || redeemLoyaltyMutation.isPending}
-                  onClick={() => redeemLoyaltyMutation.mutate(loyaltyData.balance)}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-none text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {redeemLoyaltyMutation.isPending && <Loader2 size={15} className="animate-spin" />}
-                  Redeem All Points
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
     )}
 
     {needsRegisterSelection && <SelectTillModal registers={fiscalRegisters} onSelect={selectRegister} />}

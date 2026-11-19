@@ -89,6 +89,29 @@ command -v "${NPM_BIN}" >/dev/null 2>&1 || error "${NPM_BIN} is not installed"
 
 info "Sites to update: ${SITES[*]}"
 
+# Every site runs the same code, so the frontend is built once per update (by
+# the first site) and copied to the others on the same commit — instead of an
+# npm ci + vite build per site, minutes of full CPU each that the tills feel.
+BUILT_COMMIT=""
+BUILT_PUBLIC=""
+
+copy_frontend_build() {
+  local src="$1" dst="$2" f
+  # Hashed chunks are only added, never pruned (as the build itself does,
+  # emptyOutDir: false), so a till still on the previous version can load its
+  # pages until it reloads.
+  mkdir -p "${dst}/assets"
+  cp -a "${src}/assets/." "${dst}/assets/"
+  for f in "${src}"/workbox-*.js; do
+    [ -f "${f}" ] && cp -a "${f}" "${dst}/"
+  done
+  # The entry points last, once everything they load is in place.
+  for f in manifest.webmanifest registerSW.js sw.js index.html; do
+    [ -f "${src}/${f}" ] && cp -a "${src}/${f}" "${dst}/${f}"
+  done
+  return 0
+}
+
 update_site() {
   APP_DIR="$1"
   BACKEND_DIR="${APP_DIR}/backend"
@@ -147,6 +170,16 @@ update_site() {
   find "${BACKEND_DIR}/storage" "${BACKEND_DIR}/bootstrap/cache" -type f -name '.gitignore' -exec chmod 644 {} +
   ok "Permissions updated"
 
+  local head
+  head="$(git -C "${APP_DIR}" rev-parse HEAD)"
+  if [ -n "${BUILT_COMMIT}" ] && [ "${head}" = "${BUILT_COMMIT}" ]; then
+    info "Copying the frontend already built for this commit..."
+    copy_frontend_build "${BUILT_PUBLIC}" "${BACKEND_DIR}/public"
+    [ -f "${BACKEND_DIR}/public/index.html" ] || error "Copying the frontend build did not produce backend/public/index.html"
+    ok "Frontend copied from ${BUILT_PUBLIC%/backend/public}"
+    return 0
+  fi
+
   info "Installing frontend dependencies..."
   cd "${FRONTEND_DIR}"
   if [ -f package-lock.json ]; then
@@ -165,6 +198,8 @@ update_site() {
   # lands there, not in frontend/dist.
   [ -f "${BACKEND_DIR}/public/index.html" ] || error "Frontend build did not produce backend/public/index.html"
   ok "Frontend build complete"
+  BUILT_COMMIT="${head}"
+  BUILT_PUBLIC="${BACKEND_DIR}/public"
 }
 
 # Returns non-zero instead of exiting, so every site gets checked

@@ -222,11 +222,12 @@ else
     echo "listen = ${FPM_SOCK}"
     echo "listen.owner = www-data"
     echo "listen.group = www-data"
-    echo "pm = dynamic"
-    echo "pm.max_children = 10"
-    echo "pm.start_servers = 2"
-    echo "pm.min_spare_servers = 1"
-    echo "pm.max_spare_servers = 4"
+    # Workers start when the shop's tills call and stop after 2 idle minutes,
+    # so a quiet site holds no memory; 6 at once is plenty for a busy shop.
+    echo "pm = ondemand"
+    echo "pm.max_children = 6"
+    echo "pm.process_idle_timeout = 120s"
+    echo "pm.max_requests = 500"
     # Whatever PHP limits the main pool raises (upload size, memory...)
     grep -E '^[[:space:]]*php_(admin_)?(value|flag)\[' /etc/php/8.3/fpm/pool.d/www.conf 2>/dev/null || true
   } > "${POOL_FILE}"

@@ -63,11 +63,11 @@ function PadKey({ label, fkey, icon: Icon, onClick, disabled, tone, title }: {
       disabled={disabled}
       title={title ?? (fkey ? `${label} (${fkey})` : label)}
       aria-keyshortcuts={fkey}
-      className={`relative min-w-0 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-2 px-1.5 sm:px-3.5 text-center sm:text-left text-[13px] sm:text-[16px] leading-tight font-bold touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${toneCls}`}
+      className={`relative min-w-0 flex flex-col items-center justify-center gap-1 px-1.5 text-center text-[13px] sm:text-[15px] leading-tight font-bold touch-manipulation transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${toneCls}`}
     >
       {fkey && <span className={`absolute top-1 left-2 text-[10px] font-bold ${tone ? 'text-white/80' : 'text-slate-400'}`}>{fkey}</span>}
-      <Icon size={22} strokeWidth={1.8} className="flex-shrink-0" />
-      <span className="min-w-0 line-clamp-2">{label}</span>
+      <Icon size={20} strokeWidth={1.8} className="flex-shrink-0" />
+      <span className="min-w-0 max-w-full truncate">{label}</span>
     </button>
   );
 }
@@ -1329,8 +1329,6 @@ export default function POSPage() {
 
   const productImages = new Map<number, string>();
   allProducts.forEach((p: any) => { if (p.image) productImages.set(p.id, p.image); });
-  const subtotalNow = cart.subtotal();
-  const taxPct = subtotalNow > 0 ? Math.round((cart.taxTotal() / subtotalNow) * 1000) / 10 : 0;
 
   // External keyboard: land the cursor in Cash tendered whenever the payment
   // options open on cash, so the cashier can type the amount and press Enter.
@@ -1350,8 +1348,9 @@ export default function POSPage() {
   // ignores clamp(), and the keys would shrink to the height of their text.
   const KEY_CLS = 'min-h-[34px] rounded-xl font-semibold text-[21px] touch-manipulation transition-colors active:scale-[0.97] flex items-center justify-center';
   const KEY_H = 'clamp(34px, 4.5vh, 58px)';
-  // The order panel's keypad (5 rows of digits beside 4 of actions); min-height 260 for Chrome before 79, which ignores clamp().
-  const PAD_H = 'clamp(260px, 38vh, 380px)';
+  // The order panel's keypad (a slim amount row, then 4 rows of digits and an action key),
+  // kept short so the order's lines get the room; min-height for Chrome before 79, which ignores clamp().
+  const PAD_H = 'clamp(210px, 30vh, 300px)';
   const canProcess = !(cart.items.length === 0 || saleMutation.isPending || closeTabMutation.isPending || needsRegisterSelection || (needsWaiter && !cart.waiterId) || (!isSplitPayment && paymentMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)));
 
   return (
@@ -1599,16 +1598,8 @@ export default function POSPage() {
             )}
           </div>
 
-          {cart.items.length > 0 && (
-            <div className="flex justify-between gap-3 px-4 py-1.5 border-t border-slate-200 text-[12px] text-slate-500 flex-shrink-0">
-              <span>Subtotal <span className="tabular-nums text-slate-700 font-semibold">{formatCurrency(cart.subtotal())}</span></span>
-              {cart.discount > 0 && <span className="text-emerald-600">Discount <span className="tabular-nums">-{formatCurrency(cart.discount)}</span></span>}
-              <span>Tax ({taxPct}%) <span className="tabular-nums text-slate-700 font-semibold">{formatCurrency(cart.taxTotal())}</span></span>
-            </div>
-          )}
-
           {/* Total bar: how many items, what it comes to */}
-          <div className="flex items-stretch h-[64px] flex-shrink-0">
+          <div className="flex items-stretch h-[56px] flex-shrink-0">
             <div className="flex-1 min-w-0 flex items-center gap-3 px-5 text-white" style={{ background: BLUE }}>
               <span className="relative flex-shrink-0" title={`${itemCount} item${itemCount === 1 ? '' : 's'}`}>
                 <ShoppingCart size={30} strokeWidth={1.8} />
@@ -1624,51 +1615,49 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Keypad: digits on the left, what to do with them on the right.
+          {/* Keypad: the amount across the top, then rows of three digits, each
+              with one action key the same size beside it (Pay, Qty, Clear, Functions).
               Rows are Fragments, not display:contents wrappers, which Chrome before 65
               draws as one cell per row with its keys stacked. */}
-          <div className="grid grid-cols-[1fr_1.2fr] flex-shrink-0 border-t border-slate-200 bg-slate-200 gap-px" style={{ height: PAD_H, minHeight: 260 }}>
-            <div className="grid grid-cols-3 grid-rows-5 gap-px">
-              <div className="col-span-3 flex items-center justify-between gap-2 px-4 bg-white min-w-0">
-                {entry !== '' ? (
-                  <>
-                    <span className="text-[12px] font-semibold text-slate-400 truncate">
-                      {entryValue != null && cart.items.length > 0 && entryValue >= totalDue ? `Change ${fmtActive(entryValue - totalDue)}` : ''}
-                    </span>
-                    <span className="text-[28px] font-bold tabular-nums text-slate-900">{entry}</span>
-                  </>
-                ) : lastChange != null ? (
-                  <>
-                    <span className="text-[12px] font-bold uppercase tracking-wider text-emerald-600">Change</span>
-                    <span className="text-[28px] font-bold tabular-nums text-emerald-600">{fmtActive(lastChange)}</span>
-                  </>
-                ) : (
-                  <span className="ml-auto text-[13px] font-bold uppercase tracking-wider text-slate-400">Qty or cash</span>
-                )}
-              </div>
-              {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['.', '0', 'back']].map((row, r) => (
-                <Fragment key={r}>
-                  {row.map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => press(k)}
-                      aria-label={k === 'back' ? 'Backspace' : k === '.' ? 'Decimal point' : k}
-                      className="bg-white hover:bg-slate-50 active:bg-slate-100 text-[26px] font-bold text-slate-900 flex items-center justify-center touch-manipulation"
-                    >
-                      {k === 'back' ? <Delete size={30} strokeWidth={1.7} /> : k}
-                    </button>
-                  ))}
-                </Fragment>
-              ))}
+          <div className="grid grid-cols-4 grid-rows-[40px_repeat(4,minmax(0,1fr))] gap-px flex-shrink-0 border-t border-slate-200 bg-slate-200" style={{ height: PAD_H, minHeight: 210 }}>
+            <div className="col-span-4 flex items-center justify-between gap-2 px-4 bg-white min-w-0">
+              {entry !== '' ? (
+                <>
+                  <span className="text-[12px] font-semibold text-slate-400 truncate">
+                    {entryValue != null && cart.items.length > 0 && entryValue >= totalDue ? `Change ${fmtActive(entryValue - totalDue)}` : ''}
+                  </span>
+                  <span className="text-[24px] leading-none font-bold tabular-nums text-slate-900">{entry}</span>
+                </>
+              ) : lastChange != null ? (
+                <>
+                  <span className="text-[12px] font-bold uppercase tracking-wider text-emerald-600">Change</span>
+                  <span className="text-[24px] leading-none font-bold tabular-nums text-emerald-600">{fmtActive(lastChange)}</span>
+                </>
+              ) : (
+                <span className="ml-auto text-[13px] font-bold uppercase tracking-wider text-slate-400">Qty or cash</span>
+              )}
             </div>
-
-            <div className="grid grid-cols-2 grid-rows-2 gap-px">
-              <PadKey label="Pay" fkey="F9" icon={CreditCard} onClick={() => openPay()} disabled={!readyToSell} tone="pay" />
-              <PadKey label="Qty" fkey="F4" icon={Hash} onClick={applyQty} disabled={cart.items.length === 0} />
-              <PadKey label="Clear" fkey="F5" icon={XCircle} onClick={clearOrder} disabled={cart.items.length === 0 && entry === ''} tone="danger" />
-              <PadKey label="Functions" icon={LayoutGrid} onClick={() => setShowFunctions(true)} />
-            </div>
+            {[['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['.', '0', 'back']].map((row, r) => (
+              <Fragment key={r}>
+                {row.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => press(k)}
+                    aria-label={k === 'back' ? 'Backspace' : k === '.' ? 'Decimal point' : k}
+                    className="bg-white hover:bg-slate-50 active:bg-slate-100 text-[26px] font-bold text-slate-900 flex items-center justify-center touch-manipulation"
+                  >
+                    {k === 'back' ? <Delete size={30} strokeWidth={1.7} /> : k}
+                  </button>
+                ))}
+                {[
+                  <PadKey key="pay" label="Pay" fkey="F9" icon={CreditCard} onClick={() => openPay()} disabled={!readyToSell} tone="pay" />,
+                  <PadKey key="qty" label="Qty" fkey="F4" icon={Hash} onClick={applyQty} disabled={cart.items.length === 0} />,
+                  <PadKey key="clear" label="Clear" fkey="F5" icon={XCircle} onClick={clearOrder} disabled={cart.items.length === 0 && entry === ''} tone="danger" />,
+                  <PadKey key="functions" label="Functions" icon={LayoutGrid} onClick={() => setShowFunctions(true)} />,
+                ][r]}
+              </Fragment>
+            ))}
           </div>
         </div>
       </div>

@@ -268,6 +268,10 @@ export default function POSPage() {
     // on mount (e.g. switching back to this page) instead of trusting a
     // stale cache.
     staleTime: 0,
+    // A till left open all day never remounts or regains focus: re-read every
+    // minute so a change saved in Settings (receipt parts, label rounding,
+    // tax) reaches it without a reload.
+    refetchInterval: 60 * 1000,
   });
   const storeName = storeSettings?.company_name || 'Core';
 

@@ -449,7 +449,7 @@ const { isLoading } = useQuery({
         <div className="px-6 py-2">
           <ToggleRow
             label="Enable Tax"
-            description="Apply tax on all sales transactions"
+            description="Work out the VAT inside your prices on every sale, for the receipt's VAT breakdown, reports and fiscal receipts. Prices already include VAT, so totals don't change."
             checked={toggles.tax_enabled}
             onChange={(v) => setToggles(t => ({ ...t, tax_enabled: v }))}
           />
@@ -554,6 +554,7 @@ const { isLoading } = useQuery({
         onShowChange={(setting, on) => setReceiptShow((s) => ({ ...s, [setting]: on }))}
         onFooterChange={(footer) => setValues((v) => ({ ...v, receipt_footer: footer }))}
         userName={user?.name}
+        taxEnabled={toggles.tax_enabled}
       />
 
       {/* Barcodes — embedded weight/price barcodes, the convention a scale

@@ -616,11 +616,15 @@ function parseReceiptDate(d: ReceiptData): { dateStr: string; timeStr: string } 
 // exchange rate applied before it's printed, or a ZAR sale prints its USD
 // magnitudes with a ZAR/R symbol slapped on and the rate mentioned only as
 // a footnote instead of actually being applied.
+//
+// Prices include VAT (a sale's total is its subtotal less discounts, with the
+// VAT taken out of it, not added on), so the amount before VAT is the total
+// less the VAT — not the subtotal, which already has the VAT in it.
 function vatInfo(d: ReceiptData): { net: number; vat: number; gross: number; pct: string } {
   const rate  = Number(d.currencyRate ?? 1);
   const gross = d.total * rate;
   const vat   = d.tax * rate;
-  const net   = d.subtotal > 0 ? d.subtotal * rate : gross - vat;
+  const net   = gross - vat;
   const pct   = d.vatRate != null
     ? d.vatRate.toFixed(1)
     : (net > 0 && vat > 0 ? ((vat / net) * 100).toFixed(1) : '0.0');
@@ -1312,6 +1316,13 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   // What this shop's receipts show (Settings > Receipts & Invoices) — the
   // layout, font and paper above are this device's own (Hardware > Receipt).
   const v = shows(d);
+  // A receipt ZIMRA has fiscalised needs its QR code and verification code,
+  // which only the fiscal layout prints — whatever this device's layout is.
+  const layout = isFiscalised(d) ? 'fiscal' : s.layout;
+  // The VAT breakdown (Settings > Receipts & Invoices) — every layout prints it when it's on.
+  const vatRows = v.tax ? `
+<div class="row"><span>Total Excl VAT</span><span class="v">${cur(net)}</span></div>
+<div class="row"><span>VAT (${pct}%)</span><span class="v">${cur(vat)}</span></div>` : '';
 
   const addrLines = d.storeAddress && v.address
     ? d.storeAddress.split(/[,\n]/).map(x => x.trim()).filter(Boolean)
@@ -1349,7 +1360,7 @@ export function buildReceiptHtml(d: ReceiptData, settings?: Partial<ReceiptSetti
   @media print { @page { margin:0; size:${pageSize}; } body { padding:1mm; } }`;
 
   // ── Fiscal layout (default) ──────────────────────────────────────────────
-  if (s.layout === 'fiscal') {
+  if (layout === 'fiscal') {
     const itemRows = d.items.map(i => {
       const code = v.itemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
@@ -1422,7 +1433,7 @@ ${v.footer ? `<div class="center">${d.footer ?? 'Core POS'}</div>` : ''}
   }
 
   // ── Simple layout ────────────────────────────────────────────────────────
-  if (s.layout === 'simple') {
+  if (layout === 'simple') {
     const itemRows = d.items.map(i => {
       const code = v.itemCodes ? (i.barcode ?? i.sku ?? '') : '';
       return `${code ? `<div class="item-code">${code}</div>` : ''}
@@ -1451,8 +1462,8 @@ ${v.orderType && d.orderType ? `<div class="center bold">${orderTypeLabel(d.orde
 ${itemRows}
 <div class="divider"></div>
 <div class="row"><span>Subtotal</span><span class="v">${cur(d.subtotal * rateNum)}</span></div>
-${v.tax && d.tax > 0 ? `<div class="row"><span>Tax</span><span class="v">${cur(d.tax * rateNum)}</span></div>` : ''}
 ${d.discount > 0 ? `<div class="row"><span>Discount</span><span class="v">${cur(-d.discount * rateNum)}</span></div>` : ''}
+${vatRows}
 <div class="row bold"><span>TOTAL</span><span class="v">${cur(d.total * rateNum)}</span></div>
 <div class="divider"></div>
 ${v.payment ? `<div>${d.paymentMethod.replace(/_/g,' ').toUpperCase()}</div>` : ''}
@@ -1479,6 +1490,7 @@ ${orderNoHtml}
 <div class="divider"></div>
 ${itemRows}
 <div class="divider"></div>
+${vatRows}
 <div class="row bold"><span>TOTAL</span><span class="v">${cur(d.total * rateNum)}</span></div>
 ${v.tendered && d.amountTendered !== undefined ? `<div class="row"><span>Paid</span><span class="v">${cur(d.amountTendered)}</span></div>` : ''}
 ${v.tendered && d.change !== undefined && d.change >= 0 ? `<div class="row"><span>Change</span><span class="v">${cur(d.change)}</span></div>` : ''}

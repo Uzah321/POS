@@ -10,7 +10,7 @@ const GROUPS: ReceiptOption['group'][] = ['Top of the receipt', 'Sale details', 
  * shows, for the whole shop, with a live preview. Held with the other
  * settings until Save Changes.
  */
-export default function ReceiptOptionsCard({ values, show, onShowChange, onFooterChange, userName }: {
+export default function ReceiptOptionsCard({ values, show, onShowChange, onFooterChange, userName, taxEnabled }: {
   /** The Settings form's current values (company details, footer, fiscal fields). */
   values: Record<string, string>;
   /** On/off per settings key (RECEIPT_OPTIONS[].setting). */
@@ -18,10 +18,18 @@ export default function ReceiptOptionsCard({ values, show, onShowChange, onFoote
   onShowChange: (setting: string, on: boolean) => void;
   onFooterChange: (footer: string) => void;
   userName?: string;
+  /** Register Preferences › Enable Tax, as the form has it: with it off, sales carry no VAT, so neither do receipts. */
+  taxEnabled: boolean;
 }) {
+  const vatBreakdownOn = show.receipt_show_vat_breakdown !== false;
   const preview = useMemo(() => {
     const { storeName, ...company } = companyDetails(values);
     const showFlags = Object.fromEntries(RECEIPT_OPTIONS.map((o) => [o.key, show[o.setting] !== false])) as unknown as ReceiptShow;
+    // A sale as the till records one: prices include VAT, which is taken out
+    // of the total (at the Tax Rate, or 15%) — none when tax is off.
+    const total = 17.25;
+    const vatRate = taxEnabled ? (parseFloat(values.tax_rate) > 0 ? parseFloat(values.tax_rate) : 15) : 0;
+    const tax = Math.round((total - total / (1 + vatRate / 100)) * 100) / 100;
     const sample: ReceiptData = {
       ...company,
       show: showFlags,
@@ -33,11 +41,11 @@ export default function ReceiptOptionsCard({ values, show, onShowChange, onFoote
         { name: 'Sample item', qty: 2, price: 5, total: 10, sku: 'SKU-001', barcode: '6001234567890' },
         { name: 'Another item', qty: 1, price: 7.25, total: 7.25, sku: 'SKU-002' },
       ],
-      subtotal: 15,
-      tax: 2.25,
+      subtotal: total,
+      tax,
       discount: 0,
-      total: 17.25,
-      vatRate: 15,
+      total,
+      vatRate,
       paymentMethod: 'cash',
       amountTendered: 20,
       change: 2.75,
@@ -54,7 +62,7 @@ export default function ReceiptOptionsCard({ values, show, onShowChange, onFoote
       rec68: values.fiscal_rec_68 || undefined,
     };
     return buildReceiptHtml(sample);
-  }, [values, show, userName]);
+  }, [values, show, userName, taxEnabled]);
 
   return (
     <div id="receipts" className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden scroll-mt-4">
@@ -81,6 +89,18 @@ export default function ReceiptOptionsCard({ values, show, onShowChange, onFoote
                         {ZIMRA_REQUIRED.includes(o.key) && <span className="ml-1.5 text-[10px] font-semibold text-amber-600 align-middle">ZIMRA</span>}
                       </span>
                       {o.hint && <span className="block text-xs text-gray-400 mt-0.5">{o.hint}</span>}
+                      {o.key === 'tax' && vatBreakdownOn && !taxEnabled && (
+                        <span className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                          Tax is off (Register Preferences › Enable Tax), so sales carry no VAT and this prints VAT as 0.00.
+                          Turn Enable Tax on to show the VAT inside your prices. Prices and totals stay the same.
+                        </span>
+                      )}
+                      {o.key === 'tax' && vatBreakdownOn && taxEnabled && !(parseFloat(values.tax_rate) > 0) && (
+                        <span className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                          Tax Rate (%) is blank, so only products given their own tax rate carry VAT. The rest print VAT as 0.00.
+                          Enter the rate (e.g. 15) under Tax Rate.
+                        </span>
+                      )}
                     </span>
                     <input
                       type="checkbox"

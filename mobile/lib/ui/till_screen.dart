@@ -34,11 +34,13 @@ class _TillScreenState extends State<TillScreen> {
   void initState() {
     super.initState();
     Catalog.I.load();
-    AppState.I.refresh().catchError((Object e) {
-      if (e is ApiException && e.sessionEnded) AppState.I.sessionEnded();
+    _refreshShop();
+    // Stock and prices change from other tills and the back office, and the
+    // shop's settings (what receipts show, tax) in Settings: keep them current.
+    _refresh = Timer.periodic(const Duration(seconds: 60), (_) {
+      Catalog.I.load();
+      _refreshShop();
     });
-    // Stock and prices change from other tills and the back office: keep them current.
-    _refresh = Timer.periodic(const Duration(seconds: 60), (_) => Catalog.I.load());
     WidgetsBinding.instance.addPostFrameCallback((_) => _askForTillIfNeeded());
   }
 
@@ -48,6 +50,12 @@ class _TillScreenState extends State<TillScreen> {
     _search.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _refreshShop() {
+    AppState.I.refresh().catchError((Object e) {
+      if (e is ApiException && e.sessionEnded) AppState.I.sessionEnded();
+    });
   }
 
   Future<void> _askForTillIfNeeded() async {

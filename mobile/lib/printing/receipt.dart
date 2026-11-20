@@ -292,7 +292,8 @@ Uint8List buildEscPos(Receipt d, {Uint8List? logo, int width = 32}) {
   final rate = d.rate == 0 ? 1.0 : d.rate;
   final gross = d.total * rate;
   final vat = d.tax * rate;
-  final net = d.subtotal > 0 ? d.subtotal * rate : gross - vat;
+  // Prices include VAT: the amount before VAT is the total less the VAT (the subtotal already has the VAT in it).
+  final net = gross - vat;
   final pct = net > 0 && vat > 0 ? (vat / net * 100).toStringAsFixed(1) : '0.0';
   final dt = d.date ?? DateTime.now();
   final dateStr = '${_two(dt.day)}/${_two(dt.month)}/${dt.year}';

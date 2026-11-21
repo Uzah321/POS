@@ -632,7 +632,8 @@ class ReportController extends BaseApiController
                     'completed_at'   => $row->sale?->completed_at,
                     'product_name'   => $row->product?->name,
                     'weight_kg'      => (float) $row->quantity,
-                    'unit_price'     => (float) $row->unit_price,
+                    // A rounded scale label's line: its own price per kg, as printed.
+                    'unit_price'     => (float) ($row->label_price ?? $row->unit_price),
                     'total'          => (float) $row->total,
                 ]);
         }

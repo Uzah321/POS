@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SaleItem extends Model
 {
     protected $fillable = [
-        'sale_id', 'product_id', 'product_variant_id', 'scale_id', 'quantity', 'unit_price',
+        'sale_id', 'product_id', 'product_variant_id', 'scale_id', 'quantity', 'unit_price', 'label_price',
         'cost_price', 'discount_amount', 'tax_amount', 'subtotal', 'total',
         'discount_type', 'discount_value', 'note',
     ];
@@ -16,6 +16,8 @@ class SaleItem extends Model
     protected $casts = [
         'quantity' => 'decimal:3',
         'unit_price' => 'decimal:6',
+        // A rounded scale label's own price per kg, shown in place of unit_price (see the migration).
+        'label_price' => 'decimal:6',
         'cost_price' => 'decimal:6',
         'discount_amount' => 'decimal:6',
         'tax_amount' => 'decimal:6',

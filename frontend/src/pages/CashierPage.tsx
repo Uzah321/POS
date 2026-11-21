@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, weighingScalesApi } from '../api';
 import { useTopbarSlot } from '../layouts/TopbarSlot';
-import { useCartStore, type CartItem } from '../stores/cartStore';
+import { useCartStore, shownPrice, type CartItem } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { useHardwareStore } from '../stores/hardwareStore';
@@ -238,7 +238,7 @@ export default function CashierPage() {
     broadcastCart({
       type: cart.items.length > 0 ? 'cart' : 'idle',
       storeName, currency,
-      items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+      items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: shownPrice(i), total: i.price * i.quantity })),
       subtotal: cart.subtotal(), tax: cart.taxTotal(), discount: cart.discount, total: cart.total(),
     });
   }, [cart.items, hw.customerDisplayEnabled, hw.poleDisplayEnabled, storeName]);
@@ -246,7 +246,7 @@ export default function CashierPage() {
   // Shared by both the direct-add path (live scale reading, or a plain
   // count item) and the manual-weight-entry path below — keeps the price
   // check / stock check / toast messaging identical for both.
-  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean, priceOverride?: number): boolean => {
+  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean, priceOverride?: number, labelPrice?: number): boolean => {
     const price = priceOverride ?? parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`);
@@ -271,6 +271,7 @@ export default function CashierPage() {
       tax_rate:   effectiveTaxRate(product, storeSettings),
       sold_by_weight: soldByWeight,
       scale_id:   soldByWeight ? (product.scale_id ?? null) : undefined,
+      label_price: labelPrice,
     }, qty);
     return true;
   };
@@ -322,7 +323,7 @@ export default function CashierPage() {
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
     const line = embeddedCartLine(decoded, parseFloat(product.selling_price), storeSettings ?? {});
-    if (addProductWithQty(product, line.qty, line.soldByWeight, line.price)) {
+    if (addProductWithQty(product, line.qty, line.soldByWeight, line.price, line.labelPrice)) {
       setCodeInput('');
       setTimeout(() => codeRef.current?.focus(), 40);
     }
@@ -390,7 +391,7 @@ export default function CashierPage() {
         subtotal: cart.subtotal(),
         tax: cart.taxTotal(),
         discount: 0,
-        items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+        items: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: shownPrice(i), total: i.price * i.quantity })),
         items_count: cart.items.length,
         payments: paymentsFromPayload,
         cashier_id: user?.id ?? 0,
@@ -412,7 +413,7 @@ export default function CashierPage() {
           paymentMethod: payMethod,
           amountTendered: payMethod === 'cash' ? parseFloat(cashTendered) || totalDue : undefined,
           change: payMethod === 'cash' ? Math.max(0, (parseFloat(cashTendered) || 0) - totalDue) : undefined,
-          itemsFallback: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+          itemsFallback: cart.items.map(i => ({ name: i.name, qty: i.quantity, price: shownPrice(i), total: i.price * i.quantity })),
           logo: companyLogo(storeSettings),
           vatNumber: storeSettings?.company_vat_number,
           tinNumber: storeSettings?.company_tin_number,
@@ -522,6 +523,7 @@ export default function CashierPage() {
       product_variant_id: i.variant_id,
       quantity:           i.quantity,
       unit_price:         i.price,
+      label_price:        i.label_price ?? null,
       discount_type:      null,
       discount_value:     0,
     })),
@@ -919,7 +921,7 @@ export default function CashierPage() {
                       className={`flex items-center px-4 py-3.5 border-b border-l-4 border-slate-100 ${cartLineAccent(item.product_id)} ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}>
                       <span className="w-7 flex-shrink-0 text-xs text-gray-400">{idx + 1}</span>
                       <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate pr-2">{item.name}</span>
-                      <span className="w-20 text-right flex-shrink-0 text-sm text-gray-500 tabular-nums">{formatCurrency(item.price)}</span>
+                      <span className="w-20 text-right flex-shrink-0 text-sm text-gray-500 tabular-nums">{formatCurrency(shownPrice(item))}</span>
                       <span className="w-16 flex justify-center flex-shrink-0">
                         <button type="button"
                           onClick={() => { setEditingQtyItem(item); setQtyInput(String(item.quantity)); }}

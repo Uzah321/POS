@@ -476,8 +476,10 @@ export function buildReceiptDataFromSale(sale: any, options: BuildReceiptOptions
   const items = Array.isArray(sale?.items) && sale.items.length > 0
     ? sale.items.map((item: any) => {
         const qty = money(item?.quantity ?? item?.qty);
-        const price = money(item?.unit_price ?? item?.price);
-        const total = money(item?.total ?? item?.subtotal ?? (qty * price));
+        const unitPrice = money(item?.unit_price ?? item?.price);
+        // A scale label's line prints the label's price per kg (CartItem.label_price).
+        const price = item?.label_price != null ? money(item.label_price) : unitPrice;
+        const total = money(item?.total ?? item?.subtotal ?? (qty * unitPrice));
         return {
           name: item?.product?.name ?? item?.name ?? 'Item',
           qty,

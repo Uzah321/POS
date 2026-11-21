@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi, settingsApi, weighingScalesApi, usersApi, tablesApi } from '../api';
 import type { CartItem, HeldOrder } from '../stores/cartStore';
-import { useCartStore, unsentKitchenItems } from '../stores/cartStore';
+import { useCartStore, unsentKitchenItems, shownPrice } from '../stores/cartStore';
 import { usePosUIStore } from '../stores/posUIStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -151,7 +151,7 @@ function CartRow({ item, format, image, selected, onSelect }: {
       </div>
 
       <p className="order-5 sm:order-none flex-1 sm:flex-none sm:w-[62px] sm:text-right text-[13px] text-slate-600 tabular-nums flex-shrink-0">
-        {format(item.price)}<span className="sm:hidden text-slate-400"> each</span>
+        {format(shownPrice(item))}<span className="sm:hidden text-slate-400"> each</span>
       </p>
       <p className="order-2 sm:order-none sm:w-[66px] text-right text-[13px] font-bold text-slate-900 tabular-nums flex-shrink-0">{format(lineTotal)}</p>
       <button type="button" onClick={() => removeItem(item.line_id)} className="order-3 sm:order-none w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-colors touch-manipulation" title="Remove item">
@@ -425,6 +425,7 @@ export default function POSPage() {
           name: it.product?.name ?? 'Item',
           sku: it.product?.sku ?? '',
           price: parseFloat(it.unit_price),
+          label_price: it.label_price != null ? parseFloat(it.label_price) : undefined,
           cost: parseFloat(it.cost_price ?? 0),
           tax_rate: effectiveTaxRate(it.product, storeSettings),
           quantity: qty,
@@ -505,7 +506,7 @@ export default function POSPage() {
       type: cart.items.length > 0 ? 'cart' : 'idle',
       storeName,
       currency,
-      items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: i.price, total: i.price * i.quantity })),
+      items: cart.items.map((i) => ({ name: i.name, qty: i.quantity, price: shownPrice(i), total: i.price * i.quantity })),
       subtotal: cart.subtotal(),
       tax: cart.taxTotal(),
       discount: cart.discount,
@@ -613,7 +614,7 @@ export default function POSPage() {
         subtotal: snap?.subtotal ?? 0,
         tax: snap?.tax ?? 0,
         discount: snap?.discount ?? 0,
-        items: (snap?.items ?? []).map(i => ({ name: i.name, qty: i.quantity, price: i.price, total: (i.price - i.discount) * i.quantity })),
+        items: (snap?.items ?? []).map(i => ({ name: i.name, qty: i.quantity, price: shownPrice(i), total: (i.price - i.discount) * i.quantity })),
         items_count: snap?.items?.length ?? 0,
         payments: paymentsFromPayload,
         cashier_id: user?.id ?? 0,
@@ -646,7 +647,7 @@ export default function POSPage() {
           itemsFallback: (snap?.items ?? []).map((item) => ({
             name: item.name,
             qty: item.quantity,
-            price: item.price,
+            price: shownPrice(item),
             total: item.price * item.quantity,
           })),
           logo: companyLogo(storeSettings),
@@ -725,6 +726,7 @@ export default function POSPage() {
         product_variant_id: i.variant_id,
         quantity: i.quantity,
         unit_price: i.price,
+        label_price: i.label_price ?? null,
         discount_type: i.discount > 0 ? 'fixed' : null,
         discount_value: i.discount > 0 ? lineDiscount(i) : 0,
       }));
@@ -783,6 +785,7 @@ export default function POSPage() {
             product_variant_id: i.variant_id,
             quantity: i.quantity,
             unit_price: i.price,
+            label_price: i.label_price ?? null,
             discount_type: i.discount > 0 ? 'fixed' : null,
             discount_value: i.discount > 0 ? lineDiscount(i) : 0,
           })),
@@ -815,7 +818,7 @@ export default function POSPage() {
           itemsFallback: (snap?.items ?? []).map((item) => ({
             name: item.name,
             qty: item.quantity,
-            price: item.price,
+            price: shownPrice(item),
             total: item.price * item.quantity,
           })),
           logo: companyLogo(storeSettings),
@@ -869,7 +872,7 @@ export default function POSPage() {
   // Shared by both the direct-add path (live scale reading, or a plain
   // count item) and the manual-weight-entry path below — keeps the price
   // check / stock check / toast messaging identical for both.
-  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean, priceOverride?: number): boolean => {
+  const addProductWithQty = (product: any, qty: number, soldByWeight: boolean, priceOverride?: number, labelPrice?: number): boolean => {
     const price = priceOverride ?? parseFloat(product.selling_price);
     if (!price || Number.isNaN(price) || price <= 0) {
       toast.error(`${product.name} has no price set — add a price before selling it`, { duration: 3000 });
@@ -894,6 +897,7 @@ export default function POSPage() {
       tax_rate: effectiveTaxRate(product, storeSettings),
       sold_by_weight: soldByWeight,
       scale_id: soldByWeight ? (product.scale_id ?? null) : undefined,
+      label_price: labelPrice,
     }, qty);
     return true;
   };
@@ -917,7 +921,7 @@ export default function POSPage() {
       return true; // matched the barcode format — don't also fall through to a literal-barcode lookup
     }
     const line = embeddedCartLine(decoded, parseFloat(product.selling_price), storeSettings ?? {});
-    if (addProductWithQty(product, line.qty, line.soldByWeight, line.price)) {
+    if (addProductWithQty(product, line.qty, line.soldByWeight, line.price, line.labelPrice)) {
       toast.success(line.soldByWeight
         ? `Added ${product.name} (${line.qty.toFixed(3)} kg)`
         : `Added ${product.name}`, { duration: 800 });
@@ -1075,6 +1079,7 @@ export default function POSPage() {
         product_variant_id: i.variant_id,
         quantity: i.quantity,
         unit_price: i.price,
+        label_price: i.label_price ?? null,
         discount_type: i.discount > 0 ? 'fixed' : null,
         discount_value: i.discount > 0 ? lineDiscount(i) : 0,
       })),

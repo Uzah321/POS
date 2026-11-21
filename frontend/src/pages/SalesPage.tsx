@@ -282,7 +282,7 @@ export default function SalesPage() {
     if (productFocus) {
       return shownItems(s).map((it: any) => [
         s.reference, date, it.product?.name ?? '', round3(parseFloat(it.quantity) || 0),
-        formatAmount(parseFloat(it.unit_price)), formatAmount(parseFloat(it.total)),
+        formatAmount(parseFloat(it.label_price ?? it.unit_price)), formatAmount(parseFloat(it.total)),
         s.customer?.name || 'Walk-in', s.cashier?.name || '', formatAmount(parseFloat(s.total)), s.status,
       ]);
     }
@@ -728,7 +728,7 @@ export default function SalesPage() {
                         <thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left text-xs text-gray-500">Product</th><th className="px-3 py-2 text-right text-xs text-gray-500">Qty</th><th className="px-3 py-2 text-right text-xs text-gray-500">Price</th><th className="px-3 py-2 text-right text-xs text-gray-500">Total</th></tr></thead>
                         <tbody className="divide-y divide-gray-100">
                           {saleDetail.items?.map((item: any) => (
-                            <tr key={item.id}><td className="px-3 py-2">{item.product?.name}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{formatAmount(parseFloat(item.unit_price))}</td><td className="px-3 py-2 text-right font-medium">{formatAmount(parseFloat(item.total))}</td></tr>
+                            <tr key={item.id}><td className="px-3 py-2">{item.product?.name}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{formatAmount(parseFloat(item.label_price ?? item.unit_price))}</td><td className="px-3 py-2 text-right font-medium">{formatAmount(parseFloat(item.total))}</td></tr>
                           ))}
                         </tbody>
                       </table>

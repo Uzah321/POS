@@ -145,6 +145,7 @@ class SaleController extends BaseApiController
             'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
             'items.*.quantity'           => 'required|numeric|min:0.001',
             'items.*.unit_price'         => 'required|numeric|min:0.000001', // in USD: R0.10 is $0.0059
+            'items.*.label_price'        => 'nullable|numeric|min:0', // a rounded scale label's own price per kg, shown only
             'items.*.discount_type'      => 'nullable|in:fixed,percent',
             'items.*.discount_value'     => 'nullable|numeric|min:0',
             'items.*.note'               => 'nullable|string',
@@ -453,6 +454,7 @@ class SaleController extends BaseApiController
             'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
             'items.*.quantity'           => 'required|numeric|min:0.001',
             'items.*.unit_price'         => 'required|numeric|min:0.000001', // in USD: R0.10 is $0.0059
+            'items.*.label_price'        => 'nullable|numeric|min:0', // a rounded scale label's own price per kg, shown only
             'items.*.discount_type'      => 'nullable|in:fixed,percent',
             'items.*.discount_value'     => 'nullable|numeric|min:0',
             'items.*.note'               => 'nullable|string',
@@ -793,6 +795,7 @@ class SaleController extends BaseApiController
                 'scale_id'           => $product?->scale_id,
                 'quantity'           => $item['quantity'],
                 'unit_price'         => $item['unit_price'],
+                'label_price'        => $item['label_price'] ?? null,
                 'cost_price'         => $variantCost > 0 ? $variantCost : (float) ($costPrices[$item['product_id']] ?? 0),
                 'discount_amount'    => $item['discount_amount'],
                 'tax_amount'         => $item['tax_amount'],

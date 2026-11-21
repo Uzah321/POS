@@ -171,22 +171,27 @@ export function roundedLabelTotal(amount: number, rounding: unknown): number | n
  * line's unit price is nudged so qty × price still equals the printed
  * amount. With no price per kg to work from, it falls back to one item at
  * the printed amount.
+ *
+ * Where the price is nudged, labelPrice is the price per kg the label itself
+ * prints (the product's own), which the till shows and prints instead: 0.526
+ * kg at 3.49/kg on a label rounded to 1.85 charges 1.85/0.526 = 3.5171/kg,
+ * but reads 0.526 kg × 3.49 = 1.85, as the label does.
  */
 export function embeddedCartLine(
   decoded: EmbeddedBarcodeResult,
   pricePerKg: number,
   settings: Record<string, any> = {},
-): { qty: number; soldByWeight: boolean; price?: number } {
+): { qty: number; soldByWeight: boolean; price?: number; labelPrice?: number } {
   if (decoded.kind === 'weight') {
     const total = pricePerKg > 0 ? roundedLabelTotal(pricePerKg * decoded.value, settings.barcode_weight_rounding) : null;
     // A label rounded down to nothing charges kg × price instead of 0.00.
     return total != null && total > 0
-      ? { qty: decoded.value, soldByWeight: true, price: total / decoded.value }
+      ? { qty: decoded.value, soldByWeight: true, price: total / decoded.value, labelPrice: pricePerKg }
       : { qty: decoded.value, soldByWeight: true };
   }
   if (pricePerKg > 0) {
     const kg = Math.round((decoded.value / pricePerKg) * 1000) / 1000;
-    if (kg > 0) return { qty: kg, soldByWeight: true, price: decoded.value / kg };
+    if (kg > 0) return { qty: kg, soldByWeight: true, price: decoded.value / kg, labelPrice: pricePerKg };
   }
   return { qty: 1, soldByWeight: false, price: decoded.value };
 }

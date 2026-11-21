@@ -22,6 +22,12 @@ export interface CartItem {
   // Which registered scale this line is weighed on (products.scale_id) — lets
   // the qty-edit keypad keep suggesting live readings from the right scale.
   scale_id?: number | null;
+  // A scale label rounded to 0.05 (Settings → Barcodes): the price per kg the
+  // label prints, while `price` is nudged so quantity × price is the label's
+  // rounded total. Shown and printed in place of `price` (see shownPrice), so
+  // the line reads like the label: 0.526 kg × 3.49 = 1.85. Dropped when the
+  // weight is changed by hand — the label's total no longer applies.
+  label_price?: number;
   // How much of this line the kitchen has already been sent a ticket for. An
   // open table is held and resumed many times; only the difference between
   // quantity and this goes on the next kitchen ticket. Travels with the line
@@ -31,6 +37,11 @@ export interface CartItem {
   // tab Sale (via "Add to Tab" or by resuming one) — an unsynced line still
   // needs to go through addToTab before the tab can be closed/paid.
   synced_to_tab?: boolean;
+}
+
+/** The price a line shows and prints: the scale label's price per kg, if it came from one. */
+export function shownPrice(item: { price: number; label_price?: number | null }): number {
+  return item.label_price ?? item.price;
 }
 
 /** The part of each line the kitchen hasn't had a ticket for yet. */
@@ -154,7 +165,17 @@ export const useCartStore = create<CartState>()(
         set({ items: [...get().items, newItem] });
         return newItem;
       },
-      updateQty: (id, qty) => set({ items: qty <= 0 ? get().items.filter((i) => i.line_id !== id) : get().items.map((i) => i.line_id === id ? { ...i, quantity: qty } : i) }),
+      updateQty: (id, qty) => set({
+        items: qty <= 0
+          ? get().items.filter((i) => i.line_id !== id)
+          : get().items.map((i) => {
+              if (i.line_id !== id) return i;
+              // A scale label's line re-weighed by hand: its rounded total no
+              // longer applies, so it's kg × the price per kg again.
+              if (i.label_price != null && qty !== i.quantity) return { ...i, quantity: qty, price: i.label_price, label_price: undefined };
+              return { ...i, quantity: qty };
+            }),
+      }),
       updateDiscount: (id, discount) => set({ items: get().items.map((i) => i.line_id === id ? { ...i, discount } : i) }),
       removeItem: (id) => set({ items: get().items.filter((i) => i.line_id !== id) }),
       setCustomer: (id, name) => set({ customerId: id, customerName: name }),

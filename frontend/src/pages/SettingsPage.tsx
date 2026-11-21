@@ -12,8 +12,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
 import { companyLogo, logoFileToDataUrl } from '../lib/companyLogo';
 import {
-  DIGI_SM110_LAYOUTS, LABEL_ROUNDING_OPTIONS, embeddedCartLine, layoutEnabled, normalizePlu, readScaleLabel, resolveEmbeddedBarcode, scaleLayoutSettings, singleReading,
-  type ScaleBarcodeLayout,
+  DIGI_SM110_LAYOUTS, LABEL_ROUNDING_OPTIONS, embeddedCartLine, layoutEnabled, layoutFlag, normalizePlu, priceLabelsReadAsWeight, readScaleLabel, resolveEmbeddedBarcode,
+  scaleLayoutSettings, singleReading, switchedLayoutSettings, switchedLayoutsEnabled, type ScaleBarcodeLayout,
 } from '../lib/barcode/embeddedBarcode';
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -174,8 +174,14 @@ function ScaleLabelPreset({ onApply }: { onApply: (kind: 'weight' | 'price', lay
 // read it right, the label's own check digits usually say which layout the
 // scale prints, and one press fills the fields in.
 type ApplyLayout = (kind: 'weight' | 'price', layout: ScaleBarcodeLayout, flag: string) => void;
+type ReadAs = (kind: 'weight' | 'price', flag?: string) => void;
 
-function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknown>; onApply: ApplyLayout }) {
+function ScaleLabelTest({ settings, onApply, onReadAs }: {
+  settings: Record<string, unknown>;
+  onApply: ApplyLayout;
+  /** Read the scale's labels the other way round: their digits a price, not a weight, or back. */
+  onReadAs: ReadAs;
+}) {
   const user = useAuthStore((s) => s.user);
   const { format: formatCurrency } = useCurrencyStore();
   const [code, setCode] = useState('');
@@ -190,10 +196,35 @@ function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknow
   const decoded = label?.decoded;
   const product = label?.product;
   const line = decoded && product ? embeddedCartLine(decoded, parseFloat(product.selling_price), settings) : null;
+  const applyButton = 'px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md';
+  // The label read another way. A scale switched from printing the weight in
+  // its barcode to printing the price (or back) keeps its layout: its new
+  // labels still read, wrongly, as the old kind. Or it gives them a flag of
+  // their own, which nothing reads yet.
+  const alt: { kind: 'weight' | 'price'; flag?: string } | null =
+    decoded && product && !label?.layout ? { kind: decoded.kind === 'weight' ? 'price' : 'weight' }
+    : !label && trimmed && !isLoading && layoutEnabled(settings, 'barcode_weight') ? { kind: 'price', flag: trimmed.slice(0, layoutFlag(settings, 'weight').length) }
+    : null;
+  const altSettings = alt ? { ...settings, ...switchedLayoutSettings(settings, alt.kind, alt.flag), ...switchedLayoutsEnabled(settings, alt.kind, alt.flag) } : null;
+  const altLabel = altSettings ? resolveEmbeddedBarcode(trimmed, altSettings, products) : null;
+  const altLine = altLabel?.product && altSettings ? embeddedCartLine(altLabel.decoded, parseFloat(altLabel.product.selling_price), altSettings) : null;
+  const altNote = alt && altLabel?.product && altLine ? (
+    <div className="flex flex-wrap items-center gap-2 text-gray-500">
+      <span>
+        {alt.flag
+          ? `Starts with ${alt.flag}: a scale label with a price in its barcode, under a flag of its own?`
+          : `Label prints ${alt.kind === 'price' ? 'a price' : 'a weight'} in its barcode instead?`}
+        {' '}Read that way, it's {altLabel.decoded.kind === 'price' ? formatCurrency(altLabel.decoded.value) : `${altLabel.decoded.value.toFixed(3)} kg`}
+        {' '}({altLabel.product.name}{altLine.soldByWeight ? `, ${altLine.qty.toFixed(3)} kg` : ''} = {formatCurrency((altLine.price ?? parseFloat(altLabel.product.selling_price)) * altLine.qty)}).
+      </span>
+      <button type="button" className={applyButton} onClick={() => onReadAs(alt.kind, alt.flag)}>
+        Read {alt.flag ? `${alt.flag} labels` : 'labels'} as {alt.kind === 'price' ? 'prices' : 'weights'}
+      </button>
+    </div>
+  ) : null;
   // What the label says by itself, for when the fields above don't get to a product.
   const reading = trimmed && !isLoading && !product ? singleReading(readScaleLabel(trimmed, products)) : null;
   const layoutName = (l: ScaleBarcodeLayout) => <>layout {l.spec} (<span className="font-mono">{l.pattern}</span>)</>;
-  const applyButton = 'px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md';
 
   return (
     <div className="border-t border-gray-100 pt-5">
@@ -225,6 +256,7 @@ function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknow
                 {line.soldByWeight ? `, ${line.qty.toFixed(3)} kg` : ''}
                 {' = '}{formatCurrency((line.price ?? parseFloat(product.selling_price)) * line.qty)}
               </p>
+              {altNote}
               {label?.layout && (
                 <div className="flex flex-wrap items-center gap-2 text-amber-700">
                   <span>Read from the label's own check digits as {layoutName(label.layout)} — the positions above don't match this label.</span>
@@ -257,6 +289,11 @@ function ScaleLabelTest({ settings, onApply }: { settings: Record<string, unknow
             <p className="text-red-600">
               No product has PLU Code {normalizePlu(decoded.pluCode)} yet — tick Sold by weight on the product's page and set its PLU Code to {normalizePlu(decoded.pluCode)}.
             </p>
+          ) : altNote ? (
+            <div className="space-y-1">
+              <p className="text-gray-700">Not read with the settings above.</p>
+              {altNote}
+            </div>
           ) : (
             <p className="text-red-600">
               Not recognised with the settings above{/^\d{2,}$/.test(trimmed) ? ` — this barcode starts with ${trimmed.slice(0, 2)}` : ''}. Check the flag and layout, that the matching toggle is on, and that the item has a PLU Code.
@@ -346,6 +383,26 @@ const { isLoading } = useQuery({
       barcode_price_enabled: kind === 'price' || (!clash && t.barcode_price_enabled),
     }));
     toast.success('Filled in — scan a label to check it, then Save Changes');
+  };
+
+  // The scale now prints the price in its barcode instead of the weight (or
+  // back), in the same layout: the other layout takes its positions, under
+  // the same flag (that layout then goes off, as it would be read first) or
+  // the new labels' own (both stay on, so labels already printed still read).
+  const readLabelsAs: ReadAs = (kind, flag) => {
+    const all = { ...values, ...toggles };
+    const fromFlag = layoutFlag(all, kind === 'price' ? 'weight' : 'price');
+    const onOff = switchedLayoutsEnabled(all, kind, flag);
+    setValues(v => ({ ...v, ...switchedLayoutSettings(all, kind, flag) }));
+    setToggles(t => ({ ...t, ...onOff }));
+    const what = (k: 'weight' | 'price') => (k === 'price' ? 'prices' : 'weights');
+    const old = kind === 'price' ? 'weight' : 'price';
+    toast.success(
+      (kind === 'price' ? onOff.barcode_weight_enabled : onOff.barcode_price_enabled)
+        ? `Labels starting ${flag} will be read as ${what(kind)}, and those starting ${fromFlag} still as ${what(old)}, once you Save Changes.`
+        : `Labels starting ${fromFlag} will be read as ${what(kind)} once you Save Changes. Packs already labelled with a ${old} would ring up wrong, so re-label them.`,
+      { duration: 8000 },
+    );
   };
 
   // Opened from Hardware › Receipt's link: go straight to Receipts & Invoices.
@@ -603,6 +660,7 @@ const { isLoading } = useQuery({
                   </select>
                   <p className="text-xs text-gray-400 mt-1">
                     How the scale rounds the total it prints, so the till charges the same. A label that prints 2.15 for 0.362 kg at 6.00/kg (2.172) rounds to 0.05 — if the till rings such labels up a few cents off, pick the rounding here. Nearest and Down only differ on a label where kg × price ends in 3, 4, 8 or 9 cents: 2.18 prints 2.20 when it's Nearest, 2.15 when it's Down.
+                    Price labels (below) need none: the till charges exactly what they print.
                   </p>
                 </div>
               </div>
@@ -627,9 +685,15 @@ const { isLoading } = useQuery({
                 <DigitField label="Decimal Point" value={values.barcode_price_decimal_point} onChange={set('barcode_price_decimal_point')} placeholder="2" />
               </div>
             )}
+            {priceLabelsReadAsWeight({ ...values, ...toggles }) && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">
+                Labels starting {values.barcode_weight_prefix || '20'} are read as weights first (Random Weight Barcodes, above), so none is read as a price.
+                Give the scale's price labels their own flag, or switch Random Weight Barcodes off.
+              </p>
+            )}
           </div>
 
-          <ScaleLabelTest settings={{ ...values, ...toggles }} onApply={applyScaleLayout} />
+          <ScaleLabelTest settings={{ ...values, ...toggles }} onApply={applyScaleLayout} onReadAs={readLabelsAs} />
         </div>
       </div>
 

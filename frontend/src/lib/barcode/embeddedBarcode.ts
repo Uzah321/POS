@@ -229,7 +229,11 @@ export const DIGI_SM110_LAYOUTS: ScaleBarcodeLayout[] = [
 ];
 
 /** The Settings → Barcodes values that decode one scale layout — prices in cents (2 decimals), weights in grams (3 decimals of a kg). */
-export function scaleLayoutSettings(layout: ScaleBarcodeLayout, flag: string, kind: 'weight' | 'price'): Record<string, string> {
+export function scaleLayoutSettings(
+  layout: Pick<ScaleBarcodeLayout, 'codePosition' | 'codeLength' | 'valuePosition' | 'valueLength'>,
+  flag: string,
+  kind: 'weight' | 'price',
+): Record<string, string> {
   const key = kind === 'weight' ? 'barcode_weight' : 'barcode_price';
   const valueKey = kind === 'weight' ? 'qty' : 'value';
   return {
@@ -240,6 +244,49 @@ export function scaleLayoutSettings(layout: ScaleBarcodeLayout, flag: string, ki
     [`${key}_${valueKey}_length`]: String(layout.valueLength),
     [`${key}_decimal_point`]: kind === 'weight' ? '3' : '2',
   };
+}
+
+/**
+ * The Settings → Barcodes values that read the labels the other layout reads
+ * now, the other way round: the same flag and positions, with the digits a
+ * price (in cents) instead of a weight (in grams), or back. A scale switched
+ * from printing the weight in its barcode to printing the price keeps its
+ * layout, so this is all the till needs. `flag` is for a scale that gives the
+ * new labels a flag of their own, so both kinds can be read side by side.
+ */
+export function switchedLayoutSettings(settings: Record<string, unknown>, to: 'weight' | 'price', flag?: string): Record<string, string> {
+  const from = readSpec(settings, to === 'price' ? 'barcode_weight' : 'barcode_price');
+  return scaleLayoutSettings(from, flag ?? from.prefix, to);
+}
+
+/** The flag a layout reads (its default when left blank). */
+export function layoutFlag(settings: Record<string, unknown>, kind: 'weight' | 'price'): string {
+  return readSpec(settings, kind === 'weight' ? 'barcode_weight' : 'barcode_price').prefix;
+}
+
+/**
+ * Both layouts on or off once switchedLayoutSettings() reads the labels as
+ * `kind`. The layout they're moved from stays on only when the new labels
+ * have a flag of their own: under the same flag one of the two would always
+ * be read first.
+ */
+export function switchedLayoutsEnabled(settings: Record<string, unknown>, kind: 'weight' | 'price', flag?: string) {
+  const fromFlag = layoutFlag(settings, kind === 'price' ? 'weight' : 'price');
+  const newFlag = flag ?? fromFlag;
+  const clash = newFlag.startsWith(fromFlag) || fromFlag.startsWith(newFlag);
+  const fromOn = !clash && layoutEnabled(settings, kind === 'price' ? 'barcode_weight' : 'barcode_price');
+  return { barcode_weight_enabled: kind === 'weight' || fromOn, barcode_price_enabled: kind === 'price' || fromOn };
+}
+
+/**
+ * Both layouts are on, and every label with the price layout's flag also has
+ * the weight layout's. Weight is tried first, so no label is ever read as a
+ * price: 00185 for $1.85 rings up as 0.185 kg.
+ */
+export function priceLabelsReadAsWeight(settings: Record<string, unknown>): boolean {
+  const weight = readSpec(settings, 'barcode_weight');
+  const price = readSpec(settings, 'barcode_price');
+  return weight.enabled && price.enabled && price.prefix.startsWith(weight.prefix);
 }
 
 // EAN-13's own check digit (the last one) — proves the scan wasn't misread.

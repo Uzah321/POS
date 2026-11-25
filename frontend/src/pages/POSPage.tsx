@@ -18,6 +18,7 @@ import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, type ScaleDevice } from '../lib/hardware/scale';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
+import { SaleRefKeeper } from '../lib/saleRef';
 import { effectiveTaxRate } from '../lib/taxSettings';
 import NumericKeypad from '../components/ui/NumericKeypad';
 import OnScreenKeyboard from '../components/ui/OnScreenKeyboard';
@@ -596,9 +597,15 @@ export default function POSPage() {
     return true;
   };
 
+  // One name per sale (client_ref): a resend of a sale the server already
+  // saved gets that sale back instead of a second one — see lib/saleRef.ts.
+  const [saleRefs] = useState(() => new SaleRefKeeper());
+
   const saleMutation = useMutation({
     mutationFn: (payload: object) => offlineMutate(() => salesApi.create(payload), 'sales', 'create', payload as Record<string, unknown>),
     onSuccess: (result, variables) => {
+      // Saved, or queued with its name to send later: the next sale is a new one.
+      saleRefs.done();
       // offlineMutate wraps the response: result.data is the axios response, its .data the body, the body's .data the sale.
       const sale = (result as any).data?.data?.data;
       const snap = saleSnapshotRef.current;
@@ -1094,7 +1101,8 @@ export default function POSPage() {
     setSplitPayments([]);
     setIsSplitPayment(false);
 
-    saleMutation.mutate(salePayload);
+    // A retry of an order put back after an error keeps its name (same payload).
+    saleMutation.mutate({ ...salePayload, client_ref: saleRefs.refFor(salePayload) });
   };
 
   const handleAddToTab = () => {

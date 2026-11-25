@@ -14,6 +14,7 @@ import { broadcastCart } from '../lib/hardware/customerDisplay';
 import { useScaleReading, getScaleReading, toKg, ensureScalesAutoConnected, useConnectedScaleCount, type ScaleDevice } from '../lib/hardware/scale';
 import { db } from '../lib/db';
 import { offlineMutate } from '../lib/offlineMutation';
+import { SaleRefKeeper } from '../lib/saleRef';
 import { effectiveTaxRate } from '../lib/taxSettings';
 import { useServerHealth, isLocalServer } from '../hooks/useServerHealth';
 import CashNotesPad from '../components/ui/CashNotesPad';
@@ -374,9 +375,18 @@ export default function CashierPage() {
   };
 
   // ── Sale mutation ────────────────────────────────────────────────────────────
+  // One name per sale (client_ref): a resend of a sale the server already
+  // saved gets that sale back instead of a second one — see lib/saleRef.ts.
+  const [saleRefs] = useState(() => new SaleRefKeeper());
+  // Set the moment Process is pressed, before isPending has re-rendered, so a
+  // second tap or Enter in the same instant can't send the sale again.
+  const submittingRef = useRef(false);
+
   const saleMutation = useMutation({
     mutationFn: (payload: object) => offlineMutate(() => salesApi.create(payload), 'sales', 'create', payload as Record<string, unknown>),
     onSuccess: (result, variables) => {
+      // Saved, or queued with its name to send later: the next sale is a new one.
+      saleRefs.done();
       // offlineMutate wraps the response: result.data is the axios response, its .data the body, the body's .data the sale.
       const sale = (result as any).data?.data?.data;
 
@@ -532,6 +542,7 @@ export default function CashierPage() {
   });
 
   const handleProcessSale = () => {
+    if (submittingRef.current || saleMutation.isPending) return; // already on its way
     if (cart.items.length === 0) return;
     if (payMethod === 'cash' && (!cashTendered || parseFloat(cashTendered) < totalDue)) {
       toast.error('Enter cash amount — must cover the total');
@@ -543,7 +554,12 @@ export default function CashierPage() {
     // answered recently — offlineMutate() queues it locally and syncs
     // automatically once the server responds, so the cashier should never
     // be stopped from completing a transaction.
-    saleMutation.mutate(buildSalePayload());
+    const payload = buildSalePayload();
+    submittingRef.current = true;
+    saleMutation.mutate(
+      { ...payload, client_ref: saleRefs.refFor(payload) },
+      { onSettled: () => { submittingRef.current = false; } },
+    );
   };
 
   const handleHoldOrder = () => {
@@ -998,7 +1014,8 @@ export default function CashierPage() {
                   formatAmount={fmtActive}
                   confirmLabel={change > 0 ? `✓  Change: ${fmtActive(change)}` : '✓ Process Sale'}
                   confirmCls={canProcess ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600' : 'bg-gray-200 text-gray-400 border-gray-200'}
-                  disabled={cart.items.length === 0}
+                  // Locked while the sale saves: tapping Process again sent it twice (Focus, 23 Nov: one $127.65 sale saved 3 times).
+                  disabled={cart.items.length === 0 || saleMutation.isPending}
                 />
               </div>
             )}

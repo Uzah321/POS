@@ -15,6 +15,7 @@ use App\Models\EndOfDay;
 use App\Models\RestaurantTable;
 use App\Models\ShiftEnd;
 use App\Services\Zimra\FiscalSubmissionService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -170,7 +171,17 @@ class SaleController extends BaseApiController
             'order_type'     => 'nullable|string|max:20',
             'status'         => 'nullable|in:open',
             'is_offline'     => 'boolean',
+            // The till's own name for this sale, the same on every resend.
+            'client_ref'     => 'nullable|string|max:64',
         ]);
+
+        // A resend of a sale that's already saved — its first reply was lost
+        // (dropped connection, or the till stopped waiting), so the till
+        // queued it and tried again. Answer with that sale, not a second one.
+        $clientRef = $data['client_ref'] ?? null;
+        if ($clientRef && ($existing = Sale::where('client_ref', $clientRef)->first())) {
+            return $this->alreadyRecorded($existing);
+        }
 
         if (! $this->mayDiscount($request, $data)) {
             return $this->error(self::NO_DISCOUNT, 403);
@@ -196,7 +207,7 @@ class SaleController extends BaseApiController
         }
 
         try {
-            $result = DB::transaction(function () use ($data, $request) {
+            $result = DB::transaction(function () use ($data, $request, $clientRef) {
             // Products keyed by id, with each one's tax rate preloaded — used both for
             // per-item tax calculation below and cost price lookup further down.
             $productIds  = collect($data['items'])->pluck('product_id')->unique();
@@ -260,6 +271,7 @@ class SaleController extends BaseApiController
                 'waiter_id'       => $data['waiter_id'] ?? null,
                 'order_type'      => $data['order_type'] ?? null,
                 'is_offline'      => $data['is_offline'] ?? false,
+                'client_ref'      => $clientRef,
                 'completed_at'    => $isOpenTab ? null : now(),
                 // Only sales containing a "Made on Order" product go to the kitchen/queue displays.
                 'kds_status'      => collect($data['items'])->contains(
@@ -318,6 +330,15 @@ class SaleController extends BaseApiController
 
             return [$sale, $fiscalReceipt];
             });
+        } catch (UniqueConstraintViolationException $e) {
+            // Two copies of one sale arrived together: the other one saved it
+            // while this one was on its way (the unique client_ref held this
+            // insert until that one committed). Same answer as a resend.
+            $existing = $clientRef ? Sale::where('client_ref', $clientRef)->first() : null;
+            if (! $existing) {
+                throw $e;
+            }
+            return $this->alreadyRecorded($existing);
         } catch (\RuntimeException $e) {
             return $this->error($e->getMessage(), 422);
         }
@@ -426,6 +447,19 @@ class SaleController extends BaseApiController
 
             return $this->success($sale->fresh(), 'Sale cancelled successfully');
         });
+    }
+
+    /**
+     * The answer to a resent sale (same client_ref): the one already saved,
+     * shaped like store()'s reply so the till prints and files it as usual.
+     * 200, not 201 — nothing new was made.
+     */
+    private function alreadyRecorded(Sale $sale): \Illuminate\Http\JsonResponse
+    {
+        $payload = $sale->load('items.product', 'payments', 'customer', 'cashier', 'branch', 'table', 'waiter')->toArray();
+        $payload['fiscal_receipt'] = app(FiscalSubmissionService::class)->summary($sale->goFiscalReceipt ?? $sale->fiscalReceipt);
+
+        return $this->success($payload, 'Sale already recorded');
     }
 
     public function receipt(Sale $sale): \Illuminate\Http\JsonResponse

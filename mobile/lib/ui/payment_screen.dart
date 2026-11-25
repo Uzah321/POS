@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../core/api.dart';
@@ -16,6 +18,16 @@ const _methods = [
   ('mobile_money', 'Mobile money', Icons.phone_android),
 ];
 
+/// A random v4 UUID: the sale's own name (client_ref), see _PaymentScreenState._saleRef.
+String _newSaleRef() {
+  final r = Random.secure();
+  final b = List<int>.generate(16, (_) => r.nextInt(256));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+  return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
+}
+
 /// How the customer pays, how much cash they handed over, and the sale goes through.
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -28,6 +40,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String _method = 'cash';
   String _tendered = '';
   bool _busy = false;
+
+  /// This sale's name, the same on every try from this screen. When a reply
+  /// is lost (timeout, dropped line) the sale may already be saved; trying
+  /// again sends the same name and the server answers with that sale rather
+  /// than saving a second one.
+  final String _saleRef = _newSaleRef();
 
   double get _due => double.parse(AppState.I.toActive(Cart.I.total).toStringAsFixed(2));
   double? get _cash => double.tryParse(_tendered);
@@ -73,6 +91,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         {'method': _method, 'amount': cart.total},
       ],
       'discount_value': 0,
+      'client_ref': _saleRef,
     };
     try {
       final body = await s.api.post('/sales', body: payload, timeout: const Duration(seconds: 60));
@@ -93,12 +112,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
       if (!mounted) return;
       setState(() => _busy = false);
+      // No answer, or the server broke mid-way: the sale may be saved already.
+      // Trying again from here is safe either way (same _saleRef).
+      final unsure = e.status == null || e.status! >= 500;
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           icon: const Icon(Icons.error_outline, color: kRed, size: 36),
           title: const Text('The sale did not go through'),
-          content: Text('${e.message}\n\nNothing was charged. The sale is still here — try again.', style: const TextStyle(fontSize: 15)),
+          content: Text(
+              unsure
+                  ? '${e.message}\n\nThe sale is still here — tap Complete sale again. If it already went through, it won\'t be recorded twice.'
+                  : '${e.message}\n\nNothing was charged. The sale is still here — try again.',
+              style: const TextStyle(fontSize: 15)),
           actions: [FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(80, 44)), onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
       );

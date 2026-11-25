@@ -31,7 +31,7 @@ class Sale extends Model
         'subtotal', 'discount_amount', 'tax_amount', 'total', 'amount_paid', 'change_due',
         'discount_type', 'discount_value', 'coupon_code', 'notes', 'is_offline', 'completed_at',
         'table_number', 'order_type', 'table_id', 'waiter_id',
-        'voided_by', 'voided_at', 'void_reason',
+        'voided_by', 'voided_at', 'void_reason', 'client_ref',
     ];
 
     protected $casts = [

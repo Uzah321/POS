@@ -86,7 +86,31 @@ export interface RejectedMutation {
   error: string;
 }
 
-export async function syncPendingMutations(): Promise<{ synced: number; failed: number; rejected: RejectedMutation[] }> {
+type SyncResult = { synced: number; failed: number; rejected: RejectedMutation[] };
+
+let replaying = false;
+
+export async function syncPendingMutations(): Promise<SyncResult> {
+  // One pass at a time. A pass can outlast the 20s poll (on a bad line each
+  // resend waits up to the 15s timeout), the poll restarts when the page
+  // mounts, and every open tab polls the same queue — overlapping passes
+  // sent one queued sale several times at once. Web Locks covers other tabs
+  // where the page is secure (https, localhost); `replaying` covers this tab.
+  if (replaying) return { synced: 0, failed: 0, rejected: [] };
+  replaying = true;
+  try {
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    if (locks?.request) {
+      return await locks.request('core-pending-mutations', { ifAvailable: true }, (lock) =>
+        lock ? replayQueue() : { synced: 0, failed: 0, rejected: [] });
+    }
+    return await replayQueue();
+  } finally {
+    replaying = false;
+  }
+}
+
+async function replayQueue(): Promise<SyncResult> {
   // `queuedAt` isn't part of the Dexie index (only `id`/`resource` are), so
   // .orderBy('queuedAt') throws a SchemaError — sort in memory instead.
   const queued = (await db.pendingMutations.toArray()).sort((a, b) => a.queuedAt - b.queuedAt);

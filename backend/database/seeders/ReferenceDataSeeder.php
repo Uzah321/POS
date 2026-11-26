@@ -22,7 +22,8 @@ class ReferenceDataSeeder extends Seeder
         // Tax rates — only when there are none (a factory reset keeps the
         // ones ZIMRA's tax mappings point at)
         if (TaxRate::count() === 0) {
-            TaxRate::create(['name' => 'Standard VAT (15%)', 'rate' => 15, 'is_default' => true, 'is_active' => true]);
+            // Zimbabwe's standard rate since 1 Jan 2025, as ZIMRA's devices have it.
+            TaxRate::create(['name' => 'Standard VAT (15.5%)', 'rate' => 15.5, 'is_default' => true, 'is_active' => true]);
             TaxRate::create(['name' => 'Zero Rated (0%)', 'rate' => 0, 'is_default' => false, 'is_active' => true]);
         }
 

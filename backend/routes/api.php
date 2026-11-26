@@ -292,6 +292,11 @@ Route::middleware(['auth:sanctum', 'license'])->group(function () {
     // non-secret keys — see SettingController::PUBLIC_KEYS); saving isn't.
     Route::get('/settings', [\App\Http\Controllers\Api\SettingController::class, 'index']);
     Route::middleware('permission:manage_settings')->group(function () {
+        // The same as GET /settings, for the Settings page: the service worker
+        // keeps a copy of /settings for a till that's offline, and hands that
+        // back when the line is slow — the page must show what's saved now.
+        Route::get('/settings/current', [\App\Http\Controllers\Api\SettingController::class, 'index']);
+        Route::get('/settings/zimra-vat', [\App\Http\Controllers\Api\SettingController::class, 'zimraVat']);
         Route::post('/settings', [\App\Http\Controllers\Api\SettingController::class, 'update']);
     });
 

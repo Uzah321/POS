@@ -160,6 +160,10 @@ export const usersApi = {
 
 export const settingsApi = {
   get: () => api.get('/settings'),
+  // For the Settings page: what's saved now, never the service worker's offline copy.
+  current: () => api.get('/settings/current'),
+  zimraVat: () => api.get('/settings/zimra-vat'),
+  // Send only the settings to change; the others stay as they are.
   update: (data: object) => api.post('/settings', data),
 };
 

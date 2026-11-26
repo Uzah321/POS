@@ -120,7 +120,10 @@ async function replayQueue(): Promise<SyncResult> {
 
   for (const m of queued) {
     const { _url, _method, ...body } = (m.payload ?? {}) as Record<string, unknown> & ReplayMeta;
-    if (!_url) {
+    // A Settings save queued by an older version holds the whole page as it
+    // was then: sent now, it would put back everything changed since (Enable
+    // Tax turned itself off). Settings are only saved online now.
+    if (!_url || m.resource === 'settings') {
       await db.pendingMutations.delete(m.id);
       continue;
     }

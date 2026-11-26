@@ -51,7 +51,7 @@ class FactoryResetTest extends TestCase
         $branchId = DB::table('branches')->insertGetId(['name' => 'Fiscal Branch', 'code' => 'FIS', 'currency' => 'USD', 'is_main' => false, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $registerId = DB::table('registers')->insertGetId(['branch_id' => $branchId, 'name' => 'Till 1', 'created_at' => now(), 'updated_at' => now()]);
         $deviceId = DB::table('fiscal_devices')->insertGetId(['register_id' => $registerId, 'next_receipt_global_no' => 42, 'created_at' => now(), 'updated_at' => now()]);
-        $taxRateId = DB::table('tax_rates')->where('rate', 15)->value('id');
+        $taxRateId = DB::table('tax_rates')->where('is_default', true)->value('id');
         DB::table('fiscal_tax_mappings')->insert(['fiscal_device_id' => $deviceId, 'zimra_tax_id' => 1, 'tax_name' => 'VAT', 'valid_from' => now()->toDateString(), 'local_tax_rate_id' => $taxRateId, 'created_at' => now(), 'updated_at' => now()]);
         $dayId = DB::table('fiscal_days')->insertGetId(['fiscal_device_id' => $deviceId, 'fiscal_day_no' => 7, 'opened_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
         DB::table('fiscal_receipts')->insert([

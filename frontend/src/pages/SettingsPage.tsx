@@ -1,9 +1,8 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
 import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale, Image as ImageIcon, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { offlineMutate } from '../lib/offlineMutation';
 import { fetchAllProducts } from '../lib/productSearch';
 import FiscalisationPanel from '../components/FiscalisationPanel';
 import ReceiptOptionsCard from '../components/ReceiptOptionsCard';
@@ -305,83 +304,127 @@ function ScaleLabelTest({ settings, onApply, onReadAs }: {
   );
 }
 
+const isOn = (v: unknown) => v === true || v === 'true';
+const isNotOff = (v: unknown) => v !== false && v !== 'false';
+
+/** The page's switches as the settings have them (a missing one at its default). */
+function readToggles(s: Record<string, unknown>) {
+  return {
+    tax_enabled: isOn(s.tax_enabled),
+    loyalty_enabled: isOn(s.loyalty_enabled),
+    multi_currency_enabled: isOn(s.multi_currency_enabled),
+    receipt_auto_print: isOn(s.receipt_auto_print),
+    low_stock_alerts: isNotOff(s.low_stock_alerts),
+    require_table_number: isOn(s.require_table_number),
+    block_negative_stock: isNotOff(s.block_negative_stock),
+    barcode_weight_enabled: layoutEnabled(s, 'barcode_weight'),
+    barcode_price_enabled: layoutEnabled(s, 'barcode_price'),
+  };
+}
+
+const NO_SETTINGS: Record<string, string> = {};
+
 export default function SettingsPage() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [toggles, setToggles] = useState({
-    tax_enabled: false,
-    loyalty_enabled: false,
-    multi_currency_enabled: true,
-    receipt_auto_print: false,
-    low_stock_alerts: true,
-    require_table_number: false,
-    block_negative_stock: true,
-    barcode_weight_enabled: true,
-    barcode_price_enabled: false,
+  // What's saved on the server, read afresh every time the page opens. The
+  // form used to be filled only when this page's own fetch ran: opened within
+  // 30 s of another screen reading settings, it showed every switch at its
+  // default (Enable Tax off, no Tax Rate), and Save wrote those back. Not the
+  // service worker's copy either (/settings/current isn't kept): on a slow
+  // line that's an old one.
+  const settingsQuery = useQuery({
+    queryKey: ['settings', 'current'],
+    queryFn: () => settingsApi.current().then((r) => (r.data?.data || {}) as Record<string, string>),
+    refetchOnMount: 'always',
   });
-  // Settings > Receipts & Invoices: on/off per settings key, all on until loaded.
-  const [receiptShow, setReceiptShow] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(RECEIPT_OPTIONS.map((o) => [o.setting, true])),
+  const saved = settingsQuery.data ?? NO_SETTINGS;
+  const [openedAt] = useState(() => Date.now());
+  const loaded = settingsQuery.dataUpdatedAt >= openedAt;
+
+  // Only what's been changed on this page: all a save sends, so it can't put
+  // back a setting changed elsewhere meanwhile, and a refetch in the
+  // background (back to this tab, say) doesn't lose it.
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const values = useMemo<Record<string, string>>(() => ({ ...saved, ...edits }), [saved, edits]);
+  const toggles = useMemo(() => readToggles(values), [values]);
+  // Settings > Receipts & Invoices: on/off per settings key, on unless saved off.
+  const receiptShow = useMemo<Record<string, boolean>>(
+    () => Object.fromEntries(RECEIPT_OPTIONS.map((o) => [o.setting, isNotOff(values[o.setting])])),
+    [values],
   );
-const { isLoading } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => settingsApi.get().then(r => {
-      const data = r.data?.data || {};
-      setValues(data);
-      setToggles(prev => ({
-        ...prev,
-        multi_currency_enabled: data.multi_currency_enabled === 'true' || data.multi_currency_enabled === true,
-        tax_enabled: data.tax_enabled === 'true' || data.tax_enabled === true,
-        loyalty_enabled: data.loyalty_enabled === 'true' || data.loyalty_enabled === true,
-        receipt_auto_print: data.receipt_auto_print === 'true' || data.receipt_auto_print === true,
-        low_stock_alerts: data.low_stock_alerts !== 'false' && data.low_stock_alerts !== false,
-        require_table_number: data.require_table_number === 'true' || data.require_table_number === true,
-        block_negative_stock: data.block_negative_stock !== 'false' && data.block_negative_stock !== false,
-        barcode_weight_enabled: layoutEnabled(data, 'barcode_weight'),
-        barcode_price_enabled: layoutEnabled(data, 'barcode_price'),
-      }));
-      setReceiptShow(Object.fromEntries(RECEIPT_OPTIONS.map((o) => [o.setting, data[o.setting] !== 'false' && data[o.setting] !== false])));
-      return data;
-    }),
+  const edit = (changes: Record<string, string | boolean>) =>
+    setEdits((e) => ({ ...e, ...Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, String(v)])) }));
+
+  // ZIMRA's standard VAT rate on this store's fiscal device(s), if it has one.
+  const { data: zimraRates = [] } = useQuery({
+    queryKey: ['zimra-vat-rates'],
+    queryFn: () => settingsApi.zimraVat().then((r) => (r.data?.data?.rates ?? []) as number[]),
+    staleTime: 5 * 60 * 1000,
+  });
+  const zimraRateText = zimraRates.map((r) => `${r}%`).join(' or ');
+  const taxRateNow = parseFloat(String(values.tax_rate ?? '').replace(',', '.'));
+  const taxRateMatchesZimra = zimraRates.some((r) => Math.abs(r - taxRateNow) < 0.0001);
+
+  // The changes, plus any switch the server has never had: it shows its
+  // default here, and saving it means every till reads the same.
+  const changesToSave = (): Record<string, string> => ({
+    ...Object.fromEntries(
+      [...Object.entries(toggles), ...Object.entries(receiptShow)]
+        .filter(([k]) => saved[k] == null || saved[k] === '')
+        .map(([k, v]) => [k, String(v)]),
+    ),
+    ...edits,
   });
 
+  // Online only. A save queued offline used to replay the whole page as it
+  // was then, putting back anything changed since.
   const mutation = useMutation({
-    mutationFn: () => {
-      const payload = {
-        ...values,
-        ...Object.fromEntries(Object.entries(toggles).map(([k, v]) => [k, v.toString()])),
-        ...Object.fromEntries(Object.entries(receiptShow).map(([k, v]) => [k, v.toString()])),
-      };
-      return offlineMutate(() => settingsApi.update(payload), 'settings', 'update', { _url: '/settings', _method: 'POST', ...payload });
-    },
-    onSuccess: (result) => {
-      if (result.offline) toast.success('Settings saved offline - will sync when server is back');
-      else toast.success('Settings saved successfully');
-      // Every page that reads settings (POS, Cashier, Dashboard, etc.) shares
-      // this same cached query — without invalidating it here, a saved change
-      // like the tile color theme sat invisible on those screens for up to
-      // the global 5-minute staleTime, or until something else happened to
-      // refetch it.
+    mutationFn: (changes: Record<string, string>) => settingsApi.update(changes),
+    onSuccess: (res, changes) => {
+      toast.success('Settings saved');
+      const stored = (res.data?.data ?? changes) as Record<string, string>;
+      qc.setQueryData<Record<string, string>>(['settings', 'current'], (old) => ({ ...(old ?? {}), ...stored }));
+      // Anything changed again while this was saving stays to be saved.
+      setEdits((e) => Object.fromEntries(Object.entries(e).filter(([k, v]) => changes[k] !== v)));
+      // Every page that reads settings (POS, Cashier, Dashboard, etc.) —
+      // refetched now rather than after its staleTime.
       qc.invalidateQueries({ queryKey: ['settings'] });
     },
+    onError: (err: unknown) => {
+      const response = (err as { response?: { data?: { message?: string } } } | null)?.response;
+      toast.error(
+        response
+          ? (response.data?.message ?? 'Settings were not saved')
+          : "Couldn't reach the server, so nothing was saved. Check the connection and Save again.",
+        { duration: 8000 },
+      );
+    },
   });
 
+  const save = () => {
+    const changes = changesToSave();
+    if (Object.keys(changes).length === 0) {
+      toast('Nothing has changed');
+      return;
+    }
+    mutation.mutate(changes);
+  };
+
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setValues(v => ({ ...v, [key]: e.target.value }));
+    edit({ [key]: e.target.value });
 
   const applyScaleLayout = (kind: 'weight' | 'price', layout: ScaleBarcodeLayout, flag: string) => {
-    setValues(v => ({ ...v, ...scaleLayoutSettings(layout, flag, kind) }));
     // Two formats can't share a flag — weight is tried first when decoding,
     // so it would swallow every price label. Switch the other one off if its
     // flag overlaps.
     const otherPrefix = String(values[kind === 'weight' ? 'barcode_price_prefix' : 'barcode_weight_prefix'] ?? '');
     const clash = otherPrefix !== '' && (otherPrefix.startsWith(flag) || flag.startsWith(otherPrefix));
-    setToggles(t => ({
-      ...t,
-      barcode_weight_enabled: kind === 'weight' || (!clash && t.barcode_weight_enabled),
-      barcode_price_enabled: kind === 'price' || (!clash && t.barcode_price_enabled),
-    }));
+    edit({
+      ...scaleLayoutSettings(layout, flag, kind),
+      barcode_weight_enabled: kind === 'weight' || (!clash && toggles.barcode_weight_enabled),
+      barcode_price_enabled: kind === 'price' || (!clash && toggles.barcode_price_enabled),
+    });
     toast.success('Filled in — scan a label to check it, then Save Changes');
   };
 
@@ -393,8 +436,7 @@ const { isLoading } = useQuery({
     const all = { ...values, ...toggles };
     const fromFlag = layoutFlag(all, kind === 'price' ? 'weight' : 'price');
     const onOff = switchedLayoutsEnabled(all, kind, flag);
-    setValues(v => ({ ...v, ...switchedLayoutSettings(all, kind, flag) }));
-    setToggles(t => ({ ...t, ...onOff }));
+    edit({ ...switchedLayoutSettings(all, kind, flag), ...onOff });
     const what = (k: 'weight' | 'price') => (k === 'price' ? 'prices' : 'weights');
     const old = kind === 'price' ? 'weight' : 'price';
     toast.success(
@@ -407,12 +449,26 @@ const { isLoading } = useQuery({
 
   // Opened from Hardware › Receipt's link: go straight to Receipts & Invoices.
   useEffect(() => {
-    if (!isLoading && window.location.hash === '#receipts') {
+    if (loaded && window.location.hash === '#receipts') {
       document.getElementById('receipts')?.scrollIntoView({ block: 'start' });
     }
-  }, [isLoading]);
+  }, [loaded]);
 
-  if (isLoading) return (
+  if (!loaded && settingsQuery.isError && !settingsQuery.isFetching) return (
+    <div className="max-w-xl rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+      <p className="font-semibold">Couldn't load your settings</p>
+      <p className="mt-1">The server didn't answer, so they can't be shown or changed right now. Check the connection and try again.</p>
+      <button
+        type="button"
+        onClick={() => settingsQuery.refetch()}
+        className="mt-4 rounded-md bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+      >
+        Try again
+      </button>
+    </div>
+  );
+
+  if (!loaded) return (
     <div className="flex justify-center py-16">
       <Loader2 size={28} className="animate-spin text-blue-500" />
     </div>
@@ -427,7 +483,7 @@ const { isLoading } = useQuery({
         </div>
         <button
           type="button"
-          onClick={() => mutation.mutate()}
+          onClick={save}
           disabled={mutation.isPending}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors disabled:opacity-60"
         >
@@ -451,7 +507,7 @@ const { isLoading } = useQuery({
               <input value={values.company_name ?? ''} onChange={set('company_name')} placeholder="Core" className={field} />
             </div>
             <div className="sm:col-span-2">
-              <CompanyLogoField value={values.company_logo} onChange={(logo) => setValues(v => ({ ...v, company_logo: logo }))} />
+              <CompanyLogoField value={values.company_logo} onChange={(logo) => edit({ company_logo: logo })} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number</label>
@@ -475,7 +531,23 @@ const { isLoading } = useQuery({
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tax Rate (%)</label>
-              <input type="number" step="0.1" value={values.tax_rate ?? ''} onChange={set('tax_rate')} placeholder="15" className={field} />
+              <input type="number" step="any" min="0" max="100" inputMode="decimal" value={values.tax_rate ?? ''} onChange={set('tax_rate')} placeholder="15.5" className={field} />
+              {zimraRates.length > 0 && (
+                !toggles.tax_enabled ? (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    Enable Tax (Register Preferences) is off, so fiscal receipts go to ZIMRA zero-rated, at 0%. Your fiscal device's standard rate is {zimraRateText}.
+                  </p>
+                ) : taxRateMatchesZimra ? (
+                  <p className="mt-1.5 text-xs text-green-700">The same as the standard rate on your ZIMRA fiscal device.</p>
+                ) : (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    Your fiscal device records VAT with ZIMRA at {zimraRateText}.{' '}
+                    <button type="button" onClick={() => edit({ tax_rate: String(zimraRates[0]) })} className="font-semibold underline">
+                      Use {zimraRates[0]}%
+                    </button>
+                  </p>
+                )
+              )}
             </div>
           </div>
 
@@ -508,19 +580,19 @@ const { isLoading } = useQuery({
             label="Enable Tax"
             description="Work out the VAT inside your prices on every sale, for the receipt's VAT breakdown, reports and fiscal receipts. Prices already include VAT, so totals don't change."
             checked={toggles.tax_enabled}
-            onChange={(v) => setToggles(t => ({ ...t, tax_enabled: v }))}
+            onChange={(v) => edit({ tax_enabled: v })}
           />
           <ToggleRow
             label="Loyalty Points"
             description="Allow customers to earn and redeem points"
             checked={toggles.loyalty_enabled}
-            onChange={(v) => setToggles(t => ({ ...t, loyalty_enabled: v }))}
+            onChange={(v) => edit({ loyalty_enabled: v })}
           />
           <ToggleRow
             label="Multi-Currency"
             description="Support multiple currencies at checkout"
             checked={toggles.multi_currency_enabled}
-            onChange={(v) => setToggles(t => ({ ...t, multi_currency_enabled: v }))}
+            onChange={(v) => edit({ multi_currency_enabled: v })}
           />
           <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">Receipt Printing</p>
@@ -530,7 +602,7 @@ const { isLoading } = useQuery({
             label="Require Table Number"
             description="Enforce table selection on the Register page"
             checked={toggles.require_table_number}
-            onChange={(v) => setToggles(t => ({ ...t, require_table_number: v }))}
+            onChange={(v) => edit({ require_table_number: v })}
           />
 
           {/* POS Tile Colour Theme */}
@@ -551,7 +623,7 @@ const { isLoading } = useQuery({
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setValues(v => ({ ...v, pos_tile_theme: key }))}
+                    onClick={() => edit({ pos_tile_theme: key })}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 transition-all text-left touch-manipulation ${
                       active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
@@ -584,13 +656,13 @@ const { isLoading } = useQuery({
             label="Low Stock Alerts"
             description="Show alerts when items fall below reorder point"
             checked={toggles.low_stock_alerts}
-            onChange={(v) => setToggles(t => ({ ...t, low_stock_alerts: v }))}
+            onChange={(v) => edit({ low_stock_alerts: v })}
           />
           <ToggleRow
             label="Block Sales of Out-of-Stock Items"
             description="Prevent selling products when stock is zero or negative. Disable to allow selling regardless of stock level."
             checked={toggles.block_negative_stock}
-            onChange={(v) => setToggles(t => ({ ...t, block_negative_stock: v }))}
+            onChange={(v) => edit({ block_negative_stock: v })}
           />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Default Low Stock Threshold</label>
@@ -608,8 +680,8 @@ const { isLoading } = useQuery({
       <ReceiptOptionsCard
         values={values}
         show={receiptShow}
-        onShowChange={(setting, on) => setReceiptShow((s) => ({ ...s, [setting]: on }))}
-        onFooterChange={(footer) => setValues((v) => ({ ...v, receipt_footer: footer }))}
+        onShowChange={(setting, on) => edit({ [setting]: on })}
+        onFooterChange={(footer) => edit({ receipt_footer: footer })}
         userName={user?.name}
         taxEnabled={toggles.tax_enabled}
       />
@@ -639,7 +711,7 @@ const { isLoading } = useQuery({
               label="Random Weight Barcodes"
               description="A barcode starting with the prefix below encodes a PLU code and a weight"
               checked={toggles.barcode_weight_enabled}
-              onChange={(v) => setToggles(t => ({ ...t, barcode_weight_enabled: v }))}
+              onChange={(v) => edit({ barcode_weight_enabled: v })}
             />
             {toggles.barcode_weight_enabled && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
@@ -673,7 +745,7 @@ const { isLoading } = useQuery({
               label="Random Price Barcodes"
               description="A barcode starting with the prefix below encodes a PLU code and a price"
               checked={toggles.barcode_price_enabled}
-              onChange={(v) => setToggles(t => ({ ...t, barcode_price_enabled: v }))}
+              onChange={(v) => edit({ barcode_price_enabled: v })}
             />
             {toggles.barcode_price_enabled && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">

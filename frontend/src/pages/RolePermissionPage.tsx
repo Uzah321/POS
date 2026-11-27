@@ -172,9 +172,14 @@ export default function RolePermissionPage() {
                         const checked = rolePerms.has(perm);
                         const verb = perm.split('_')[0];
                         return (
+                          // `relative` keeps the hidden (sr-only, absolutely
+                          // placed) checkbox inside its chip. Without it each
+                          // one was placed against the whole browser page, and
+                          // those low on the list made the window itself
+                          // scroll: a second scrollbar, top bar scrolling away.
                           <label
                             key={perm}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs font-medium transition-colors ${
+                            className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs font-medium transition-colors ${
                               checked
                                 ? 'bg-blue-50 border-blue-200 text-blue-700'
                                 : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'

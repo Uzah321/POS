@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api';
-import { Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale, Image as ImageIcon, Trash2 } from 'lucide-react';
+import {
+  Loader2, Save, Building2, ShoppingCart, Package, Landmark, Barcode, Scale, Image as ImageIcon, Trash2, Percent, Receipt as ReceiptIcon,
+  type LucideIcon,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchAllProducts } from '../lib/productSearch';
 import FiscalisationPanel from '../components/FiscalisationPanel';
 import ReceiptOptionsCard from '../components/ReceiptOptionsCard';
+import { useLocation } from 'react-router-dom';
+import PageTabs from '../components/PageTabs';
+import { rememberTab, tabFromHash } from '../lib/pageTabs';
 import { RECEIPT_OPTIONS } from '../lib/receiptOptions';
 import { useAuthStore } from '../stores/authStore';
 import { useCurrencyStore } from '../stores/currencyStore';
@@ -20,7 +26,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
+      className={`relative w-11 h-6 flex-shrink-0 rounded-full transition-colors focus:outline-none ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
     >
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
@@ -29,7 +35,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 function ToggleRow({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+    <div className="flex items-center justify-between gap-4 py-4 border-b border-gray-50 last:border-0">
       <div>
         <p className="text-sm font-semibold text-gray-900">{label}</p>
         <p className="text-xs text-gray-400 mt-0.5">{description}</p>
@@ -40,6 +46,37 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
 }
 
 const field = 'w-full border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-colors';
+
+/** One card of settings, under a heading. */
+function Section({ icon: Icon, title, bodyClassName = 'p-6', children }: { icon: LucideIcon; title: string; bodyClassName?: string; children: ReactNode }) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+          <Icon size={16} className="text-blue-600" />
+        </div>
+        <h2 className="font-semibold text-gray-900">{title}</h2>
+      </div>
+      <div className={bodyClassName}>{children}</div>
+    </div>
+  );
+}
+
+// The page's tabs. Their key is also the #hash that opens one
+// (Hardware links to /settings#receipts).
+const SETTINGS_TABS = ['business', 'tax', 'register', 'inventory', 'receipts', 'barcodes'] as const;
+type SettingsTab = typeof SETTINGS_TABS[number];
+
+/** The tab a setting is changed on, to mark tabs with changes not saved yet. */
+function tabOf(key: string): SettingsTab | undefined {
+  if (key === 'tax_enabled' || key === 'tax_rate') return 'tax';
+  if (key.startsWith('company_')) return 'business';
+  if (key.startsWith('barcode_')) return 'barcodes';
+  if (['low_stock_alerts', 'block_negative_stock', 'low_stock_threshold'].includes(key)) return 'inventory';
+  if (['loyalty_enabled', 'multi_currency_enabled', 'require_table_number', 'pos_tile_theme', 'receipt_auto_print'].includes(key)) return 'register';
+  if (key.startsWith('receipt_')) return 'receipts';
+  return undefined;
+}
 
 // The company logo for receipts / tax invoices and quotation and purchase
 // order PDFs. Held with the other fields until Save Changes.
@@ -356,6 +393,29 @@ export default function SettingsPage() {
   const edit = (changes: Record<string, string | boolean>) =>
     setEdits((e) => ({ ...e, ...Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, String(v)])) }));
 
+  // One tab at a time. Changes on every tab are kept until Save Changes,
+  // which saves them all; a dot marks each tab that has some.
+  const [tab, setTab] = useState<SettingsTab>(() => tabFromHash(SETTINGS_TABS) ?? 'business');
+  // A link to one of the tabs (/settings#receipts) followed while the page is open.
+  // (A hash-only change keeps the location's key, so both are watched.)
+  const location = useLocation();
+  const here = `${location.key}${location.hash}`;
+  const [seenLocation, setSeenLocation] = useState(here);
+  if (here !== seenLocation) {
+    setSeenLocation(here);
+    const linked = SETTINGS_TABS.find((k) => `#${k}` === location.hash);
+    if (linked) setTab(linked);
+  }
+  const openTab = (next: SettingsTab) => {
+    setTab(next);
+    rememberTab(next);
+  };
+  const unsavedTabs = useMemo(() => new Set(
+    Object.entries(edits)
+      .filter(([k, v]) => String(saved[k] ?? '') !== v)
+      .map(([k]) => tabOf(k)),
+  ), [edits, saved]);
+
   // ZIMRA's standard VAT rate on this store's fiscal device(s), if it has one.
   const { data: zimraRates = [] } = useQuery({
     queryKey: ['zimra-vat-rates'],
@@ -447,13 +507,6 @@ export default function SettingsPage() {
     );
   };
 
-  // Opened from Hardware › Receipt's link: go straight to Receipts & Invoices.
-  useEffect(() => {
-    if (loaded && window.location.hash === '#receipts') {
-      document.getElementById('receipts')?.scrollIntoView({ block: 'start' });
-    }
-  }, [loaded]);
-
   if (!loaded && settingsQuery.isError && !settingsQuery.isFetching) return (
     <div className="max-w-xl rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
       <p className="font-semibold">Couldn't load your settings</p>
@@ -481,26 +534,36 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-400 text-sm mt-0.5">Configure your Core</p>
         </div>
-        <button
-          type="button"
-          onClick={save}
-          disabled={mutation.isPending}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors disabled:opacity-60"
-        >
-          {mutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-          Save Changes
-        </button>
+        <div className="flex items-center gap-3">
+          {unsavedTabs.size > 0 && <span className="text-xs font-medium text-amber-700">Changes not saved yet</span>}
+          <button
+            type="button"
+            onClick={save}
+            disabled={mutation.isPending}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-md text-sm shadow-md shadow-blue-100 transition-colors disabled:opacity-60"
+          >
+            {mutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Save Changes
+          </button>
+        </div>
       </div>
 
-      {/* Business Profile */}
-      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Building2 size={16} className="text-blue-600" />
-          </div>
-          <h2 className="font-semibold text-gray-900">Business Profile</h2>
-        </div>
-        <div className="p-6 space-y-4">
+      <PageTabs
+        label="Settings"
+        active={tab}
+        onChange={openTab}
+        tabs={[
+          { key: 'business', label: 'Business', icon: Building2 },
+          { key: 'tax', label: 'Tax & ZIMRA', icon: Landmark },
+          { key: 'register', label: 'Register', icon: ShoppingCart },
+          { key: 'inventory', label: 'Inventory', icon: Package },
+          { key: 'receipts', label: 'Receipts', icon: ReceiptIcon },
+          { key: 'barcodes', label: 'Barcodes', icon: Barcode },
+        ].map((t) => ({ ...t, key: t.key as SettingsTab, unsaved: unsavedTabs.has(t.key as SettingsTab) }))}
+      />
+
+      {tab === 'business' && (
+        <Section icon={Building2} title="Business Profile">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Name</label>
@@ -529,13 +592,26 @@ export default function SettingsPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">TIN Number</label>
               <input value={values.company_tin_number ?? ''} onChange={set('company_tin_number')} placeholder="2000231759" className={field} />
             </div>
-            <div>
+          </div>
+        </Section>
+      )}
+
+      {tab === 'tax' && (
+        <>
+          <Section icon={Percent} title="Tax" bodyClassName="px-6 py-2">
+            <ToggleRow
+              label="Enable Tax"
+              description="Work out the VAT inside your prices on every sale, for the receipt's VAT breakdown, reports and fiscal receipts. Prices already include VAT, so totals don't change."
+              checked={toggles.tax_enabled}
+              onChange={(v) => edit({ tax_enabled: v })}
+            />
+            <div className="py-4">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tax Rate (%)</label>
-              <input type="number" step="any" min="0" max="100" inputMode="decimal" value={values.tax_rate ?? ''} onChange={set('tax_rate')} placeholder="15.5" className={field} />
+              <input type="number" step="any" min="0" max="100" inputMode="decimal" value={values.tax_rate ?? ''} onChange={set('tax_rate')} placeholder="15.5" className={`${field} sm:max-w-xs`} />
               {zimraRates.length > 0 && (
                 !toggles.tax_enabled ? (
                   <p className="mt-1.5 text-xs text-amber-700">
-                    Enable Tax (Register Preferences) is off, so fiscal receipts go to ZIMRA zero-rated, at 0%. Your fiscal device's standard rate is {zimraRateText}.
+                    Enable Tax is off, so fiscal receipts go to ZIMRA zero-rated, at 0%. Your fiscal device's standard rate is {zimraRateText}.
                   </p>
                 ) : taxRateMatchesZimra ? (
                   <p className="mt-1.5 text-xs text-green-700">The same as the standard rate on your ZIMRA fiscal device.</p>
@@ -549,39 +625,16 @@ export default function SettingsPage() {
                 )
               )}
             </div>
-          </div>
+          </Section>
 
-        </div>
-      </div>
+          <Section icon={Landmark} title="ZIMRA Fiscalisation">
+            <FiscalisationPanel />
+          </Section>
+        </>
+      )}
 
-      {/* ZIMRA Fiscalisation */}
-      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Landmark size={16} className="text-blue-600" />
-          </div>
-          <h2 className="font-semibold text-gray-900">ZIMRA Fiscalisation</h2>
-        </div>
-        <div className="p-6">
-          <FiscalisationPanel />
-        </div>
-      </div>
-
-      {/* Register Preferences */}
-      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-            <ShoppingCart size={16} className="text-blue-600" />
-          </div>
-          <h2 className="font-semibold text-gray-900">Register Preferences</h2>
-        </div>
-        <div className="px-6 py-2">
-          <ToggleRow
-            label="Enable Tax"
-            description="Work out the VAT inside your prices on every sale, for the receipt's VAT breakdown, reports and fiscal receipts. Prices already include VAT, so totals don't change."
-            checked={toggles.tax_enabled}
-            onChange={(v) => edit({ tax_enabled: v })}
-          />
+      {tab === 'register' && (
+        <Section icon={ShoppingCart} title="Register Preferences" bodyClassName="px-6 py-2">
           <ToggleRow
             label="Loyalty Points"
             description="Allow customers to earn and redeem points"
@@ -606,7 +659,7 @@ export default function SettingsPage() {
           />
 
           {/* POS Tile Colour Theme */}
-          <div className="py-4 border-b border-gray-50">
+          <div className="py-4">
             <p className="text-sm font-semibold text-gray-900 mb-0.5">Product Tile Colour Theme</p>
             <p className="text-xs text-gray-400 mb-3">Choose the colour scheme for product tiles on the Advanced POS register.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -640,18 +693,11 @@ export default function SettingsPage() {
               })}
             </div>
           </div>
-        </div>
-      </div>
+        </Section>
+      )}
 
-      {/* Inventory Settings */}
-      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Package size={16} className="text-blue-600" />
-          </div>
-          <h2 className="font-semibold text-gray-900">Inventory Settings</h2>
-        </div>
-        <div className="p-6 space-y-4">
+      {tab === 'inventory' && (
+        <Section icon={Package} title="Inventory Settings" bodyClassName="p-6 space-y-4">
           <ToggleRow
             label="Low Stock Alerts"
             description="Show alerts when items fall below reorder point"
@@ -674,29 +720,25 @@ export default function SettingsPage() {
               className="w-full max-w-xs border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
             />
           </div>
-        </div>
-      </div>
+        </Section>
+      )}
 
-      <ReceiptOptionsCard
-        values={values}
-        show={receiptShow}
-        onShowChange={(setting, on) => edit({ [setting]: on })}
-        onFooterChange={(footer) => edit({ receipt_footer: footer })}
-        userName={user?.name}
-        taxEnabled={toggles.tax_enabled}
-      />
+      {tab === 'receipts' && (
+        <ReceiptOptionsCard
+          values={values}
+          show={receiptShow}
+          onShowChange={(setting, on) => edit({ [setting]: on })}
+          onFooterChange={(footer) => edit({ receipt_footer: footer })}
+          userName={user?.name}
+          taxEnabled={toggles.tax_enabled}
+        />
+      )}
 
       {/* Barcodes — embedded weight/price barcodes, the convention a scale
           uses to print a barcode whose digits encode a PLU code plus a
           weight or price, instead of the barcode being a literal SKU. */}
-      <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Barcode size={16} className="text-blue-600" />
-          </div>
-          <h2 className="font-semibold text-gray-900">Barcodes</h2>
-        </div>
-        <div className="p-6 space-y-6">
+      {tab === 'barcodes' && (
+        <Section icon={Barcode} title="Barcodes" bodyClassName="p-6 space-y-6">
           <p className="text-xs text-gray-400 -mt-2">
             For a scale that prints barcodes with a weight or price embedded in the digits, instead of a literal product barcode. Give each sold-by-weight product a PLU Code (on its product page) matching what the scale encodes.
             Random Weight Barcodes are on from the start, set for the counter scale's labels: flag 20, and the item's 3-digit PLU Code from digit 4 (label 2001085010869 is item 108). A product's own barcode still wins if it also starts with the flag.
@@ -766,9 +808,8 @@ export default function SettingsPage() {
           </div>
 
           <ScaleLabelTest settings={{ ...values, ...toggles }} onApply={applyScaleLayout} onReadAs={readLabelsAs} />
-        </div>
-      </div>
-
+        </Section>
+      )}
     </div>
   );
 }
